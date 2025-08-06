@@ -1,0 +1,25 @@
+#Global configuration
+#spring.profiles.active=setYourProfileName
+
+#False for dev mod only
+spring.thymeleaf.cache=true 
+
+#Tomcat configuration
+server.port=9002
+ 
+#Log level configuration
+logging.level.fr.ses10doigts==INFO
+  
+#Mysql Config
+spring.jpa.hibernate.ddl-auto=update
+spring.datasource.username=setYourDBUserName
+spring.datasource.password=setYourDBPassword
+
+#Telegram bot
+fr.ses10doigts.crawler.botToken=token...
+fr.ses10doigts.crawler.botUsername=botname...
+
+
+
+
+

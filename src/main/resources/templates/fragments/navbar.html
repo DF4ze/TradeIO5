@@ -1,0 +1,12 @@
+
+<div th:fragment="navbar">
+<ul>  
+	<li th:if="${loggued}"><a href="/api/auth/signoutForm" class="nav-link scrollto"><i class="bi bi-gear-wide-connected"></i> <span>Se déconnecter</span></a></li>
+	<li th:if="${loggued}"></li>
+	<li th:if="${loggued}"></li>
+
+	<li><a href="/"><span th:if='${page.equals("home")}'>=> </span>Home</a></li>
+	<li><a href="/user"><span th:if='${page.equals("user")}'>=> </span>Connected user</a></li>
+	<li><a href="/admin"><span th:if='${page.equals("admin")}'>=> </span>Administrator Page</a></li>
+</ul>
+</div>
