@@ -25,7 +25,7 @@ import org.hibernate.annotations.ParamDef;
 @AllArgsConstructor
 @Builder
 @Table(name = "api_credentials",
-		uniqueConstraints = @UniqueConstraint(columnNames = { "user_id", "exchange_id" }))
+		uniqueConstraints = @UniqueConstraint(name = "uk_credential_user_provider", columnNames = { "user_id", "provider_id" }))
 @FilterDef(name = "enabledFilter", parameters = @ParamDef(name = "isEnabled", type = Boolean.class))
 @Filter(name = "enabledFilter", condition = "enabled = :isEnabled")
 public class ApiCredential {
@@ -38,7 +38,7 @@ public class ApiCredential {
     private User user;
 
 	@ManyToOne(optional = false)
-	private Exchange exchange;
+	private Provider provider;
 
     @Column(nullable = false)
     private String apiKey;

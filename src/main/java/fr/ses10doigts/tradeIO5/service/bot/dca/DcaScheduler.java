@@ -2,7 +2,7 @@ package fr.ses10doigts.tradeIO5.service.bot.dca;
 
 import fr.ses10doigts.tradeIO5.model.dto.bot.DcaSettings;
 import fr.ses10doigts.tradeIO5.repository.DcaSettingsRepository;
-import fr.ses10doigts.tradeIO5.service.connector.ExchangeApiService;
+import fr.ses10doigts.tradeIO5.service.connector.ProviderApiService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -14,9 +14,9 @@ public class DcaScheduler {
 
     // Injection d'un repository ou d'un client d'exchange
     private final DcaSettingsRepository dcaRepository;
-    private final ExchangeApiService exchangeService;
+    private final ProviderApiService exchangeService;
 
-    public DcaScheduler(DcaSettingsRepository dcaRepository, ExchangeApiService exchangeService) {
+    public DcaScheduler(DcaSettingsRepository dcaRepository, ProviderApiService exchangeService) {
         this.dcaRepository = dcaRepository;
         this.exchangeService = exchangeService;
     }

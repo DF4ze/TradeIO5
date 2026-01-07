@@ -13,18 +13,15 @@ import fr.ses10doigts.tradeIO5.service.WalletService;
 import org.springframework.stereotype.Service;
 
 import fr.ses10doigts.tradeIO5.model.dto.AssetOverview;
-import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
 import fr.ses10doigts.tradeIO5.service.TransactionService;
-import fr.ses10doigts.tradeIO5.service.connector.ApiCredentialService;
-import fr.ses10doigts.tradeIO5.service.connector.ExchangeApiService;
-import fr.ses10doigts.tradeIO5.service.connector.apiclient.ExchangeApiClient;
+import fr.ses10doigts.tradeIO5.service.connector.ProviderApiService;
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class AssetOverviewService {
 
-	private final ExchangeApiService apiService;
+	private final ProviderApiService apiService;
 	private final TransactionService transactionService;
 	private final WalletService walletService;
 

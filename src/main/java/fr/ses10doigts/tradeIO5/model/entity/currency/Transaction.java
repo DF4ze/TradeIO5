@@ -3,7 +3,7 @@ package fr.ses10doigts.tradeIO5.model.entity.currency;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-import fr.ses10doigts.tradeIO5.model.entity.exchange.Exchange;
+import fr.ses10doigts.tradeIO5.model.entity.exchange.Provider;
 import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import jakarta.persistence.Column;
@@ -24,7 +24,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "transaction", uniqueConstraints = { @UniqueConstraint(columnNames = { "external_transaction_id" }) })
+@Table(name = "transaction", uniqueConstraints = { @UniqueConstraint(name="uk_transaction_ext_id",columnNames = { "external_transaction_id" }) })
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -47,7 +47,7 @@ public class Transaction {
 	// Relation avec l'exchange
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "exchange_id", nullable = false)
-	private Exchange exchange;
+	private Provider provider; // FIXME : Est nécessaire?
 
 	// L'asset de la position (ex: BTC)
 	@Column(name = "asset", nullable = false, length = 20)

@@ -4,7 +4,6 @@ package fr.ses10doigts.tradeIO5.service.connector;
 import java.util.List;
 
 import fr.ses10doigts.tradeIO5.exceptions.NotFoundException;
-import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import org.springframework.stereotype.Service;
 
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
@@ -30,7 +29,7 @@ public class ApiCredentialService {
 	}
 */
 	public ApiCredential getFromExchangeAndUser(String exchangeCode, User user) throws NotFoundException {
-		return apiCredentialRepository.findByUserAndExchange_CodeAndExchange_EnabledTrueAndEnabledTrue(user, exchangeCode)
+		return apiCredentialRepository.findByUserAndEnabledTrueAndProvider_CodeAndProvider_EnabledTrue(user, exchangeCode)
             .orElseThrow(() -> new NotFoundException(
                 "No enabled API credential found for user " + user.getUsername() + " and exchange " + exchangeCode));
     }

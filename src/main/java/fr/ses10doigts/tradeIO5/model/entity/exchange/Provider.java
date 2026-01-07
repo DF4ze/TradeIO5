@@ -2,13 +2,8 @@ package fr.ses10doigts.tradeIO5.model.entity.exchange;
 
 import java.time.LocalDateTime;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import fr.ses10doigts.tradeIO5.model.enumerate.ProviderCode;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,17 +17,18 @@ import org.hibernate.annotations.ParamDef;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Table(name = "exchange", uniqueConstraints = @UniqueConstraint(columnNames = "code"))
+@Table(name = "provider", uniqueConstraints = @UniqueConstraint(name = "uk_provider_code", columnNames = "code"))
 @FilterDef(name = "enabledFilter", parameters = @ParamDef(name = "isEnabled", type = Boolean.class))
 @Filter(name = "enabledFilter", condition = "enabled = :isEnabled")
-public class Exchange {
+public class Provider {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30, unique = true)
-    private String code; // ex: "BINANCE", "KRAKEN"
+    private ProviderCode code; // ex: "BINANCE", "KRAKEN"
 
     @Column(nullable = false, length = 100)
     private String name; // ex: "Binance Global", "Kraken Exchange"

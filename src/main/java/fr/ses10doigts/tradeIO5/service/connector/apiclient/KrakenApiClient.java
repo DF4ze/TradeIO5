@@ -3,8 +3,8 @@ package fr.ses10doigts.tradeIO5.service.connector.apiclient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import fr.ses10doigts.tradeIO5.model.dto.TradeDto;
-import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
+import fr.ses10doigts.tradeIO5.model.enumerate.ProviderCode;
 import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceCacheManager;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceProvider;
@@ -12,7 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -30,7 +29,7 @@ import java.util.stream.Collectors;
 
 
 @Component
-public class KrakenApiClient implements ExchangeApiClient, BalanceProvider {
+public class KrakenApiClient implements ProviderApiClient, BalanceProvider {
     private static final Logger logger = LoggerFactory.getLogger(KrakenApiClient.class);
 
     private final BalanceCacheManager balanceCacheManager;
@@ -48,8 +47,8 @@ public class KrakenApiClient implements ExchangeApiClient, BalanceProvider {
     }
 
     @Override
-    public String getExchangeCode() {
-        return "KRAKEN";
+    public ProviderCode getProviderCode() {
+        return ProviderCode.KRAKEN;
     }
 
     @Override
@@ -60,7 +59,7 @@ public class KrakenApiClient implements ExchangeApiClient, BalanceProvider {
 
     @Override
     public Map<String, BigDecimal> getAllBalances(ApiCredential credential) {
-        return balanceCacheManager.getBalances(credential.getApiKey() + ":" + credential.getExchange().getApiBaseUrl(),
+        return balanceCacheManager.getBalances(credential.getApiKey() + ":" + credential.getProvider().getApiBaseUrl(),
                 this, credential);
     }
 

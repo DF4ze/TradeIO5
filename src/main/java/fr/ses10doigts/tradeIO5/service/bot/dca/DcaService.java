@@ -6,7 +6,7 @@ import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.enumerate.bot.Action;
 import fr.ses10doigts.tradeIO5.model.enumerate.bot.DcaStrategyType;
 import fr.ses10doigts.tradeIO5.service.bot.dca.strategy.*;
-import fr.ses10doigts.tradeIO5.service.connector.ExchangeApiService;
+import fr.ses10doigts.tradeIO5.service.connector.ProviderApiService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class DcaService {
     private final Logger logger = LoggerFactory.getLogger(DcaService.class);
 
-    private final ExchangeApiService exchangeService; // Service pour exécuter les ordres
+    private final ProviderApiService exchangeService; // Service pour exécuter les ordres
     private final List<DcaStrategy> strategies;
 
     /**

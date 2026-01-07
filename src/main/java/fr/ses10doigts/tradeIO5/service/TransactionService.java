@@ -1,6 +1,5 @@
 package fr.ses10doigts.tradeIO5.service;
 
-import fr.ses10doigts.tradeIO5.exceptions.NotFoundException;
 import fr.ses10doigts.tradeIO5.model.dto.TradeDto;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Transaction;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
@@ -8,16 +7,13 @@ import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
 import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
 import fr.ses10doigts.tradeIO5.repository.TransactionRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
-import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.connector.ApiCredentialService;
-import fr.ses10doigts.tradeIO5.service.connector.ExchangeApiService;
-import fr.ses10doigts.tradeIO5.service.connector.apiclient.ExchangeApiClient;
+import fr.ses10doigts.tradeIO5.service.connector.ProviderApiService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.Hibernate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -32,7 +28,7 @@ public class TransactionService {
 	private final Logger logger = LoggerFactory.getLogger(TransactionService.class);
 
     private final TransactionRepository repository;
-	private final ExchangeApiService apiClientService;
+	private final ProviderApiService apiClientService;
 	private final ApiCredentialService apiCredentialService;
 
 
@@ -54,8 +50,8 @@ public class TransactionService {
 
 
 	public BigDecimal getWeightedAverageBuyPrice(String asset, Wallet wallet) {
-		List<Transaction> transactions = repository.findByAssetAndUserAndExchangeAndSide(asset, wallet.getUser(),
-				wallet.getExchange(), TradeSide.BUY);
+		List<Transaction> transactions = repository.findByAssetAndUserAndProviderAndSide(asset, wallet.getUser(),
+				wallet.getProvider(), TradeSide.BUY);
 
 		BigDecimal totalValue = BigDecimal.ZERO;
 		BigDecimal totalQuantity = BigDecimal.ZERO;
@@ -71,8 +67,8 @@ public class TransactionService {
 
 
 	public BigDecimal getWeightedAverageSellPrice(String asset, Wallet wallet) {
-		List<Transaction> transactions = repository.findByAssetAndUserAndExchangeAndSide(asset, wallet.getUser(),
-				wallet.getExchange(), TradeSide.SELL);
+		List<Transaction> transactions = repository.findByAssetAndUserAndProviderAndSide(asset, wallet.getUser(),
+				wallet.getProvider(), TradeSide.SELL);
 
 		BigDecimal totalValue = BigDecimal.ZERO;
 		BigDecimal totalQuantity = BigDecimal.ZERO;
@@ -89,8 +85,8 @@ public class TransactionService {
 
 
 	public BigDecimal getTotalBuyValue(String asset, Wallet wallet) {
-		List<Transaction> transactions = repository.findByAssetAndUserAndExchangeAndSide(asset, wallet.getUser(),
-				wallet.getExchange(), TradeSide.BUY);
+		List<Transaction> transactions = repository.findByAssetAndUserAndProviderAndSide(asset, wallet.getUser(),
+				wallet.getProvider(), TradeSide.BUY);
 
 		return transactions.stream().map(p -> p.getQuantity().multiply(p.getPrice())).reduce(BigDecimal.ZERO,
 				BigDecimal::add);
@@ -98,8 +94,8 @@ public class TransactionService {
 
 
 	public BigDecimal getTotalSellValue(String asset, Wallet wallet) {
-		List<Transaction> transactions = repository.findByAssetAndUserAndExchangeAndSide(asset, wallet.getUser(),
-				wallet.getExchange(), TradeSide.SELL);
+		List<Transaction> transactions = repository.findByAssetAndUserAndProviderAndSide(asset, wallet.getUser(),
+				wallet.getProvider(), TradeSide.SELL);
 
 		return transactions.stream().map(p -> p.getQuantity().abs().multiply(p.getPrice())).reduce(BigDecimal.ZERO,
 				BigDecimal::add);
@@ -107,11 +103,11 @@ public class TransactionService {
 
 
 	public BigDecimal getNetQuantity(String asset, Wallet wallet) {
-		List<Transaction> buyTransactions = repository.findByAssetAndUserAndExchangeAndSide(asset, wallet.getUser(),
-				wallet.getExchange(), TradeSide.BUY);
+		List<Transaction> buyTransactions = repository.findByAssetAndUserAndProviderAndSide(asset, wallet.getUser(),
+				wallet.getProvider(), TradeSide.BUY);
 
-		List<Transaction> sellTransactions = repository.findByAssetAndUserAndExchangeAndSide(asset, wallet.getUser(),
-				wallet.getExchange(), TradeSide.SELL);
+		List<Transaction> sellTransactions = repository.findByAssetAndUserAndProviderAndSide(asset, wallet.getUser(),
+				wallet.getProvider(), TradeSide.SELL);
 
 		BigDecimal totalBuyQty = buyTransactions.stream()
 				.map(Transaction::getQuantity)
@@ -167,7 +163,7 @@ public class TransactionService {
 				}
 			}
 
-			Optional<LocalDateTime> lastSync = repository.findLastTransactionDateByUserAndExchange(credential.getUser(), credential.getExchange());
+			Optional<LocalDateTime> lastSync = repository.findLastTransactionDateByUserAndProvider(credential.getUser(), credential.getProvider());
 
 			List<TradeDto> trades;
 
@@ -191,7 +187,7 @@ public class TransactionService {
 			logger.info("✅ Incremental sync completed: {} new positions imported", inserted);
 
 		} catch (Exception e) {
-			logger.error("❌ Error during incremental sync for user={} exchange={}", credential.getUser().getUsername(), credential.getExchange().getCode(), e);
+			logger.error("❌ Error during incremental sync for user={} exchange={}", credential.getUser().getUsername(), credential.getProvider().getCode(), e);
 			throw new RuntimeException("Incremental sync failed", e);
 		}
 	}
@@ -204,7 +200,7 @@ public class TransactionService {
 
 		transaction.setExternalTransactionId(trade.getTradeId());
 		transaction.setUser(wallet.getUser());
-		transaction.setExchange(wallet.getExchange());
+		transaction.setProvider(wallet.getProvider());
 		transaction.setWallet(wallet);
 		transaction.setAsset(trade.getAsset());
 		transaction.setQuantity(trade.getQuantity());

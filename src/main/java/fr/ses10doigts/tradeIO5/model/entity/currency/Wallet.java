@@ -5,7 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
-import fr.ses10doigts.tradeIO5.model.entity.exchange.Exchange;
+import fr.ses10doigts.tradeIO5.model.entity.exchange.Provider;
+import fr.ses10doigts.tradeIO5.model.enumerate.ProviderCode;
 import fr.ses10doigts.tradeIO5.model.enumerate.WalletSource;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import jakarta.persistence.*;
@@ -19,7 +20,7 @@ import org.hibernate.annotations.ParamDef;
 @Entity
 @Table(name = "wallet",
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = {"user_id", "name"})
+                @UniqueConstraint(name = "uk_wallet_user_name", columnNames = {"user_id", "name"})
         })
 @FilterDef(name = "enabledFilter", parameters = @ParamDef(name = "isEnabled", type = Boolean.class))
 @Filter(name = "enabledFilter", condition = "enabled = :isEnabled")
@@ -40,12 +41,13 @@ public class Wallet {
     private WalletSource source;
 
     // Code interne pour identifier la source spécifique (ex: BINANCE, KRAKEN, LEDGER, METAMASK…)
+    @Enumerated(EnumType.STRING)
     @Column(length = 50)
-    private String providerCode;
+    private ProviderCode providerCode;
 
     @ManyToOne
     @JoinColumn(name = "exchange_id")
-    private Exchange exchange;
+    private Provider provider;
 
     @ManyToOne
     @JoinColumn(name = "credential_id")

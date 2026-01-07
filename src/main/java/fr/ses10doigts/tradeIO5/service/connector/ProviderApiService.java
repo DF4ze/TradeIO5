@@ -13,29 +13,27 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
-import fr.ses10doigts.tradeIO5.repository.ApiCredentialRepository;
-import fr.ses10doigts.tradeIO5.security.model.User;
-import fr.ses10doigts.tradeIO5.service.connector.apiclient.ExchangeApiClient;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.ProviderApiClient;
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class ExchangeApiService {
-    private final Logger logger = LoggerFactory.getLogger(ExchangeApiService.class);
+public class ProviderApiService {
+    private final Logger logger = LoggerFactory.getLogger(ProviderApiService.class);
 
-    private final List<ExchangeApiClient> clients;
+    private final List<ProviderApiClient> clients;
 
-    private ExchangeApiClient getClient(Wallet wallet) {
+    private ProviderApiClient getClient(Wallet wallet) {
         //logger.debug(" {} clients : {}", clients.size(), clients);
         return clients.stream()
-            .filter(c -> c.getExchangeCode().equalsIgnoreCase(wallet.getProviderCode()))
+            .filter(c -> c.getProviderCode() == wallet.getProviderCode())
             .findFirst()
             .orElseThrow(() -> new IllegalArgumentException("Exchange inconnu : " + wallet.getProviderCode()));
     }
 
     public BigDecimal getUserBalance(Wallet wallet, String assetSymbol) {
 
-        ExchangeApiClient client = getClient(wallet);
+        ProviderApiClient client = getClient(wallet);
 
 		return client.getBalance(assetSymbol, wallet.getCredential());
     }
@@ -49,23 +47,23 @@ public class ExchangeApiService {
     }
 
     public Map<String, BigDecimal> getAllBalances(Wallet wallet) {
-        ExchangeApiClient client = getClient(wallet);
+        ProviderApiClient client = getClient(wallet);
         return client.getAllBalances(wallet.getCredential());
     }
 
     public BigDecimal getMarketPrice(Wallet wallet, String asset, String quoteCurrency) {
-        ExchangeApiClient client = getClient(wallet);
+        ProviderApiClient client = getClient(wallet);
         return client.getMarketPrice(asset, quoteCurrency, wallet.getCredential());
     }
 
     public List<TradeDto> getTradesSince(Wallet wallet, LocalDateTime localDateTime, Set<String> pairs) {
-        ExchangeApiClient client = getClient(wallet);
+        ProviderApiClient client = getClient(wallet);
         return client.getTradesSince(localDateTime, pairs, wallet.getCredential());
 
     }
 
     public List<TradeDto> getHistoricalTrades(Wallet wallet, Set<String> pairs, ApiCredential credential) {
-        ExchangeApiClient client = getClient(wallet);
+        ProviderApiClient client = getClient(wallet);
         return client.getHistoricalTrades(pairs, credential);
     }
 

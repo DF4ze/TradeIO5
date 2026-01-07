@@ -12,12 +12,14 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
-import fr.ses10doigts.tradeIO5.model.entity.exchange.Exchange;
+import fr.ses10doigts.tradeIO5.model.entity.exchange.Provider;
 import fr.ses10doigts.tradeIO5.repository.ApiCredentialRepository;
-import fr.ses10doigts.tradeIO5.repository.ExchangeRepository;
+import fr.ses10doigts.tradeIO5.repository.ProviderRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+
+import fr.ses10doigts.tradeIO5.model.enumerate.ProviderCode;
 
 @Component
 @RequiredArgsConstructor
@@ -27,7 +29,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
     private static final Logger logger = LoggerFactory.getLogger(ApiCredentialInitializer.class);
 
     private final UserRepository userRepository;
-    private final ExchangeRepository exchangeRepository;
+    private final ProviderRepository providerRepository;
     private final ApiCredentialRepository credentialRepository;
     private final Environment environment;
 
@@ -36,9 +38,9 @@ public class ApiCredentialInitializer implements CommandLineRunner {
         if (!List.of(environment.getActiveProfiles()).contains("dev")) return;
 
         Optional<User> userOpt = userRepository.findByUsername("OKlm");
-		Optional<Exchange> exchangeBinanceTestNetOpt = exchangeRepository.findByCodeIgnoreCase("BINANCE_TESTNET");
-		Optional<Exchange> exchangeBinanceOpt = exchangeRepository.findByCodeIgnoreCase("BINANCE");
-		Optional<Exchange> exchangeKrakenOpt = exchangeRepository.findByCodeIgnoreCase("KRAKEN");
+		Optional<Provider> exchangeBinanceTestNetOpt = providerRepository.findByCode(ProviderCode.BINANCE_TESTNET);
+		Optional<Provider> exchangeBinanceOpt = providerRepository.findByCode(ProviderCode.BINANCE);
+		Optional<Provider> exchangeKrakenOpt = providerRepository.findByCode(ProviderCode.KRAKEN);
 
 		if (userOpt.isEmpty() || exchangeBinanceTestNetOpt.isEmpty() || exchangeBinanceOpt.isEmpty() || exchangeKrakenOpt.isEmpty()) {
             logger.warn("❗ Impossible d’ajouter la clé API : utilisateur ou exchange manquant.");
@@ -46,16 +48,16 @@ public class ApiCredentialInitializer implements CommandLineRunner {
         }
 
         User user = userOpt.get();
-		Exchange exchangeBinanceTestnet = exchangeBinanceTestNetOpt.get();
-		Exchange exchangeBinance = exchangeBinanceOpt.get();
-		Exchange exchangeKraken = exchangeKrakenOpt.get();
+		Provider providerBinanceTestnet = exchangeBinanceTestNetOpt.get();
+		Provider providerBinance = exchangeBinanceOpt.get();
+		Provider providerKraken = exchangeKrakenOpt.get();
 
-		boolean alreadyExistsBTN = credentialRepository.findByUserAndExchange(user, exchangeBinanceTestnet).isPresent();
-		boolean alreadyExistsBin = credentialRepository.findByUserAndExchange(user, exchangeBinance).isPresent();
-		boolean alreadyExistsKraken = credentialRepository.findByUserAndExchange(user, exchangeKraken).isPresent();
+		boolean alreadyExistsBTN = credentialRepository.findByUserAndProvider(user, providerBinanceTestnet).isPresent();
+		boolean alreadyExistsBin = credentialRepository.findByUserAndProvider(user, providerBinance).isPresent();
+		boolean alreadyExistsKraken = credentialRepository.findByUserAndProvider(user, providerKraken).isPresent();
 
 		if (alreadyExistsBTN) {
-			logger.debug("🔑 Clé API " + exchangeBinanceTestnet.getName() + " déjà présente pour l'utilisateur OKlm.");
+			logger.debug("🔑 Clé API " + providerBinanceTestnet.getName() + " déjà présente pour l'utilisateur OKlm.");
 			// return;
 
 		} else {
@@ -63,7 +65,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			//@formatter:off
 			ApiCredential credential = ApiCredential.builder()
 					.user(user)
-					.exchange(exchangeBinanceTestnet)
+					.provider(providerBinanceTestnet)
 					.apiKey("xzXEX3KAL07YwrMny63DU4pOIrnqDNObNvfhHlJJ0vUSW1O8w58Kt4gR1HYjVXqi")
 					.secretKey("LQ91SkNO6GBjpRC7PglZDutRQEDuf55aKTqa5kjQiGmqoKuEMZ0oFPBhQMDkB7dt")
 					.enabled(false)
@@ -78,13 +80,13 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		}
 
 		if (alreadyExistsBin) {
-            logger.debug("\uD83D\uDD11 Clé API {} déjà présente pour l'utilisateur OKlm.", exchangeBinance.getName());
+            logger.debug("\uD83D\uDD11 Clé API {} déjà présente pour l'utilisateur OKlm.", providerBinance.getName());
 			// return;
 
 		} else {
 			ApiCredential credential = ApiCredential.builder()
 					.user(user)
-					.exchange(exchangeBinance)
+					.provider(providerBinance)
 					.apiKey("ookiVIjsqami8rrYSHsGWZiRxjBxjGsoVwtb9hPTz01FiB2Q2oKeUvQeNGmaP5A3")
 					.secretKey("tyPupQa10QibqIXddoMscZVtsEPeITReslLDJDio7ghtKFkJl7x6b2zZ8p5DSU0O")
 					.enabled(true)
@@ -96,14 +98,14 @@ public class ApiCredentialInitializer implements CommandLineRunner {
         }
 
 		if (alreadyExistsKraken) {
-            logger.debug("\uD83D\uDD11 Clé API {} déjà présente pour l'utilisateur OKlm.", exchangeKraken.getName());
+            logger.debug("\uD83D\uDD11 Clé API {} déjà présente pour l'utilisateur OKlm.", providerKraken.getName());
 			// return;
 
 		} else {
 			//@formatter:off
 			ApiCredential credential = ApiCredential.builder()
 					.user(user)
-					.exchange(exchangeKraken)
+					.provider(providerKraken)
 					.apiKey("rG/lccLLc0K7sbVorYcDexoSLWC9z140YyVzU2tncG/GkpHJjwF2d0pn")
 					.secretKey("jX+uMxkb9/tTypQiqgD+m4lXtE+lXZF0X5SkAsqPJGkyalIr71nWURPJ/aaNU0ev1ZyHu3HPk2jd6Td5yKQw7g==")
 					.enabled(true)

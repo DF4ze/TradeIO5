@@ -40,7 +40,7 @@ public class MainController {
 
 		LoginRequest loginRequest = new LoginRequest();
 		model.addAttribute("loginRequest", loginRequest);
-		model.addAttribute("error", error == null ? false : error);
+		model.addAttribute("error", error != null && error);
 
 		try {
 			user = authenticationFacade.getConnectedUser();
@@ -66,7 +66,7 @@ public class MainController {
 		LoginRequest loginRequest = new LoginRequest();
 
 		model.addAttribute("loginRequest", loginRequest);
-		model.addAttribute("error", error == null ? false : error);
+		model.addAttribute("error", error != null && error);
 
 		model.addAttribute("page", "login");
 

@@ -9,14 +9,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
+import fr.ses10doigts.tradeIO5.model.enumerate.ProviderCode;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Service;
 
 import com.binance.connector.client.exceptions.BinanceClientException;
 import com.binance.connector.client.exceptions.BinanceConnectorException;
@@ -29,7 +28,7 @@ import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceCacheManager;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceProvider;
 
 @Component
-public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
+public class BinanceApiClient implements ProviderApiClient, BalanceProvider {
 
 	private static final Logger logger = LoggerFactory.getLogger(BinanceApiClient.class);
 
@@ -43,8 +42,8 @@ public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
 	}
 
     @Override
-    public String getExchangeCode() {
-		return "BINANCE";
+    public ProviderCode getProviderCode() {
+		return ProviderCode.BINANCE;
     }
 
     @Override
@@ -67,7 +66,7 @@ public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
 		}
 
 		if( price == null || BigDecimal.ZERO.compareTo(price) == 0 )
-            logger.error("Unable to retrieve price with pair : {} {}", baseAsset, quoteCurrency);
+            logger.warn("Unable to retrieve price with pair : {} {}", baseAsset, quoteCurrency);
 
 		return price;
 	}
@@ -116,7 +115,7 @@ public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
 			return new HashMap<>();
 		}
 
-		return balanceCacheManager.getBalances(credential.getApiKey() + ":" + credential.getExchange().getApiBaseUrl(),
+		return balanceCacheManager.getBalances(credential.getApiKey() + ":" + credential.getProvider().getApiBaseUrl(),
 				this, credential);
     }
     
@@ -135,13 +134,13 @@ public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
             }
         }
 
-        logger.info("\uD83D\uDCE6 [{}] {} balances récupérées pour {}", credential.getExchange().getCode(), result.size(), credential.getUser().getUsername());
+        logger.info("\uD83D\uDCE6 [{}] {} balances récupérées pour {}", credential.getProvider().getCode(), result.size(), credential.getUser().getUsername());
         return result;
     }
 
 	private SpotClientImpl getClient(ApiCredential credential) {
 		return new SpotClientImpl(credential.getApiKey(), credential.getSecretKey(),
-				credential.getExchange().getApiBaseUrl());
+				credential.getProvider().getApiBaseUrl());
 	}
 
 	@Override
