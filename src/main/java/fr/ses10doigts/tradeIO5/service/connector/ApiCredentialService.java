@@ -3,6 +3,8 @@ package fr.ses10doigts.tradeIO5.service.connector;
 
 import java.util.List;
 
+import fr.ses10doigts.tradeIO5.exceptions.NotFoundException;
+import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import org.springframework.stereotype.Service;
 
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
@@ -18,11 +20,19 @@ public class ApiCredentialService {
     private final ApiCredentialRepository apiCredentialRepository;
     private final UserDetailsServiceImpl userDetailsService;
 
-    public ApiCredential getCredentialForCurrentUser(String exchangeCode) {
-        User user = userDetailsService.getCurrentUser();
-		return apiCredentialRepository.findByUserAndExchange_CodeAndEnabledTrue(user, exchangeCode)
-            .orElseThrow(() -> new RuntimeException(
-                "No API credential found for user " + user.getUsername() + " and exchange " + exchangeCode));
+	public ApiCredential getFromCurrentUser(String exchangeCode) throws NotFoundException {
+		User user = userDetailsService.getCurrentUser();
+		return getFromExchangeAndUser(exchangeCode, user);
+	}
+
+/*	public ApiCredential getFromWallet( Wallet wallet ) throws NotFoundException {
+		return getFromExchangeAndUser(wallet.getProviderCode(), wallet.getUser());
+	}
+*/
+	public ApiCredential getFromExchangeAndUser(String exchangeCode, User user) throws NotFoundException {
+		return apiCredentialRepository.findByUserAndExchange_CodeAndExchange_EnabledTrueAndEnabledTrue(user, exchangeCode)
+            .orElseThrow(() -> new NotFoundException(
+                "No enabled API credential found for user " + user.getUsername() + " and exchange " + exchangeCode));
     }
 
 	public List<ApiCredential> getAllCredentialsForCurrentUser() {
@@ -30,7 +40,4 @@ public class ApiCredentialService {
 		return apiCredentialRepository.findByUserAndEnabledTrue(user);
 	}
 
-	public List<ApiCredential> getAllCredentials() {
-		return apiCredentialRepository.findByEnabledTrue();
-	}
 }

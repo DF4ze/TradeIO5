@@ -24,20 +24,20 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "position", uniqueConstraints = { @UniqueConstraint(columnNames = { "external_trade_id" }) })
+@Table(name = "transaction", uniqueConstraints = { @UniqueConstraint(columnNames = { "external_transaction_id" }) })
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Position {
+public class Transaction {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
 	// Identifiant unique externe du trade (provenant de l'exchange)
-	@Column(name = "external_trade_id", nullable = false, unique = true)
-	private String externalTradeId;
+	@Column(name = "external_transaction_id", nullable = false, unique = true)
+	private String externalTransactionId;
 
 	// Relation avec l'utilisateur propriétaire
 	@ManyToOne(fetch = FetchType.LAZY)
@@ -73,5 +73,9 @@ public class Position {
 	// Frais payés sur la position
 	@Column(name = "fee", precision = 30, scale = 10)
 	private BigDecimal fee;
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "wallet_id", nullable = false)
+	private Wallet wallet;
 
 }

@@ -20,6 +20,8 @@ target/
 *.ipr
 out/
 
+# Fichiers temporaires de LibreOffice/OpenOffice
+.~lock.*
 
 # === Logs ===
 *.log

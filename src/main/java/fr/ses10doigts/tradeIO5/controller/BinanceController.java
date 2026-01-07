@@ -1,7 +1,9 @@
 package fr.ses10doigts.tradeIO5.controller;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
+import fr.ses10doigts.tradeIO5.exceptions.NotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api/binance")
 @RequiredArgsConstructor
 public class BinanceController {
-
+/*
     private static final Logger logger = LoggerFactory.getLogger(BinanceController.class);
 	private static final String EXCHANGE_CODE = "BINANCE_TESTNET";
 
@@ -29,11 +31,17 @@ public class BinanceController {
 	@GetMapping("/price/{symbol}")
 	public ResponseEntity<BigDecimal> getMarketPrice(@PathVariable String symbol) {
 
-		ApiCredential credential = apiCredentialService.getCredentialForCurrentUser(EXCHANGE_CODE);
+        ApiCredential credential = null;
+        try {
+            credential = apiCredentialService.getFromCurrentUser(EXCHANGE_CODE);
+        } catch (NotFoundException e) {
+            logger.error("No enabled credential found for current user and exchange {}", EXCHANGE_CODE);
+            return ResponseEntity.of(Optional.empty());
+        }
         BigDecimal price = exchangeApiService
 				.getClient(credential.getExchange().getCode()).getMarketPrice(symbol, "USDC", credential);
 
-		logger.debug(symbol + " : " + price + "USDC");
+        logger.debug("{} : {} USDC", symbol, price);
 
         return ResponseEntity.ok(price);
     }
@@ -42,7 +50,14 @@ public class BinanceController {
     @GetMapping("/balance/{asset}")
     public ResponseEntity<BigDecimal> getUserBalance(@PathVariable String asset) {
 
-		ApiCredential credential = apiCredentialService.getCredentialForCurrentUser(EXCHANGE_CODE);
+        ApiCredential credential = null;
+        try {
+            credential = apiCredentialService.getFromCurrentUser(EXCHANGE_CODE);
+        } catch (NotFoundException e) {
+            logger.error("No enabled credential found for current user and exchange {}", EXCHANGE_CODE);
+            return ResponseEntity.of(Optional.empty());
+        }
+
         BigDecimal balance = exchangeApiService
 				.getUserBalance(credential.getUser(), credential.getExchange().getCode(), asset);
 
@@ -50,4 +65,6 @@ public class BinanceController {
 
         return ResponseEntity.ok(balance);
     }
+    */
+
 }

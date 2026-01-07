@@ -38,8 +38,9 @@ public class ApiCredentialInitializer implements CommandLineRunner {
         Optional<User> userOpt = userRepository.findByUsername("OKlm");
 		Optional<Exchange> exchangeBinanceTestNetOpt = exchangeRepository.findByCodeIgnoreCase("BINANCE_TESTNET");
 		Optional<Exchange> exchangeBinanceOpt = exchangeRepository.findByCodeIgnoreCase("BINANCE");
+		Optional<Exchange> exchangeKrakenOpt = exchangeRepository.findByCodeIgnoreCase("KRAKEN");
 
-		if (userOpt.isEmpty() || exchangeBinanceTestNetOpt.isEmpty() || exchangeBinanceOpt.isEmpty()) {
+		if (userOpt.isEmpty() || exchangeBinanceTestNetOpt.isEmpty() || exchangeBinanceOpt.isEmpty() || exchangeKrakenOpt.isEmpty()) {
             logger.warn("❗ Impossible d’ajouter la clé API : utilisateur ou exchange manquant.");
             return;
         }
@@ -47,9 +48,11 @@ public class ApiCredentialInitializer implements CommandLineRunner {
         User user = userOpt.get();
 		Exchange exchangeBinanceTestnet = exchangeBinanceTestNetOpt.get();
 		Exchange exchangeBinance = exchangeBinanceOpt.get();
+		Exchange exchangeKraken = exchangeKrakenOpt.get();
 
 		boolean alreadyExistsBTN = credentialRepository.findByUserAndExchange(user, exchangeBinanceTestnet).isPresent();
 		boolean alreadyExistsBin = credentialRepository.findByUserAndExchange(user, exchangeBinance).isPresent();
+		boolean alreadyExistsKraken = credentialRepository.findByUserAndExchange(user, exchangeKraken).isPresent();
 
 		if (alreadyExistsBTN) {
 			logger.debug("🔑 Clé API " + exchangeBinanceTestnet.getName() + " déjà présente pour l'utilisateur OKlm.");
@@ -63,7 +66,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 					.exchange(exchangeBinanceTestnet)
 					.apiKey("xzXEX3KAL07YwrMny63DU4pOIrnqDNObNvfhHlJJ0vUSW1O8w58Kt4gR1HYjVXqi")
 					.secretKey("LQ91SkNO6GBjpRC7PglZDutRQEDuf55aKTqa5kjQiGmqoKuEMZ0oFPBhQMDkB7dt")
-					.enabled(true)
+					.enabled(false)
 					.createdAt(LocalDateTime.now())
 					.build();
 
@@ -75,11 +78,10 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		}
 
 		if (alreadyExistsBin) {
-			logger.debug("🔑 Clé API " + exchangeBinance.getName() + " déjà présente pour l'utilisateur OKlm.");
+            logger.debug("\uD83D\uDD11 Clé API {} déjà présente pour l'utilisateur OKlm.", exchangeBinance.getName());
 			// return;
 
 		} else {
-			//@formatter:off
 			ApiCredential credential = ApiCredential.builder()
 					.user(user)
 					.exchange(exchangeBinance)
@@ -88,13 +90,37 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 					.enabled(true)
 					.createdAt(LocalDateTime.now())
 					.build();
-			//@formatter:on
 
 			credentialRepository.save(credential);
 			logger.debug("- Clé API ajoutée pour OKlm sur BINANCE");
         }
 
+		if (alreadyExistsKraken) {
+            logger.debug("\uD83D\uDD11 Clé API {} déjà présente pour l'utilisateur OKlm.", exchangeKraken.getName());
+			// return;
+
+		} else {
+			//@formatter:off
+			ApiCredential credential = ApiCredential.builder()
+					.user(user)
+					.exchange(exchangeKraken)
+					.apiKey("rG/lccLLc0K7sbVorYcDexoSLWC9z140YyVzU2tncG/GkpHJjwF2d0pn")
+					.secretKey("jX+uMxkb9/tTypQiqgD+m4lXtE+lXZF0X5SkAsqPJGkyalIr71nWURPJ/aaNU0ev1ZyHu3HPk2jd6Td5yKQw7g==")
+					.enabled(true)
+					.createdAt(LocalDateTime.now())
+					.build();
+			//@formatter:on
+
+			credentialRepository.save(credential);
+			logger.debug("- Clé API ajoutée pour OKlm sur KRAKEN");
+		}
+
+
 		if (!alreadyExistsBin || !alreadyExistsBTN)
 			logger.info("🔐 Clé.s API ajoutée.s pour utilisateur OKlm sur BINANCE");
     }
+
+	// Kraken :
+	// api : rG/lccLLc0K7sbVorYcDexoSLWC9z140YyVzU2tncG/GkpHJjwF2d0pn
+	// secret : jX+uMxkb9/tTypQiqgD+m4lXtE+lXZF0X5SkAsqPJGkyalIr71nWURPJ/aaNU0ev1ZyHu3HPk2jd6Td5yKQw7g==
 }

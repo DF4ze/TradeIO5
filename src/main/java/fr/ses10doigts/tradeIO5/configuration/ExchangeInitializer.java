@@ -30,15 +30,18 @@ public class ExchangeInitializer implements CommandLineRunner {
         if (exchangeRepository.count() == 0) {
 			// @formatter:off
             List<Exchange> exchanges = List.of(
-	Exchange.builder().code("BINANCE")			.name("Binance")		.apiBaseUrl("https://api.binance.com")			.enabled(false).createdAt(LocalDateTime.now()).build(),
-	Exchange.builder().code("BINANCE_TESTNET")	.name("Binance TestNet").apiBaseUrl("https://testnet.binance.vision")	.enabled(true) .createdAt(LocalDateTime.now()).build(),
-    Exchange.builder().code("KRAKEN")			.name("Kraken")			.apiBaseUrl("https://api.kraken.com")			.enabled(true) .createdAt(LocalDateTime.now()).build(),
-    Exchange.builder().code("CRYPTOCOM")		.name("Crypto.com")		.apiBaseUrl("https://api.crypto.com")			.enabled(true) .createdAt(LocalDateTime.now()).build()
+	Exchange.builder().code("BINANCE")			.name("Binance")		.apiBaseUrl("https://api.binance.com")			.enabled(true)  .createdAt(LocalDateTime.now()).build(),
+	Exchange.builder().code("BINANCE_TESTNET")	.name("Binance TestNet").apiBaseUrl("https://testnet.binance.vision")	.enabled(false) .createdAt(LocalDateTime.now()).build(),
+    Exchange.builder().code("KRAKEN")			.name("Kraken")			.apiBaseUrl("https://api.kraken.com")			.enabled(true)  .createdAt(LocalDateTime.now()).build()
+    //Exchange.builder().code("CRYPTOCOM")		.name("Crypto.com")		.apiBaseUrl("https://api.crypto.com")			.enabled(true)  .createdAt(LocalDateTime.now()).build()
             );
             // @formatter:on
 
             exchangeRepository.saveAll(exchanges);
             logger.info("🏦 Exchanges initialisés : {}", exchanges.stream().map(Exchange::getCode).toList());
+        }else{
+            logger.info("🏦 Exchanges DEJA initialisés !");
         }
+
     }
 }

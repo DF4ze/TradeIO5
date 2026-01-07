@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
 
-@Component
+
 public class BalanceCacheManager {
 
     private static final long TTL_MS = 5000;

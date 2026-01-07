@@ -18,7 +18,8 @@ public interface ExchangeApiClient {
 
 	BigDecimal getMarketPrice(String assetSymbol, String quoteCurrency, ApiCredential credential);
 
-	List<TradeDto> getHistoricalTrades(ApiCredential credential, Set<String> pairs);
+	List<TradeDto> getHistoricalTrades(Set<String> pairs, ApiCredential credential);
 
-	List<TradeDto> getTradesSince(ApiCredential credential, LocalDateTime date, Set<String> pairs);
+	List<TradeDto> getTradesSince(LocalDateTime date, Set<String> pairs, ApiCredential credential);
+
 }

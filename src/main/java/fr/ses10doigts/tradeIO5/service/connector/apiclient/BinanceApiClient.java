@@ -15,6 +15,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import com.binance.connector.client.exceptions.BinanceClientException;
@@ -27,7 +28,7 @@ import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceCacheManager;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceProvider;
 
-@Service
+@Component
 public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
 
 	private static final Logger logger = LoggerFactory.getLogger(BinanceApiClient.class);
@@ -37,8 +38,8 @@ public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
 
 	private final BalanceCacheManager balanceCacheManager;
 
-	public BinanceApiClient(BalanceCacheManager balanceCacheManager) {
-		this.balanceCacheManager = balanceCacheManager;
+	public BinanceApiClient() {
+		this.balanceCacheManager = new BalanceCacheManager();
 	}
 
     @Override
@@ -47,7 +48,7 @@ public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
     }
 
     @Override
-	public BigDecimal getMarketPrice(String baseAsset, String quoteCurrency, ApiCredential credential) {
+	public BigDecimal getMarketPrice(String baseAsset, String quoteCurrency, ApiCredential credential ) {
 		BigDecimal price = getTickerSymbol(baseAsset, quoteCurrency, credential);
 
 		if (BigDecimal.ZERO.compareTo(price) == 0 && quoteCurrency.equals("EUR")) {
@@ -65,7 +66,9 @@ public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
 			}
 		}
 
-		logger.error("Unable to retrieve price with pair : " + baseAsset + " " + quoteCurrency);
+		if( price == null || BigDecimal.ZERO.compareTo(price) == 0 )
+            logger.error("Unable to retrieve price with pair : {} {}", baseAsset, quoteCurrency);
+
 		return price;
 	}
 
@@ -85,7 +88,7 @@ public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
 			JSONObject json = new JSONObject(response);
 			result = new BigDecimal(json.getString("price"));
 		} catch (Exception e) {
-			logger.warn(pair + " cannot be retrieve from tickerSymbol()");
+            logger.warn("{} cannot be retrieve from tickerSymbol()", pair);
 		}
 
 		return result;
@@ -108,6 +111,11 @@ public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
 
     @Override
 	public Map<String, BigDecimal> getAllBalances(ApiCredential credential) {
+		if( credential == null ) {
+			logger.warn("Credential is null");
+			return new HashMap<>();
+		}
+
 		return balanceCacheManager.getBalances(credential.getApiKey() + ":" + credential.getExchange().getApiBaseUrl(),
 				this, credential);
     }
@@ -127,8 +135,7 @@ public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
             }
         }
 
-		logger.info("📦 [" + credential.getExchange().getCode() + "] {} balances récupérées pour {}", result.size(),
-				credential.getUser().getUsername());
+        logger.info("\uD83D\uDCE6 [{}] {} balances récupérées pour {}", credential.getExchange().getCode(), result.size(), credential.getUser().getUsername());
         return result;
     }
 
@@ -138,13 +145,13 @@ public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
 	}
 
 	@Override
-	public List<TradeDto> getHistoricalTrades(ApiCredential credential, Set<String> pairs) {
-		return getTradesSince(credential, LocalDateTime.of(2020, 1, 1, 0, 0), pairs);
+	public List<TradeDto> getHistoricalTrades( Set<String> pairs, ApiCredential credential) {
+		return getTradesSince( LocalDateTime.of(2020, 1, 1, 0, 0), pairs, credential);
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public List<TradeDto> getTradesSince(ApiCredential credential, LocalDateTime date, Set<String> pairs) {
+	public List<TradeDto> getTradesSince( LocalDateTime date, Set<String> pairs, ApiCredential credential) {
 		SpotClientImpl client = getClient(credential);
 
 		long startTimeMillis = date.toInstant(ZoneOffset.UTC).toEpochMilli();
@@ -175,7 +182,7 @@ public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
 					// logger.debug(pair + " ok but empty");
 					continue;
 				}
-				logger.debug("Ok received : " + myTrades);
+                logger.debug("Ok received : {}", myTrades);
 
 				JSONArray jsonArray = new JSONArray(myTrades);
 				List<Object> rawList = jsonArray.toList();
@@ -190,8 +197,8 @@ public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
 				}
 				// logger.debug(count + " trades read");
 
-				if (rawTrades != null && !rawTrades.isEmpty()) {
-					trades.addAll(rawTrades.stream().map(this::mapBinanceTradeToTradeDto).collect(Collectors.toList()));
+				if (!rawTrades.isEmpty()) {
+					trades.addAll(rawTrades.stream().map(this::mapApiTradeToTradeDto).toList());
 					// logger.debug(trades.size() + " trades created for pair " + pair);
 				}
 			} catch (BinanceConnectorException e) {
@@ -202,7 +209,7 @@ public class BinanceApiClient implements ExchangeApiClient, BalanceProvider {
 		return trades;
 	}
 
-	private TradeDto mapBinanceTradeToTradeDto(Map<String, Object> rawTrade) {
+	private TradeDto mapApiTradeToTradeDto(Map<String, Object> rawTrade) {
 		// Exemple de mapping, adapte selon la structure renvoyée par Binance
 		String id = String.valueOf(rawTrade.get("orderId"));
 		String symbol = (String) rawTrade.get("symbol");

@@ -2,6 +2,7 @@ package fr.ses10doigts.tradeIO5.configuration;
 
 import java.util.List;
 
+import fr.ses10doigts.tradeIO5.service.tool.DataBaseAccess;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -18,12 +19,15 @@ import lombok.RequiredArgsConstructor;
 @Order(1)
 public class AssetInitializer implements CommandLineRunner {
 
-	private static final Logger logger = LoggerFactory.getLogger(ProfileChecker.class);
+	private static final Logger logger = LoggerFactory.getLogger(AssetInitializer.class);
 
     private final AssetRepository assetRepository;
 
     @Override
     public void run(String... args) {
+
+		DataBaseAccess.excludeDisabledItems(true);
+
         if (assetRepository.count() == 0) {
             assetRepository.saveAll(List.of(
 					Asset.builder().symbol("BTC").name("Bitcoin").decimals(8).build(),
