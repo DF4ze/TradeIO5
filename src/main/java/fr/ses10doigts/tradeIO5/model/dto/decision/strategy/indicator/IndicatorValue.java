@@ -7,7 +7,7 @@ import lombok.Data;
 @Data
 public class IndicatorValue {
 
-    private final double value;
+    private final Double value;
 
     // bornes théoriques (optionnelles mais utiles)
     private final Double min;

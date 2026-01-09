@@ -19,4 +19,9 @@ package fr.ses10doigts.tradeIO5.service.decision.strategy;
  * “Dans ce contexte, je penche plutôt pour…”
  */
 public interface Strategy {
+    StrategySignal evaluate(MarketContext context);
+
+    default String getName() {
+        return this.getClass().getSimpleName();
+    }
 }

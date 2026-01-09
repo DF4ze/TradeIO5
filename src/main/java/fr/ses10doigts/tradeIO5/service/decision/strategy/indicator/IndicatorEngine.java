@@ -3,6 +3,8 @@ package fr.ses10doigts.tradeIO5.service.decision.strategy.indicator;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.*;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorCode;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -21,6 +23,7 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class IndicatorEngine {
+    private final Logger logger = LoggerFactory.getLogger(IndicatorEngine.class);
 
     private final IndicatorRegistry indicatorRegistry;
     private final IndicatorCache indicatorCache;
@@ -30,13 +33,9 @@ public class IndicatorEngine {
             IndicatorContext context,
             IndicatorParameters parameters
     ) {
+        logger.debug("Nb Indicators : {}", indicatorRegistry.size());
 
-        Indicator indicator;
-        if( indicatorRegistry.contains(code) ){
-            indicator = indicatorRegistry.get(code);
-        }else{
-            throw new RuntimeException("Indicator not found : "+code);
-        }
+        Indicator indicator = indicatorRegistry.get(code);
 
         IndicatorExecutionKey key =
                 IndicatorExecutionKey.of(indicator, context, parameters);
