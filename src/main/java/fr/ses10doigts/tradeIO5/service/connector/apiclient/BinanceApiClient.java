@@ -1,31 +1,26 @@
 package fr.ses10doigts.tradeIO5.service.connector.apiclient;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
+import com.binance.connector.client.exceptions.BinanceClientException;
+import com.binance.connector.client.exceptions.BinanceConnectorException;
+import com.binance.connector.client.impl.SpotClientImpl;
+import fr.ses10doigts.tradeIO5.model.dto.TradeDto;
+import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
 import fr.ses10doigts.tradeIO5.model.enumerate.ProviderCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
+import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceCacheManager;
+import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceProvider;
+import fr.ses10doigts.tradeIO5.service.tool.StringTool;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import com.binance.connector.client.exceptions.BinanceClientException;
-import com.binance.connector.client.exceptions.BinanceConnectorException;
-import com.binance.connector.client.impl.SpotClientImpl;
-
-import fr.ses10doigts.tradeIO5.model.dto.TradeDto;
-import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
-import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
-import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceCacheManager;
-import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceProvider;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.*;
 
 @Component
 public class BinanceApiClient implements ProviderApiClient, BalanceProvider {
@@ -158,12 +153,15 @@ public class BinanceApiClient implements ProviderApiClient, BalanceProvider {
 		List<TradeDto> trades = new ArrayList<>();
 		for (String pair : pairs) {
 
+			pair = StringTool.cleansBinanceLD(pair);
+
+			if( pair.startsWith("USD") )
+				continue;
 
 			Map<String, Object> parameters = new HashMap<>();
 			parameters.put("symbol", pair);
 			parameters.put("startTime", startTimeMillis);
 			// parameters.put("limit", 1000); // max 1000 par appel
-
 
 			try {
 				// La méthode userTrades renvoie une List<Map<String,Object>> dans "data"
@@ -173,7 +171,7 @@ public class BinanceApiClient implements ProviderApiClient, BalanceProvider {
 					myTrades = client.createTrade().myTrades(parameters);
 
 				} catch (BinanceClientException e) {
-					// logger.debug(pair + " unkown");
+					logger.warn("Exception on trades for pair {} : {}", pair, e.getMessage());
 					continue;
 				}
 
@@ -181,7 +179,7 @@ public class BinanceApiClient implements ProviderApiClient, BalanceProvider {
 					// logger.debug(pair + " ok but empty");
 					continue;
 				}
-                logger.debug("Ok received : {}", myTrades);
+                logger.debug("Text received : {}", myTrades);
 
 				JSONArray jsonArray = new JSONArray(myTrades);
 				List<Object> rawList = jsonArray.toList();

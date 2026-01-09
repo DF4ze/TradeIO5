@@ -149,13 +149,12 @@ public class KrakenApiClient implements ProviderApiClient, BalanceProvider {
 
             while (fields.hasNext()) {
                 Map.Entry<String, JsonNode> entry = fields.next();
-                String tradeId = entry.getKey();
                 JsonNode tradeNode = entry.getValue();
 
                 String pair = tradeNode.get("pair").asText();
 
                 if (pairs == null || pairs.isEmpty() || pairs.contains(pair)) {
-                    trades.add(mapKrakenTradeToTradeDto(tradeId, tradeNode));
+                    trades.add(mapKrakenTradeToTradeDto(tradeNode));
                 }
             }
         } catch (Exception e) {
@@ -166,9 +165,11 @@ public class KrakenApiClient implements ProviderApiClient, BalanceProvider {
 
     // ==== Utilitaires ====
 
-    private TradeDto mapKrakenTradeToTradeDto(String tradeId, JsonNode tradeNode) {
+    private TradeDto mapKrakenTradeToTradeDto(JsonNode tradeNode) {
         String pair = tradeNode.path("pair").asText();
         String asset = extractBaseAsset(pair);
+
+        String tradeId = tradeNode.path("trade_id").asText();
 
         BigDecimal qty = new BigDecimal(tradeNode.path("vol").asText());
         BigDecimal price = new BigDecimal(tradeNode.path("price").asText());
@@ -195,6 +196,7 @@ public class KrakenApiClient implements ProviderApiClient, BalanceProvider {
         if (krakenPair.length() < 6) return krakenPair;
         String base = krakenPair.substring(0, krakenPair.length() - 4);
         return switch (base) {
+            case "XBT" -> "BTC";
             case "XXBT" -> "BTC";
             case "XETH" -> "ETH";
             case "XRP"  -> "XRP";

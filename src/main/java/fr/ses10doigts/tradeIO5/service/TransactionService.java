@@ -144,7 +144,7 @@ public class TransactionService {
 		// Force le chargement du User avant usage
 		Hibernate.initialize(wallet.getUser());
 
-		logger.info("⏳ Incremental sync started for wallet={} of user={} on exchange={}", wallet.getName(), wallet.getUser().getUsername(), wallet.getProviderCode());
+		logger.info("⏳ Incremental sync started for wallet={} of user={} on provider={}", wallet.getName(), wallet.getUser().getUsername(), wallet.getProviderCode());
 
         ApiCredential credential = wallet.getCredential();
 		if( credential == null ){
@@ -153,7 +153,7 @@ public class TransactionService {
 		}
 
 		try {
-			// Retrieve pairs from Balance account
+			// Retrieve pairs from a Balance account
 			Map<String, BigDecimal> allBalances = apiClientService.getAllBalances(wallet);
 			Set<String> pairs = new HashSet<>();
 			for (Map.Entry<String, BigDecimal> bal : allBalances.entrySet()) {
@@ -168,12 +168,14 @@ public class TransactionService {
 			List<TradeDto> trades;
 
 			if (lastSync.isPresent()) {
+				logger.debug("last trades since : {}",lastSync.get());
 				trades = apiClientService.getTradesSince( wallet, lastSync.get(), pairs);
 			} else {
+				logger.debug("Retrieving all trades");
 				trades = apiClientService.getHistoricalTrades( wallet, pairs, wallet.getCredential());
 			}
 
-			logger.debug(trades.size() + " trades received");
+            logger.debug("{} trades received", trades.size());
 			int inserted = 0;
 			for (TradeDto trade : trades) {
 				if (repository.existsByExternalTransactionId(trade.getTradeId())) {
