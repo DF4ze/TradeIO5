@@ -27,6 +27,8 @@ public class DoubleRsiStrategy implements Strategy {
     private static final Logger logger = LoggerFactory.getLogger(DoubleRsiStrategy.class);
 
     public static final String P_TIME_FRAME_NAME = "timeframe";
+    public static final String P_BUY_THRESHOLD = "rsiBuyThreshold";
+    public static final String P_SELL_THRESHOLD = "rsiSellThreshold";
 
     private final IndicatorEngine indicatorEngine;
 
@@ -62,11 +64,16 @@ public class DoubleRsiStrategy implements Strategy {
 
             // Interprétation selon seuils de la stratégie
             double value = snapshot.getValue().getValue();
-            double buyThreshold = parameters.getNumericParams().getOrDefault("rsiBuyThreshold", 30.0);
-            double sellThreshold = parameters.getNumericParams().getOrDefault("rsiSellThreshold", 70.0);
+            double buyThreshold = rsiParams.getNumericParams().getOrDefault(P_BUY_THRESHOLD, 30.0);
+            double sellThreshold = rsiParams.getNumericParams().getOrDefault(P_SELL_THRESHOLD, 70.0);
 
+            // Conversion en Signal + confiance
             RsiStrategySignalTypeWithConfidence signalConfidence =
                     StrategyHelper.evaluateRsiSinalWithConfidence(value, buyThreshold, sellThreshold);
+
+            logger.debug("{} with parameters Buy {}, Sell {}, TF {} returns RSI {} as {} with {} confidence",
+                    getName(), buyThreshold, sellThreshold, tf, value,
+                        signalConfidence.getSignal(), signalConfidence.getConfidence());
 
             values.add(signalConfidence);
         }

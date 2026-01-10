@@ -7,6 +7,8 @@ import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorPa
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorValue;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.Indicator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -15,6 +17,7 @@ import java.util.List;
 
 @Component
 public class RsiIndicator implements Indicator {
+    private final Logger logger = LoggerFactory.getLogger(RsiIndicator.class);
 
     public static final String P_PERIOD_NAME = "period";
 
@@ -66,6 +69,8 @@ public class RsiIndicator implements Indicator {
                                     .divide(BigDecimal.ONE.add(rs), MathContext.DECIMAL64)
                     );
         }
+
+        logger.debug("{} indicator with {} = {} on TF {} returns {}", getType(), P_PERIOD_NAME, period, series.getTimeFrame(), rsi);
 
         return IndicatorValue.builder()
                 .value(rsi.doubleValue())

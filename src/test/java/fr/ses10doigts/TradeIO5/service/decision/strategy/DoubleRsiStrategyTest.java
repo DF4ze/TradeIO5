@@ -18,6 +18,8 @@ import fr.ses10doigts.tradeIO5.service.decision.strategy.impl.DoubleRsiStrategy;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.impl.RsiIndicator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -30,6 +32,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 class DoubleRsiStrategyTest {
+    private static final Logger logger = LoggerFactory.getLogger(DoubleRsiStrategyTest.class);
+
     @Autowired
     private StrategyRegistry registry;
 
@@ -43,27 +47,38 @@ class DoubleRsiStrategyTest {
         TimeFrame slowTF = TimeFrame.M1;
         TimeFrame fastTF = TimeFrame.D1;
 
+        // Slow RSI
         IndicatorParameters slowRsiParams = new IndicatorParameters(
                 IndicatorType.RSI,
-                Map.of( RsiIndicator.P_PERIOD_NAME, 12.0 ),                     // Numeric
-                Map.of( DoubleRsiStrategy.P_TIME_FRAME_NAME, fastTF.toString()),    // String
+                Map.of(
+                        RsiIndicator.P_PERIOD_NAME, 28.0,
+                        DoubleRsiStrategy.P_SELL_THRESHOLD, 69.0,
+                        DoubleRsiStrategy.P_BUY_THRESHOLD, 31.0
+                ),                                                                  // Numeric
+                Map.of( DoubleRsiStrategy.P_TIME_FRAME_NAME, slowTF.toString()),    // String
                 Map.of()                                                            // Boolean
         );
         IndicatorKey slowRsiKey = new IndicatorKey(IndicatorType.RSI, slowTF, slowRsiParams);
 
+        // Fast RSI
         IndicatorParameters fastRsiParams = new IndicatorParameters(
                 IndicatorType.RSI,
-                Map.of( RsiIndicator.P_PERIOD_NAME, 12.0 ),
+                Map.of(
+                        RsiIndicator.P_PERIOD_NAME, 14.0,
+                        DoubleRsiStrategy.P_SELL_THRESHOLD, 71.0,
+                        DoubleRsiStrategy.P_BUY_THRESHOLD, 29.0
+                ),
                 Map.of( DoubleRsiStrategy.P_TIME_FRAME_NAME, fastTF.toString() ),
                 Map.of()
         );
         IndicatorKey fastRsiKey = new IndicatorKey(IndicatorType.RSI, fastTF, fastRsiParams);
 
+        // Building params
         StrategyParameters params = new StrategyParameters();
         params.getIndicatorParameters().put(slowRsiKey, slowRsiParams);
         params.getIndicatorParameters().put(fastRsiKey, fastRsiParams);
 
-
+        // Building dataset & MarketContext
         MarketDatasetProvider memoryProvider = new InMemoryDatasetProvider();
         MarketDataset slowDataset = memoryProvider.load(DatasetType.UPTREND, slowTF);
         MarketDataset fastDataset = memoryProvider.load(DatasetType.UPTREND, fastTF);
@@ -77,8 +92,7 @@ class DoubleRsiStrategyTest {
                 .timestamp(Instant.now())
                 .build();
 
-
-        Strategy strategy = registry.get( "DoubleRsiStrategy" );
+        Strategy strategy = registry.get( DoubleRsiStrategy.class.getSimpleName() );
         StrategySignal signal = strategy.evaluate(context, params);
 
         assertEquals( SignalType.SELL, signal.getType() );

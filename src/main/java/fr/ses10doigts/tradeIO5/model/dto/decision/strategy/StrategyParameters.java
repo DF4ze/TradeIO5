@@ -1,12 +1,16 @@
 package fr.ses10doigts.tradeIO5.model.dto.decision.strategy;
 
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.HashMap;
 import java.util.Map;
 
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class StrategyParameters {
     // Paramètres propres à la stratégie (ex : seuil RSI, coeff pondération)
     private Map<String, Double> numericParams = new HashMap<>();
