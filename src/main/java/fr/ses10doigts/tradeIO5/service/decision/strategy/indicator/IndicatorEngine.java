@@ -1,7 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.decision.strategy.indicator;
 
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.*;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorCode;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,13 +28,12 @@ public class IndicatorEngine {
     private final IndicatorCache indicatorCache;
 
     public IndicatorSnapshot execute(
-            IndicatorCode code,
             IndicatorContext context,
             IndicatorParameters parameters
     ) {
         logger.debug("Nb Indicators : {}", indicatorRegistry.size());
 
-        Indicator indicator = indicatorRegistry.get(code);
+        Indicator indicator = indicatorRegistry.get(parameters.getIndicatorType());
 
         IndicatorExecutionKey key =
                 IndicatorExecutionKey.of(indicator, context, parameters);
@@ -54,7 +52,7 @@ public class IndicatorEngine {
 
         // 4. snapshot
         IndicatorSnapshot snapshot = IndicatorSnapshot.builder()
-                .indicatorCode(indicator.getCode())
+                .indicatorCode(indicator.getType())
                 .parameters(parameters)
                 .context(enrichedContext)
                 .value(value)
@@ -81,7 +79,6 @@ public class IndicatorEngine {
         for (IndicatorDependency dependency : dependentIndicator.getDependencies(parameters)) {
 
             IndicatorSnapshot snapshot = execute(
-                    dependency.key().indicatorCode(),
                     context,
                     dependency.parameters()
             );
@@ -96,7 +93,7 @@ public class IndicatorEngine {
                 .symbol(context.getSymbol())
                 .timeframe(context.getTimeframe())
                 .marketData(context.getMarketData())
-                .evaluationTime(context.getEvaluationTime())
+                .timestamp(context.getTimestamp())
                 .dependencies(resolvedDependencies)
                 .build();
     }

@@ -17,7 +17,7 @@ public final class TestMarketData {
      * Marché en tendance haussière simple et régulière
      * Utile pour EMA / MACD
      */
-    public static MarketDataSeries simpleUptrend() {
+    public static MarketDataSeries simpleUptrend(TimeFrame timeFrame) {
 
         List<MarketData> data = new ArrayList<>();
 
@@ -33,8 +33,8 @@ public final class TestMarketData {
             BigDecimal volume = BigDecimal.valueOf(1000 + i * 10);
 
             data.add(MarketData.builder()
-                    .timeFrame(TimeFrame.HOUR_1)
-                    .timestamp(start.plusSeconds(3600L * i))
+                    .timeFrame(timeFrame)
+                    .timestamp(start.plusSeconds(timeFrame.getNbSeconde() * i))
                     .open(open)
                     .high(high)
                     .low(low)
@@ -47,20 +47,20 @@ public final class TestMarketData {
         }
 
         return MarketDataSeries.builder()
-                .timeFrame(TimeFrame.HOUR_1)
+                .timeFrame(timeFrame)
                 .marketDatas(data)
                 .build();
     }
 
-    public static MarketDataSeries flatMarket() {
+    public static MarketDataSeries flatMarket(TimeFrame timeFrame) {
         return null;
     }
 
-    public static MarketDataSeries downtrend() {
+    public static MarketDataSeries downtrend(TimeFrame timeFrame) {
         return null;
     }
 
-    public static MarketDataSeries volatileMarket() {
+    public static MarketDataSeries volatileMarket(TimeFrame timeFrame) {
         return null;
     }
 }

@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.model.entity.decision.strategy.indicator;
 
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -25,7 +25,7 @@ public class IndicatorParameterSet {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "indicator_code", nullable = false, length = 30)
-    private IndicatorCode indicatorCode; // ex: RSI, MACD
+    private IndicatorType indicatorCode; // ex: RSI, MACD
 
     @Column(nullable = false, length = 100)
     private String name; // ex: "RSI short term"

@@ -1,10 +1,10 @@
 package fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator;
 
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.Indicator;
 
 public record IndicatorExecutionKey(
-        IndicatorCode indicatorCode,
+        IndicatorType indicatorType,
         IndicatorParameters parameters,
         IndicatorContext context
 ) {
@@ -14,7 +14,7 @@ public record IndicatorExecutionKey(
             IndicatorParameters parameters
     ) {
         return new IndicatorExecutionKey(
-                indicator.getCode(),
+                indicator.getType(),
                 parameters,
                 context
         );

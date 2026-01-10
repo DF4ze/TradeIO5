@@ -7,8 +7,10 @@ import fr.ses10doigts.TradeIO5.service.support.dataset.provider.MarketDatasetPro
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorSnapshot;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.IndicatorEngine;
+import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.impl.MacdIndicator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,16 +33,16 @@ class IndicatorEngineTest {
     @Test
     void execute_macd_with_dependencies() {
         IndicatorParameters macdParams = new IndicatorParameters(
-                IndicatorCode.MACD,
+                IndicatorType.MACD,
                 Map.of(
-                        "fastPeriod", 12.0,
-                        "slowPeriod", 26.0
+                        MacdIndicator.P_FAST_PERIOD_NAME, 12.0,
+                        MacdIndicator.P_SLOW_PERIOD_NAME, 26.0
                 ),
                 Map.of(),
                 Map.of()
         );
         MarketDatasetProvider memoryProvider = new InMemoryDatasetProvider();
-        MarketDataset dataset = memoryProvider.load(DatasetType.UPTREND);
+        MarketDataset dataset = memoryProvider.load(DatasetType.UPTREND, TimeFrame.H1);
 
         IndicatorContext context = IndicatorContext.builder()
                 .marketData(dataset.series())
@@ -49,12 +51,11 @@ class IndicatorEngineTest {
 
         IndicatorSnapshot snapshot =
                 indicatorEngine.execute(
-                        IndicatorCode.MACD,
                         context,
                         macdParams
                 );
 
-        assertEquals(IndicatorCode.MACD, snapshot.getIndicatorCode());
+        assertEquals(IndicatorType.MACD, snapshot.getIndicatorCode());
         assertTrue(snapshot.getValue().isValid());
     }
 }

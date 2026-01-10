@@ -7,7 +7,8 @@ import fr.ses10doigts.TradeIO5.service.support.dataset.provider.MarketDatasetPro
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorValue;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.Indicator;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.impl.EmaIndicator;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,14 +32,14 @@ class EmaIndicatorTest {
         Indicator indicator = new EmaIndicator();
 
         IndicatorParameters params = new IndicatorParameters(
-                IndicatorCode.EMA,
-                Map.of("period", 3.0),
+                IndicatorType.EMA,
+                Map.of(EmaIndicator.P_PERIOD_NAME, 3.0),
                 Map.of(),
                 Map.of()
         );
 
         MarketDatasetProvider memoryProvider = new InMemoryDatasetProvider();
-        MarketDataset dataset = memoryProvider.load(DatasetType.UPTREND);
+        MarketDataset dataset = memoryProvider.load(DatasetType.UPTREND, TimeFrame.H1);
 
         IndicatorContext context = IndicatorContext.builder()
                 .marketData(dataset.series())

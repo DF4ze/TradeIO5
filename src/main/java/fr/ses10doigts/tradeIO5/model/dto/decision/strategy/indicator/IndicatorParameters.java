@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator;
 
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -10,7 +10,7 @@ import java.util.Map;
 @AllArgsConstructor
 public class IndicatorParameters {
 
-    private final IndicatorCode indicatorCode;
+    private final IndicatorType indicatorType;
 
     /**
      * Paramètres typés mais génériques

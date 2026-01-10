@@ -4,7 +4,7 @@ import fr.ses10doigts.tradeIO5.model.dto.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorValue;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.Indicator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,9 +16,13 @@ import java.util.List;
 public class EmaIndicator implements Indicator {
     private final Logger logger = LoggerFactory.getLogger(EmaIndicator.class);
 
+    public static final String P_PERIOD_NAME = "period";
+
+
+
     @Override
-    public IndicatorCode getCode() {
-        return IndicatorCode.EMA;
+    public IndicatorType getType() {
+        return IndicatorType.EMA;
     }
 
     @Override
@@ -27,9 +31,9 @@ public class EmaIndicator implements Indicator {
             IndicatorParameters parameters
     ) {
 
-        Double period = parameters.getNumeric("period");
+        Double period = parameters.getNumeric(P_PERIOD_NAME);
         if( period == null ) {
-            logger.error("Invalid parameter : period");
+            logger.error("Invalid parameter : {}", P_PERIOD_NAME);
             return IndicatorValue.invalid();
         }
 

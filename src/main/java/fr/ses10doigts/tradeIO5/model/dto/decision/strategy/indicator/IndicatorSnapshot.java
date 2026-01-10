@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator;
 
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import lombok.Builder;
 import lombok.Data;
 
@@ -8,7 +8,7 @@ import lombok.Data;
 @Data
 public class IndicatorSnapshot {
 
-    private final IndicatorCode indicatorCode;
+    private final IndicatorType indicatorCode;
     private final IndicatorParameters parameters;
     private final IndicatorContext context;
     private final IndicatorValue value;

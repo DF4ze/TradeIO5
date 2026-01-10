@@ -28,5 +28,5 @@ public class IndicatorContext {
     private final Map<IndicatorDependencyKey, IndicatorSnapshot> dependencies;
 
     /** Moment logique du calcul (audit / replay) */
-    private final Instant evaluationTime;
+    private final Instant timestamp;
 }

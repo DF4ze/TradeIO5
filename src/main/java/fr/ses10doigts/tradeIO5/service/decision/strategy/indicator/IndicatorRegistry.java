@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.decision.strategy.indicator;
 
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -14,16 +14,16 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class IndicatorRegistry {
 
-    private final Map<IndicatorCode, Indicator> indicators;
+    private final Map<IndicatorType, Indicator> indicators;
 
     /* Fills the indicator map */
     @Autowired
     public IndicatorRegistry(List<Indicator> indicatorList) {
         this.indicators = indicatorList.stream()
-                .collect(Collectors.toMap(Indicator::getCode, Function.identity()));
+                .collect(Collectors.toMap(Indicator::getType, Function.identity()));
     }
 
-    public Indicator get(IndicatorCode code) {
+    public Indicator get(IndicatorType code) {
         Indicator indicator = indicators.get(code);
         if (indicator == null) {
             throw new IllegalArgumentException("Indicator inconnu : " + code);
@@ -31,7 +31,7 @@ public class IndicatorRegistry {
         return indicator;
     }
 
-    public boolean contains( IndicatorCode code ){
+    public boolean contains( IndicatorType code ){
         return indicators.containsKey(code);
     }
 

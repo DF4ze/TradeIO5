@@ -4,7 +4,7 @@ package fr.ses10doigts.tradeIO5.service.decision.strategy.indicator;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorValue;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 
 
 /**
@@ -46,13 +46,13 @@ public interface Indicator {
     /**
      * Code fonctionnel stable (RSI, EMA, MACD, etc.)
      */
-    IndicatorCode getCode();
+    IndicatorType getType();
 
     /**
      * Exécution pure de l'indicateur
      */
     IndicatorValue compute(
-            IndicatorContext input,
+            IndicatorContext context,
             IndicatorParameters parameters
     );
 }

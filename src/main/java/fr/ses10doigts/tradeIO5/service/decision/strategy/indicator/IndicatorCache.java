@@ -1,10 +1,12 @@
 package fr.ses10doigts.tradeIO5.service.decision.strategy.indicator;
 
+import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorExecutionKey;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorSnapshot;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -15,6 +17,7 @@ public class IndicatorCache {
             new ConcurrentHashMap<>();
 
     public boolean contains(IndicatorExecutionKey key) {
+        clearIfOutdated(key);
         return cache.containsKey(key);
     }
 
@@ -30,9 +33,26 @@ public class IndicatorCache {
         cache.clear();
     }
 
-    public void clear(IndicatorCode indicatorCode) {
+    public void clear(IndicatorType indicatorCode) {
         cache.entrySet().removeIf(
-                e -> e.getKey().indicatorCode().equals(indicatorCode)
+                e -> e.getKey().indicatorType().equals(indicatorCode)
         );
+    }
+
+    public void clearOutdated() {
+        Instant now = Instant.now();
+        cache.entrySet().removeIf(e -> isOutdated(e.getKey().context(), now));
+    }
+
+    private boolean isOutdated(IndicatorContext ctx, Instant now) {
+        long validitySeconds = ctx.getTimeframe().getNbSeconde();
+        return now.isAfter(ctx.getTimestamp().plusSeconds(validitySeconds));
+    }
+
+    private void clearIfOutdated(IndicatorExecutionKey key){
+        Instant now = Instant.now();
+        if( isOutdated(key.context(), now) ){
+            cache.remove(key);
+        }
     }
 }
