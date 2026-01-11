@@ -32,6 +32,9 @@ public class StrategyRegistry {
     }
 
     public Strategy get(String name) {
+        if( !strategies.containsKey(name) )
+            throw new IllegalArgumentException("Unknown strategy : "+name);
+
         return strategies.get(name);
     }
 }

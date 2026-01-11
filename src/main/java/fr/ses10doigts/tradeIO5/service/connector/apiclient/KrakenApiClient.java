@@ -70,6 +70,7 @@ public class KrakenApiClient implements ProviderApiClient, BalanceProvider {
             JsonNode response = privatePost("Balance", Collections.emptyMap(), credential);
 
             if (response.has("error") && !response.get("error").isEmpty()) {
+                // FIXME meilleure gestion d'erreur
                 throw new RuntimeException("Kraken API error: " + response.get("error"));
             }
 

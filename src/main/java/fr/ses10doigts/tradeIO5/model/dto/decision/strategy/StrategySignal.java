@@ -15,7 +15,7 @@ import java.util.Map;
  * score directionnel
  * confiance
  * horizon (court / moyen / long)
- * optionalement : type de risque
+ * optionnellement : type de risque
  *
  * - Conceptuellement
  * “Je suis confiant à 70% que renforcer légèrement est pertinent.”
@@ -24,47 +24,40 @@ import java.util.Map;
 @Builder
 public class StrategySignal {
 
-    private SignalType type;          // BUY / SELL / HOLD
-    private double confidence;        // 0.0 → 1.0
+    private double score;        // -1.0 → 1.0
+    private double confidence;
+    private SignalType type;
     private String reason;            // log / debug
 
     private String strategyName;
+    private boolean valid;
 
     private Map<String, Object> metadata;
 
+    public static StrategySignal simple( SignalType type, double score, double confidence){
+        return StrategySignal.builder()
+                .type(type)
+                .score(score)
+                .confidence(confidence)
+                .build();
+    }
+
     public static StrategySignal notValid(String strategyName, String reason) {
         return StrategySignal.builder()
-                .type(SignalType.HOLD)
-                .confidence(0)
+                .score(0)
+                .valid(false)
                 .strategyName(strategyName)
                 .reason(reason)
                 .build();
     }
 
-    public static StrategySignal hold(String strategyName, double confidence, String reason) {
+    public static StrategySignal record(String strategyName, double score, String reason) {
         return StrategySignal.builder()
-                .type(SignalType.HOLD)
-                .confidence(confidence)
+                .valid(true)
+                .score(score)
                 .strategyName(strategyName)
                 .reason(reason)
                 .build();
     }
 
-    public static StrategySignal buy(String strategyName, double confidence, String reason) {
-        return StrategySignal.builder()
-                .type(SignalType.BUY)
-                .confidence(confidence)
-                .strategyName(strategyName)
-                .reason(reason)
-                .build();
-    }
-
-    public static StrategySignal sell(String strategyName, double confidence, String reason) {
-        return StrategySignal.builder()
-                .type(SignalType.SELL)
-                .confidence(confidence)
-                .strategyName(strategyName)
-                .reason(reason)
-                .build();
-    }
 }

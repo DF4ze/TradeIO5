@@ -1,17 +1,16 @@
 package fr.ses10doigts.tradeIO5.service.connector.balance;
 
+import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
+
 import java.math.BigDecimal;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.springframework.stereotype.Component;
-
-import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
-
 
 public class BalanceCacheManager {
 
-    private static final long TTL_MS = 5000;
+    // FIXME : Parametrize
+    private static final long TTL_MS = 60*1000;
 
     private static class CacheEntry {
         Map<String, BigDecimal> balances;

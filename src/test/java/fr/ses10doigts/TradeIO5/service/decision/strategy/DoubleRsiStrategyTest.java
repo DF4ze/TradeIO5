@@ -1,21 +1,16 @@
-package fr.ses10doigts.TradeIO5.service.decision.strategy;
+package fr.ses10doigts.tradeIO5.service.decision.strategy;
 
-import fr.ses10doigts.TradeIO5.service.support.dataset.dto.DatasetType;
-import fr.ses10doigts.TradeIO5.service.support.dataset.dto.MarketDataset;
-import fr.ses10doigts.TradeIO5.service.support.dataset.provider.InMemoryDatasetProvider;
-import fr.ses10doigts.TradeIO5.service.support.dataset.provider.MarketDatasetProvider;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.IndicatorKey;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.MarketContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategyParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategySignal;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
+import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.*;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataRequest;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataSeries;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
-import fr.ses10doigts.tradeIO5.service.decision.strategy.Strategy;
-import fr.ses10doigts.tradeIO5.service.decision.strategy.StrategyRegistry;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
+import fr.ses10doigts.tradeIO5.service.decision.DecisionRegistry;
+import fr.ses10doigts.tradeIO5.service.decision.helper.StrategyParametersFactory;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.impl.DoubleRsiStrategy;
-import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.impl.RsiIndicator;
+import fr.ses10doigts.tradeIO5.service.marketdataset.MarketDatasetProvider;
+import fr.ses10doigts.tradeIO5.service.marketdataset.provider.InMemoryDatasetProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -25,6 +20,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,56 +44,45 @@ class DoubleRsiStrategyTest {
         TimeFrame slowTF = TimeFrame.M1;
         TimeFrame fastTF = TimeFrame.D1;
 
-        // Slow RSI
-        IndicatorParameters slowRsiParams = new IndicatorParameters(
-                IndicatorType.RSI,
-                Map.of(
-                        RsiIndicator.P_PERIOD_NAME, 28.0,
-                        DoubleRsiStrategy.P_SELL_THRESHOLD, 69.0,
-                        DoubleRsiStrategy.P_BUY_THRESHOLD, 31.0
-                ),                                                                  // Numeric
-                Map.of( DoubleRsiStrategy.P_TIME_FRAME_NAME, slowTF.toString()),    // String
-                Map.of()                                                            // Boolean
-        );
-        IndicatorKey slowRsiKey = new IndicatorKey(IndicatorType.RSI, slowTF, slowRsiParams);
-
-        // Fast RSI
-        IndicatorParameters fastRsiParams = new IndicatorParameters(
-                IndicatorType.RSI,
-                Map.of(
-                        RsiIndicator.P_PERIOD_NAME, 14.0,
-                        DoubleRsiStrategy.P_SELL_THRESHOLD, 71.0,
-                        DoubleRsiStrategy.P_BUY_THRESHOLD, 29.0
-                ),
-                Map.of( DoubleRsiStrategy.P_TIME_FRAME_NAME, fastTF.toString() ),
-                Map.of()
-        );
-        IndicatorKey fastRsiKey = new IndicatorKey(IndicatorType.RSI, fastTF, fastRsiParams);
-
-        // Building params
-        StrategyParameters params = new StrategyParameters();
-        params.getIndicatorParameters().put(slowRsiKey, slowRsiParams);
-        params.getIndicatorParameters().put(fastRsiKey, fastRsiParams);
+        // Strategy Parameters
+        StrategyParametersFactory.RsiParam slowParams =
+                new StrategyParametersFactory.RsiParam( slowTF, 28.0, 69.0,31.0 );
+        StrategyParametersFactory.RsiParam fastParams =
+                new StrategyParametersFactory.RsiParam( fastTF, 14.0, 71.0,29.0 );
+        StrategyParameters strategyParameters = StrategyParametersFactory.buildDoubleRsiStrategyParam(slowParams, fastParams);
 
         // Building dataset & MarketContext
-        MarketDatasetProvider memoryProvider = new InMemoryDatasetProvider();
-        MarketDataset slowDataset = memoryProvider.load(DatasetType.UPTREND, slowTF);
-        MarketDataset fastDataset = memoryProvider.load(DatasetType.UPTREND, fastTF);
+        MarketDatasetProvider memoryProvider = new InMemoryDatasetProvider(MarketScenario.UPTREND);
+        MarketDataRequest mdrSlow = new MarketDataRequest("slowTF", slowTF, 50, null);
+        MarketDataRequest mdrFast = new MarketDataRequest("fastTF", fastTF, 50, null);
+        MarketDataSeries slowDataset = memoryProvider.load(mdrSlow);
+        MarketDataSeries fastDataset = memoryProvider.load(mdrFast);
 
         MarketContext context = MarketContext.builder()
                 .symbol("BTCUSDT")
                 .series(Map.of(
-                        slowTF, slowDataset.series(),
-                        fastTF, fastDataset.series()))
+                        slowTF, slowDataset,
+                        fastTF, fastDataset))
                 .lastPrice(new BigDecimal("42000"))
                 .timestamp(Instant.now())
                 .build();
 
         Strategy strategy = registry.get( DoubleRsiStrategy.class.getSimpleName() );
-        StrategySignal signal = strategy.evaluate(context, params);
+        StrategySignal signal = strategy.evaluate(context, strategyParameters);
 
         assertEquals( SignalType.SELL, signal.getType() );
-        assertTrue(signal.getConfidence() > 0);
+        assertTrue(signal.getScore() > 0);
+
+
+        // Test of StrategyAggregator
+        StrategyAggregatorParam sap = new StrategyAggregatorParam( strategy, strategyParameters );
+        StrategyAggregatorParam sap2 = new StrategyAggregatorParam( strategy, strategyParameters );
+        List<StrategyAggregatorParam> severalParams = new ArrayList<>(List.of(sap, sap2));
+        AggregatedStrategySignal aggregatedSignal = StrategyAggregator.evaluate(context, severalParams);
+
+        assertEquals( SignalType.SELL, aggregatedSignal.getFinalSignal() );
+        assertTrue(aggregatedSignal.getScore() > 0);
+
     }
 
     @Test

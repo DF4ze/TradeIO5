@@ -77,7 +77,7 @@ public class BinanceApiClient implements ProviderApiClient, BalanceProvider {
 
 		Map<String, Object> params = Map.of("symbol", pair);
 		BigDecimal result = BigDecimal.ZERO;
-		try {
+		try { // FIXME : gestion erreur client
 			String response = getClient(credential).createMarket().tickerSymbol(params);
 			JSONObject json = new JSONObject(response);
 			result = new BigDecimal(json.getString("price"));

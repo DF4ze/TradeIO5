@@ -1,20 +1,19 @@
 package fr.ses10doigts.tradeIO5.service.connector;
 
+import fr.ses10doigts.tradeIO5.model.dto.TradeDto;
+import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
+import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.ProviderApiClient;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import fr.ses10doigts.tradeIO5.model.dto.TradeDto;
-import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
-
-import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
-import fr.ses10doigts.tradeIO5.service.connector.apiclient.ProviderApiClient;
-import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -28,7 +27,7 @@ public class ProviderApiService {
         return clients.stream()
             .filter(c -> c.getProviderCode() == wallet.getProviderCode())
             .findFirst()
-            .orElseThrow(() -> new IllegalArgumentException("Exchange inconnu : " + wallet.getProviderCode()));
+            .orElseThrow(() -> new IllegalArgumentException("Exchange inconnu : " + wallet.getProviderCode())); // FIXME gestion Exception
     }
 
     public BigDecimal getUserBalance(Wallet wallet, String assetSymbol) {

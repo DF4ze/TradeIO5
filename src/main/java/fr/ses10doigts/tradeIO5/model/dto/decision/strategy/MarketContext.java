@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.model.dto.decision.strategy;
 
-import fr.ses10doigts.tradeIO5.model.dto.MarketDataSeries;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataSeries;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorValue;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
 import lombok.Builder;

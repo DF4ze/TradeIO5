@@ -11,6 +11,7 @@ import java.util.List;
 public class AggregatedStrategySignal {
 
     private SignalType finalSignal;          // BUY / SELL / HOLD
+    private double score;                    // score -1 +1
     private double confidence;               // confiance globale
     private boolean conflictDetected;        // BUY vs SELL simultanés
 

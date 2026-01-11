@@ -31,7 +31,6 @@ public class IndicatorEngine {
             IndicatorContext context,
             IndicatorParameters parameters
     ) {
-        logger.debug("Nb Total Indicators : {}", indicatorRegistry.size());
 
         Indicator indicator = indicatorRegistry.get(parameters.getIndicatorType());
 

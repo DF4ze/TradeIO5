@@ -3,10 +3,12 @@ package fr.ses10doigts.tradeIO5.service.decision.strategy;
 
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.AggregatedStrategySignal;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.MarketContext;
+import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategyAggregatorParam;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategySignal;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
+import fr.ses10doigts.tradeIO5.service.decision.helper.DecisionHelper;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -28,75 +30,76 @@ import java.util.List;
 @Component
 public class StrategyAggregator {
 
-    private final StrategyRegistry registry;
+    public static AggregatedStrategySignal evaluate(MarketContext context, StrategyAggregatorParam param) {
+        StrategySignal signal = param.getStrategy().evaluate(context, param.getParameters());
+        List<StrategySignal> signals = new ArrayList<>(List.of(signal));
 
-    public StrategyAggregator(StrategyRegistry registry) {
-        this.registry = registry;
+        return aggregate(signals);
     }
 
-    public AggregatedStrategySignal evaluate(MarketContext context) {
+    public static AggregatedStrategySignal evaluate(MarketContext context, List<StrategyAggregatorParam> params) {
+        List<StrategySignal> signals = params.stream()
+                .map(p -> evaluateOne(context, p))
+                .toList();
+        return aggregate(signals);
 
-//        // TODO filter system
-//        List<StrategySignal> signals = registry.getAll().stream()
-//                .map(s -> s.evaluate(context))
-//                .toList();
-//
- //        return aggregate(signals);
-
-        return null;
     }
 
-    private AggregatedStrategySignal aggregate(List<StrategySignal> signals) {
+    private static StrategySignal evaluateOne( MarketContext context, StrategyAggregatorParam param ){
+        return param.getStrategy().evaluate(context, param.getParameters());
+    }
 
-        double buyScore = 0;
-        double sellScore = 0;
+    private static AggregatedStrategySignal aggregate(List<StrategySignal> signals) {
+
+        double totalScore = 0;
+        boolean hasBuy = false;
+        boolean hasSell = false;
+        boolean hasError = false;
+        double tier = 2.0 / 3.0;
 
         for (StrategySignal s : signals) {
-            if (s.getType() == SignalType.BUY) {
-                buyScore += s.getConfidence();
+            if( !s.isValid() ) {
+                hasError = true;
+                totalScore = 0;
+                break;
             }
-            if (s.getType() == SignalType.SELL) {
-                sellScore += s.getConfidence();
-            }
+
+            double score = s.getScore();
+            totalScore += score;
+
+            hasBuy = score > tier;
+            hasSell = score < -tier;
         }
 
-        boolean conflict = buyScore > 0 && sellScore > 0;
+        boolean conflict = hasBuy && hasSell;
 
-        SignalType finalSignal;
-        double confidence;
-
-        if (buyScore == 0 && sellScore == 0) {
-            finalSignal = SignalType.HOLD;
-            confidence = 0;
-        } else if (buyScore > sellScore) {
-            finalSignal = SignalType.BUY;
-            confidence = normalize(buyScore, sellScore);
-        } else {
-            finalSignal = SignalType.SELL;
-            confidence = normalize(sellScore, buyScore);
-        }
+        DecisionHelper.ConfidenceSignal cs = DecisionHelper.scoreToConfidenceAndSignalType(totalScore);
 
         return AggregatedStrategySignal.builder()
-                .finalSignal(finalSignal)
-                .confidence(confidence)
+                .score(totalScore)
+                .finalSignal(cs.signal)
+                .confidence(cs.confidence)
                 .conflictDetected(conflict)
                 .signals(signals)
-                .explanation(buildExplanation(buyScore, sellScore, conflict))
+                .explanation(buildExplanation(totalScore, conflict, hasError))
                 .build();
     }
 
-    private double normalize(double winner, double loser) {
-        return winner / (winner + loser);
-    }
 
-    private String buildExplanation(double buy, double sell, boolean conflict) {
-        if (buy == 0 && sell == 0) {
+
+    private static String buildExplanation(double total, boolean conflict, boolean error) {
+        if( error )
+            return "!!Warning!! Some strategy failed";
+
+        if (total == 0) {
             return "All strategies are neutral";
         }
+
         if (conflict) {
             return "Conflicting signals detected (BUY vs SELL)";
         }
-        return buy > sell ? "BUY pressure dominant" : "SELL pressure dominant";
+
+        return total > 0 ? "Indicators BUY pressure dominant" : "Indicators SELL pressure dominant";
     }
 }
 

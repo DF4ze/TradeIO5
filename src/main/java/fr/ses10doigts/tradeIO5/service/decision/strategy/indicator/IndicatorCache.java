@@ -50,9 +50,11 @@ public class IndicatorCache {
     }
 
     private void clearIfOutdated(IndicatorExecutionKey key){
-        Instant now = Instant.now();
-        if( isOutdated(key.context(), now) ){
-            cache.remove(key);
+        if( cache.containsKey(key) ) {
+            Instant now = Instant.now();
+            if (isOutdated(key.context(), now)) {
+                cache.remove(key);
+            }
         }
     }
 }

@@ -1,16 +1,16 @@
-package fr.ses10doigts.TradeIO5.service.decision.strategy.indicator;
+package fr.ses10doigts.tradeIO5.service.decision.strategy.indicator;
 
-import fr.ses10doigts.TradeIO5.service.support.dataset.dto.DatasetType;
-import fr.ses10doigts.TradeIO5.service.support.dataset.dto.MarketDataset;
-import fr.ses10doigts.TradeIO5.service.support.dataset.provider.InMemoryDatasetProvider;
-import fr.ses10doigts.TradeIO5.service.support.dataset.provider.MarketDatasetProvider;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorSnapshot;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataRequest;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataSeries;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
-import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.IndicatorEngine;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.impl.MacdIndicator;
+import fr.ses10doigts.tradeIO5.service.marketdataset.MarketDatasetProvider;
+import fr.ses10doigts.tradeIO5.service.marketdataset.provider.InMemoryDatasetProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,11 +41,13 @@ class IndicatorEngineTest {
                 Map.of(),
                 Map.of()
         );
-        MarketDatasetProvider memoryProvider = new InMemoryDatasetProvider();
-        MarketDataset dataset = memoryProvider.load(DatasetType.UPTREND, TimeFrame.H1);
+
+        MarketDatasetProvider memoryProvider = new InMemoryDatasetProvider(MarketScenario.UPTREND);
+        MarketDataRequest mdr = new MarketDataRequest("macd_updtrend", TimeFrame.H1, 50, null);
+        MarketDataSeries dataset = memoryProvider.load(mdr);
 
         IndicatorContext context = IndicatorContext.builder()
-                .marketData(dataset.series())
+                .marketData(dataset)
                 .dependencies(Map.of())
                 .build();
 

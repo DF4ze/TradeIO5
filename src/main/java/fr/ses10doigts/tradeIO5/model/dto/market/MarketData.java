@@ -1,4 +1,4 @@
-package fr.ses10doigts.tradeIO5.model.dto;
+package fr.ses10doigts.tradeIO5.model.dto.market;
 
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
 import lombok.Builder;

@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.impl;
 
-import fr.ses10doigts.tradeIO5.model.dto.MarketData;
-import fr.ses10doigts.tradeIO5.model.dto.MarketDataSeries;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataSeries;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorValue;
