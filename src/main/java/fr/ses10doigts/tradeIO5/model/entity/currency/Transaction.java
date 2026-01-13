@@ -1,27 +1,16 @@
 package fr.ses10doigts.tradeIO5.model.entity.currency;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-
-import fr.ses10doigts.tradeIO5.model.entity.exchange.Provider;
+import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
 import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
 import fr.ses10doigts.tradeIO5.security.model.User;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "transaction", uniqueConstraints = { @UniqueConstraint(name="uk_transaction_ext_id",columnNames = { "external_transaction_id" }) })
@@ -46,8 +35,8 @@ public class Transaction {
 
 	// Relation avec l'exchange
 	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "exchange_id", nullable = false)
-	private Provider provider; // FIXME : Est nécessaire?
+	@JoinColumn(name = "web_provider_id", nullable = false)
+	private WebProvider webProvider;
 
 	// L'asset de la position (ex: BTC)
 	@Column(name = "asset", nullable = false, length = 20)

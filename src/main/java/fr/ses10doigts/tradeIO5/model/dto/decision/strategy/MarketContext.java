@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.model.dto.decision.strategy;
 
-import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataSeries;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorValue;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
+import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorResult;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
 import lombok.Builder;
 import lombok.Data;
@@ -19,12 +19,12 @@ public class MarketContext {
     private BigDecimal lastPrice;
     private Instant timestamp;
 
-    private Map<TimeFrame, MarketDataSeries> series;
+    private Map<TimeFrame, MarketDataset> series;
 
     @Builder.Default
-    private Map<IndicatorKey, IndicatorValue> indicatorValues = new HashMap<>();
+    private Map<IndicatorKey, IndicatorResult> indicatorValues = new HashMap<>();
 
-    public void addIndicatorValue(IndicatorKey key, IndicatorValue value ){
+    public void addIndicatorValue(IndicatorKey key, IndicatorResult value ){
         indicatorValues.put(key, value);
     }
 }

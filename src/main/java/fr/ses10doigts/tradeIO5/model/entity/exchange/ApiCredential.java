@@ -1,16 +1,7 @@
 package fr.ses10doigts.tradeIO5.model.entity.exchange;
 
-import java.time.LocalDateTime;
-
 import fr.ses10doigts.tradeIO5.security.model.User;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,13 +10,15 @@ import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.FilterDef;
 import org.hibernate.annotations.ParamDef;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @Table(name = "api_credentials",
-		uniqueConstraints = @UniqueConstraint(name = "uk_credential_user_provider", columnNames = { "user_id", "provider_id" }))
+		uniqueConstraints = @UniqueConstraint(name = "uk_credential_user_provider", columnNames = { "user_id", "web_provider_id" }))
 @FilterDef(name = "enabledFilter", parameters = @ParamDef(name = "isEnabled", type = Boolean.class))
 @Filter(name = "enabledFilter", condition = "enabled = :isEnabled")
 public class ApiCredential {
@@ -38,7 +31,11 @@ public class ApiCredential {
     private User user;
 
 	@ManyToOne(optional = false)
-	private Provider provider;
+    @JoinColumn(
+            name = "web_provider_id",
+            nullable = false
+    )
+	private WebProvider webProvider;
 
     @Column(nullable = false)
     private String apiKey;

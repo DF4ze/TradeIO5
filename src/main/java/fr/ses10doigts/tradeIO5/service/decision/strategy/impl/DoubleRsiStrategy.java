@@ -40,30 +40,38 @@ public class DoubleRsiStrategy implements Strategy {
         }
 
         List<Double> values = new ArrayList<>();
+        boolean hasError = false;
         // Pour tous les indicateurs donnés
         for ( Map.Entry<IndicatorKey, IndicatorParameters> entry : parameters.getIndicatorParameters().entrySet() ) {
             IndicatorKey indicatorKey = entry.getKey();
             IndicatorParameters rsiParams = entry.getValue();
 
             // Choix du TF depuis les paramètres de la stratégie
-            TimeFrame tf = TimeFrame.valueOf(rsiParams.getStringParams().getOrDefault(P_TIME_FRAME_NAME, "H1"));
+            TimeFrame tf = TimeFrame.valueOf(rsiParams.getStrings().getOrDefault(P_TIME_FRAME_NAME, "H1"));
 
             IndicatorContext indicatorContext = IndicatorContext.builder()
-                    .marketData(context.getSeries().get(tf))
+                    .marketDataset(context.getSeries().get(tf))
                     .timestamp(context.getTimestamp())
                     .timeframe(tf)
                     .symbol(context.getSymbol())
                     .build();
 
             IndicatorSnapshot snapshot = indicatorEngine.execute(indicatorContext, rsiParams);
+            if( snapshot.getResult().isValid() ){
+                logger.debug("Snapshot indicator value considered as VALID");
+            }else{
+                logger.error("!---- Snapshot indicator value considered as INVALID --- Skipping!");
+                hasError = true;
+                continue;
+            }
 
             // Stocker dans le MarketContext
-            context.addIndicatorValue(indicatorKey, snapshot.getValue());
+            context.addIndicatorValue(indicatorKey, snapshot.getResult());
 
             // Interprétation selon seuils de la stratégie
-            double value = snapshot.getValue().getValue();
-            double buyThreshold = rsiParams.getNumericParams().getOrDefault(P_BUY_THRESHOLD, 30.0);
-            double sellThreshold = rsiParams.getNumericParams().getOrDefault(P_SELL_THRESHOLD, 70.0);
+            double value = snapshot.getResult().getValue();
+            double buyThreshold = rsiParams.getNumerics().getOrDefault(P_BUY_THRESHOLD, 30.0);
+            double sellThreshold = rsiParams.getNumerics().getOrDefault(P_SELL_THRESHOLD, 70.0);
 
             // Conversion de valeur RSI vers score linéaire entre -1 (Sell) à +1 (Buy)
             double score = DecisionHelper.computeRsiScore(value, buyThreshold, sellThreshold);
@@ -74,9 +82,7 @@ public class DoubleRsiStrategy implements Strategy {
             values.add(score);
         }
 
-        // TODO checker validité du result
-
-        // on moyenne simplement les strategies...
+          // on moyenne simplement les strategies...
         double score = values.stream().mapToDouble(Double::doubleValue).sum() /2;
 
         logger.debug("Average score: {}", score);
@@ -87,6 +93,7 @@ public class DoubleRsiStrategy implements Strategy {
 
         return StrategySignal.builder()
                 .strategyName(getName())
+                .valid(!hasError)
                 .type(confidenceSignal.signal)
                 .confidence(confidenceSignal.confidence)
                 .score(score)

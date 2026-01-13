@@ -2,11 +2,13 @@ package fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator;
 
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 
 import java.util.Map;
 
 @Data
+@Builder
 @AllArgsConstructor
 public class IndicatorParameters {
 
@@ -16,20 +18,20 @@ public class IndicatorParameters {
      * Paramètres typés mais génériques
      * ex: period=14, fast=12, slow=26
      */
-    private final Map<String, Double> numericParams;
+    private final Map<String, Double> numerics;
 
-    private final Map<String, String> stringParams;
+    private final Map<String, String> strings;
 
-    private final Map<String, Boolean> booleanParams;
+    private final Map<String, Boolean> booleans;
 
-    public Double getNumeric( String key ){
-        return numericParams.get(key);
+    public Double getNumeric(String key ){
+        return numerics.get(key);
     }
-    public String getString( String key ){
-        return stringParams.get(key);
+    public String getString(String key ){
+        return strings.get(key);
     }
     public Boolean getBoolean( String key ){
-        return booleanParams.get(key);
+        return booleans.get(key);
     }
 
 

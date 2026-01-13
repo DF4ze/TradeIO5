@@ -1,10 +1,10 @@
 package fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.impl;
 
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
-import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataSeries;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorValue;
+import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorResult;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.Indicator;
 import org.slf4j.Logger;
@@ -27,17 +27,22 @@ public class RsiIndicator implements Indicator {
     }
 
     @Override
-    public IndicatorValue compute(
+    public List<String> getParametersNames() {
+        return List.of(P_PERIOD_NAME);
+    }
+
+    @Override
+    public IndicatorResult compute(
             IndicatorContext context,
             IndicatorParameters parameters
     ) {
         double period = parameters.getNumeric(P_PERIOD_NAME);
 
-        MarketDataSeries series = context.getMarketData();
+        MarketDataset series = context.getMarketDataset();
         List<MarketData> data = series.getMarketDatas();
 
         if (data.size() < period + 1) {
-            return IndicatorValue.invalid();
+            return IndicatorResult.invalid();
         }
 
         BigDecimal gain = BigDecimal.ZERO;
@@ -59,8 +64,15 @@ public class RsiIndicator implements Indicator {
 
         BigDecimal rsi;
 
-        if (avgLoss.compareTo(BigDecimal.ZERO) == 0) {
+        if (avgGain.compareTo(BigDecimal.ZERO) == 0 && avgLoss.compareTo(BigDecimal.ZERO) == 0) {
+            // marché flat
+            rsi = BigDecimal.valueOf(50);
+        } else if (avgLoss.compareTo(BigDecimal.ZERO) == 0) {
+            // uniquement des gains
             rsi = BigDecimal.valueOf(100);
+        } else if (avgGain.compareTo(BigDecimal.ZERO) == 0) {
+            // uniquement des pertes
+            rsi = BigDecimal.valueOf(0);
         } else {
             BigDecimal rs = avgGain.divide(avgLoss, MathContext.DECIMAL64);
             rsi = BigDecimal.valueOf(100)
@@ -72,9 +84,10 @@ public class RsiIndicator implements Indicator {
 
         logger.debug("{} indicator with {} = {} on TF {} returns {}", getType(), P_PERIOD_NAME, period, series.getTimeFrame(), rsi);
 
-        return IndicatorValue.builder()
+        return IndicatorResult.builder()
                 .value(rsi.doubleValue())
                 .valid(true)
                 .build();
     }
+
 }

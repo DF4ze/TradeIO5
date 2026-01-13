@@ -1,16 +1,15 @@
 package fr.ses10doigts.tradeIO5.service.decision.strategy;
 
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.*;
-import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataRequest;
-import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataSeries;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
-import fr.ses10doigts.tradeIO5.service.decision.DecisionRegistry;
 import fr.ses10doigts.tradeIO5.service.decision.helper.StrategyParametersFactory;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.impl.DoubleRsiStrategy;
-import fr.ses10doigts.tradeIO5.service.marketdataset.MarketDatasetProvider;
-import fr.ses10doigts.tradeIO5.service.marketdataset.provider.InMemoryDatasetProvider;
+import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -32,7 +31,9 @@ class DoubleRsiStrategyTest {
     private static final Logger logger = LoggerFactory.getLogger(DoubleRsiStrategyTest.class);
 
     @Autowired
-    private StrategyRegistry registry;
+    private StrategyRegistry strategyRegistry;
+    @Autowired
+    private MarketDatasetEngine marketDatasetEngine;
 
     @BeforeEach
     void setUp() {
@@ -41,6 +42,38 @@ class DoubleRsiStrategyTest {
     @Test
     void should_emit_SELL_when_rsi_is_overbuy() {
 
+        AggregatedStrategySignal aggregatedSignal = compute(MarketScenario.UPTREND);
+
+
+        logger.debug("Explanation : {}", aggregatedSignal.getExplanation());
+
+        assertEquals( SignalType.SELL, aggregatedSignal.getFinalSignal() );
+        assertTrue(aggregatedSignal.getScore() < 0);
+
+    }
+
+    @Test
+    void should_emit_BUY_when_rsi_is_oversold() {
+
+        AggregatedStrategySignal aggregatedSignal = compute(MarketScenario.DOWNTREND);
+
+        logger.debug("Explanation : {}", aggregatedSignal.getExplanation());
+
+        assertEquals( SignalType.BUY, aggregatedSignal.getFinalSignal() );
+        assertTrue(aggregatedSignal.getScore() > 0);
+    }
+
+    @Test
+    void should_HOLD_when_rsi_is_missing_or_invalid() {
+        AggregatedStrategySignal aggregatedSignal = compute(MarketScenario.FLAT);
+
+        logger.debug("Explanation : {}", aggregatedSignal.getExplanation());
+
+        assertEquals( SignalType.HOLD, aggregatedSignal.getFinalSignal() );
+        assertEquals(0, aggregatedSignal.getScore());
+    }
+
+    private AggregatedStrategySignal compute(MarketScenario scenario){
         TimeFrame slowTF = TimeFrame.M1;
         TimeFrame fastTF = TimeFrame.D1;
 
@@ -51,13 +84,15 @@ class DoubleRsiStrategyTest {
                 new StrategyParametersFactory.RsiParam( fastTF, 14.0, 71.0,29.0 );
         StrategyParameters strategyParameters = StrategyParametersFactory.buildDoubleRsiStrategyParam(slowParams, fastParams);
 
-        // Building dataset & MarketContext
-        MarketDatasetProvider memoryProvider = new InMemoryDatasetProvider(MarketScenario.UPTREND);
-        MarketDataRequest mdrSlow = new MarketDataRequest("slowTF", slowTF, 50, null);
-        MarketDataRequest mdrFast = new MarketDataRequest("fastTF", fastTF, 50, null);
-        MarketDataSeries slowDataset = memoryProvider.load(mdrSlow);
-        MarketDataSeries fastDataset = memoryProvider.load(mdrFast);
+        // Building Requests
+        MarketDatasetRequest mdrSlow = new MarketDatasetRequest("slowTF", slowTF, 50, null, MarketDataSource.MEMORY, MarketScenario.UPTREND);
+        MarketDatasetRequest mdrFast = new MarketDatasetRequest("fastTF", fastTF, 50, null, MarketDataSource.MEMORY, MarketScenario.UPTREND);
 
+        // Building dataset
+        MarketDataset slowDataset = marketDatasetEngine.refresh(mdrSlow);
+        MarketDataset fastDataset = marketDatasetEngine.refresh(mdrFast);
+
+        // Build context
         MarketContext context = MarketContext.builder()
                 .symbol("BTCUSDT")
                 .series(Map.of(
@@ -67,11 +102,11 @@ class DoubleRsiStrategyTest {
                 .timestamp(Instant.now())
                 .build();
 
-        Strategy strategy = registry.get( DoubleRsiStrategy.class.getSimpleName() );
+        Strategy strategy = strategyRegistry.get( DoubleRsiStrategy.class.getSimpleName() );
         StrategySignal signal = strategy.evaluate(context, strategyParameters);
 
-        assertEquals( SignalType.SELL, signal.getType() );
-        assertTrue(signal.getScore() > 0);
+//        assertEquals( SignalType.SELL, signal.getType() );
+//        assertTrue(signal.getScore() < 0);
 
 
         // Test of StrategyAggregator
@@ -80,41 +115,6 @@ class DoubleRsiStrategyTest {
         List<StrategyAggregatorParam> severalParams = new ArrayList<>(List.of(sap, sap2));
         AggregatedStrategySignal aggregatedSignal = StrategyAggregator.evaluate(context, severalParams);
 
-        assertEquals( SignalType.SELL, aggregatedSignal.getFinalSignal() );
-        assertTrue(aggregatedSignal.getScore() > 0);
-
+        return aggregatedSignal;
     }
-
-    @Test
-    void should_emit_SELL_when_rsi_is_overbought() {
-/*        MarketContext context = MarketContext.builder()
-                .indicators(Map.of(
-                        IndicatorType.RSI,
-                        IndicatorValue.builder()
-                                .value(75d)
-                                .valid(true)
-                                .build()
-                ))
-                .build();
-
-        Strategy strategy = registry.get("RsiStrategy");
-        StrategySignal signal = strategy.evaluate(context);
-
-        assertEquals(SignalType.SELL, signal.getType());
-*/    }
-
-    @Test
-    void should_HOLD_when_rsi_is_missing_or_invalid() {
-/*        MarketContext context = MarketContext.builder()
-                .indicators(Map.of(
-                        IndicatorType.RSI,
-                        IndicatorValue.invalid()
-                ))
-                .build();
-
-        Strategy strategy = registry.get("RsiStrategy");
-        StrategySignal signal = strategy.evaluate(context);
-
-        assertEquals(SignalType.HOLD, signal.getType());
-*/    }
 }

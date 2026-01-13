@@ -6,6 +6,8 @@ import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.MarketContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategyAggregatorParam;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategySignal;
 import fr.ses10doigts.tradeIO5.service.decision.helper.DecisionHelper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -29,6 +31,7 @@ import java.util.List;
 
 @Component
 public class StrategyAggregator {
+    private static final Logger logger = LoggerFactory.getLogger(StrategyAggregator.class);
 
     public static AggregatedStrategySignal evaluate(MarketContext context, StrategyAggregatorParam param) {
         StrategySignal signal = param.getStrategy().evaluate(context, param.getParameters());
@@ -59,6 +62,7 @@ public class StrategyAggregator {
 
         for (StrategySignal s : signals) {
             if( !s.isValid() ) {
+                logger.error("Strat invalid : {}",s.getReason());
                 hasError = true;
                 totalScore = 0;
                 break;

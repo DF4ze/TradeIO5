@@ -15,7 +15,7 @@ public class ApiCredentialService {
     private final ApiCredentialRepository apiCredentialRepository;
 
 	public ApiCredential getFromExchangeAndUser(String exchangeCode, User user) throws NotFoundException {
-		return apiCredentialRepository.findByUserAndEnabledTrueAndProvider_CodeAndProvider_EnabledTrue(user, exchangeCode)
+		return apiCredentialRepository.findByUserAndEnabledTrueAndWebProvider_CodeAndWebProvider_EnabledTrue(user, exchangeCode)
             .orElseThrow(() -> new NotFoundException(
                 "No enabled API credential found for user " + user.getUsername() + " and exchange " + exchangeCode));
     }

@@ -1,21 +1,22 @@
 package fr.ses10doigts.tradeIO5.model.entity.currency;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
-import fr.ses10doigts.tradeIO5.model.entity.exchange.Provider;
-import fr.ses10doigts.tradeIO5.model.enumerate.ProviderCode;
+import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
 import fr.ses10doigts.tradeIO5.model.enumerate.WalletSource;
+import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.FilterDef;
 import org.hibernate.annotations.ParamDef;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "wallet",
@@ -25,8 +26,9 @@ import org.hibernate.annotations.ParamDef;
 @FilterDef(name = "enabledFilter", parameters = @ParamDef(name = "isEnabled", type = Boolean.class))
 @Filter(name = "enabledFilter", condition = "enabled = :isEnabled")
 @Data
-@AllArgsConstructor
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Wallet {
 
     @Id
@@ -43,11 +45,11 @@ public class Wallet {
     // Code interne pour identifier la source spécifique (ex: BINANCE, KRAKEN, LEDGER, METAMASK…)
     @Enumerated(EnumType.STRING)
     @Column(length = 50)
-    private ProviderCode providerCode;
+    private WebProviderCode webProviderCode;
 
     @ManyToOne
-    @JoinColumn(name = "exchange_id")
-    private Provider provider;
+    @JoinColumn(name = "web_provider_id")
+    private WebProvider webProvider;
 
     @ManyToOne
     @JoinColumn(name = "credential_id")
@@ -57,8 +59,9 @@ public class Wallet {
 	@JoinColumn(name = "user_id", nullable = false)
 	private User user;
 
+    @Builder.Default
     @Column(nullable = false)
-	private LocalDateTime creationDate;
+	private LocalDateTime creationDate = LocalDateTime.now();
 
     @OneToMany(mappedBy = "wallet", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Transaction> transactions = new ArrayList<>();
@@ -67,9 +70,6 @@ public class Wallet {
     @Column(length = 255)
     private String description;
 
+    @Builder.Default
     private boolean enabled = true;
-
-    public Wallet() {
-		this.creationDate = LocalDateTime.now();
-    }
 }

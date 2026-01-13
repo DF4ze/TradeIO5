@@ -50,8 +50,8 @@ public class TransactionService {
 
 
 	public BigDecimal getWeightedAverageBuyPrice(String asset, Wallet wallet) {
-		List<Transaction> transactions = repository.findByAssetAndUserAndProviderAndSide(asset, wallet.getUser(),
-				wallet.getProvider(), TradeSide.BUY);
+		List<Transaction> transactions = repository.findByAssetAndUserAndWebProviderAndSide(asset, wallet.getUser(),
+				wallet.getWebProvider(), TradeSide.BUY);
 
 		BigDecimal totalValue = BigDecimal.ZERO;
 		BigDecimal totalQuantity = BigDecimal.ZERO;
@@ -67,8 +67,8 @@ public class TransactionService {
 
 
 	public BigDecimal getWeightedAverageSellPrice(String asset, Wallet wallet) {
-		List<Transaction> transactions = repository.findByAssetAndUserAndProviderAndSide(asset, wallet.getUser(),
-				wallet.getProvider(), TradeSide.SELL);
+		List<Transaction> transactions = repository.findByAssetAndUserAndWebProviderAndSide(asset, wallet.getUser(),
+				wallet.getWebProvider(), TradeSide.SELL);
 
 		BigDecimal totalValue = BigDecimal.ZERO;
 		BigDecimal totalQuantity = BigDecimal.ZERO;
@@ -85,8 +85,8 @@ public class TransactionService {
 
 
 	public BigDecimal getTotalBuyValue(String asset, Wallet wallet) {
-		List<Transaction> transactions = repository.findByAssetAndUserAndProviderAndSide(asset, wallet.getUser(),
-				wallet.getProvider(), TradeSide.BUY);
+		List<Transaction> transactions = repository.findByAssetAndUserAndWebProviderAndSide(asset, wallet.getUser(),
+				wallet.getWebProvider(), TradeSide.BUY);
 
 		return transactions.stream().map(p -> p.getQuantity().multiply(p.getPrice())).reduce(BigDecimal.ZERO,
 				BigDecimal::add);
@@ -94,8 +94,8 @@ public class TransactionService {
 
 
 	public BigDecimal getTotalSellValue(String asset, Wallet wallet) {
-		List<Transaction> transactions = repository.findByAssetAndUserAndProviderAndSide(asset, wallet.getUser(),
-				wallet.getProvider(), TradeSide.SELL);
+		List<Transaction> transactions = repository.findByAssetAndUserAndWebProviderAndSide(asset, wallet.getUser(),
+				wallet.getWebProvider(), TradeSide.SELL);
 
 		return transactions.stream().map(p -> p.getQuantity().abs().multiply(p.getPrice())).reduce(BigDecimal.ZERO,
 				BigDecimal::add);
@@ -103,11 +103,11 @@ public class TransactionService {
 
 
 	public BigDecimal getNetQuantity(String asset, Wallet wallet) {
-		List<Transaction> buyTransactions = repository.findByAssetAndUserAndProviderAndSide(asset, wallet.getUser(),
-				wallet.getProvider(), TradeSide.BUY);
+		List<Transaction> buyTransactions = repository.findByAssetAndUserAndWebProviderAndSide(asset, wallet.getUser(),
+				wallet.getWebProvider(), TradeSide.BUY);
 
-		List<Transaction> sellTransactions = repository.findByAssetAndUserAndProviderAndSide(asset, wallet.getUser(),
-				wallet.getProvider(), TradeSide.SELL);
+		List<Transaction> sellTransactions = repository.findByAssetAndUserAndWebProviderAndSide(asset, wallet.getUser(),
+				wallet.getWebProvider(), TradeSide.SELL);
 
 		BigDecimal totalBuyQty = buyTransactions.stream()
 				.map(Transaction::getQuantity)
@@ -144,7 +144,7 @@ public class TransactionService {
 		// Force le chargement du User avant usage
 		Hibernate.initialize(wallet.getUser());
 
-		logger.info("⏳ Incremental sync started for wallet={} of user={} on provider={}", wallet.getName(), wallet.getUser().getUsername(), wallet.getProviderCode());
+		logger.info("⏳ Incremental sync started for wallet={} of user={} on provider={}", wallet.getName(), wallet.getUser().getUsername(), wallet.getWebProviderCode());
 
         ApiCredential credential = wallet.getCredential();
 		if( credential == null ){
@@ -163,7 +163,7 @@ public class TransactionService {
 				}
 			}
 
-			Optional<LocalDateTime> lastSync = repository.findLastTransactionDateByUserAndProvider(credential.getUser(), credential.getProvider());
+			Optional<LocalDateTime> lastSync = repository.findLastTransactionDateByUserAndWebProvider(credential.getUser(), credential.getWebProvider());
 
 			List<TradeDto> trades;
 
@@ -189,7 +189,7 @@ public class TransactionService {
 			logger.info("✅ Incremental sync completed: {} new positions imported", inserted);
 
 		} catch (Exception e) {
-			logger.error("❌ Error during incremental sync for user={} exchange={}", credential.getUser().getUsername(), credential.getProvider().getCode(), e);
+			logger.error("❌ Error during incremental sync for user={} exchange={}", credential.getUser().getUsername(), credential.getWebProvider().getCode(), e);
 			throw new RuntimeException("Incremental sync failed", e);
 		}
 	}
@@ -202,7 +202,7 @@ public class TransactionService {
 
 		transaction.setExternalTransactionId(trade.getTradeId());
 		transaction.setUser(wallet.getUser());
-		transaction.setProvider(wallet.getProvider());
+		transaction.setWebProvider(wallet.getWebProvider());
 		transaction.setWallet(wallet);
 		transaction.setAsset(trade.getAsset());
 		transaction.setQuantity(trade.getQuantity());

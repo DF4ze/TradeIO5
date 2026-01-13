@@ -5,7 +5,7 @@ import com.binance.connector.client.exceptions.BinanceConnectorException;
 import com.binance.connector.client.impl.SpotClientImpl;
 import fr.ses10doigts.tradeIO5.model.dto.TradeDto;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
-import fr.ses10doigts.tradeIO5.model.enumerate.ProviderCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceCacheManager;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceProvider;
@@ -37,8 +37,8 @@ public class BinanceApiClient implements ProviderApiClient, BalanceProvider {
 	}
 
     @Override
-    public ProviderCode getProviderCode() {
-		return ProviderCode.BINANCE;
+    public WebProviderCode getProviderCode() {
+		return WebProviderCode.BINANCE;
     }
 
     @Override
@@ -110,7 +110,7 @@ public class BinanceApiClient implements ProviderApiClient, BalanceProvider {
 			return new HashMap<>();
 		}
 
-		return balanceCacheManager.getBalances(credential.getApiKey() + ":" + credential.getProvider().getApiBaseUrl(),
+		return balanceCacheManager.getBalances(credential.getApiKey() + ":" + credential.getWebProvider().getApiBaseUrl(),
 				this, credential);
     }
     
@@ -129,13 +129,13 @@ public class BinanceApiClient implements ProviderApiClient, BalanceProvider {
             }
         }
 
-        logger.info("\uD83D\uDCE6 [{}] {} balances récupérées pour {}", credential.getProvider().getCode(), result.size(), credential.getUser().getUsername());
+        logger.info("\uD83D\uDCE6 [{}] {} balances récupérées pour {}", credential.getWebProvider().getCode(), result.size(), credential.getUser().getUsername());
         return result;
     }
 
 	private SpotClientImpl getClient(ApiCredential credential) {
 		return new SpotClientImpl(credential.getApiKey(), credential.getSecretKey(),
-				credential.getProvider().getApiBaseUrl());
+				credential.getWebProvider().getApiBaseUrl());
 	}
 
 	@Override

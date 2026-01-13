@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import fr.ses10doigts.tradeIO5.model.dto.TradeDto;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
-import fr.ses10doigts.tradeIO5.model.enumerate.ProviderCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceCacheManager;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceProvider;
@@ -47,8 +47,8 @@ public class KrakenApiClient implements ProviderApiClient, BalanceProvider {
     }
 
     @Override
-    public ProviderCode getProviderCode() {
-        return ProviderCode.KRAKEN;
+    public WebProviderCode getProviderCode() {
+        return WebProviderCode.KRAKEN;
     }
 
     @Override
@@ -59,7 +59,7 @@ public class KrakenApiClient implements ProviderApiClient, BalanceProvider {
 
     @Override
     public Map<String, BigDecimal> getAllBalances(ApiCredential credential) {
-        return balanceCacheManager.getBalances(credential.getApiKey() + ":" + credential.getProvider().getApiBaseUrl(),
+        return balanceCacheManager.getBalances(credential.getApiKey() + ":" + credential.getWebProvider().getApiBaseUrl(),
                 this, credential);
     }
 

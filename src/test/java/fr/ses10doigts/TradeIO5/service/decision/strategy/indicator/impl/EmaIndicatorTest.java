@@ -1,55 +1,113 @@
 package fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.impl;
 
-import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataSeries;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorValue;
-import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataRequest;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
-import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
+import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorResult;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.Indicator;
-import fr.ses10doigts.tradeIO5.service.marketdataset.MarketDatasetProvider;
-import fr.ses10doigts.tradeIO5.service.marketdataset.provider.InMemoryDatasetProvider;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.util.Map;
+import java.math.BigDecimal;
+import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static fr.ses10doigts.tradeIO5.service.support.helper.TestFactory.*;
+import static org.junit.jupiter.api.Assertions.*;
+
 
 class EmaIndicatorTest {
+    private Indicator emaIndicator = new EmaIndicator();
 
-
-
-    @BeforeEach
-    void setUp() {
+    @BeforeAll
+    static void Init() {
     }
 
     @Test
     void compute() {
-        Indicator indicator = new EmaIndicator();
-
-        IndicatorParameters params = new IndicatorParameters(
-                IndicatorType.EMA,
-                Map.of(EmaIndicator.P_PERIOD_NAME, 3.0),
-                Map.of(),
-                Map.of()
+        IndicatorResult ema = emaIndicator.compute(
+                context(List.of(
+                        bd(10), bd(10), bd(10), bd(10), bd(10), bd(10), bd(10)
+                )),
+                periodParams(5)
         );
 
-        MarketDatasetProvider memoryProvider = new InMemoryDatasetProvider(MarketScenario.UPTREND);
-        MarketDataRequest mdr = new MarketDataRequest("test_ema", TimeFrame.H1, 5, null);
-        MarketDataSeries dataset = memoryProvider.load( mdr );
-
-        IndicatorContext context = IndicatorContext.builder()
-                .marketData(dataset)
-                .dependencies(Map.of())
-                .build();
-
-        IndicatorValue value = indicator.compute(context, params);
-
-        assertTrue(value.isValid());
-        assertNotNull(value.getValue());
+        assertTrue(ema.isValid());
+        assertNotNull(ema.getValue());
     }
+
+    @Test
+    void compute_withFewerDataThanPeriod() {
+        IndicatorResult ema = emaIndicator.compute(
+                context(List.of(bd(10), bd(20))),
+                periodParams(5)
+        );
+
+        // Selon ton implémentation, EMA peut être invalide ou renvoyer la première valeur
+        assertFalse(ema.isValid());
+    }
+
+    @Test
+    void compute_withEmptyData() {
+        IndicatorResult ema = emaIndicator.compute(
+                context(List.of()),
+                periodParams(5)
+        );
+
+        assertFalse(ema.isValid());
+    }
+
+    @Test
+    void compute_withJustEnoughDataPoint() {
+        IndicatorResult ema = emaIndicator.compute(
+                context(List.of(bd(15), bd(15))),
+                periodParams(2)
+        );
+
+        assertTrue(ema.isValid());
+        assertEquals(15.0, ema.getValue());
+    }
+
+    @Test
+    void compute_twoPoints_period2_exactResult() {
+        IndicatorResult ema = emaIndicator.compute(
+                context(List.of(bd(3), bd(6))),
+                periodParams(2)
+        );
+
+        assertTrue(ema.isValid());
+        assertEquals(5.0, ema.getValue());
+    }
+
+    @Test
+    void compute_withDecreasingData() {
+        IndicatorResult ema = emaIndicator.compute(
+                context(List.of(
+                        bd(50), bd(40), bd(30), bd(20), bd(10)
+                )),
+                periodParams(3)
+        );
+
+        assertTrue(ema.isValid());
+        assertTrue(ema.getValue() > 10.0); // EMA > dernière valeur
+    }
+
+    @Test
+    void compute_withIncreasingData() {
+        IndicatorResult ema = emaIndicator.compute(
+                context(List.of(
+                        bd(10), bd(20), bd(30), bd(40), bd(50)
+                )),
+                periodParams(3)
+        );
+
+        assertTrue(ema.isValid());
+        assertTrue(ema.getValue() < 50.0); // EMA < dernière valeur
+    }
+
+    @Test
+    void compute_stability() {
+        List<BigDecimal> data = List.of(bd(10), bd(15), bd(20), bd(25), bd(30));
+        IndicatorResult ema1 = emaIndicator.compute(context(data), periodParams(3));
+        IndicatorResult ema2 = emaIndicator.compute(context(data), periodParams(3));
+
+        assertEquals(ema1.getValue(), ema2.getValue());
+    }
+
 }

@@ -51,13 +51,5 @@ public class StrategySignal {
                 .build();
     }
 
-    public static StrategySignal record(String strategyName, double score, String reason) {
-        return StrategySignal.builder()
-                .valid(true)
-                .score(score)
-                .strategyName(strategyName)
-                .reason(reason)
-                .build();
-    }
 
 }

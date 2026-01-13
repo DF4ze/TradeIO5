@@ -1,26 +1,25 @@
 package fr.ses10doigts.tradeIO5.configuration;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
-import fr.ses10doigts.tradeIO5.model.enumerate.ProviderCode;
+import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
 import fr.ses10doigts.tradeIO5.model.enumerate.WalletSource;
+import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.repository.ApiCredentialRepository;
+import fr.ses10doigts.tradeIO5.repository.ProviderRepository;
 import fr.ses10doigts.tradeIO5.repository.WalletRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import fr.ses10doigts.tradeIO5.model.entity.exchange.Provider;
-import fr.ses10doigts.tradeIO5.repository.ProviderRepository;
-import lombok.RequiredArgsConstructor;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -38,20 +37,20 @@ public class WalletInitializer implements CommandLineRunner {
     public void run(String... args) {
 
         Optional<User> userOpt = userRepository.findByUsername("OKlm");
-        Optional<Provider> exchangeBinanceTestNetOpt = providerRepository.findByCode(ProviderCode.BINANCE_TESTNET);
-        Optional<Provider> exchangeBinanceOpt = providerRepository.findByCode(ProviderCode.BINANCE);
-        Optional<Provider> exchangeKrakenOpt = providerRepository.findByCode(ProviderCode.KRAKEN);
-
         if( userOpt.isEmpty() )
             throw new RuntimeException("Base user OKlm isn't set");
+
+        Optional<WebProvider> exchangeBinanceTestNetOpt = providerRepository.findByCode(WebProviderCode.BINANCE_TESTNET);
+        Optional<WebProvider> exchangeBinanceOpt = providerRepository.findByCode(WebProviderCode.BINANCE);
+        Optional<WebProvider> exchangeKrakenOpt = providerRepository.findByCode(WebProviderCode.KRAKEN);
 
         if( exchangeBinanceOpt.isEmpty() || exchangeKrakenOpt.isEmpty() || exchangeBinanceTestNetOpt.isEmpty() )
             throw new RuntimeException("Missing Exchange...");
 
         User user = userOpt.get();
-        Provider bnb = exchangeBinanceOpt.get();
-        Provider bnb_tst = exchangeBinanceTestNetOpt.get();
-        Provider krk = exchangeKrakenOpt.get();
+        WebProvider bnb = exchangeBinanceOpt.get();
+        WebProvider bnb_tst = exchangeBinanceTestNetOpt.get();
+        WebProvider krk = exchangeKrakenOpt.get();
 
         LocalDateTime now = LocalDateTime.now();
         List<ApiCredential> credentials = credentialRepository.findByUserAndEnabledTrue(user);
@@ -60,11 +59,11 @@ public class WalletInitializer implements CommandLineRunner {
         ApiCredential credKrk = null;
 
         for (ApiCredential credential : credentials){
-            switch (credential.getProvider().getCode() ){
+            switch (credential.getWebProvider().getCode() ){
                 case BINANCE :            credBnb = credential; break;
                 case BINANCE_TESTNET :    credBnb_tst = credential; break;
                 case KRAKEN :             credKrk = credential; break;
-                default: logger.warn("Credential unaffected : {}", credential.getProvider().getName());
+                default: logger.warn("Credential unaffected : {}", credential.getWebProvider().getName());
             };
         }
 
@@ -74,9 +73,9 @@ public class WalletInitializer implements CommandLineRunner {
                     .name("Binance")
                     .enabled(true)
                     .source(WalletSource.EXCHANGE)
-                    .providerCode(ProviderCode.BINANCE)
+                    .webProviderCode(WebProviderCode.BINANCE)
                     .description("Real Binance account!")
-                    .provider(bnb)
+                    .webProvider(bnb)
                     .user(user)
                     .creationDate(now)
                     .credential(credBnb)
@@ -91,9 +90,9 @@ public class WalletInitializer implements CommandLineRunner {
                     .name("Binance Test")
                     .enabled(false)
                     .source(WalletSource.EXCHANGE)
-                    .providerCode(ProviderCode.BINANCE_TESTNET)
+                    .webProviderCode(WebProviderCode.BINANCE_TESTNET)
                     .description("Binance test account")
-                    .provider(bnb_tst)
+                    .webProvider(bnb_tst)
                     .user(user)
                     .creationDate(now)
                     .credential(credBnb_tst)
@@ -107,9 +106,9 @@ public class WalletInitializer implements CommandLineRunner {
                     .name("Kraken")
                     .enabled(true)
                     .source(WalletSource.EXCHANGE)
-                    .providerCode(ProviderCode.KRAKEN)
+                    .webProviderCode(WebProviderCode.KRAKEN)
                     .description("Real Kraken account")
-                    .provider(krk)
+                    .webProvider(krk)
                     .user(user)
                     .creationDate(now)
                     .credential(credKrk)
@@ -123,7 +122,7 @@ public class WalletInitializer implements CommandLineRunner {
                     .name("Ledger")
                     .enabled(false)
                     .source(WalletSource.NON_CUSTODIAL)
-                    .providerCode(ProviderCode.LEDGER)
+                    .webProviderCode(WebProviderCode.LEDGER)
                     .user(user)
                     .creationDate(now)
                     .build();

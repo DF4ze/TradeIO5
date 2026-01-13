@@ -25,9 +25,9 @@ public class ProviderApiService {
     private ProviderApiClient getClient(Wallet wallet) {
         //logger.debug(" {} clients : {}", clients.size(), clients);
         return clients.stream()
-            .filter(c -> c.getProviderCode() == wallet.getProviderCode())
+            .filter(c -> c.getProviderCode() == wallet.getWebProviderCode())
             .findFirst()
-            .orElseThrow(() -> new IllegalArgumentException("Exchange inconnu : " + wallet.getProviderCode())); // FIXME gestion Exception
+            .orElseThrow(() -> new IllegalArgumentException("Exchange inconnu : " + wallet.getWebProviderCode())); // FIXME gestion Exception
     }
 
     public BigDecimal getUserBalance(Wallet wallet, String assetSymbol) {

@@ -2,6 +2,8 @@ package fr.ses10doigts.tradeIO5.model.enumerate.decision;
 
 import lombok.Getter;
 
+import java.time.Duration;
+
 @Getter
 public enum TimeFrame {
     Y1(365*24*60*60), Y3(3*365*24*60*60),
@@ -17,4 +19,7 @@ public enum TimeFrame {
         nbSeconde = sec;
     }
 
+    public Duration getDuration() {
+        return Duration.ofSeconds(nbSeconde);
+    }
 }

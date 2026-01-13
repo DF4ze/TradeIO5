@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.connector.apiclient;
 
-import fr.ses10doigts.tradeIO5.model.enumerate.ProviderCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -11,7 +11,7 @@ public class BinanceTestnetApiClient extends BinanceApiClient {
 	}
 
 	@Override
-	public ProviderCode getProviderCode() {
-		return ProviderCode.BINANCE_TESTNET;
+	public WebProviderCode getProviderCode() {
+		return WebProviderCode.BINANCE_TESTNET;
 	}
 }

@@ -11,6 +11,6 @@ public class IndicatorSnapshot {
     private final IndicatorType indicatorCode;
     private final IndicatorParameters parameters;
     private final IndicatorContext context;
-    private final IndicatorValue value;
+    private final IndicatorResult result;
 
 }

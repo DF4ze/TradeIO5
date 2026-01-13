@@ -3,8 +3,10 @@ package fr.ses10doigts.tradeIO5.service.decision.strategy.indicator;
 
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorValue;
+import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorResult;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
+
+import java.util.List;
 
 
 /**
@@ -51,8 +53,36 @@ public interface Indicator {
     /**
      * Exécution pure de l'indicateur
      */
-    IndicatorValue compute(
+    IndicatorResult compute(
             IndicatorContext context,
             IndicatorParameters parameters
     );
+
+    /**
+     * Récupération de la liste des paramètres
+     */
+    List<String> getParametersNames();
+
+    /**
+     * Vérifie la validité des paramètres
+     */
+    default boolean checkParameters(IndicatorParameters parameters) {
+        boolean forAll = true;
+        for (String key : getParametersNames()) {
+            boolean found = false;
+            if (parameters.getNumerics() != null && parameters.getNumeric(key) != null) {
+                found = true;
+            }else if( parameters.getBooleans() != null && parameters.getBoolean(key) != null){
+                found = true;
+            }else if (parameters.getStrings() != null && parameters.getString(key) != null){
+                found = true;
+            }
+
+            if( !found ) {
+                forAll = false;
+                break;
+            }
+        }
+        return forAll;
+    }
 }

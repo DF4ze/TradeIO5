@@ -3,12 +3,13 @@ package fr.ses10doigts.tradeIO5.service.decision.impl;
 import fr.ses10doigts.tradeIO5.model.dto.decision.*;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.MarketContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategySignal;
-import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataRequest;
-import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataSeries;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.DecisionAction;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.RiskProfile;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
 import fr.ses10doigts.tradeIO5.service.decision.Decision;
 import fr.ses10doigts.tradeIO5.service.decision.DecisionRegistry;
@@ -17,8 +18,7 @@ import fr.ses10doigts.tradeIO5.service.decision.helper.StrategyParametersFactory
 import fr.ses10doigts.tradeIO5.service.decision.strategy.Strategy;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.StrategyRegistry;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.impl.DoubleRsiStrategy;
-import fr.ses10doigts.tradeIO5.service.marketdataset.MarketDatasetProvider;
-import fr.ses10doigts.tradeIO5.service.marketdataset.provider.InMemoryDatasetProvider;
+import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +39,8 @@ class RiskManagementDecisionTest {
     private StrategyRegistry strategyRegistry;
     @Autowired
     private DecisionRegistry decisionRegistry;
+    @Autowired
+    private MarketDatasetEngine marketDatasetEngine;
 
     @BeforeEach
     void setUp() {
@@ -104,11 +106,10 @@ class RiskManagementDecisionTest {
         DecisionParameters decisionParameters = DecisionParametersFactory.buildRiskManagementParamWithDoubleRSI(strategy, slowRsiParam, fastRsiParam, RiskProfile.MEDIUM);
 
         // Building dataset & MarketContext
-        MarketDatasetProvider memoryProvider = new InMemoryDatasetProvider(MarketScenario.UPTREND);
-        MarketDataRequest mdrSlow = new MarketDataRequest("slowTF", TimeFrame.M1, 50, null);
-        MarketDataRequest mdrFast = new MarketDataRequest("fastTF", TimeFrame.H1, 50, null);
-        MarketDataSeries slowDataset = memoryProvider.load(mdrSlow);
-        MarketDataSeries fastDataset = memoryProvider.load(mdrFast);
+        MarketDatasetRequest mdrSlow = new MarketDatasetRequest("slowTF", TimeFrame.M1, 50, null, MarketDataSource.MEMORY, MarketScenario.UPTREND);
+        MarketDatasetRequest mdrFast = new MarketDatasetRequest("fastTF", TimeFrame.H1, 50, null, MarketDataSource.MEMORY, MarketScenario.UPTREND);
+        MarketDataset slowDataset = marketDatasetEngine.refresh(mdrSlow);
+        MarketDataset fastDataset = marketDatasetEngine.refresh(mdrFast);
 
         MarketContext marketContext = MarketContext.builder()
                 .symbol("BTCUSDT")

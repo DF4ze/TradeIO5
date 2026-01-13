@@ -22,7 +22,7 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class IndicatorEngine {
-    private final Logger logger = LoggerFactory.getLogger(IndicatorEngine.class);
+    private static final Logger logger = LoggerFactory.getLogger(IndicatorEngine.class);
 
     private final IndicatorRegistry indicatorRegistry;
     private final IndicatorCache indicatorCache;
@@ -33,6 +33,17 @@ public class IndicatorEngine {
     ) {
 
         Indicator indicator = indicatorRegistry.get(parameters.getIndicatorType());
+
+        if( !indicator.checkParameters(parameters) ) {
+            logger.error("Indicator {}, mandatory parameter missing in {}", indicator.getType(), parameters);
+
+            return IndicatorSnapshot.builder()
+                    .indicatorCode(indicator.getType())
+                    .parameters(parameters)
+                    .context(context)
+                    .result(IndicatorResult.builder().valid(false).build())
+                    .build();
+        }
 
         IndicatorExecutionKey key =
                 IndicatorExecutionKey.of(indicator, context, parameters);
@@ -47,14 +58,14 @@ public class IndicatorEngine {
                 resolveDependencies(indicator, context, parameters);
 
         // 3. calcul
-        IndicatorValue value = indicator.compute(enrichedContext, parameters);
+        IndicatorResult value = indicator.compute(enrichedContext, parameters);
 
         // 4. snapshot
         IndicatorSnapshot snapshot = IndicatorSnapshot.builder()
                 .indicatorCode(indicator.getType())
                 .parameters(parameters)
                 .context(enrichedContext)
-                .value(value)
+                .result(value)
                 .build();
 
         // 5. cache
@@ -91,7 +102,7 @@ public class IndicatorEngine {
         return IndicatorContext.builder()
                 .symbol(context.getSymbol())
                 .timeframe(context.getTimeframe())
-                .marketData(context.getMarketData())
+                .marketDataset(context.getMarketDataset())
                 .timestamp(context.getTimestamp())
                 .dependencies(resolvedDependencies)
                 .build();

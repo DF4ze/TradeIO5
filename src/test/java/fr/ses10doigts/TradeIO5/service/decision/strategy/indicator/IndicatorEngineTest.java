@@ -3,14 +3,14 @@ package fr.ses10doigts.tradeIO5.service.decision.strategy.indicator;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorSnapshot;
-import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataRequest;
-import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataSeries;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.impl.MacdIndicator;
-import fr.ses10doigts.tradeIO5.service.marketdataset.MarketDatasetProvider;
-import fr.ses10doigts.tradeIO5.service.marketdataset.provider.InMemoryDatasetProvider;
+import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class IndicatorEngineTest {
     @Autowired
     private IndicatorEngine indicatorEngine;
+    @Autowired
+    private MarketDatasetEngine marketDatasetEngine;
 
     @BeforeEach
     void setUp() {
@@ -42,12 +44,12 @@ class IndicatorEngineTest {
                 Map.of()
         );
 
-        MarketDatasetProvider memoryProvider = new InMemoryDatasetProvider(MarketScenario.UPTREND);
-        MarketDataRequest mdr = new MarketDataRequest("macd_updtrend", TimeFrame.H1, 50, null);
-        MarketDataSeries dataset = memoryProvider.load(mdr);
+        MarketDatasetRequest mdr = new MarketDatasetRequest("macd_updtrend", TimeFrame.H1, 50, null, MarketDataSource.MEMORY, MarketScenario.UPTREND);
+
+        MarketDataset dataset = marketDatasetEngine.refresh(mdr);
 
         IndicatorContext context = IndicatorContext.builder()
-                .marketData(dataset)
+                .marketDataset(dataset)
                 .dependencies(Map.of())
                 .build();
 
@@ -58,6 +60,6 @@ class IndicatorEngineTest {
                 );
 
         assertEquals(IndicatorType.MACD, snapshot.getIndicatorCode());
-        assertTrue(snapshot.getValue().isValid());
+        assertTrue(snapshot.getResult().isValid());
     }
 }

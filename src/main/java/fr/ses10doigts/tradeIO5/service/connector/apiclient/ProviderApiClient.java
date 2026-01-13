@@ -8,10 +8,10 @@ import java.util.Set;
 
 import fr.ses10doigts.tradeIO5.model.dto.TradeDto;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
-import fr.ses10doigts.tradeIO5.model.enumerate.ProviderCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 
 public interface ProviderApiClient {
-    ProviderCode getProviderCode();
+    WebProviderCode getProviderCode();
 
 	BigDecimal getBalance(String assetSymbol, ApiCredential credential);
 

@@ -33,7 +33,7 @@ public class AssetOverviewService {
 		// Applique le filtre sur providerCode si présent
 		if (exchangeCodeFilter.isPresent()) {
 			wallets = wallets.stream()
-					.filter(w -> w.getProviderCode().equals(exchangeCodeFilter.get()))
+					.filter(w -> w.getWebProviderCode().equals(exchangeCodeFilter.get()))
 					.toList();
 		}
 

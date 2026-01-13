@@ -1,15 +1,17 @@
 package fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.impl;
 
-import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorValue;
+import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorResult;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.Indicator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 
 @Component
@@ -18,44 +20,49 @@ public class EmaIndicator implements Indicator {
 
     public static final String P_PERIOD_NAME = "period";
 
-
-
     @Override
     public IndicatorType getType() {
         return IndicatorType.EMA;
     }
 
     @Override
-    public IndicatorValue compute(
+    public List<String> getParametersNames() {
+        return List.of(P_PERIOD_NAME);
+    }
+
+    @Override
+    public IndicatorResult compute(
             IndicatorContext context,
             IndicatorParameters parameters
     ) {
 
         Double period = parameters.getNumeric(P_PERIOD_NAME);
-        if( period == null ) {
-            logger.error("Invalid parameter : {}", P_PERIOD_NAME);
-            return IndicatorValue.invalid();
-        }
-
-        List<MarketData> data = context.getMarketData().getMarketDatas();
+        List<MarketData> data = context.getMarketDataset().getMarketDatas();
 
         if (data.size() < period) {
             logger.error("Invalid context : MarketData size too short");
-            return IndicatorValue.invalid();
+            return IndicatorResult.invalid();
         }
 
         // calcul EMA classique (pseudo simplifié)
-        double multiplier = 2.0 / (period + 1);
-        double ema = data.get(0).getClose().doubleValue();
+        BigDecimal bdPeriod = BigDecimal.valueOf(period);
+        BigDecimal multiplier = BigDecimal.valueOf(2)
+                .divide(bdPeriod.add(BigDecimal.ONE), 10, RoundingMode.HALF_EVEN); // précision intermédiaire
 
+        // Initialisation EMA en BigDecimal
+        BigDecimal ema = data.get(0).getClose();
+
+        // Calcul EMA
         for (int i = 1; i < data.size(); i++) {
-            double close = data.get(i).getClose().doubleValue();
-            ema = (close - ema) * multiplier + ema;
+            BigDecimal close = data.get(i).getClose();
+            ema = (close.subtract(ema)).multiply(multiplier).add(ema);
         }
 
-        return IndicatorValue.builder()
-                .value(ema)
+
+        return IndicatorResult.builder()
+                .value(ema.doubleValue())
                 .valid(true)
                 .build();
     }
+
 }

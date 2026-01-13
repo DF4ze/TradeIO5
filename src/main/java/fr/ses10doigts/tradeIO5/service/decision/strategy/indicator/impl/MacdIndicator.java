@@ -20,15 +20,20 @@ public class MacdIndicator implements Indicator, DependentIndicator {
     public static final String P_SLOW_PERIOD_NAME = "slowPeriod";
 
 
-    private static final IndicatorDependencyKey FAST_EMA =
+    private static final IndicatorDependencyKey K_FAST_EMA =
             new IndicatorDependencyKey(IndicatorType.EMA, "FAST");
 
-    private static final IndicatorDependencyKey SLOW_EMA =
+    private static final IndicatorDependencyKey K_SLOW_EMA =
             new IndicatorDependencyKey(IndicatorType.EMA, "SLOW");
 
     @Override
     public IndicatorType getType() {
         return IndicatorType.MACD;
+    }
+
+    @Override
+    public List<String> getParametersNames() {
+        return List.of(P_FAST_PERIOD_NAME, P_SLOW_PERIOD_NAME);
     }
 
     @Override
@@ -38,19 +43,19 @@ public class MacdIndicator implements Indicator, DependentIndicator {
 
         return List.of(
                 new IndicatorDependency(
-                        FAST_EMA,
+                        K_FAST_EMA,
                         new IndicatorParameters(
                                 IndicatorType.EMA,
-                                Map.of("period", parameters.getNumeric(P_FAST_PERIOD_NAME)),
+                                Map.of(EmaIndicator.P_PERIOD_NAME, parameters.getNumeric(P_FAST_PERIOD_NAME)),
                                 Map.of(),
                                 Map.of()
                         )
                 ),
                 new IndicatorDependency(
-                        SLOW_EMA,
+                        K_SLOW_EMA,
                         new IndicatorParameters(
                                 IndicatorType.EMA,
-                                Map.of("period", parameters.getNumeric(P_SLOW_PERIOD_NAME)),
+                                Map.of(EmaIndicator.P_PERIOD_NAME, parameters.getNumeric(P_SLOW_PERIOD_NAME)),
                                 Map.of(),
                                 Map.of()
                         )
@@ -59,29 +64,32 @@ public class MacdIndicator implements Indicator, DependentIndicator {
     }
 
     @Override
-    public IndicatorValue compute(
+    public IndicatorResult compute(
             IndicatorContext context,
             IndicatorParameters parameters
     ) {
 
         IndicatorSnapshot fast =
-                context.getDependencies().get(FAST_EMA);
+                context.getDependencies().get(K_FAST_EMA);
 
         IndicatorSnapshot slow =
-                context.getDependencies().get(SLOW_EMA);
+                context.getDependencies().get(K_SLOW_EMA);
 
-        if (fast == null || slow == null) {
+        if (fast == null || slow == null ||
+                fast.getResult() == null || slow.getResult() == null ||
+                !fast.getResult().isValid() ||  !slow.getResult().isValid()) {
             logger.error("Invalid dependency : FAST_EMA or SLOW_EMA");
-            return IndicatorValue.invalid();
+            return IndicatorResult.invalid();
         }
 
         double macd =
-                fast.getValue().getValue()
-                        - slow.getValue().getValue();
+                fast.getResult().getValue()
+                        - slow.getResult().getValue();
 
-        return IndicatorValue.builder()
+        return IndicatorResult.builder()
                 .value(macd)
                 .valid(true)
                 .build();
     }
+
 }
