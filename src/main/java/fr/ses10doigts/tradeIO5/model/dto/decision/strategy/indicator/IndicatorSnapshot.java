@@ -8,9 +8,8 @@ import lombok.Data;
 @Data
 public class IndicatorSnapshot {
 
-    private final IndicatorType indicatorCode;
+    private final IndicatorType indicatorType;
     private final IndicatorParameters parameters;
     private final IndicatorContext context;
     private final IndicatorResult result;
-
 }

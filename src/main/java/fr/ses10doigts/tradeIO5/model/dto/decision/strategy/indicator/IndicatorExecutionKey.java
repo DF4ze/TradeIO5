@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator;
 
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
-import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.Indicator;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.Indicator;
 
 public record IndicatorExecutionKey(
         IndicatorType indicatorType,

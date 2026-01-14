@@ -4,8 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import fr.ses10doigts.tradeIO5.model.dto.TradeDto;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
-import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
+import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceCacheManager;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceProvider;
 import org.slf4j.Logger;
@@ -37,13 +37,22 @@ public class KrakenApiClient implements ProviderApiClient, BalanceProvider {
     private static final String API_URL = "https://api.kraken.com";
     private static final String API_VERSION = "0";
 
-    private final WebClient webClient;
+    private static Map<String, WebClient> webClients = new HashMap<>();
 
     public KrakenApiClient() {
         this.balanceCacheManager = new BalanceCacheManager();
-        this.webClient = WebClient.builder()
-                .baseUrl(API_URL)
-                .build();
+    }
+
+    private WebClient getClient(ApiCredential credential){
+        if( !webClients.containsKey(credential.getWebProvider().getApiBaseUrl()) ){
+            webClients.put(
+                    credential.getWebProvider().getApiBaseUrl(),
+                    WebClient.builder()
+                            .baseUrl(credential.getWebProvider().getApiBaseUrl())
+                            .build()
+            );
+        }
+        return webClients.get(credential.getWebProvider().getApiBaseUrl());
     }
 
     @Override
@@ -92,20 +101,20 @@ public class KrakenApiClient implements ProviderApiClient, BalanceProvider {
 
     @Override
     public BigDecimal getMarketPrice(String assetSymbol, String quoteCurrency, ApiCredential credential) {
-        return getMarketPriceRecur(assetSymbol, quoteCurrency, 0);
+        return getMarketPriceRecur(assetSymbol, quoteCurrency, 0, credential);
     }
 
-    public BigDecimal getMarketPriceRecur(String assetSymbol, String quoteCurrency, int count) {
+    public BigDecimal getMarketPriceRecur(String assetSymbol, String quoteCurrency, int count, ApiCredential credential) {
         String pair = "undefined";
         try {
             pair = getKrakenPair(assetSymbol, quoteCurrency);
 
-            JsonNode response = publicGet("Ticker", Map.of("pair", pair));
+            JsonNode response = publicGet("Ticker", Map.of("pair", pair), credential);
 
             if (response.has("error") && !response.get("error").isEmpty()) {
                 if( (""+response.get("error")).contains("Unknown asset pair") && count < 1 ){
                     count++;
-                    return getMarketPriceRecur(assetSymbol, "USDX", count);
+                    return getMarketPriceRecur(assetSymbol, "USDX", count, credential);
                 }else {
                     throw new RuntimeException("Kraken API error: " + response.get("error"));
                 }
@@ -224,14 +233,14 @@ public class KrakenApiClient implements ProviderApiClient, BalanceProvider {
         };
     }
 
-    private JsonNode publicGet(String method, Map<String, String> params) throws Exception {
+    private JsonNode publicGet(String method, Map<String, String> params, ApiCredential credential) throws Exception {
         UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromPath("/" + API_VERSION + "/public/" + method);
         if (params != null && !params.isEmpty()) {
             params.forEach(uriBuilder::queryParam);
         }
         String uri = uriBuilder.toUriString();
 
-        String body = webClient.get()
+        String body = getClient(credential).get()
                 .uri(uri)
                 .retrieve()
                 .bodyToMono(String.class)
@@ -252,7 +261,7 @@ public class KrakenApiClient implements ProviderApiClient, BalanceProvider {
 
         String apiSign = generateSignature(path, nonce, postDataEncoded, credential.getSecretKey());
 
-        String body = webClient.post()
+        String body = getClient(credential).post()
                 .uri(path)
                 .header("API-Key", credential.getApiKey())
                 .header("API-Sign", apiSign)

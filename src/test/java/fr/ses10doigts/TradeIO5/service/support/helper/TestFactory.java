@@ -6,9 +6,9 @@ import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
-import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.impl.MacdIndicator;
-import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.impl.RainbowSmaIndicator;
-import fr.ses10doigts.tradeIO5.service.decision.strategy.indicator.impl.RsiIndicator;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.MacdIndicator;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.RainbowSmaIndicator;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.RsiIndicator;
 
 import java.math.BigDecimal;
 import java.util.List;

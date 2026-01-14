@@ -22,7 +22,7 @@ public class ProviderApiService {
 
     private final List<ProviderApiClient> clients;
 
-    private ProviderApiClient getClient(Wallet wallet) {
+    public ProviderApiClient getClient(Wallet wallet) {
         //logger.debug(" {} clients : {}", clients.size(), clients);
         return clients.stream()
             .filter(c -> c.getProviderCode() == wallet.getWebProviderCode())

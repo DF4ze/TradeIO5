@@ -2,6 +2,7 @@ package fr.ses10doigts.tradeIO5.repository;
 
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
+import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -15,7 +16,7 @@ public interface ApiCredentialRepository extends JpaRepository<ApiCredential, Lo
 
 	Optional<ApiCredential> findByUserAndWebProvider(User user, WebProvider webProvider);
 
-	Optional<ApiCredential> findByUserAndEnabledTrueAndWebProvider_CodeAndWebProvider_EnabledTrue(User user, String exchangeCode);
+	Optional<ApiCredential> findByUserAndEnabledTrueAndWebProvider_CodeAndWebProvider_EnabledTrue(User user, WebProviderCode code);
 
 
 }
