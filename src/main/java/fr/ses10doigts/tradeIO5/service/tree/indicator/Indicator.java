@@ -76,7 +76,7 @@ public interface Indicator {
                 found = true;
             }else if (parameters.getStrings() != null && parameters.getString(key) != null){
                 found = true;
-            } else if ("wallet".equals(key) && parameters.getWallet() != null ) {
+            } else if ("wallet".equals(key) && parameters.getCredential() != null ) {
                 found = true;
             }
 

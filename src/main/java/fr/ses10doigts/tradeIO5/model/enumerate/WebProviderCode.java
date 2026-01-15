@@ -5,5 +5,5 @@ public enum WebProviderCode {
     BINANCE_TESTNET,
     KRAKEN,
     LEDGER,
-    METAMASK
+    COINSTATS, METAMASK
 }

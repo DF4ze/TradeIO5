@@ -1,11 +1,11 @@
 package fr.ses10doigts.tradeIO5.configuration;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-
+import fr.ses10doigts.tradeIO5.security.model.ERole;
+import fr.ses10doigts.tradeIO5.security.model.Role;
+import fr.ses10doigts.tradeIO5.security.model.User;
+import fr.ses10doigts.tradeIO5.security.repository.RoleRepository;
+import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -14,12 +14,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-import fr.ses10doigts.tradeIO5.security.model.ERole;
-import fr.ses10doigts.tradeIO5.security.model.Role;
-import fr.ses10doigts.tradeIO5.security.model.User;
-import fr.ses10doigts.tradeIO5.security.repository.RoleRepository;
-import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
+import java.util.*;
 
 @Component
 @RequiredArgsConstructor
@@ -54,6 +49,24 @@ public class UserInitializer implements CommandLineRunner {
             userRepository.save(user);
 
 			logger.info("✅ Utilisateur OKlm créé avec tous les rôles.");
+        }
+
+        existing = userRepository.findByUsername("System");
+
+        if (existing.isEmpty()) {
+            Set<Role> roles = new HashSet<>();
+            roleRepository.findByName(ERole.ROLE_SYS).ifPresent(roles::add);
+
+            User user = User.builder()
+                    .username("System")
+                    .password(passwordEncoder.encode("jkmq'è_çsjkd'(-nfqmng154é'(-(è'))"))
+                    .roles(roles)
+                    .enabled(true)
+                    .build();
+
+            userRepository.save(user);
+
+            logger.info("✅ Utilisateur System créé.");
         }
 
 		List<String> activeProfiles = Arrays.asList(environment.getActiveProfiles());

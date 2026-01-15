@@ -1,9 +1,13 @@
 package fr.ses10doigts.tradeIO5.configuration;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-
+import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
+import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
+import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
+import fr.ses10doigts.tradeIO5.repository.ApiCredentialRepository;
+import fr.ses10doigts.tradeIO5.repository.ProviderRepository;
+import fr.ses10doigts.tradeIO5.security.model.User;
+import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -11,15 +15,9 @@ import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
-import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
-import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
-import fr.ses10doigts.tradeIO5.repository.ApiCredentialRepository;
-import fr.ses10doigts.tradeIO5.repository.ProviderRepository;
-import fr.ses10doigts.tradeIO5.security.model.User;
-import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
-
-import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -37,24 +35,31 @@ public class ApiCredentialInitializer implements CommandLineRunner {
     public void run(String... args) {
         if (!List.of(environment.getActiveProfiles()).contains("dev")) return;
 
-        Optional<User> userOpt = userRepository.findByUsername("OKlm");
-		Optional<WebProvider> exchangeBinanceTestNetOpt = providerRepository.findByCode(WebProviderCode.BINANCE_TESTNET);
-		Optional<WebProvider> exchangeBinanceOpt = providerRepository.findByCode(WebProviderCode.BINANCE);
-		Optional<WebProvider> exchangeKrakenOpt = providerRepository.findByCode(WebProviderCode.KRAKEN);
+		Optional<User> userOpt = userRepository.findByUsername("OKlm");
+		Optional<User> sysOpt = userRepository.findByUsername("System");
+		Optional<WebProvider> wpBinanceTestNetOpt = providerRepository.findByCode(WebProviderCode.BINANCE_TESTNET);
+		Optional<WebProvider> wpBinanceOpt = providerRepository.findByCode(WebProviderCode.BINANCE);
+		Optional<WebProvider> wpKrakenOpt = providerRepository.findByCode(WebProviderCode.KRAKEN);
+		Optional<WebProvider> wpCoinStatsOpt = providerRepository.findByCode(WebProviderCode.COINSTATS);
 
-		if (userOpt.isEmpty() || exchangeBinanceTestNetOpt.isEmpty() || exchangeBinanceOpt.isEmpty() || exchangeKrakenOpt.isEmpty()) {
+		if (userOpt.isEmpty() || sysOpt.isEmpty()
+				|| wpBinanceTestNetOpt.isEmpty() || wpBinanceOpt.isEmpty() || wpKrakenOpt.isEmpty() || wpCoinStatsOpt.isEmpty()) {
             logger.warn("❗ Impossible d’ajouter la clé API : utilisateur ou exchange manquant.");
             return;
         }
 
         User user = userOpt.get();
-		WebProvider webProviderBinanceTestnet = exchangeBinanceTestNetOpt.get();
-		WebProvider webProviderBinance = exchangeBinanceOpt.get();
-		WebProvider webProviderKraken = exchangeKrakenOpt.get();
+		User sys = sysOpt.get();
+		WebProvider webProviderBinanceTestnet = wpBinanceTestNetOpt.get();
+		WebProvider webProviderBinance = wpBinanceOpt.get();
+		WebProvider webProviderKraken = wpKrakenOpt.get();
+		WebProvider webProviderCoinstats = wpCoinStatsOpt.get();
 
 		boolean alreadyExistsBTN = credentialRepository.findByUserAndWebProvider(user, webProviderBinanceTestnet).isPresent();
 		boolean alreadyExistsBin = credentialRepository.findByUserAndWebProvider(user, webProviderBinance).isPresent();
 		boolean alreadyExistsKraken = credentialRepository.findByUserAndWebProvider(user, webProviderKraken).isPresent();
+
+		boolean alreadyExistsCoinstats = credentialRepository.findByUserAndWebProvider(sys, webProviderCoinstats).isPresent();
 
 		if (alreadyExistsBTN) {
 			logger.debug("🔑 Clé API " + webProviderBinanceTestnet.getName() + " déjà présente pour l'utilisateur OKlm.");
@@ -98,7 +103,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
         }
 
 		if (alreadyExistsKraken) {
-            logger.debug("\uD83D\uDD11 Clé API {} déjà présente pour l'utilisateur OKlm.", webProviderKraken.getName());
+			logger.debug("\uD83D\uDD11 Clé API {} déjà présente pour l'utilisateur OKlm.", webProviderKraken.getName());
 			// return;
 
 		} else {
@@ -117,12 +122,32 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			logger.debug("- Clé API ajoutée pour OKlm sur KRAKEN");
 		}
 
+		if (alreadyExistsCoinstats) {
+			logger.debug("\uD83D\uDD11 Clé API {} déjà présente pour l'utilisateur System.", webProviderCoinstats.getName());
+			// return;
+
+		} else {
+			//@formatter:off
+			ApiCredential credential = ApiCredential.builder()
+					.user(sys)
+					.webProvider(webProviderCoinstats)
+					.apiKey("v8ZVIcChU67x9vyMi1Ts0fzyNgwbetIHiNodpD4UonI=")
+					.enabled(true)
+					.createdAt(LocalDateTime.now())
+					.build();
+			//@formatter:on
+
+			credentialRepository.save(credential);
+			logger.debug("- Clé API ajoutée pour System sur COINSTATS");
+		}
+
 
 		if (!alreadyExistsBin || !alreadyExistsBTN)
-			logger.info("🔐 Clé.s API ajoutée.s pour utilisateur OKlm sur BINANCE");
+			logger.info("🔐 Clé.s API déjà ajoutée.s pour utilisateur OKlm sur BINANCE");
+		if (!alreadyExistsKraken)
+			logger.info("🔐 Clé.s API déjà ajoutée.s pour utilisateur OKlm sur Kraken");
+		if (!alreadyExistsCoinstats)
+			logger.info("🔐 Clé.s API déjà ajoutée.s pour utilisateur System sur Coinstats");
     }
 
-	// Kraken :
-	// api : rG/lccLLc0K7sbVorYcDexoSLWC9z140YyVzU2tncG/GkpHJjwF2d0pn
-	// secret : jX+uMxkb9/tTypQiqgD+m4lXtE+lXZF0X5SkAsqPJGkyalIr71nWURPJ/aaNU0ev1ZyHu3HPk2jd6Td5yKQw7g==
 }

@@ -1,17 +1,16 @@
 package fr.ses10doigts.tradeIO5.security.model;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
+
+@AllArgsConstructor
 public enum ERole {
 
-    ROLE_USER("User"), ROLE_MODERATOR("Moderator"), ROLE_ADMIN("Administrator");
+    ROLE_USER("User"), ROLE_MODERATOR("Moderator"), ROLE_ADMIN("Administrator"), ROLE_SYS("System");
 
-    private String pretty;
+    @Getter
+    private final String pretty;
 
-    private ERole(String pretty) {
-	this.pretty = pretty;
-    }
-
-    public String getPretty() {
-	return pretty;
-    }
 
 }

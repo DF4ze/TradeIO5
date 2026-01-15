@@ -11,7 +11,13 @@ public class FearAndGreedResponse {
     private FearAndGreedData now;
     private FearAndGreedData yesterday;
     private FearAndGreedData lastWeek;
-    // getters / setters
+    private boolean valid = true;
+
+    public static FearAndGreedResponse invalid() {
+        FearAndGreedResponse response = new FearAndGreedResponse();
+        response.setValid(false);
+        return response;
+    }
 }
 
 

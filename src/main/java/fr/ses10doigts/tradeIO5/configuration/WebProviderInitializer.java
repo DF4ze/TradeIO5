@@ -16,9 +16,9 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Order(30)
-public class ProviderInitializer implements CommandLineRunner {
+public class WebProviderInitializer implements CommandLineRunner {
 
-    private static final Logger logger = LoggerFactory.getLogger(ProviderInitializer.class);
+    private static final Logger logger = LoggerFactory.getLogger(WebProviderInitializer.class);
 
     private final ProviderRepository providerRepository;
 
@@ -29,14 +29,15 @@ public class ProviderInitializer implements CommandLineRunner {
             List<WebProvider> webProviders = List.of(
 	WebProvider.builder().code(WebProviderCode.BINANCE)			.name("Binance")		.apiBaseUrl("https://api.binance.com")			.enabled(true)  .createdAt(LocalDateTime.now()).build(),
 	WebProvider.builder().code(WebProviderCode.BINANCE_TESTNET)	.name("Binance TestNet").apiBaseUrl("https://testnet.binance.vision")	.enabled(false) .createdAt(LocalDateTime.now()).build(),
-    WebProvider.builder().code(WebProviderCode.KRAKEN)			.name("Kraken")			.apiBaseUrl("https://api.kraken.com")			.enabled(true)  .createdAt(LocalDateTime.now()).build()
+    WebProvider.builder().code(WebProviderCode.KRAKEN)			.name("Kraken")			.apiBaseUrl("https://api.kraken.com")			.enabled(true)  .createdAt(LocalDateTime.now()).build(),
+    WebProvider.builder().code(WebProviderCode.COINSTATS)		.name("CoinStats")		.apiBaseUrl("https://openapiv1.coinstats.app")	.enabled(true)  .createdAt(LocalDateTime.now()).build()
     //Exchange.builder().code("CRYPTOCOM")		.name("Crypto.com")		.apiBaseUrl("https://api.crypto.com")			.enabled(true)  .createdAt(LocalDateTime.now()).build()
             );
 
             providerRepository.saveAll(webProviders);
-            logger.info("🏦 Providers initialisés : {}", webProviders.stream().map(WebProvider::getCode).toList());
+            logger.info("🏦 WebProviders initialisés : {}", webProviders.stream().map(WebProvider::getCode).toList());
         }else{
-            logger.info("🏦 Providers DEJA initialisés !");
+            logger.info("🏦 WebProviders DEJA initialisés !");
         }
 
     }

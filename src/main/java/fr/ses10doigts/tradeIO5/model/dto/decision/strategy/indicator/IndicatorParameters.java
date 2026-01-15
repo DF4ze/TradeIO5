@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator;
 
-import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
+import fr.ses10doigts.tradeIO5.model.dto.provider.web.ApiCredentialDTO;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,7 +25,7 @@ public class IndicatorParameters {
 
     private final Map<String, Boolean> booleans;
 
-    private final Wallet wallet;
+    private final ApiCredentialDTO credential;
 
     public Double getNumeric(String key ){
         return numerics.get(key);

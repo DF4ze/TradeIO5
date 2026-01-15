@@ -1,39 +1,25 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator.external;
 
-import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
-import fr.ses10doigts.tradeIO5.service.tree.indicator.Indicator;
+import fr.ses10doigts.tradeIO5.model.dto.provider.web.ApiCredentialDTO;
+import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
-public abstract class AbstractExternalIndicator implements Indicator {
+public abstract class AbstractExternalIndicator {
 
     public static final String P_CREDENTIAL = "credential";
 
-    private static WebClient webClient = null;
+    private final Map<WebProviderCode, WebClient> clients = new ConcurrentHashMap<>();
 
-    protected WebClient getWebClient(ApiCredential credential) {
-        if( webClient == null ){
-            webClient = WebClient.builder()
-                    .baseUrl(credential.getWebProvider().getApiBaseUrl())
-                    .defaultHeader("X-API-KEY", credential.getApiKey())
-                    .build();
-        }
-        return webClient;
+    protected WebClient getWebClient(ApiCredentialDTO credential) {
+        return clients.computeIfAbsent(
+                credential.provider(),
+                p -> WebClient.builder()
+                        .baseUrl(credential.baseUrl())
+                        .build()
+        );
     }
 
-    protected WebClient getWebClient(String url) {
-        if( webClient == null ){
-            WebClient.builder()
-                    .baseUrl(url)
-                    .build();
-        }
-        return webClient;
-    }
-
-
-    @Override
-    public List<String> getParametersNames() {
-        return List.of(P_CREDENTIAL);
-    }
 }
