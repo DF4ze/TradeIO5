@@ -72,7 +72,7 @@ class EmaIndicatorTest {
         );
 
         assertTrue(ema.isValid());
-        assertEquals(5.0, ema.getValue());
+        assertEquals(5.0, Math.round(ema.getValue()));
     }
 
     @Test

@@ -1,4 +1,4 @@
-package fr.ses10doigts.tradeIO5.configuration;
+package fr.ses10doigts.tradeIO5.configuration.initializer;
 
 import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;

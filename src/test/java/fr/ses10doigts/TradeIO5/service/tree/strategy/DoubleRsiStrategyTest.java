@@ -85,8 +85,8 @@ class DoubleRsiStrategyTest {
         StrategyParameters strategyParameters = StrategyParametersFactory.buildDoubleRsiStrategyParam(slowParams, fastParams);
 
         // Building Requests
-        MarketDatasetRequest mdrSlow = new MarketDatasetRequest("slowTF", slowTF, 50, null, MarketDataSource.MEMORY, MarketScenario.UPTREND);
-        MarketDatasetRequest mdrFast = new MarketDatasetRequest("fastTF", fastTF, 50, null, MarketDataSource.MEMORY, MarketScenario.UPTREND);
+        MarketDatasetRequest mdrSlow = new MarketDatasetRequest("slowTF", slowTF, 50, null, MarketDataSource.MEMORY, scenario);
+        MarketDatasetRequest mdrFast = new MarketDatasetRequest("fastTF", fastTF, 50, null, MarketDataSource.MEMORY, scenario);
 
         // Building dataset
         MarketDataset slowDataset = marketDatasetEngine.refresh(mdrSlow);

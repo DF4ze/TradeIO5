@@ -1,4 +1,4 @@
-package fr.ses10doigts.tradeIO5.configuration;
+package fr.ses10doigts.tradeIO5.configuration.initializer;
 
 import fr.ses10doigts.tradeIO5.security.model.ERole;
 import fr.ses10doigts.tradeIO5.security.model.Role;
@@ -59,6 +59,7 @@ public class UserInitializer implements CommandLineRunner {
 
             User user = User.builder()
                     .username("System")
+                    .email("system@example.com")
                     .password(passwordEncoder.encode("jkmq'è_çsjkd'(-nfqmng154é'(-(è'))"))
                     .roles(roles)
                     .enabled(true)

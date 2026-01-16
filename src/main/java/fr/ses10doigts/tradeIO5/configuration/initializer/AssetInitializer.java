@@ -1,18 +1,15 @@
-package fr.ses10doigts.tradeIO5.configuration;
+package fr.ses10doigts.tradeIO5.configuration.initializer;
 
-import java.util.List;
-
-import fr.ses10doigts.tradeIO5.service.tool.DataBaseAccess;
+import fr.ses10doigts.tradeIO5.model.entity.currency.Asset;
+import fr.ses10doigts.tradeIO5.repository.AssetRepository;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import fr.ses10doigts.tradeIO5.ProfileChecker;
-import fr.ses10doigts.tradeIO5.model.entity.currency.Asset;
-import fr.ses10doigts.tradeIO5.repository.AssetRepository;
-import lombok.RequiredArgsConstructor;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -25,8 +22,6 @@ public class AssetInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-
-		DataBaseAccess.excludeDisabledItems(true);
 
         if (assetRepository.count() == 0) {
             assetRepository.saveAll(List.of(

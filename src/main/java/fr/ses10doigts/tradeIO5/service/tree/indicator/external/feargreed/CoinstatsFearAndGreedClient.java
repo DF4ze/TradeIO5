@@ -53,7 +53,7 @@ public class CoinstatsFearAndGreedClient extends AbstractExternalIndicator imple
                                         "CoinStats 5xx: " + body))
                 )
                 .bodyToMono(FearAndGreedResponse.class)
-                .timeout(Duration.ofSeconds(3))
+                .timeout(Duration.ofSeconds(5))
                 .block();
     }
 

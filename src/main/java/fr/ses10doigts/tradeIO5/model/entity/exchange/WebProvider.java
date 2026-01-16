@@ -6,9 +6,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.Filter;
-import org.hibernate.annotations.FilterDef;
-import org.hibernate.annotations.ParamDef;
 
 import java.time.LocalDateTime;
 
@@ -18,8 +15,6 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @Table(name = "provider", uniqueConstraints = @UniqueConstraint(name = "uk_provider_code", columnNames = "code"))
-@FilterDef(name = "enabledFilter", parameters = @ParamDef(name = "isEnabled", type = Boolean.class))
-@Filter(name = "enabledFilter", condition = "enabled = :isEnabled")
 public class WebProvider {
 
     @Id

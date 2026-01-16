@@ -19,7 +19,9 @@ spring.datasource.password=setYourDBPassword
 fr.ses10doigts.crawler.botToken=token...
 fr.ses10doigts.crawler.botUsername=botname...
 
-
-
+# OpenAI
+tradeio.openai.apiKey=yourKey
+tradeio.openai.defaultModel=GPT_4_1_MINI
+tradeio.openai.baseUrl=https://api.openai.com/v1
 
 
