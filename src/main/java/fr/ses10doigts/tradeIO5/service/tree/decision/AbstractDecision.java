@@ -70,13 +70,13 @@ public abstract class AbstractDecision implements Decision {
      * Détermine le signal majoritaire parmi les stratégies.
      */
     protected SignalType determineMajoritySignal(List<StrategySignal> signals) {
-        long buy = signals.stream().filter(s -> s.getType() == SignalType.BUY).count();
-        long sell = signals.stream().filter(s -> s.getType() == SignalType.SELL).count();
-        long hold = signals.stream().filter(s -> s.getType() == SignalType.HOLD).count();
+        long buy = signals.stream().filter(s -> s.getType() == SignalType.BULLISH).count();
+        long sell = signals.stream().filter(s -> s.getType() == SignalType.BEARISH).count();
+        long hold = signals.stream().filter(s -> s.getType() == SignalType.NEUTRAL).count();
 
-        if (buy > sell && buy > hold) return SignalType.BUY;
-        if (sell > buy && sell > hold) return SignalType.SELL;
-        return SignalType.HOLD;
+        if (buy > sell && buy > hold) return SignalType.BULLISH;
+        if (sell > buy && sell > hold) return SignalType.BEARISH;
+        return SignalType.NEUTRAL;
     }
 
     /**
@@ -102,7 +102,7 @@ public abstract class AbstractDecision implements Decision {
                 weightedScore, scoreSignal, confidence, majoritySignal, profile);
 
         // Ambiguïté totale → HOLD
-        if (scoreSignal == SignalType.HOLD && majoritySignal == SignalType.HOLD) {
+        if (scoreSignal == SignalType.NEUTRAL && majoritySignal == SignalType.NEUTRAL) {
             logger.debug("ScoreSignal == MajoritySignal == HOLD");
             return DecisionAction.HOLD;
         }
@@ -152,9 +152,9 @@ public abstract class AbstractDecision implements Decision {
 
     protected DecisionAction mapSignalToAction(SignalType signalType) {
         return switch (signalType) {
-            case BUY -> DecisionAction.BUY;
-            case SELL -> DecisionAction.SELL;
-            case HOLD -> DecisionAction.HOLD;
+            case BULLISH -> DecisionAction.BUY;
+            case BEARISH -> DecisionAction.SELL;
+            case NEUTRAL -> DecisionAction.HOLD;
         };
     }
 

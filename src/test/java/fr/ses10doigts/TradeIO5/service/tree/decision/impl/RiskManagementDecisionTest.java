@@ -49,9 +49,9 @@ class RiskManagementDecisionTest {
     @Test
     void testDecisionWithDifferentRiskProfiles() {
         // --- Préparation des StrategySignal simulés ---
-        StrategySignal buyStrong = StrategySignal.simple(SignalType.BUY, 1.0, 1.0);
-        StrategySignal sellWeak = StrategySignal.simple(SignalType.SELL, -0.4, 0.2);
-        StrategySignal holdNeutral = StrategySignal.simple(SignalType.HOLD, 0.2, 0.5);
+        StrategySignal buyStrong = StrategySignal.simple(SignalType.BULLISH, 1.0, 1.0);
+        StrategySignal sellWeak = StrategySignal.simple(SignalType.BEARISH, -0.4, 0.2);
+        StrategySignal holdNeutral = StrategySignal.simple(SignalType.NEUTRAL, 0.2, 0.5);
 
         List<StrategySignal> signals = List.of(buyStrong, sellWeak, holdNeutral);
 

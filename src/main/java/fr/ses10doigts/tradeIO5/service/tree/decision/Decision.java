@@ -5,6 +5,27 @@ import fr.ses10doigts.tradeIO5.model.dto.decision.DecisionParameters;
 import fr.ses10doigts.tradeIO5.model.dto.decision.DecisionResult;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.DecisionType;
 
+
+/**
+ * ⑦ DecisionEngine (le cerveau)
+ *
+ * - Pourquoi
+ * C’est le seul endroit où une action peut émerger.
+ *
+ * - Responsabilités :
+ * combiner :
+ * score global
+ * contexte user
+ * contraintes de risque
+ *
+ * décider :
+ * agir
+ * moduler
+ * s’abstenir
+ *
+ * - Conceptuellement
+ * “Voici ce que je fais, ou pourquoi je ne fais rien.”
+ */
 /**
  * Contrat commun à toutes les décisions.
  * Une Decision orchestre une ou plusieurs Strategies

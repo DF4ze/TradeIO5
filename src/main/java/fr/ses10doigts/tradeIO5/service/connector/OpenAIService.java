@@ -9,7 +9,7 @@ import com.openai.models.responses.ResponseOutputItem;
 import com.openai.models.responses.ResponseOutputMessage.Content;
 import com.openai.models.responses.ResponseOutputText;
 import fr.ses10doigts.tradeIO5.configuration.properties.OpenAIProperties;
-import fr.ses10doigts.tradeIO5.model.dto.MyResponseDTO;
+import fr.ses10doigts.tradeIO5.model.dto.decision.LlmAdvice;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,27 +36,42 @@ public class OpenAIService {
     """;
 
     /**
-     * Envoie une requête au modèle et retourne directement une DTO
+     * Envoie une requête au modèle et retourne directement un LlmAdvice
      */
-    public MyResponseDTO askForSomething1(String userInput) throws JsonProcessingException {
+    public LlmAdvice ask(String userInput ){
 
         Response response = client.responses().create(
-            ResponseCreateParams.builder()
-                .model(props.defaultModel().toChatModel())
-                .input(SYSTEM_JSON_PROMPT+userInput)
-                .build()
+                ResponseCreateParams.builder()
+                        .model(props.defaultModel().toChatModel())
+                        .input(userInput)
+                        .build()
         );
 
+        logger.debug("Input : {}", userInput);
         logger.debug("Response : {}", response);
 
         List<String> texts = extractText(response);
 
         if( !texts.isEmpty() ){
-            return objectMapper.readValue(texts.get(0), MyResponseDTO.class);
+            // Conversion JSON → DTO
+            try {
+                LlmAdvice advice = objectMapper.readValue(cleanString(texts.get(0).replaceAll("```\\w*", "")), LlmAdvice.class);
+                advice.setValid(true);
+                return advice;
+            } catch (JsonProcessingException e) {
+                logger.error("Error mapping OpenAI response: {}\nPrompt: \n{}\nResponse: {}",
+                        e.getMessage(), userInput, response);
+            }
         }
 
-        // Conversion JSON → DTO
-        return null;
+        return LlmAdvice.invalid();
+    }
+
+    private static String cleanString( String result ){
+        result = result.replace("```json", "");
+        result = result.replace("```", "");
+        result = result.trim();
+        return result;
     }
 
     private static List<String> extractText( Response response ){

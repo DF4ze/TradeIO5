@@ -47,7 +47,7 @@ class DoubleRsiStrategyTest {
 
         logger.debug("Explanation : {}", aggregatedSignal.getExplanation());
 
-        assertEquals( SignalType.SELL, aggregatedSignal.getFinalSignal() );
+        assertEquals( SignalType.BEARISH, aggregatedSignal.getFinalSignal() );
         assertTrue(aggregatedSignal.getScore() < 0);
 
     }
@@ -59,7 +59,7 @@ class DoubleRsiStrategyTest {
 
         logger.debug("Explanation : {}", aggregatedSignal.getExplanation());
 
-        assertEquals( SignalType.BUY, aggregatedSignal.getFinalSignal() );
+        assertEquals( SignalType.BULLISH, aggregatedSignal.getFinalSignal() );
         assertTrue(aggregatedSignal.getScore() > 0);
     }
 
@@ -69,7 +69,7 @@ class DoubleRsiStrategyTest {
 
         logger.debug("Explanation : {}", aggregatedSignal.getExplanation());
 
-        assertEquals( SignalType.HOLD, aggregatedSignal.getFinalSignal() );
+        assertEquals( SignalType.NEUTRAL, aggregatedSignal.getFinalSignal() );
         assertEquals(0, aggregatedSignal.getScore());
     }
 

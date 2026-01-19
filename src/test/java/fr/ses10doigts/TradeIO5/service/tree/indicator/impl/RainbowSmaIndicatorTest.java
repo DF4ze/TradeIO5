@@ -33,14 +33,14 @@ class RainbowSmaIndicatorTest {
 
     @Test
     void wrongParameters(){
-        IndicatorParameters parameters = IndicatorParameters.builder().numerics(Map.of())
+        IndicatorParameters emptyParameters = IndicatorParameters.builder().numerics(Map.of())
                 .indicatorType(IndicatorType.RAINBOW)
                 .build();
         IndicatorContext context = context(List.of(
                 bd(10), bd(10), bd(10), bd(10), bd(10), bd(10), bd(10)
         ));
 
-        IndicatorSnapshot snap = indicatorEngine.execute(context, parameters);
+        IndicatorSnapshot snap = indicatorEngine.execute(context, emptyParameters);
         assertFalse(snap.getResult().isValid());
     }
 

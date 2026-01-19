@@ -14,19 +14,19 @@ public class DecisionHelper {
             // linéaire : -1/6 -> 0, 0 -> 1
             return new ConfidenceSignal(
                     Math.abs((score + barrier) / barrier),
-                    SignalType.HOLD
+                    SignalType.NEUTRAL
             );
         } else if (score >= 0 && score <= barrier) {
             // linéaire : 0 -> +1/6 , 1 -> 0
             return new ConfidenceSignal(
                     Math.abs(score / barrier),
-                    SignalType.HOLD
+                    SignalType.NEUTRAL
             );
         } else {
             // en dehors des barrières : directement
             return new ConfidenceSignal(
                     Math.abs(score),
-                    score > 0 ? SignalType.BUY : SignalType.SELL
+                    score > 0 ? SignalType.BULLISH : SignalType.BEARISH
             );
         }
     }

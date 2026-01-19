@@ -4,6 +4,8 @@ import fr.ses10doigts.tradeIO5.model.enumerate.decision.RiskProfile;
 import lombok.Builder;
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 /**
  * Profil utilisateur, utilisé dans les décisions.
  */
@@ -21,6 +23,6 @@ public class UserProfile {
     private boolean reinforcementActive;
 
     /** Paramètres spécifiques éventuels */
-    private double maxAllocationPerAsset;
-    private double minCashReserve;
+    private BigDecimal maxAllocationPerAsset;
+    private BigDecimal minCashReserve;
 }
