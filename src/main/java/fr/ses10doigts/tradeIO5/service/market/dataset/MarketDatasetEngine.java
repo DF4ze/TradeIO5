@@ -3,70 +3,109 @@ package fr.ses10doigts.tradeIO5.service.market.dataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
-import fr.ses10doigts.tradeIO5.service.market.provider.MarketDataProviderRegistry;
 import fr.ses10doigts.tradeIO5.service.market.provider.MarketDataProvider;
+import fr.ses10doigts.tradeIO5.service.market.provider.MarketDataProviderRegistry;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class MarketDatasetEngine {
 
+    private static final Logger log = LoggerFactory.getLogger(MarketDatasetEngine.class);
+
+
     private final MarketDatasetCache cache;
     private final MarketDatasetManager manager;
     private final MarketDataProviderRegistry providerRegistry;
 
-    public static final int DEFAULT_LIMIT = 500; // TODO : Parametrize
+
+    public static final int DEFAULT_LIMIT = 500; // TODO : parametrize
 
 
-    /**
-     * Recharge ou crée un dataset à partir de la request.
-     * @param request contient la source et paramètres éventuels
-     */
     public MarketDataset refresh(MarketDatasetRequest request) {
-
         MarketDatasetState state = cache.getState(request);
 
-        if (!isLiveSource(request.source()) && state.isComplete() ) {
-            // Pas besoin de fetch, renvoyer snapshot directement
+
+        if (!isLiveSource(request.source()) && state.isComplete()) {
             return manager.snapshot(request, state);
         }
 
-        // récupérer le provider via la registry
-        MarketDataProvider provider = providerRegistry.getProvider(request.source(), request.providerParam());
 
-        // Charger les données
-        // Pour les sources live, fetch incrémental
+        MarketDataProvider provider = providerRegistry.getProvider(request.source(), request.providerParam());
         MarketDataset dataset;
+
+
         if (isLiveSource(request.source()) && state.getLastUpdate() != null) {
-            dataset = provider.loadSince(request, state.getLastUpdate()); // fetch seulement ce qui manque
+            dataset = provider.loadSince(request, state.getLastUpdate());
         } else {
-            dataset = provider.load(request); // fetch complet
+            dataset = provider.load(request);
         }
 
-        // merger les données via le manager
+
         manager.merge(state, dataset.getMarketDatas(), request.timeFrame());
 
-        // retourner un snapshot final
+
         return manager.snapshot(request, state);
     }
 
-    /**
-     * Fetch en direct sans passer par le cache
-     */
+
     public List<MarketData> fetchLive(MarketDatasetRequest request, Object providerParam) {
         MarketDataProvider provider = providerRegistry.getProvider(request.source(), providerParam);
         return provider.fetchMarketData(request.symbol(), request.timeFrame(), DEFAULT_LIMIT);
     }
 
-    private boolean needsRefresh(MarketDatasetState state) {
-        // Exemple simple : si dernière update > 5 secondes ou 1 minute, on refresh
-        return state.getLastUpdate().isBefore(Instant.now().minusSeconds(60)); // TODO : parametrize
+
+    /**
+     * Fournit au consommateur (ex: indicateur) un nombre minimum de bougies pour un TF donné.
+     * Tente un fetch incrémental si le Bucket est insuffisant.
+     */
+    public List<MarketData> getMarketDataForIndicator(MarketDatasetRequest request, MarketDatasetState state, TimeFrame requestedTimeFrame, int requiredCount) {
+        long factor = requestedTimeFrame.getNbSeconds() / state.getBucket().getBaseTimeFrame().getNbSeconds();
+        int neededBaseCount = (int) (requiredCount * factor);
+
+
+        List<MarketData> baseView = state.getBucket().view(state.getBucket().getBaseTimeFrame());
+
+
+        // Vérifier si le Bucket contient assez de bougies
+        if (baseView.size() < neededBaseCount) {
+            log.info("Bucket insuffisant pour {}: demandé={}, disponible={}, tentative fetch...",
+                    state.getPair(), neededBaseCount, baseView.size());
+
+
+            // Tentative fetch incrémental si provider le permet
+            MarketDataProvider provider = providerRegistry.getProvider(request.source(), request.providerParam());
+            List<MarketData> fetched = provider.fetchMarketData(request.symbol(), state.getBucket().getBaseTimeFrame(), neededBaseCount - baseView.size());
+            if (fetched != null && !fetched.isEmpty()) {
+                manager.merge(state, fetched, state.getBucket().getBaseTimeFrame());
+                baseView = state.getBucket().view(state.getBucket().getBaseTimeFrame());
+            }
+
+            // Si toujours insuffisant, log warning
+            if (baseView.size() < neededBaseCount) {
+                log.warn("Données insuffisantes pour indicateur {}: demandé={} bougies TF natif={}, disponibles={} après fetch",
+                        request.symbol(), requiredCount, state.getBucket().getBaseTimeFrame(), baseView.size());
+            }
+        }
+
+
+        int startIndex = Math.max(baseView.size() - neededBaseCount, 0);
+        List<MarketData> subBase = baseView.subList(startIndex, baseView.size());
+
+
+        // Agrégation sur le TF demandé
+        Bucket tempBucket = new Bucket(state.getBucket().getBaseTimeFrame(), subBase.size());
+        subBase.forEach(tempBucket::append);
+        return tempBucket.view(requestedTimeFrame);
     }
+
 
     private boolean isLiveSource(MarketDataSource source) {
         return source.getType().isLive();

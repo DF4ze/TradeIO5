@@ -27,6 +27,14 @@ public class RsiIndicator implements Indicator {
     }
 
     @Override
+    public int getRequiredData(IndicatorParameters parameters) {
+        int nbRequied = 0;
+        if( parameters.getNumeric(P_PERIOD_NAME) != null )
+            nbRequied = parameters.getNumeric(P_PERIOD_NAME).intValue();
+        return nbRequied;
+    }
+
+    @Override
     public List<String> getParametersNames() {
         return List.of(P_PERIOD_NAME);
     }

@@ -27,6 +27,14 @@ public class MacdIndicator implements Indicator, DependentIndicator {
             new IndicatorDependencyKey(IndicatorType.EMA, "SLOW");
 
     @Override
+    public int getRequiredData(IndicatorParameters parameters) {
+        int nbRequied = 0;
+        if( parameters.getNumeric(P_SLOW_PERIOD_NAME) != null )
+            nbRequied = parameters.getNumeric(P_SLOW_PERIOD_NAME).intValue();
+        return nbRequied;
+    }
+
+    @Override
     public IndicatorType getType() {
         return IndicatorType.MACD;
     }

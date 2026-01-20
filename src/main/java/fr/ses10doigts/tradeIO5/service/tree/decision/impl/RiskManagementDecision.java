@@ -29,6 +29,7 @@ public class RiskManagementDecision extends AbstractDecision {
         return DecisionType.RISK_MANAGEMENT;
     }
 
+
     @Override
     protected DecisionResult interpretSignals(
             List<StrategySignal> signals,

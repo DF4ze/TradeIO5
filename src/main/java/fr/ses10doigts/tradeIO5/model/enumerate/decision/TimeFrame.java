@@ -13,13 +13,19 @@ public enum TimeFrame {
     H1(60*60), H4(4*60*60), H12(12*60*60),
     MIN1(60), MIN5(5*60) ;
 
-    private final long nbSeconde;
+    private final long nbSeconds;
 
     TimeFrame( long sec ){
-        nbSeconde = sec;
+        nbSeconds = sec;
     }
 
     public Duration getDuration() {
-        return Duration.ofSeconds(nbSeconde);
+        return Duration.ofSeconds(nbSeconds);
     }
+
+    public boolean isMultipleOf(TimeFrame other) {
+        if (other == null || other.nbSeconds == 0) return false;
+        return this.nbSeconds % other.nbSeconds == 0;
+    }
+
 }

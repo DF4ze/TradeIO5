@@ -2,34 +2,32 @@ package fr.ses10doigts.tradeIO5.service.market.dataset;
 
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.Deque;
 
 @Getter
+@Setter
 class MarketDatasetState {
 
-    private final Deque<MarketData> buffer;
+    private final String pair;
+    private final Bucket bucket;
     private final int maxSize;
 
     private Instant lastUpdate;
-    private boolean complete;
+    private boolean isComplete;
 
-    MarketDatasetState(int maxSize) {
+    public MarketDatasetState(String pair, int maxSize) {
+        this.pair = pair;
         this.maxSize = maxSize;
-        this.buffer = new ArrayDeque<>(maxSize);
-        this.complete = false;
-        this.lastUpdate = Instant.now();
+        this.bucket = new Bucket(maxSize);
+        this.isComplete = false;
     }
 
     /* package-private setters pour le manager uniquement */
 
-    void setLastUpdate(Instant lastUpdate) {
-        this.lastUpdate = lastUpdate;
-    }
-
-    void setComplete(boolean complete) {
-        this.complete = complete;
+    public void append(MarketData data) {
+        bucket.append(data);
+        lastUpdate = Instant.now();
     }
 }

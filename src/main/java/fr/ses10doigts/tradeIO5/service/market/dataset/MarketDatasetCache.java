@@ -15,7 +15,7 @@ class MarketDatasetCache {
     MarketDatasetState getState(MarketDatasetRequest request) {
         return states.computeIfAbsent(
                 request,
-                r -> new MarketDatasetState(MarketDatasetEngine.DEFAULT_LIMIT)
+                r -> new MarketDatasetState(request.symbol(), MarketDatasetEngine.DEFAULT_LIMIT)
         );
     }
 }

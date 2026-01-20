@@ -10,9 +10,9 @@ import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorSn
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.StrategyType;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.tree.helper.DecisionHelper;
-import fr.ses10doigts.tradeIO5.service.tree.strategy.Strategy;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorEngine;
-import lombok.RequiredArgsConstructor;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorRegistry;
+import fr.ses10doigts.tradeIO5.service.tree.strategy.AbstractStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -20,8 +20,7 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 
 @Component
-@RequiredArgsConstructor
-public class DoubleRsiStrategy implements Strategy {
+public class DoubleRsiStrategy extends AbstractStrategy {
     private static final Logger logger = LoggerFactory.getLogger(DoubleRsiStrategy.class);
 
     public static final String P_TIME_FRAME_NAME = "timeframe";
@@ -29,6 +28,12 @@ public class DoubleRsiStrategy implements Strategy {
     public static final String P_SELL_THRESHOLD = "rsiSellThreshold";
 
     private final IndicatorEngine indicatorEngine;
+
+    public DoubleRsiStrategy(IndicatorRegistry indicatorRegistry, IndicatorEngine indicatorEngine) {
+        super(indicatorRegistry);
+        this.indicatorEngine = indicatorEngine;
+    }
+
 
     @Override
     public StrategySignal evaluate(MarketContext context, StrategyParameters parameters) {

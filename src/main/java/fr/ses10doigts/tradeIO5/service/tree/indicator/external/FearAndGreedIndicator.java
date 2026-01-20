@@ -29,6 +29,11 @@ public class FearAndGreedIndicator implements Indicator {
     }
 
     @Override
+    public int getRequiredData(IndicatorParameters parameters) {
+        return 0;
+    }
+
+    @Override
     public List<String> getParametersNames() {
         return List.of(AbstractExternalIndicator.P_CREDENTIAL);
     }

@@ -5,7 +5,9 @@ import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.MarketContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategyParameters;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategySignal;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.StrategyType;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
 
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -26,7 +28,9 @@ import java.util.Set;
  * “Dans ce contexte, je penche plutôt pour…”
  */
 public interface Strategy {
-    
+
+    Map<TimeFrame, Integer> getRequiredCandles(StrategyParameters parameters );
+
     StrategySignal evaluate(MarketContext context, StrategyParameters parameters);
 
     Set<StrategyType> getType();

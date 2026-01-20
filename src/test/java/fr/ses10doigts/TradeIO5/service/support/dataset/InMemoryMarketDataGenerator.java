@@ -40,7 +40,7 @@ public final class InMemoryMarketDataGenerator {
 
             data.add(MarketData.builder()
                     .timeFrame(timeFrame)
-                    .timestamp(start.plusSeconds(timeFrame.getNbSeconde() * i))
+                    .timestamp(start.plusSeconds(timeFrame.getNbSeconds() * i))
                     .open(open)
                     .high(high)
                     .low(low)
@@ -82,7 +82,7 @@ public final class InMemoryMarketDataGenerator {
 
             data.add(MarketData.builder()
                     .timeFrame(timeFrame)
-                    .timestamp(start.plusSeconds(timeFrame.getNbSeconde() * i))
+                    .timestamp(start.plusSeconds(timeFrame.getNbSeconds() * i))
                     .open(open)
                     .high(high)
                     .low(low)
@@ -124,7 +124,7 @@ public final class InMemoryMarketDataGenerator {
 
             data.add(MarketData.builder()
                     .timeFrame(timeFrame)
-                    .timestamp(start.plusSeconds(timeFrame.getNbSeconde() * i))
+                    .timestamp(start.plusSeconds(timeFrame.getNbSeconds() * i))
                     .open(open)
                     .high(high)
                     .low(low)

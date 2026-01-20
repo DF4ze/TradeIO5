@@ -33,6 +33,14 @@ public class RainbowSmaIndicator implements Indicator, DependentIndicator {
     }
 
     @Override
+    public int getRequiredData(IndicatorParameters parameters) {
+        int nbRequied = 0;
+        if( parameters.getNumeric(P_PERIOD_NAME) != null )
+            nbRequied = parameters.getNumeric(P_PERIOD_NAME).intValue();
+        return nbRequied;
+    }
+
+    @Override
     public List<String> getParametersNames() {
         return List.of(P_PERIOD_NAME, P_PERC_UP1, P_PERC_UP2, P_PERC_UP3, P_PERC_DOWN1, P_PERC_DOWN2);
     }

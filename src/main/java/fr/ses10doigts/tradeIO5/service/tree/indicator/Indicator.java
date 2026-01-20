@@ -50,6 +50,8 @@ public interface Indicator {
      */
     IndicatorType getType();
 
+    int getRequiredData( IndicatorParameters parameters );
+
     /**
      * Exécution pure de l'indicateur
      */

@@ -34,7 +34,7 @@ public class CoinstatsFearAndGreedClient extends AbstractExternalIndicator imple
          return response;
     }
 
-    private FearAndGreedResponse getFearAndGreed(ApiCredentialDTO credential) { // FIXME: FIx all of this!
+    private FearAndGreedResponse getFearAndGreed(ApiCredentialDTO credential) {
 
         return getWebClient(credential).get()
                 .uri("/insights/fear-and-greed") // TODO : Parametrize

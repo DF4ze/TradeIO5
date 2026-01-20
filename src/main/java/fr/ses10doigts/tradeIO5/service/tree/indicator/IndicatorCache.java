@@ -54,7 +54,7 @@ public class IndicatorCache {
     }
 
     private boolean isOutdated(IndicatorContext ctx, Instant now) {
-        long validitySeconds = ctx.getTimeframe().getNbSeconde();
+        long validitySeconds = ctx.getTimeframe().getNbSeconds();
         return now.isAfter(ctx.getTimestamp().plusSeconds(validitySeconds));
     }
 }

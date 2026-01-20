@@ -7,11 +7,14 @@ import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategySignal;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.DecisionAction;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.RiskProfile;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.tree.helper.DecisionHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Classe de base pour les décisions concrètes.
@@ -20,6 +23,17 @@ import java.util.List;
 public abstract class AbstractDecision implements Decision {
     private final Logger logger = LoggerFactory.getLogger(AbstractDecision.class);
 
+    @Override
+    public Map<TimeFrame, Integer> getRequiredCandles(DecisionParameters parameters) {
+        return parameters.getStrategies().stream()
+                .map(key -> key.getStrategy().getRequiredCandles(key.getParameters()))
+                .flatMap(map -> map.entrySet().stream())
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        Math::max
+                ));
+    }
 
     /**
      * Exécute toutes les stratégies associées à la décision.
