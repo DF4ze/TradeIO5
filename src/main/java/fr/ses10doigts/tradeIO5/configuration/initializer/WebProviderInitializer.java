@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -25,20 +26,43 @@ public class WebProviderInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) {
 
-        if (providerRepository.count() == 0) {
-            List<WebProvider> webProviders = List.of(
-	WebProvider.builder().code(WebProviderCode.BINANCE)			.name("Binance")		.apiBaseUrl("https://api.binance.com")			.enabled(true)  .createdAt(LocalDateTime.now()).build(),
-	WebProvider.builder().code(WebProviderCode.BINANCE_TESTNET)	.name("Binance TestNet").apiBaseUrl("https://testnet.binance.vision")	.enabled(false) .createdAt(LocalDateTime.now()).build(),
-    WebProvider.builder().code(WebProviderCode.KRAKEN)			.name("Kraken")			.apiBaseUrl("https://api.kraken.com")			.enabled(true)  .createdAt(LocalDateTime.now()).build(),
-    WebProvider.builder().code(WebProviderCode.COINSTATS)		.name("CoinStats")		.apiBaseUrl("https://openapiv1.coinstats.app")	.enabled(true)  .createdAt(LocalDateTime.now()).build()
-    //Exchange.builder().code("CRYPTOCOM")		.name("Crypto.com")		.apiBaseUrl("https://api.crypto.com")			.enabled(true)  .createdAt(LocalDateTime.now()).build()
-            );
-
-            providerRepository.saveAll(webProviders);
-            logger.info("🏦 WebProviders initialisés : {}", webProviders.stream().map(WebProvider::getCode).toList());
-        }else{
-            logger.info("🏦 WebProviders DEJA initialisés !");
+        for (WebProvider wp : List.of(
+                WebProvider.builder()
+                        .code(WebProviderCode.BINANCE)
+                        .name("Binance")
+                        .apiBaseUrl("https://api.binance.com")
+                        .enabled(true)
+                        .createdAt(LocalDateTime.now())
+                        .build(),
+                WebProvider.builder()
+                        .code(WebProviderCode.BINANCE_TESTNET)
+                        .name("Binance TestNet")
+                        .apiBaseUrl("https://testnet.binance.vision")
+                        .enabled(false)
+                        .createdAt(LocalDateTime.now())
+                        .build(),
+                WebProvider.builder()
+                        .code(WebProviderCode.KRAKEN)
+                        .name("Kraken")
+                        .apiBaseUrl("https://api.kraken.com")
+                        .enabled(true)
+                        .createdAt(LocalDateTime.now())
+                        .build(),
+                WebProvider.builder()
+                        .code(WebProviderCode.COINSTATS)
+                        .name("CoinStats")
+                        .apiBaseUrl("https://openapiv1.coinstats.app")
+                        .enabled(true)
+                        .createdAt(LocalDateTime.now())
+                        .build()
+        )) {
+            providerRepository.findByCode(wp.getCode())
+                    .or(() -> {
+                        providerRepository.save(wp);
+                        logger.info("🏦 WebProvider initialisé : {}", wp.getCode());
+                        return Optional.of(wp);
+                    });
         }
-
+        logger.info("🏦 Tous les WebProvider sont initialisés.");
     }
 }

@@ -68,6 +68,8 @@ public class UserInitializer implements CommandLineRunner {
             userRepository.save(user);
 
             logger.info("✅ Utilisateur System créé.");
+        }else{
+            logger.info("✅ Utilisateur System déjà créé.");
         }
 
 		List<String> activeProfiles = Arrays.asList(environment.getActiveProfiles());

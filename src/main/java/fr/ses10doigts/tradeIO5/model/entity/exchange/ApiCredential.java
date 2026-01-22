@@ -35,7 +35,6 @@ public class ApiCredential {
     @Column(nullable = false)
     private String apiKey;
 
-    @Column(nullable = false)
     private String secretKey;
 
     private boolean enabled = true;

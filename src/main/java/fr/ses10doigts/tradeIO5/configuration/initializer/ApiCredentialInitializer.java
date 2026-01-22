@@ -42,11 +42,35 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		Optional<WebProvider> wpKrakenOpt = providerRepository.findByCode(WebProviderCode.KRAKEN);
 		Optional<WebProvider> wpCoinStatsOpt = providerRepository.findByCode(WebProviderCode.COINSTATS);
 
-		if (userOpt.isEmpty() || sysOpt.isEmpty()
-				|| wpBinanceTestNetOpt.isEmpty() || wpBinanceOpt.isEmpty() || wpKrakenOpt.isEmpty() || wpCoinStatsOpt.isEmpty()) {
-            logger.warn("❗ Impossible d’ajouter la clé API : utilisateur ou exchange manquant.");
-            return;
-        }
+		if (userOpt.isEmpty()) {
+			logger.warn("❗ Impossible d’ajouter la clé API : utilisateur manquant.");
+			return;
+		}
+
+		if (sysOpt.isEmpty()) {
+			logger.warn("❗ Impossible d’ajouter la clé API : système manquant.");
+			return;
+		}
+
+		if (wpBinanceTestNetOpt.isEmpty()) {
+			logger.warn("❗ Impossible d’ajouter la clé API : provider Binance TestNet manquant.");
+			return;
+		}
+
+		if (wpBinanceOpt.isEmpty()) {
+			logger.warn("❗ Impossible d’ajouter la clé API : provider Binance manquant.");
+			return;
+		}
+
+		if (wpKrakenOpt.isEmpty()) {
+			logger.warn("❗ Impossible d’ajouter la clé API : provider Kraken manquant.");
+			return;
+		}
+
+		if (wpCoinStatsOpt.isEmpty()) {
+			logger.warn("❗ Impossible d’ajouter la clé API : provider CoinStats manquant.");
+			return;
+		}
 
         User user = userOpt.get();
 		User sys = sysOpt.get();
@@ -141,13 +165,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			logger.debug("- Clé API ajoutée pour System sur COINSTATS");
 		}
 
-
-		if (!alreadyExistsBin || !alreadyExistsBTN)
-			logger.info("🔐 Clé.s API déjà ajoutée.s pour utilisateur OKlm sur BINANCE");
-		if (!alreadyExistsKraken)
-			logger.info("🔐 Clé.s API déjà ajoutée.s pour utilisateur OKlm sur Kraken");
-		if (!alreadyExistsCoinstats)
-			logger.info("🔐 Clé.s API déjà ajoutée.s pour utilisateur System sur Coinstats");
     }
 
 }
