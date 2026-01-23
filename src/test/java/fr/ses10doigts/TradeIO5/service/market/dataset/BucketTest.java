@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.market.dataset;
 
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -88,6 +88,13 @@ class BucketTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> bucket.view(TimeFrame.MIN5));
+    }
+
+    @Test
+    void shouldWorkIfIsMultiple() {
+        Bucket bucket = new Bucket(TimeFrame.H1, 10);
+
+        assertNotNull(bucket.view(TimeFrame.M1));
     }
 
     @Test

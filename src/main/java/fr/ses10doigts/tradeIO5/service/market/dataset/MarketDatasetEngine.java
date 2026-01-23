@@ -3,7 +3,7 @@ package fr.ses10doigts.tradeIO5.service.market.dataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.service.market.provider.MarketDataProvider;
 import fr.ses10doigts.tradeIO5.service.market.provider.MarketDataProviderRegistry;
@@ -95,7 +95,7 @@ public class MarketDatasetEngine {
             }
         }
 
-
+        // Récupération de juste le nécessaire pour les indicateurs
         int startIndex = Math.max(baseView.size() - neededBaseCount, 0);
         List<MarketData> subBase = baseView.subList(startIndex, baseView.size());
 

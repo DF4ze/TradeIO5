@@ -4,9 +4,12 @@ package fr.ses10doigts.tradeIO5.service.market.dataset;// Bucket.java
 // - Alignement temporel sémantique (jour, semaine…)
 // - Dernière bougie agrégée potentiellement incomplète (live-like)
 
+import fr.ses10doigts.tradeIO5.model.dto.market.BucketView;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import lombok.Getter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
@@ -18,6 +21,7 @@ import java.util.*;
 
 public class Bucket {
 
+    private static final Logger logger = LoggerFactory.getLogger(Bucket.class);
     private static final TimeFrame BASE_TIME_FRAME = TimeFrame.H1; // TODO : parametrize
 
     private final Deque<MarketData> buffer;
@@ -47,6 +51,10 @@ public class Bucket {
     /* ================= INGESTION ================= */
 
     public void append(MarketData data) {
+        if( !data.getTimeFrame().equals(baseTimeFrame) ){
+            throw new IllegalArgumentException("Given MarketData TimeFrame differs from Bucket base TimeFrame");
+        }
+
         if (buffer.isEmpty()) {
             buffer.addLast(data);
             invalidateViews();
@@ -57,10 +65,15 @@ public class Bucket {
 
         // forward-only strict
         if (!data.getTimestamp().isAfter(last.getTimestamp())) {
+            logger.error("Given MarketData before last Bucket data");
             return;
         }
 
         buffer.addLast(data);
+
+        if( buffer.size() > maxSize ){
+            logger.warn("Total buffer size is oversize({} for {}), removing last data", buffer.size(), maxSize);
+        }
 
         while (buffer.size() > maxSize) {
             buffer.removeFirst();
@@ -71,7 +84,7 @@ public class Bucket {
 
     /* ================= VIEWS ================= */
 
-    public List<MarketData> view(TimeFrame targetTimeFrame) {
+    public BucketView view(TimeFrame targetTimeFrame) {
         if (targetTimeFrame.equals(baseTimeFrame)) {
             return List.copyOf(buffer);
         }
@@ -96,7 +109,7 @@ public class Bucket {
 
     /* ================= AGGREGATION ================= */
 
-    private List<MarketData> aggregate(TimeFrame targetTimeFrame) {
+    private BucketView aggregate(TimeFrame targetTimeFrame) {
         Map<Instant, List<MarketData>> groups = new LinkedHashMap<>();
 
         for (MarketData data : buffer) {

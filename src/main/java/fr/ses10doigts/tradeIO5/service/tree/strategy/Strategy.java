@@ -5,7 +5,7 @@ import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.MarketContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategyParameters;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategySignal;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.StrategyType;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 
 import java.util.Map;
 import java.util.Set;

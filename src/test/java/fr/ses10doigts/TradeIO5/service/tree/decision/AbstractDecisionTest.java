@@ -2,7 +2,7 @@ package fr.ses10doigts.tradeIO5.service.tree.decision;
 
 import fr.ses10doigts.tradeIO5.model.dto.decision.DecisionParameters;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.RiskProfile;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.tree.decision.impl.RiskManagementDecision;
 import fr.ses10doigts.tradeIO5.service.tree.helper.DecisionParametersFactory;
 import fr.ses10doigts.tradeIO5.service.tree.helper.StrategyParametersFactory;

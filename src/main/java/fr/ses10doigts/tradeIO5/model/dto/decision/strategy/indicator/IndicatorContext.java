@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator;
 
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import lombok.Builder;
 import lombok.Getter;
 

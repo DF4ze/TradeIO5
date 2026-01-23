@@ -7,7 +7,7 @@ import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.MarketContext;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorResult;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.MacdIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.RsiIndicator;
 import org.junit.jupiter.api.Test;

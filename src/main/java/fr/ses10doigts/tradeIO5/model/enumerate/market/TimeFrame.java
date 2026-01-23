@@ -1,4 +1,4 @@
-package fr.ses10doigts.tradeIO5.model.enumerate.decision;
+package fr.ses10doigts.tradeIO5.model.enumerate.market;
 
 import lombok.Getter;
 

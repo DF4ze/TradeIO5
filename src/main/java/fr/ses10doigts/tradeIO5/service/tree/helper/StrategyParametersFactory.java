@@ -4,7 +4,7 @@ import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.IndicatorKey;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategyParameters;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import lombok.AllArgsConstructor;
 
 public class StrategyParametersFactory {

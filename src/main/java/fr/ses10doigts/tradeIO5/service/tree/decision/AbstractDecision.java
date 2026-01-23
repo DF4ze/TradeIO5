@@ -7,7 +7,7 @@ import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategySignal;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.DecisionAction;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.RiskProfile;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.TimeFrame;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.tree.helper.DecisionHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
