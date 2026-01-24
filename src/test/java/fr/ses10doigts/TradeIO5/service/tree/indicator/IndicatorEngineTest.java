@@ -6,21 +6,24 @@ import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorSn
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
-import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
-import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.MacdIndicator;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.MacdIndicator;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.time.Instant;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@DisplayName("Indicator - *Engine")
 @SpringBootTest
 class IndicatorEngineTest {
     @Autowired
@@ -45,9 +48,9 @@ class IndicatorEngineTest {
                 null
         );
 
-        MarketDatasetRequest mdr = new MarketDatasetRequest("macd_updtrend", TimeFrame.H1, 50, null, MarketDataSource.MEMORY, MarketScenario.UPTREND);
+        MarketDatasetRequest mdr = new MarketDatasetRequest("macd_updtrend", TimeFrame.H1, 50, Instant.now(), MarketDataSource.MEMORY, MarketScenario.UPTREND);
 
-        MarketDataset dataset = marketDatasetEngine.refresh(mdr);
+        MarketDataset dataset = marketDatasetEngine.getDataset(mdr);
 
         IndicatorContext context = IndicatorContext.builder()
                 .marketDataset(dataset)

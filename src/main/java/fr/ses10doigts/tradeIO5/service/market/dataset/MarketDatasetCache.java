@@ -10,12 +10,16 @@ import java.util.concurrent.ConcurrentHashMap;
 class MarketDatasetCache {
 
     private final Map<MarketDatasetRequest, MarketDatasetState> states
-            = new ConcurrentHashMap<>();
+            = new ConcurrentHashMap<>(); // TODO : Peut-etre uniquement la paire en clé...?
 
     MarketDatasetState getState(MarketDatasetRequest request) {
         return states.computeIfAbsent(
                 request,
-                r -> new MarketDatasetState(request.symbol(), MarketDatasetEngine.DEFAULT_LIMIT)
+                r -> new MarketDatasetState(request.symbol(), Bucket.BASE_MAX_ITEMS)
         );
+    }
+
+    public void put(MarketDatasetRequest request, MarketDatasetState state) {
+        states.put(request, state);
     }
 }

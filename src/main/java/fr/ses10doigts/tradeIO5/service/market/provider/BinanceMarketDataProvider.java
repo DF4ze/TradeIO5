@@ -17,13 +17,13 @@ class BinanceMarketDataProvider implements MarketDataProvider {
 
 
     @Override
-    public MarketDataset load(MarketDatasetRequest request) {
+    public MarketDataset fullLoad(MarketDatasetRequest request) {
         // Ici tu appellerais l'API Binance avec config.apiKey, config.secret...
         throw new UnsupportedOperationException("Not Yet Implemented");
     }
 
     @Override
-    public MarketDataset loadSince(MarketDatasetRequest request, Instant from) {
+    public MarketDataset loadSince(MarketDatasetRequest request) {
         // Fetch uniquement les bougies entre "from" et maintenant
         throw new UnsupportedOperationException("Not Yet Implemented");
     }
@@ -32,7 +32,7 @@ class BinanceMarketDataProvider implements MarketDataProvider {
     public List<MarketData> fetchMarketData(
             String symbol,
             TimeFrame timeframe,
-            int limit
+            Instant time, int limit
     ) {
         throw new UnsupportedOperationException("Not Yet Implemented");
     }

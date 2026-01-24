@@ -3,6 +3,7 @@ package fr.ses10doigts.tradeIO5.service.tree.indicator.impl;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorResult;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.Indicator;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -11,7 +12,7 @@ import java.util.List;
 import static fr.ses10doigts.tradeIO5.service.support.helper.TestFactory.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-
+@DisplayName("Indicator - EMA")
 class EmaIndicatorTest {
     private Indicator emaIndicator = new EmaIndicator();
 

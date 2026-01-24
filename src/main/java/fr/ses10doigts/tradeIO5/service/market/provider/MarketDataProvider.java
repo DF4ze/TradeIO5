@@ -12,12 +12,12 @@ public interface MarketDataProvider {
     /**
      * Chargement complet (statique ou initial)
      */
-    MarketDataset load(MarketDatasetRequest request);
+    MarketDataset fullLoad(MarketDatasetRequest request);
 
     /**
      * Chargement incrémental (sources live uniquement)
      */
-    MarketDataset loadSince(MarketDatasetRequest request, Instant from);
+    MarketDataset loadSince(MarketDatasetRequest request);
 
     /**
      * Fetch direct (ticker / bougie courante)
@@ -25,6 +25,7 @@ public interface MarketDataProvider {
     List<MarketData> fetchMarketData(
             String symbol,
             TimeFrame timeframe,
+            Instant time,
             int limit
     );
 

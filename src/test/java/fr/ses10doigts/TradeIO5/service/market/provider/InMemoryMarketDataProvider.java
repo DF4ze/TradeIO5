@@ -3,6 +3,7 @@ package fr.ses10doigts.tradeIO5.service.market.provider;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
 import fr.ses10doigts.tradeIO5.service.support.dataset.InMemoryMarketDataGenerator;
@@ -17,7 +18,7 @@ public class InMemoryMarketDataProvider implements MarketDataProvider {
     private MarketScenario scenario;
 
     @Override
-    public MarketDataset load(
+    public MarketDataset fullLoad(
             MarketDatasetRequest request
     ) {
         return switch (scenario) {
@@ -29,16 +30,21 @@ public class InMemoryMarketDataProvider implements MarketDataProvider {
     }
 
     @Override
-    public MarketDataset loadSince(MarketDatasetRequest request, Instant from) {
-        throw new UnsupportedOperationException(
-                getClass().getSimpleName() + " does not support incremental loading"
-        );
+    public MarketDataset loadSince(MarketDatasetRequest request) {
+        return fullLoad(request);
     }
 
     @Override
-    public List<MarketData> fetchMarketData(String symbol, TimeFrame timeframe, int limit) {
-        throw new UnsupportedOperationException(
-                getClass().getSimpleName() + " does not support fetching"
+    public List<MarketData> fetchMarketData(String symbol, TimeFrame timeframe, Instant time, int limit) {
+        MarketDatasetRequest request = new MarketDatasetRequest(
+                symbol,
+                timeframe,
+                limit,
+                time,
+                MarketDataSource.MEMORY,
+                null
         );
+
+        return fullLoad(request).getMarketDatas();
     }
 }

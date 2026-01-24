@@ -16,21 +16,21 @@ class InFileMarketDataProvider implements MarketDataProvider {
 
 
     @Override
-    public MarketDataset load(
+    public MarketDataset fullLoad(
             MarketDatasetRequest request
     ) {
         throw new UnsupportedOperationException("Not Yet Implemented");
     }
 
     @Override
-    public MarketDataset loadSince(MarketDatasetRequest request, Instant from) {
+    public MarketDataset loadSince(MarketDatasetRequest request) {
         throw new UnsupportedOperationException(
                 getClass().getSimpleName() + " does not support incremental loading"
         );
     }
 
     @Override
-    public List<MarketData> fetchMarketData(String symbol, TimeFrame timeframe, int limit) {
+    public List<MarketData> fetchMarketData(String symbol, TimeFrame timeframe, Instant time, int limit) {
         throw new UnsupportedOperationException(
                 getClass().getSimpleName() + " does not support fetchMarketData loading"
         );

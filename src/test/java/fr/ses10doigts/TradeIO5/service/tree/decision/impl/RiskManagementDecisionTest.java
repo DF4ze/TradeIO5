@@ -8,9 +8,9 @@ import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.DecisionAction;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.RiskProfile;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
-import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
 import fr.ses10doigts.tradeIO5.service.tree.decision.Decision;
 import fr.ses10doigts.tradeIO5.service.tree.decision.DecisionRegistry;
@@ -20,6 +20,7 @@ import fr.ses10doigts.tradeIO5.service.tree.strategy.Strategy;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.StrategyRegistry;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.DoubleRsiStrategy;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,6 +33,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+@DisplayName("Decision - Risk Management")
 @SpringBootTest
 class RiskManagementDecisionTest {
 
@@ -106,10 +108,10 @@ class RiskManagementDecisionTest {
         DecisionParameters decisionParameters = DecisionParametersFactory.buildRiskManagementParamWithDoubleRSI(strategy, slowRsiParam, fastRsiParam, RiskProfile.MEDIUM);
 
         // Building dataset & MarketContext
-        MarketDatasetRequest mdrSlow = new MarketDatasetRequest("slowTF", TimeFrame.M1, 50, null, MarketDataSource.MEMORY, MarketScenario.UPTREND);
-        MarketDatasetRequest mdrFast = new MarketDatasetRequest("fastTF", TimeFrame.H1, 50, null, MarketDataSource.MEMORY, MarketScenario.UPTREND);
-        MarketDataset slowDataset = marketDatasetEngine.refresh(mdrSlow);
-        MarketDataset fastDataset = marketDatasetEngine.refresh(mdrFast);
+        MarketDatasetRequest mdrSlow = new MarketDatasetRequest("slowTF", TimeFrame.H12, 50, Instant.now(), MarketDataSource.MEMORY, MarketScenario.UPTREND);
+        MarketDatasetRequest mdrFast = new MarketDatasetRequest("fastTF", TimeFrame.H1, 50, Instant.now(), MarketDataSource.MEMORY, MarketScenario.UPTREND);
+        MarketDataset slowDataset = marketDatasetEngine.getDataset(mdrSlow);
+        MarketDataset fastDataset = marketDatasetEngine.getDataset(mdrFast);
 
         MarketContext marketContext = MarketContext.builder()
                 .symbol("BTCUSDT")

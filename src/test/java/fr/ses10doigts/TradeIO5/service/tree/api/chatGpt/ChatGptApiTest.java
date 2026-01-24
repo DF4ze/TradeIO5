@@ -4,10 +4,12 @@ import com.openai.client.OpenAIClient;
 import com.openai.models.responses.Response;
 import com.openai.models.responses.ResponseCreateParams;
 import fr.ses10doigts.tradeIO5.configuration.properties.OpenAIProperties;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-
+@DisplayName("Indicator External - Open AI Client")
 @SpringBootTest
 class ChatGptApiTest {
 
@@ -16,6 +18,7 @@ class ChatGptApiTest {
     @Autowired
     private OpenAIProperties props;
 
+    @Disabled("Test temporairement désactivé")
     @Test
     void HelloWorld(){
         Response response = openAIClient.responses().create(

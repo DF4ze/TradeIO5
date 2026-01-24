@@ -33,4 +33,12 @@ public class MarketData {
 
     /** Volumes échangés */
     private final BigDecimal volume;
+
+    @Override
+    public String toString() {
+        return "MarketData{" +
+                "timestamp=" + timestamp +
+                ", close=" + close +
+                '}';
+    }
 }

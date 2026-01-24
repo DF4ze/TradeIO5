@@ -9,11 +9,13 @@ import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.MacdIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.RsiIndicator;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.util.Map;
 
+@DisplayName("Indicator External- Abstract")
 class AbstractAdvisorTest {
 
     @Test

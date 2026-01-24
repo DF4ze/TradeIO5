@@ -16,6 +16,7 @@ import static fr.ses10doigts.tradeIO5.service.support.helper.TestFactory.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
+@DisplayName("Indicator - MACD")
 class MacdIndicatorTest {
 
     @Autowired

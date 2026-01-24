@@ -2,6 +2,7 @@ package fr.ses10doigts.tradeIO5.service.tree.indicator.impl;
 
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorResult;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -9,6 +10,7 @@ import java.util.List;
 import static fr.ses10doigts.tradeIO5.service.support.helper.TestFactory.*;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@DisplayName("Indicator - RSI")
 class RsiIndicatorTest {
     private final RsiIndicator indicator = new RsiIndicator();
 

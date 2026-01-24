@@ -1,15 +1,19 @@
 package fr.ses10doigts.tradeIO5.service.market.dataset;
 
+import fr.ses10doigts.tradeIO5.model.dto.market.BucketView;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.CompletenessLevel;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@DisplayName("Market Dataset - Bucket")
 class BucketTest {
 
     private static MarketData candle(
@@ -32,19 +36,20 @@ class BucketTest {
                 .build();
     }
 
+    private final static Instant now = Instant.now();
+
     @Test
     void shouldAppendOnlyForwardInTime() {
         Bucket bucket = new Bucket(TimeFrame.H1, 10);
 
-        Instant t1 = Instant.parse("2024-01-01T10:00:00Z");
-        Instant t2 = Instant.parse("2024-01-01T11:00:00Z");
+        Instant t2 = now.minus(Duration.ofSeconds(60*60));
 
-        bucket.append(candle(t2, bd(1), bd(2), bd(3), bd(1), bd(10)));
-        bucket.append(candle(t1, bd(1), bd(1), bd(1), bd(1), bd(5))); // ignorée
+        bucket.append(candle(now, bd(1), bd(2), bd(3), bd(1), bd(10)));
+        bucket.append(candle(t2, bd(1), bd(1), bd(1), bd(1), bd(5))); // ignorée
 
-        List<MarketData> view = bucket.view(TimeFrame.H1);
+        BucketView view = bucket.view(TimeFrame.H1, now);
         assertEquals(1, view.size());
-        assertEquals(t2, view.get(0).getTimestamp());
+        assertEquals(now, view.data().get(0).getTimestamp());
     }
 
     @Test
@@ -55,10 +60,10 @@ class BucketTest {
         bucket.append(candle(ts(1), bd(1), bd(1), bd(1), bd(1), bd(1)));
         bucket.append(candle(ts(2), bd(1), bd(1), bd(1), bd(1), bd(1)));
 
-        List<MarketData> view = bucket.view(TimeFrame.H1);
+        BucketView view = bucket.view(TimeFrame.H1, now);
         assertEquals(2, view.size());
-        assertEquals(ts(1), view.get(0).getTimestamp());
-        assertEquals(ts(2), view.get(1).getTimestamp());
+        assertEquals(ts(1), view.data().get(0).getTimestamp());
+        assertEquals(ts(2), view.data().get(1).getTimestamp());
     }
 
     @Test
@@ -70,10 +75,10 @@ class BucketTest {
         bucket.append(candle(ts(2), bd(11), bd(15), bd(16), bd(11), bd(9)));
         bucket.append(candle(ts(3), bd(15), bd(14), bd(15), bd(13), bd(6)));
 
-        List<MarketData> h4 = bucket.view(TimeFrame.H4);
+        BucketView h4 = bucket.view(TimeFrame.H4, now);
 
         assertEquals(1, h4.size());
-        MarketData c = h4.get(0);
+        MarketData c = h4.data().get(0);
 
         assertEquals(bd(10), c.getOpen());
         assertEquals(bd(14), c.getClose());
@@ -85,16 +90,16 @@ class BucketTest {
     @Test
     void shouldThrowIfTimeFrameIsNotMultiple() {
         Bucket bucket = new Bucket(TimeFrame.H1, 10);
+        BucketView view = bucket.view(TimeFrame.MIN5, now);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> bucket.view(TimeFrame.MIN5));
+        assertSame(view.completeness(), CompletenessLevel.INCOMPLETE);
     }
 
     @Test
     void shouldWorkIfIsMultiple() {
         Bucket bucket = new Bucket(TimeFrame.H1, 10);
 
-        assertNotNull(bucket.view(TimeFrame.M1));
+        assertNotNull(bucket.view(TimeFrame.M1, now));
     }
 
     @Test
@@ -104,13 +109,13 @@ class BucketTest {
         bucket.append(candle(ts(0), bd(1), bd(1), bd(1), bd(1), bd(1)));
         bucket.append(candle(ts(1), bd(1), bd(1), bd(1), bd(1), bd(1)));
 
-        List<MarketData> first = bucket.view(TimeFrame.H4);
-        List<MarketData> second = bucket.view(TimeFrame.H4);
+        BucketView first = bucket.view(TimeFrame.H4, now);
+        BucketView second = bucket.view(TimeFrame.H4, now);
 
-        assertSame(first.get(0), second.get(0)); // même instance via cache
+        assertSame(first.data().get(0), second.data().get(0)); // même instance via cache
 
         bucket.append(candle(ts(2), bd(1), bd(1), bd(1), bd(1), bd(1)));
-        List<MarketData> third = bucket.view(TimeFrame.H4);
+        BucketView third = bucket.view(TimeFrame.H4, now);
 
         assertNotSame(first, third); // cache invalidé
     }

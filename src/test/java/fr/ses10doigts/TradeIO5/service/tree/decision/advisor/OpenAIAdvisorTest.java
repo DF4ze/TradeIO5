@@ -10,6 +10,8 @@ import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.MacdIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.RsiIndicator;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,12 +22,14 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@DisplayName("Indicator External - OpenAI")
 @SpringBootTest
 class OpenAIAdvisorTest {
 
     @Autowired
     OpenAIAdvisor advisor;
 
+    @Disabled("Test temporairement désactivé")
     @Test
     void callModelTest() {
         IndicatorParameters rsiP = IndicatorParameters.builder()

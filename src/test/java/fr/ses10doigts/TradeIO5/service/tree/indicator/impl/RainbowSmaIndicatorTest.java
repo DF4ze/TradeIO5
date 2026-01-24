@@ -6,6 +6,7 @@ import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorSn
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorEngine;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,6 +19,7 @@ import static fr.ses10doigts.tradeIO5.service.support.helper.TestFactory.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
+@DisplayName("Indicator - RAINBOW")
 class RainbowSmaIndicatorTest {
 
 

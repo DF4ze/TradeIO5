@@ -4,13 +4,14 @@ import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.*;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
-import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
+import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
 import fr.ses10doigts.tradeIO5.service.tree.helper.StrategyParametersFactory;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.DoubleRsiStrategy;
-import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@DisplayName("Strategy - DoubleRsi")
 @SpringBootTest
 class DoubleRsiStrategyTest {
     private static final Logger logger = LoggerFactory.getLogger(DoubleRsiStrategyTest.class);
@@ -74,8 +76,8 @@ class DoubleRsiStrategyTest {
     }
 
     private AggregatedStrategySignal compute(MarketScenario scenario){
-        TimeFrame slowTF = TimeFrame.M1;
-        TimeFrame fastTF = TimeFrame.D1;
+        TimeFrame slowTF = TimeFrame.D1;
+        TimeFrame fastTF = TimeFrame.H1;
 
         // Strategy Parameters
         StrategyParametersFactory.RsiParam slowParams =
@@ -85,12 +87,12 @@ class DoubleRsiStrategyTest {
         StrategyParameters strategyParameters = StrategyParametersFactory.buildDoubleRsiStrategyParam(slowParams, fastParams);
 
         // Building Requests
-        MarketDatasetRequest mdrSlow = new MarketDatasetRequest("slowTF", slowTF, 50, null, MarketDataSource.MEMORY, scenario);
-        MarketDatasetRequest mdrFast = new MarketDatasetRequest("fastTF", fastTF, 50, null, MarketDataSource.MEMORY, scenario);
+        MarketDatasetRequest mdrSlow = new MarketDatasetRequest("slowTF", slowTF, 50, Instant.now(), MarketDataSource.MEMORY, scenario);
+        MarketDatasetRequest mdrFast = new MarketDatasetRequest("fastTF", fastTF, 50, Instant.now(), MarketDataSource.MEMORY, scenario);
 
         // Building dataset
-        MarketDataset slowDataset = marketDatasetEngine.refresh(mdrSlow);
-        MarketDataset fastDataset = marketDatasetEngine.refresh(mdrFast);
+        MarketDataset slowDataset = marketDatasetEngine.getDataset(mdrSlow);
+        MarketDataset fastDataset = marketDatasetEngine.getDataset(mdrFast);
 
         // Build context
         MarketContext context = MarketContext.builder()

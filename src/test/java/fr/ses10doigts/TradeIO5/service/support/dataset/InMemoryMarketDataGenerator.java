@@ -23,14 +23,14 @@ public final class InMemoryMarketDataGenerator {
      */
     public static MarketDataset simpleUptrend(MarketDatasetRequest request) {
         TimeFrame timeFrame = request.timeFrame();
-        int lookback = request.lookback();
+        int lookBack = request.lookBack();
 
         List<MarketData> data = new ArrayList<>();
 
-        Instant start = Instant.parse("2024-01-01T00:00:00Z");
+        Instant startTime = request.endTime().minus((long) request.timeFrame().getAmount() * request.lookBack(), request.timeFrame().getUnit() );
         BigDecimal price = BigDecimal.valueOf(100);
 
-        for (int i = 0; i < lookback; i++) {
+        for (int i = 0; i < lookBack; i++) {
 
             BigDecimal open = price;
             BigDecimal close = price.add(BigDecimal.valueOf(1)); // hausse régulière
@@ -40,7 +40,7 @@ public final class InMemoryMarketDataGenerator {
 
             data.add(MarketData.builder()
                     .timeFrame(timeFrame)
-                    .timestamp(start.plusSeconds(timeFrame.getNbSeconds() * i))
+                    .timestamp(startTime.plus((long) timeFrame.getAmount() * i, timeFrame.getUnit()))
                     .open(open)
                     .high(high)
                     .low(low)
@@ -55,7 +55,7 @@ public final class InMemoryMarketDataGenerator {
         if( data.isEmpty() )
             logger.error("Error generating data!!!");
         else
-            logger.debug("UP_TREND : Generated values start at {} end at {}", data.get(0).getClose(), data.get(data.size()-1).getClose());
+            logger.debug("UP_TREND : Generated values startTime at {} end at {}", data.get(0).getClose(), data.get(data.size()-1).getClose());
 
         return MarketDataset.builder()
                 .timeFrame(timeFrame)
@@ -65,11 +65,11 @@ public final class InMemoryMarketDataGenerator {
 
     public static MarketDataset flatMarket(MarketDatasetRequest request) {
         TimeFrame timeFrame = request.timeFrame();
-        int lookback = request.lookback();
+        int lookback = request.lookBack();
 
         List<MarketData> data = new ArrayList<>();
 
-        Instant start = Instant.parse("2024-01-01T00:00:00Z");
+        Instant startTime = request.endTime().minus((long) request.timeFrame().getAmount() * request.lookBack(), request.timeFrame().getUnit());
         BigDecimal price = BigDecimal.valueOf(100);
 
         for (int i = 0; i < lookback; i++) {
@@ -82,7 +82,7 @@ public final class InMemoryMarketDataGenerator {
 
             data.add(MarketData.builder()
                     .timeFrame(timeFrame)
-                    .timestamp(start.plusSeconds(timeFrame.getNbSeconds() * i))
+                    .timestamp(startTime.plus((long) timeFrame.getAmount() * i, timeFrame.getUnit()))
                     .open(open)
                     .high(high)
                     .low(low)
@@ -97,7 +97,7 @@ public final class InMemoryMarketDataGenerator {
         if( data.isEmpty() )
             logger.error("Error generating data!!!");
         else
-            logger.debug("DOWN_TREND : Generated values start at {} end at {}", data.get(0).getClose(), data.get(data.size()-1).getClose());
+            logger.debug("FLAT_MARKET : Generated values start at {} end at {}", data.get(0).getClose(), data.get(data.size()-1).getClose());
 
         return MarketDataset.builder()
                 .timeFrame(timeFrame)
@@ -107,11 +107,11 @@ public final class InMemoryMarketDataGenerator {
 
     public static MarketDataset downtrend(MarketDatasetRequest request) {
         TimeFrame timeFrame = request.timeFrame();
-        int lookback = request.lookback();
+        int lookback = request.lookBack();
 
         List<MarketData> data = new ArrayList<>();
 
-        Instant start = Instant.parse("2024-01-01T00:00:00Z");
+        Instant startTime = request.endTime().minus((long) request.timeFrame().getAmount() * request.lookBack(), request.timeFrame().getUnit());
         BigDecimal price = BigDecimal.valueOf(100);
 
         for (int i = 0; i < lookback; i++) {
@@ -124,7 +124,7 @@ public final class InMemoryMarketDataGenerator {
 
             data.add(MarketData.builder()
                     .timeFrame(timeFrame)
-                    .timestamp(start.plusSeconds(timeFrame.getNbSeconds() * i))
+                    .timestamp(startTime.plus((long) timeFrame.getAmount() * i, timeFrame.getUnit()))
                     .open(open)
                     .high(high)
                     .low(low)

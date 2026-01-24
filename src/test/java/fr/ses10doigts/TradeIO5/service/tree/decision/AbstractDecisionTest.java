@@ -9,6 +9,7 @@ import fr.ses10doigts.tradeIO5.service.tree.helper.StrategyParametersFactory;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.Strategy;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.StrategyRegistry;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.DoubleRsiStrategy;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,6 +19,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+@DisplayName("Decision - Abstract")
 @SpringBootTest
 class AbstractDecisionTest {
     @Autowired

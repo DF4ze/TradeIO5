@@ -4,6 +4,7 @@ import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorCo
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorExecutionKey;
 import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorSnapshot;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -54,7 +55,7 @@ public class IndicatorCache {
     }
 
     private boolean isOutdated(IndicatorContext ctx, Instant now) {
-        long validitySeconds = ctx.getTimeframe().getNbSeconds();
-        return now.isAfter(ctx.getTimestamp().plusSeconds(validitySeconds));
+        TimeFrame tf = ctx.getTimeframe();
+        return now.isAfter(ctx.getTimestamp().plus(tf.getAmount(), tf.getUnit()));
     }
 }
