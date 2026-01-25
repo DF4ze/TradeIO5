@@ -1,8 +1,8 @@
 package fr.ses10doigts.tradeIO5.service.tree.decision;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.DecisionContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.DecisionParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.DecisionResult;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionParameters;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionResult;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.DecisionType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 

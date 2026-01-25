@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.tree.decision;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.DecisionParameters;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionParameters;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.DecisionType;
 import org.springframework.stereotype.Component;
 

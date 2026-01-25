@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.tree.decision.advisor;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.DecisionContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.LlmAdvice;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.LlmAdvice;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.AdvisorType;
 import fr.ses10doigts.tradeIO5.service.connector.OpenAIService;
 import lombok.RequiredArgsConstructor;

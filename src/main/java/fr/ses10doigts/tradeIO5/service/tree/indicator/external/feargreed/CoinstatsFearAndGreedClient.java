@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator.external.feargreed;
 
 import fr.ses10doigts.tradeIO5.exceptions.ExternalApiException;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.external.FearAndGreedResponse;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.external.FearAndGreedResponse;
 import fr.ses10doigts.tradeIO5.model.dto.provider.web.ApiCredentialDTO;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.external.AbstractExternalIndicator;
 import org.slf4j.Logger;

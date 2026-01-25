@@ -34,5 +34,5 @@ public class WebProvider {
     private boolean enabled = true;
 
     @Builder.Default
-    private LocalDateTime createdAt = LocalDateTime.now();;
+    private LocalDateTime createdAt = LocalDateTime.now();
 }

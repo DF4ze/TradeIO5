@@ -1,12 +1,15 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator.impl;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorResult;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorResult;
+import fr.ses10doigts.tradeIO5.service.market.DomainClock;
+import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.Indicator;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 import static fr.ses10doigts.tradeIO5.service.support.helper.TestFactory.*;
@@ -16,8 +19,13 @@ import static org.junit.jupiter.api.Assertions.*;
 class EmaIndicatorTest {
     private Indicator emaIndicator = new EmaIndicator();
 
+    private static DomainClock clock;
+
+
     @BeforeAll
     static void Init() {
+        Instant fixedNow = Instant.parse("2025-01-01T12:00:00Z");
+        clock = new FixedDomainClock(fixedNow);
     }
 
     @Test
@@ -25,7 +33,7 @@ class EmaIndicatorTest {
         IndicatorResult ema = emaIndicator.compute(
                 context(List.of(
                         bd(10), bd(10), bd(10), bd(10), bd(10), bd(10), bd(10)
-                )),
+                ),clock),
                 periodParams(5)
         );
 
@@ -36,7 +44,7 @@ class EmaIndicatorTest {
     @Test
     void compute_withFewerDataThanPeriod() {
         IndicatorResult ema = emaIndicator.compute(
-                context(List.of(bd(10), bd(20))),
+                context(List.of(bd(10), bd(20)), clock),
                 periodParams(5)
         );
 
@@ -47,7 +55,7 @@ class EmaIndicatorTest {
     @Test
     void compute_withEmptyData() {
         IndicatorResult ema = emaIndicator.compute(
-                context(List.of()),
+                context(List.of(), clock),
                 periodParams(5)
         );
 
@@ -57,7 +65,7 @@ class EmaIndicatorTest {
     @Test
     void compute_withJustEnoughDataPoint() {
         IndicatorResult ema = emaIndicator.compute(
-                context(List.of(bd(15), bd(15))),
+                context(List.of(bd(15), bd(15)), clock),
                 periodParams(2)
         );
 
@@ -68,7 +76,7 @@ class EmaIndicatorTest {
     @Test
     void compute_twoPoints_period2_exactResult() {
         IndicatorResult ema = emaIndicator.compute(
-                context(List.of(bd(3), bd(6))),
+                context(List.of(bd(3), bd(6)), clock),
                 periodParams(2)
         );
 
@@ -81,7 +89,7 @@ class EmaIndicatorTest {
         IndicatorResult ema = emaIndicator.compute(
                 context(List.of(
                         bd(50), bd(40), bd(30), bd(20), bd(10)
-                )),
+                ), clock),
                 periodParams(3)
         );
 
@@ -94,7 +102,7 @@ class EmaIndicatorTest {
         IndicatorResult ema = emaIndicator.compute(
                 context(List.of(
                         bd(10), bd(20), bd(30), bd(40), bd(50)
-                )),
+                ), clock),
                 periodParams(3)
         );
 
@@ -105,8 +113,8 @@ class EmaIndicatorTest {
     @Test
     void compute_stability() {
         List<BigDecimal> data = List.of(bd(10), bd(15), bd(20), bd(25), bd(30));
-        IndicatorResult ema1 = emaIndicator.compute(context(data), periodParams(3));
-        IndicatorResult ema2 = emaIndicator.compute(context(data), periodParams(3));
+        IndicatorResult ema1 = emaIndicator.compute(context(data, clock), periodParams(3));
+        IndicatorResult ema2 = emaIndicator.compute(context(data, clock), periodParams(3));
 
         assertEquals(ema1.getValue(), ema2.getValue());
     }

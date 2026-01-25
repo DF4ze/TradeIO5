@@ -1,8 +1,8 @@
 package fr.ses10doigts.tradeIO5.service.tree.helper;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.DecisionParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.StrategyKey;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategyParameters;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionParameters;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.StrategyKey;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategyParameters;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.RiskProfile;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.Strategy;
 

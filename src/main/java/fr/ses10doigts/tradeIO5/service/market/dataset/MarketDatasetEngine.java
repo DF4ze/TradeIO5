@@ -51,7 +51,7 @@ public class MarketDatasetEngine {
         if (shouldFetch(state, request, now)) {
             log.debug("Should Fetch");
             List<MarketData> marketData = fetchDataForBucket(request, state.getBucket().getBaseTimeFrame());
-            manager.merge(state, marketData);
+            manager.merge(state, marketData, request.endTime());
             cache.put(request, state);
         }else{
 
@@ -127,7 +127,7 @@ public class MarketDatasetEngine {
             );
 
             if( !marketData.isEmpty() )
-                manager.merge(state, marketData);
+                manager.merge(state, marketData, request.endTime());
         }
     }
 

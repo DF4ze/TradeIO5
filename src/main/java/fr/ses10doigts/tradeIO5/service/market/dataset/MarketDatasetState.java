@@ -1,6 +1,5 @@
 package fr.ses10doigts.tradeIO5.service.market.dataset;
 
-import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -27,8 +26,11 @@ class MarketDatasetState {
 
     /* package-private setters pour le manager uniquement */
 
-    public void append(MarketData data) {
+    /*
+    public void append(MarketData data, Instant presumeNow) {
         bucket.append(data);
-        lastUpdate = Instant.now();
+        lastUpdate = presumeNow;
     }
+
+     */
 }

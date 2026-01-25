@@ -7,6 +7,7 @@ import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.market.provider.MarketDataProvider;
 import fr.ses10doigts.tradeIO5.service.market.provider.MarketDataProviderRegistry;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,16 +48,18 @@ class MarketDatasetEngineTest {
     MarketDatasetEngine engine;
 
     MarketDatasetRequest request;
-    Instant now;
+    static Instant now;
 
     @Autowired
     private MarketDatasetEngine marketDatasetEngine;
 
+    @BeforeAll
+    static void init(){
+        now = Instant.now();
+    }
 
     @BeforeEach
     void setup() {
-        now = Instant.now();
-
         request = new MarketDatasetRequest(
                 "BTCUSDT",
                 TimeFrame.H1,
@@ -110,7 +113,7 @@ class MarketDatasetEngineTest {
         MarketDataset result = engine.getDataset(request);
 
         verify(provider).loadSince(any());
-        verify(manager).merge(eq(state), anyList());
+        verify(manager).merge(eq(state), anyList(), any(Instant.class));
         verify(manager).snapshot(request, state);
         assertSame(snapshot, result);
     }
@@ -127,7 +130,7 @@ class MarketDatasetEngineTest {
         MarketDataset result = engine.getDataset(request);
 
         verifyNoInteractions(providerRegistry);
-        verify(manager, never()).merge(any(), any());
+        verify(manager, never()).merge(any(), any(), any(Instant.class));
         verify(manager).snapshot(request, state);
         assertSame(snapshot, result);
     }
@@ -151,7 +154,7 @@ class MarketDatasetEngineTest {
 
         engine.getDataset(request);
 
-        verify(manager, atLeastOnce()).merge(eq(state), anyList());
+        verify(manager, atLeastOnce()).merge(eq(state), anyList(), any(Instant.class));
         verify(manager).snapshot(request, state);
     }
 
@@ -176,7 +179,7 @@ class MarketDatasetEngineTest {
         engine.getDataset(historical);
 
         verifyNoInteractions(providerRegistry);
-        verify(manager, never()).merge(any(), any());
+        verify(manager, never()).merge(any(), any(), any(Instant.class));
         verify(manager).snapshot(historical, state);
     }
 }

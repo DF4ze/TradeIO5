@@ -1,11 +1,12 @@
 package fr.ses10doigts.tradeIO5.service.support.helper;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
+import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.MacdIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.RainbowSmaIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.RsiIndicator;
@@ -16,7 +17,7 @@ import java.util.Map;
 
 public class TestFactory {
 
-    public static IndicatorContext context(List<BigDecimal> closes) {
+    public static IndicatorContext context(List<BigDecimal> closes, DomainClock clock) {
         List<MarketData> data = closes.stream()
                 .map(c -> MarketData.builder().close(c).build())
                 .toList();
@@ -26,9 +27,13 @@ public class TestFactory {
                 .timeFrame(TimeFrame.M1)
                 .build();
 
-        return IndicatorContext.builder()
-                .marketDataset(series)
-                .build();
+        return new IndicatorContext(
+                "BTCUSDT",
+                series.getTimeFrame(),
+                series,
+                Map.of(),
+                clock
+        );
     }
 
     public static IndicatorParameters periodParams(int period) {

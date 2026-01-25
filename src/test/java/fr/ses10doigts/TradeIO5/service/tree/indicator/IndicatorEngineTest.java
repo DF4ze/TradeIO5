@@ -1,16 +1,19 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorSnapshot;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorSnapshot;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
+import fr.ses10doigts.tradeIO5.service.market.DomainClock;
+import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.MacdIndicator;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +33,14 @@ class IndicatorEngineTest {
     private IndicatorEngine indicatorEngine;
     @Autowired
     private MarketDatasetEngine marketDatasetEngine;
+
+    private static DomainClock clock;
+
+    @BeforeAll
+    static void init(){
+        Instant fixedNow = Instant.parse("2025-01-01T12:00:00Z");
+        clock = new FixedDomainClock(fixedNow);
+    }
 
     @BeforeEach
     void setUp() {
@@ -52,10 +63,13 @@ class IndicatorEngineTest {
 
         MarketDataset dataset = marketDatasetEngine.getDataset(mdr);
 
-        IndicatorContext context = IndicatorContext.builder()
-                .marketDataset(dataset)
-                .dependencies(Map.of())
-                .build();
+        IndicatorContext context = new IndicatorContext(
+                "BTCUSDT",
+                mdr.timeFrame(),
+                dataset,
+                Map.of(),
+                clock
+        );
 
         IndicatorSnapshot snapshot =
                 indicatorEngine.execute(

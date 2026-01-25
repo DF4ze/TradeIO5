@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator.impl;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.*;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.*;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.DependentIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.Indicator;
@@ -80,10 +80,10 @@ public class MacdIndicator implements Indicator, DependentIndicator {
     ) {
 
         IndicatorSnapshot fast =
-                context.getDependencies().get(K_FAST_EMA);
+                context.dependencies().get(K_FAST_EMA);
 
         IndicatorSnapshot slow =
-                context.getDependencies().get(K_SLOW_EMA);
+                context.dependencies().get(K_SLOW_EMA);
 
         if (fast == null || slow == null ||
                 fast.getResult() == null || slow.getResult() == null ||

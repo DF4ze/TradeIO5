@@ -1,12 +1,12 @@
 package fr.ses10doigts.tradeIO5.service.tree.decision.advisor;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.DecisionContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.LlmAdvice;
-import fr.ses10doigts.tradeIO5.model.dto.decision.UserProfile;
-import fr.ses10doigts.tradeIO5.model.dto.decision.WalletSnapshot;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.MarketContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorResult;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.LlmAdvice;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.UserProfile;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.WalletSnapshot;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.MarketContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorResult;
 import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,10 +65,10 @@ public abstract class AbstractAdvisor implements DecisionAdvisor{
         StringBuilder sb = new StringBuilder();
 
         sb.append(systemHeader());
-        sb.append(userProfileBlock(ctx.getUserProfile()));
-        sb.append(walletBlock(ctx.getWalletSnapshot()));
-        sb.append(marketBlock(ctx.getMarketContext()));
-        sb.append(indicatorsBlock(ctx.getMarketContext()));
+        sb.append(userProfileBlock(ctx.userProfile()));
+        sb.append(walletBlock(ctx.walletSnapshot()));
+        sb.append(marketBlock(ctx.marketContext()));
+        sb.append(indicatorsBlock(ctx.marketContext()));
         sb.append(expectedOutputBlock());
 
         return sb.toString();
@@ -105,20 +105,20 @@ public abstract class AbstractAdvisor implements DecisionAdvisor{
     protected String marketBlock(MarketContext mc){
         StringBuilder sb = new StringBuilder();
 
-        sb.append("Asset: ").append(mc.getSymbol()).append("\n");
-        sb.append("LastPrice: ").append(mc.getLastPrice()).append("\n");
+        sb.append("Asset: ").append(mc.symbol()).append("\n");
+        sb.append("LastPrice: ").append(mc.lastPrice()).append("\n");
 
         return sb.toString();
     }
 
     protected String indicatorsBlock(MarketContext mc) {
-        if (mc.getIndicatorValues().isEmpty()) {
+        if (mc.indicatorValues().isEmpty()) {
             return "\nAucun indicateur technique disponible.\n";
         }
 
         StringBuilder sb = new StringBuilder("\nIndicateurs techniques :\n");
 
-        mc.getIndicatorValues().forEach((key, result) -> {
+        mc.indicatorValues().forEach((key, result) -> {
             if (result == null || !result.isValid()) return;
 
             sb.append("- ")

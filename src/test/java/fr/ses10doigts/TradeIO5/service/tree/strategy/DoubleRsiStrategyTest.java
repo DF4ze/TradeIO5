@@ -1,15 +1,18 @@
 package fr.ses10doigts.tradeIO5.service.tree.strategy;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.*;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.*;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
+import fr.ses10doigts.tradeIO5.service.market.DomainClock;
+import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
 import fr.ses10doigts.tradeIO5.service.tree.helper.StrategyParametersFactory;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.DoubleRsiStrategy;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,6 +24,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -36,6 +40,14 @@ class DoubleRsiStrategyTest {
     private StrategyRegistry strategyRegistry;
     @Autowired
     private MarketDatasetEngine marketDatasetEngine;
+
+    private static DomainClock clock;
+
+    @BeforeAll
+    static void init(){
+        Instant fixedNow = Instant.parse("2025-01-01T12:00:00Z");
+        clock = new FixedDomainClock(fixedNow);
+    }
 
     @BeforeEach
     void setUp() {
@@ -95,14 +107,15 @@ class DoubleRsiStrategyTest {
         MarketDataset fastDataset = marketDatasetEngine.getDataset(mdrFast);
 
         // Build context
-        MarketContext context = MarketContext.builder()
-                .symbol("BTCUSDT")
-                .series(Map.of(
+        MarketContext context = new MarketContext(
+                "BTCUSDT",
+                new BigDecimal("42000"),
+                clock,
+                Map.of(
                         slowTF, slowDataset,
-                        fastTF, fastDataset))
-                .lastPrice(new BigDecimal("42000"))
-                .timestamp(Instant.now())
-                .build();
+                        fastTF, fastDataset),
+                new HashMap<>()
+        );
 
         Strategy strategy = strategyRegistry.get( DoubleRsiStrategy.class.getSimpleName() );
         StrategySignal signal = strategy.evaluate(context, strategyParameters);

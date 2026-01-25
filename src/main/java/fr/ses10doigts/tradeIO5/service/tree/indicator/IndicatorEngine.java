@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.*;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.*;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +49,7 @@ public class IndicatorEngine {
                 IndicatorExecutionKey.of(indicator, context, parameters);
 
         // 1. cache
-        if (indicatorCache.contains(key)) {
+        if (indicatorCache.contains(key, context.clock().now())) {
             return indicatorCache.get(key);
         }
 
@@ -84,7 +84,7 @@ public class IndicatorEngine {
         }
 
         Map<IndicatorDependencyKey, IndicatorSnapshot> resolvedDependencies =
-                new HashMap<>(context.getDependencies());
+                new HashMap<>(context.dependencies());
 
         for (IndicatorDependency dependency : dependentIndicator.getDependencies(parameters)) {
 
@@ -99,14 +99,12 @@ public class IndicatorEngine {
             );
         }
 
-        return IndicatorContext.builder()
-                .symbol(context.getSymbol())
-                .timeframe(context.getTimeframe())
-                .marketDataset(context.getMarketDataset())
-                .timestamp(context.getTimestamp())
-                .dependencies(resolvedDependencies)
-                .build();
+        return new IndicatorContext(
+                context.symbol(),
+                context.timeframe(),
+                context.marketDataset(),
+                resolvedDependencies,
+                context.clock()
+        );
     }
-
-
 }

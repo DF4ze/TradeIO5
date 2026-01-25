@@ -1,9 +1,9 @@
 package fr.ses10doigts.tradeIO5.service.tree.decision;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.DecisionContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.DecisionParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.DecisionResult;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategySignal;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionParameters;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionResult;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategySignal;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.DecisionAction;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.RiskProfile;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
@@ -43,7 +43,7 @@ public abstract class AbstractDecision implements Decision {
             DecisionParameters parameters
     ) {
         return parameters.getStrategies().stream()
-                .map(key -> key.getStrategy().evaluate(context.getMarketContext(), key.getParameters()))
+                .map(key -> key.getStrategy().evaluate(context.marketContext(), key.getParameters()))
                 .toList();
     }
 

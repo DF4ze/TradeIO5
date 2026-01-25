@@ -1,8 +1,10 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator.impl;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorSnapshot;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorSnapshot;
+import fr.ses10doigts.tradeIO5.service.market.DomainClock;
+import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorEngine;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -10,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.time.Instant;
 import java.util.List;
 
 import static fr.ses10doigts.tradeIO5.service.support.helper.TestFactory.*;
@@ -24,9 +27,14 @@ class MacdIndicatorTest {
 
     static IndicatorParameters macdParams;
 
+    private static DomainClock clock;
+
     @BeforeAll
     static void init() {
         macdParams = macdParams(5, 7);
+
+        Instant fixedNow = Instant.parse("2025-01-01T12:00:00Z");
+        clock = new FixedDomainClock(fixedNow);
     }
 
     @Test
@@ -34,7 +42,7 @@ class MacdIndicatorTest {
     void testMacdUptrend() {
         IndicatorContext context = context(List.of(
                 bd(10), bd(11), bd(12), bd(13), bd(14), bd(15), bd(16)
-        ));
+        ), clock);
 
         IndicatorSnapshot macd = indicatorEngine.execute(context, macdParams);
         assertTrue(macd.getResult().isValid(), "MACD doit être valide");
@@ -48,7 +56,7 @@ class MacdIndicatorTest {
     void testMacdDowntrend() {
         IndicatorContext context = context(List.of(
                 bd(16), bd(15), bd(14), bd(13), bd(12), bd(11), bd(10)
-        ));
+        ), clock);
 
         IndicatorSnapshot macd = indicatorEngine.execute(context, macdParams);
         assertTrue(macd.getResult().isValid(), "MACD doit être valide");
@@ -62,7 +70,7 @@ class MacdIndicatorTest {
     void testMacdFlat() {
         IndicatorContext context = context(List.of(
                 bd(10), bd(10), bd(10), bd(10), bd(10), bd(10), bd(10)
-        ));
+        ), clock);
 
         IndicatorSnapshot macd = indicatorEngine.execute(context, macdParams);
         assertTrue(macd.getResult().isValid(), "MACD doit être valide");

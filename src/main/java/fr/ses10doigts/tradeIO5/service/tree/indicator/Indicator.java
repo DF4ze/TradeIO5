@@ -1,9 +1,9 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator;
 
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorResult;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorResult;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 
 import java.util.List;

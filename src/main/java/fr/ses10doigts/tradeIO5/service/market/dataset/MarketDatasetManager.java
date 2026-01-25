@@ -73,7 +73,8 @@ class MarketDatasetManager {
     // Merge : ingestion uniquement, vérification des trous
     public void merge(
             MarketDatasetState state,
-            List<MarketData> incoming
+            List<MarketData> incoming,
+            Instant providedNow
     ) {
         if (incoming == null || incoming.isEmpty()) {
             return;
@@ -123,7 +124,7 @@ class MarketDatasetManager {
             previous = data;
         }
 
-        state.setLastUpdate(Instant.now());
+        state.setLastUpdate(providedNow);
     }
 
 }

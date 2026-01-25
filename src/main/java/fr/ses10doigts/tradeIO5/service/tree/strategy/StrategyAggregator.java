@@ -1,10 +1,10 @@
 package fr.ses10doigts.tradeIO5.service.tree.strategy;
 
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.AggregatedStrategySignal;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.MarketContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategyAggregatorParam;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategySignal;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.AggregatedStrategySignal;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.MarketContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategyAggregatorParam;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategySignal;
 import fr.ses10doigts.tradeIO5.service.tree.helper.DecisionHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,19 +14,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * ⑤ StrategyAggregator
- *
- * - Pourquoi
+ * <h1>StrategyAggregator</h1>
+ * <p>
+ * - Pourquoi<br/>
  * Aucune stratégie ne doit avoir le dernier mot.
- *
- * - Responsabilité
- * agréger
- * lisser
- * neutraliser les extrêmes
- * détecter les conflits
- *
- * - Conceptuellement
- * “Globalement, que racontent les stratégies ?”
+ * </p>
+ * <p>
+ * - Responsabilité<br/>
+ * agréger<br/>
+ * lisser<br/>
+ * neutraliser les extrêmes<br/>
+ * détecter les conflits<br/>
+ * </p>
+ * <p>
+ * - Conceptuellement<br/>
+ * “Globalement, que racontent les stratégies ?”<br/>
+ * </p>
  */
 
 @Component

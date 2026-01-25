@@ -1,8 +1,8 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorExecutionKey;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorSnapshot;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorExecutionKey;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorSnapshot;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import org.springframework.stereotype.Component;
@@ -17,8 +17,8 @@ public class IndicatorCache {
     private final Map<IndicatorExecutionKey, IndicatorSnapshot> cache =
             new ConcurrentHashMap<>();
 
-    public boolean contains(IndicatorExecutionKey key) {
-        clearIfOutdated(key);
+    public boolean contains(IndicatorExecutionKey key, Instant presumeNow) {
+        clearIfOutdated(key, presumeNow);
         return cache.containsKey(key);
     }
 
@@ -40,22 +40,20 @@ public class IndicatorCache {
         );
     }
 
-    public void clearOutdated() {
-        Instant now = Instant.now();
-        cache.entrySet().removeIf(e -> isOutdated(e.getKey().context(), now));
+    public void clearOutdated(Instant presumeNow) {
+        cache.entrySet().removeIf(e -> isOutdated(e.getKey().context(), presumeNow));
     }
 
-    private void clearIfOutdated(IndicatorExecutionKey key){
+    private void clearIfOutdated(IndicatorExecutionKey key, Instant presumeNow){
         if( cache.containsKey(key) ) {
-            Instant now = Instant.now();
-            if (isOutdated(key.context(), now)) {
+            if (isOutdated(key.context(), presumeNow)) {
                 cache.remove(key);
             }
         }
     }
 
     private boolean isOutdated(IndicatorContext ctx, Instant now) {
-        TimeFrame tf = ctx.getTimeframe();
-        return now.isAfter(ctx.getTimestamp().plus(tf.getAmount(), tf.getUnit()));
+        TimeFrame tf = ctx.timeframe();
+        return now.isAfter(ctx.clock().now().plus(tf.getAmount(), tf.getUnit()));
     }
 }

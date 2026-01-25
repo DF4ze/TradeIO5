@@ -9,7 +9,7 @@ import com.openai.models.responses.ResponseOutputItem;
 import com.openai.models.responses.ResponseOutputMessage.Content;
 import com.openai.models.responses.ResponseOutputText;
 import fr.ses10doigts.tradeIO5.configuration.properties.OpenAIProperties;
-import fr.ses10doigts.tradeIO5.model.dto.decision.LlmAdvice;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.LlmAdvice;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

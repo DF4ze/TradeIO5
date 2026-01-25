@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator.impl;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.*;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.*;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.DependentIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.Indicator;
@@ -71,7 +71,7 @@ public class RainbowSmaIndicator implements Indicator, DependentIndicator {
     ) {
 
         IndicatorSnapshot smaIndic =
-                context.getDependencies().get(K_SMA);
+                context.dependencies().get(K_SMA);
 
 
         if (smaIndic == null  || smaIndic.getResult() == null || !smaIndic.getResult().isValid() ) {

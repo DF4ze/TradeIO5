@@ -1,8 +1,8 @@
 package fr.ses10doigts.tradeIO5.service.tree.strategy;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.IndicatorKey;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategyParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.IndicatorKey;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategyParameters;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.Indicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorRegistry;

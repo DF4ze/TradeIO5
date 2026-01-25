@@ -1,7 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator;
 
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -11,7 +10,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
-@RequiredArgsConstructor
 public class IndicatorRegistry {
 
     private final Map<IndicatorType, Indicator> indicators;

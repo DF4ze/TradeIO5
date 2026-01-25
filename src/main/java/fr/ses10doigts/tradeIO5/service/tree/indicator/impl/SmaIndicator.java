@@ -1,8 +1,8 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator.impl;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorResult;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorResult;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.Indicator;
@@ -50,7 +50,7 @@ public class SmaIndicator implements Indicator {
             return IndicatorResult.invalid();
         }
 
-        List<MarketData> data = context.getMarketDataset().getMarketDatas();
+        List<MarketData> data = context.marketDataset().getMarketDatas();
 
         if (data.size() < period) {
             logger.error("Invalid context : MarketData size too short");

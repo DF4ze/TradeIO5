@@ -1,12 +1,12 @@
 package fr.ses10doigts.tradeIO5.service.tree.strategy.impl;
 
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.IndicatorKey;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.MarketContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategyParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.StrategySignal;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorSnapshot;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.IndicatorKey;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.MarketContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategyParameters;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategySignal;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorSnapshot;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.StrategyType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.tree.helper.DecisionHelper;
@@ -54,12 +54,13 @@ public class DoubleRsiStrategy extends AbstractStrategy {
             // Choix du TF depuis les paramètres de la stratégie
             TimeFrame tf = TimeFrame.valueOf(rsiParams.getStrings().getOrDefault(P_TIME_FRAME_NAME, "H1"));
 
-            IndicatorContext indicatorContext = IndicatorContext.builder()
-                    .marketDataset(context.getSeries().get(tf))
-                    .timestamp(context.getTimestamp())
-                    .timeframe(tf)
-                    .symbol(context.getSymbol())
-                    .build();
+            IndicatorContext indicatorContext = new IndicatorContext(
+                    context.symbol(),
+                    tf,
+                    context.series().get(tf),
+                    null,
+                    context.clock()
+            );
 
             IndicatorSnapshot snapshot = indicatorEngine.execute(indicatorContext, rsiParams);
             if( snapshot.getResult().isValid() ){

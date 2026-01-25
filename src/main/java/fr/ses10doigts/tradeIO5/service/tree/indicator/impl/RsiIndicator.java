@@ -2,9 +2,9 @@ package fr.ses10doigts.tradeIO5.service.tree.indicator.impl;
 
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorContext;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorParameters;
-import fr.ses10doigts.tradeIO5.model.dto.decision.strategy.indicator.IndicatorResult;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
+import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorResult;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.Indicator;
 import org.slf4j.Logger;
@@ -46,7 +46,7 @@ public class RsiIndicator implements Indicator {
     ) {
         double period = parameters.getNumeric(P_PERIOD_NAME);
 
-        MarketDataset series = context.getMarketDataset();
+        MarketDataset series = context.marketDataset();
         List<MarketData> data = series.getMarketDatas();
 
         if (data.size() < period + 1) {
