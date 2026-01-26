@@ -5,7 +5,7 @@ import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
-import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TrendType;
 import fr.ses10doigts.tradeIO5.service.support.dataset.InMemoryMarketDataGenerator;
 import lombok.AllArgsConstructor;
 
@@ -15,7 +15,7 @@ import java.util.List;
 @AllArgsConstructor
 public class InMemoryMarketDataProvider implements MarketDataProvider {
 
-    private MarketScenario scenario;
+    private TrendType scenario;
 
     @Override
     public MarketDataset fullLoad(

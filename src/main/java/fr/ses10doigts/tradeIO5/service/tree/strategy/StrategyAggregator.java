@@ -5,7 +5,7 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.AggregatedStrategySignal;
 import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.MarketContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategyAggregatorParam;
 import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategySignal;
-import fr.ses10doigts.tradeIO5.service.tree.helper.DecisionHelper;
+import fr.ses10doigts.tradeIO5.service.tree.helper.MarketOpinionHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -80,7 +80,7 @@ public class StrategyAggregator {
 
         boolean conflict = hasBuy && hasSell;
 
-        DecisionHelper.ConfidenceSignal cs = DecisionHelper.scoreToConfidenceAndSignalType(totalScore);
+        MarketOpinionHelper.ConfidenceSignal cs = MarketOpinionHelper.scoreToConfidenceAndSignalType(totalScore);
 
         return AggregatedStrategySignal.builder()
                 .score(totalScore)

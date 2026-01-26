@@ -7,7 +7,7 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorSnapshot;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
-import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TrendType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
@@ -59,7 +59,7 @@ class IndicatorEngineTest {
                 null
         );
 
-        MarketDatasetRequest mdr = new MarketDatasetRequest("macd_updtrend", TimeFrame.H1, 50, Instant.now(), MarketDataSource.MEMORY, MarketScenario.UPTREND);
+        MarketDatasetRequest mdr = new MarketDatasetRequest("macd_updtrend", TimeFrame.H1, 50, Instant.now(), MarketDataSource.MEMORY, TrendType.UPTREND);
 
         MarketDataset dataset = marketDatasetEngine.getDataset(mdr);
 

@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.market.provider;
 
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
-import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TrendType;
 import fr.ses10doigts.tradeIO5.service.connector.apiclient.ProviderApiClient;
 import org.springframework.stereotype.Component;
 
@@ -17,7 +17,7 @@ public class MarketDataProviderRegistry {
         this.registry = Map.of(
                 // InMemory
                 MarketDataSource.MEMORY, param -> {
-                    return new InMemoryMarketDataProvider((MarketScenario) param);
+                    return new InMemoryMarketDataProvider((TrendType) param);
                 },
                 // File
                 MarketDataSource.FILE, param -> {

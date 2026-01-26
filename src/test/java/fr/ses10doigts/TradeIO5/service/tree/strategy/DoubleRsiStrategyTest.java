@@ -5,7 +5,7 @@ import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
 import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.*;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
-import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TrendType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
@@ -56,7 +56,7 @@ class DoubleRsiStrategyTest {
     @Test
     void should_emit_SELL_when_rsi_is_overbuy() {
 
-        AggregatedStrategySignal aggregatedSignal = compute(MarketScenario.UPTREND);
+        AggregatedStrategySignal aggregatedSignal = compute(TrendType.UPTREND);
 
 
         logger.debug("Explanation : {}", aggregatedSignal.getExplanation());
@@ -69,7 +69,7 @@ class DoubleRsiStrategyTest {
     @Test
     void should_emit_BUY_when_rsi_is_oversold() {
 
-        AggregatedStrategySignal aggregatedSignal = compute(MarketScenario.DOWNTREND);
+        AggregatedStrategySignal aggregatedSignal = compute(TrendType.DOWNTREND);
 
         logger.debug("Explanation : {}", aggregatedSignal.getExplanation());
 
@@ -79,7 +79,7 @@ class DoubleRsiStrategyTest {
 
     @Test
     void should_HOLD_when_rsi_is_missing_or_invalid() {
-        AggregatedStrategySignal aggregatedSignal = compute(MarketScenario.FLAT);
+        AggregatedStrategySignal aggregatedSignal = compute(TrendType.FLAT);
 
         logger.debug("Explanation : {}", aggregatedSignal.getExplanation());
 
@@ -87,7 +87,7 @@ class DoubleRsiStrategyTest {
         assertEquals(0, aggregatedSignal.getScore());
     }
 
-    private AggregatedStrategySignal compute(MarketScenario scenario){
+    private AggregatedStrategySignal compute(TrendType scenario){
         TimeFrame slowTF = TimeFrame.D1;
         TimeFrame fastTF = TimeFrame.H1;
 

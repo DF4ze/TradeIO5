@@ -9,7 +9,7 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorSnapshot;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.StrategyType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
-import fr.ses10doigts.tradeIO5.service.tree.helper.DecisionHelper;
+import fr.ses10doigts.tradeIO5.service.tree.helper.MarketOpinionHelper;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorEngine;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorRegistry;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.AbstractStrategy;
@@ -80,7 +80,7 @@ public class DoubleRsiStrategy extends AbstractStrategy {
             double sellThreshold = rsiParams.getNumerics().getOrDefault(P_SELL_THRESHOLD, 70.0);
 
             // Conversion de valeur RSI vers score linéaire entre -1 (Sell) à +1 (Buy)
-            double score = DecisionHelper.computeRsiScore(value, buyThreshold, sellThreshold);
+            double score = MarketOpinionHelper.computeRsiScore(value, buyThreshold, sellThreshold);
 
             logger.debug("{} with parameters Buy {}, Sell {}, TF {} returns RSI {} as {} score",
                     getName(), buyThreshold, sellThreshold, tf, value, score);
@@ -93,7 +93,7 @@ public class DoubleRsiStrategy extends AbstractStrategy {
 
         logger.debug("Average score: {}", score);
 
-        DecisionHelper.ConfidenceSignal confidenceSignal = DecisionHelper.scoreToConfidenceAndSignalType(score);
+        MarketOpinionHelper.ConfidenceSignal confidenceSignal = MarketOpinionHelper.scoreToConfidenceAndSignalType(score);
 
         logger.debug("Average in Signal and confidence : {} at {}", confidenceSignal.signal, confidenceSignal.confidence);
 

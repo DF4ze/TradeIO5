@@ -3,7 +3,7 @@ package fr.ses10doigts.tradeIO5.service.market.dataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
-import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TrendType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,7 +27,7 @@ class MarketDatasetEngineSpringTest {
     @Test
     void getDataset_noException() {
         MarketDatasetRequest mdrFast = new MarketDatasetRequest(
-                "fastTF", TimeFrame.H1, 50, Instant.now(), MarketDataSource.MEMORY, MarketScenario.UPTREND);
+                "fastTF", TimeFrame.H1, 50, Instant.now(), MarketDataSource.MEMORY, TrendType.UPTREND);
         MarketDataset fastDataset = marketDatasetEngine.getDataset(mdrFast);
     }
 
@@ -35,7 +35,7 @@ class MarketDatasetEngineSpringTest {
     void getDataset_withException() {
         int nbUnit = 25;
         MarketDatasetRequest mdrFast = new MarketDatasetRequest(
-                "fastTF", TimeFrame.MIN1, nbUnit, Instant.now(), MarketDataSource.MEMORY, MarketScenario.UPTREND);
+                "fastTF", TimeFrame.MIN1, nbUnit, Instant.now(), MarketDataSource.MEMORY, TrendType.UPTREND);
 
         assertThrows(IllegalArgumentException.class,
                 () -> marketDatasetEngine.getDataset(mdrFast));
@@ -51,7 +51,7 @@ class MarketDatasetEngineSpringTest {
         Instant instant = ldt.atZone(TimeFrame.DEFAULT_ZONE).toInstant();
 
         MarketDatasetRequest mdrSlow = new MarketDatasetRequest(
-                "slowTF", TimeFrame.W1, nbUnit, Instant.now(), MarketDataSource.MEMORY, MarketScenario.UPTREND);
+                "slowTF", TimeFrame.W1, nbUnit, Instant.now(), MarketDataSource.MEMORY, TrendType.UPTREND);
         MarketDataset slowDataset = marketDatasetEngine.getDataset(mdrSlow);
 
 
@@ -70,15 +70,15 @@ class MarketDatasetEngineSpringTest {
         Instant instant = ldt.atZone(TimeFrame.DEFAULT_ZONE).toInstant();
 
         MarketDatasetRequest mdrFast = new MarketDatasetRequest(
-                "fastTF", TimeFrame.H1, nbUnit, instant, MarketDataSource.MEMORY, MarketScenario.UPTREND);
+                "fastTF", TimeFrame.H1, nbUnit, instant, MarketDataSource.MEMORY, TrendType.UPTREND);
         MarketDataset fastDataset = marketDatasetEngine.getDataset(mdrFast);
 
         MarketDatasetRequest mdrSlow = new MarketDatasetRequest(
-                "slowTF", TimeFrame.D1, nbUnit, instant, MarketDataSource.MEMORY, MarketScenario.UPTREND);
+                "slowTF", TimeFrame.D1, nbUnit, instant, MarketDataSource.MEMORY, TrendType.UPTREND);
         MarketDataset slowDataset = marketDatasetEngine.getDataset(mdrSlow);
 
         MarketDatasetRequest mdrVSlow = new MarketDatasetRequest(
-                "vslowTF", TimeFrame.M1, nbUnit, instant, MarketDataSource.MEMORY, MarketScenario.UPTREND);
+                "vslowTF", TimeFrame.M1, nbUnit, instant, MarketDataSource.MEMORY, TrendType.UPTREND);
         MarketDataset vslowDataset = marketDatasetEngine.getDataset(mdrVSlow);
 
 

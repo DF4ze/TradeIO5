@@ -2,13 +2,13 @@ package fr.ses10doigts.tradeIO5.service.market.provider.engine;
 
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
-import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketScenario;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TrendType;
 
 class InFileDatasets {
     private InFileDatasets(){}
 
     public static MarketDataset load(
-            MarketScenario scenario,
+            TrendType scenario,
             MarketDatasetRequest request
     ) {
         throw new UnsupportedOperationException("Test version, Not Yet Implemented");

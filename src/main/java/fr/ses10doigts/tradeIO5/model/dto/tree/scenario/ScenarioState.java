@@ -1,0 +1,58 @@
+package fr.ses10doigts.tradeIO5.model.dto.tree.scenario;
+
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioType;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioStatus;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
+import java.time.Duration;
+import java.time.Instant;
+
+@Data
+@AllArgsConstructor
+public class ScenarioState{
+    private Long id;                        // Pour mettre à jour l'entity
+    private ScenarioType scenarioType;          // scenario: le scénario actif (TRENDING_UP, RANGE, CRASH, …)
+    private ScenarioStatus status;          // status : état du scenario
+    private SignalType signal;              // signal: BULLISH / BEARISH / NEUTRAL
+    private double confidence;              // confidence: conviction globale (0–1 )
+    private boolean stable;                 // stable: validé / confirmé vs transitoire
+    private Instant lastUpdated;            // lastUpdate: dernière confirmation
+    private Instant createdAt;              // since: début du scénario
+
+    public ScenarioState(ScenarioType scenarioType, Instant createdAt){
+        this.scenarioType = scenarioType;
+        this.createdAt = createdAt;
+        this.lastUpdated = createdAt;
+        this.status = ScenarioStatus.EMERGING;
+        this.stable = false;
+        this.confidence = 0.0;
+        this.signal = null;
+    }
+
+    public boolean isExpired(Instant now, Duration duration) {
+
+        if (status == ScenarioStatus.INVALIDATED) {
+            stable = false;
+            return true;
+        }
+
+        if (status == ScenarioStatus.EXPIRED) {
+            stable = false;
+            return true;
+        }
+
+        if (lastUpdated.plus(duration).isBefore(now)) {
+            status = ScenarioStatus.EXPIRED;
+            stable = false;
+            return true;
+        }
+
+        return false;
+    }
+
+    public boolean isActive(){
+        return status.isActive();
+    }
+}

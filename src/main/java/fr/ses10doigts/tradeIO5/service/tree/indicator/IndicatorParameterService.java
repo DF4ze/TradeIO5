@@ -1,8 +1,8 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator;
 
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
-import fr.ses10doigts.tradeIO5.model.entity.decision.strategy.indicator.IndicatorParameter;
-import fr.ses10doigts.tradeIO5.model.entity.decision.strategy.indicator.IndicatorParameterSet;
+import fr.ses10doigts.tradeIO5.model.entity.tree.indicator.IndicatorParameter;
+import fr.ses10doigts.tradeIO5.model.entity.tree.indicator.IndicatorParameterSet;
 import fr.ses10doigts.tradeIO5.repository.decision.IndicatorParameterSetRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
