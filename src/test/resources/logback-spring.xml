@@ -42,7 +42,7 @@
     </appender>
 
     <!-- ROOT -->
-    <root level="${logging.level.root:INFO}">
+    <root level="${logging.level.root:DEBUG}">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="APP_FILE"/>
         <appender-ref ref="ERROR_FILE"/>

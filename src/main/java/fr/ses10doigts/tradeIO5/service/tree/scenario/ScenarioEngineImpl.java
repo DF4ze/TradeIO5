@@ -32,7 +32,7 @@ public class ScenarioEngineImpl implements ScenarioEngine {
     private final ScenarioFactory scenarioFactory;
 
     /** Stockage centralisé et thread-safe */
-    private final Map<ScenarioKey, MarketScenario> scenarios = new ConcurrentHashMap<>();
+    final Map<ScenarioKey, MarketScenario> scenarios = new ConcurrentHashMap<>();
 
     @Override
     public void onMarketOpinion(MarketOpinionResult opinion, ScenarioContext context, ExecutionMode executionMode) {
@@ -56,7 +56,7 @@ public class ScenarioEngineImpl implements ScenarioEngine {
         for (MarketScenario scenario : created) {
             ScenarioKey key = keyOf(scenario);
 
-            scenarios.merge(
+            MarketScenario merged = scenarios.merge(
                     key,
                     scenario,
                     (existing, incoming) -> {
@@ -66,9 +66,12 @@ public class ScenarioEngineImpl implements ScenarioEngine {
                         return existing;
                     }
             );
-        }
 
-        // 5. Historisation si nécessaire :
+            // Si merged == scenario, c'est un scénario **nouveau**, on historise
+            if (merged == scenario) {
+                historizeIfChanged(scenario, null, executionMode); // signal que c'est un ajout
+            }
+        }
 
         log.debug("Owner {}: {} scenarios actifs",
                 context.owner(),
@@ -108,7 +111,7 @@ public class ScenarioEngineImpl implements ScenarioEngine {
 
     // ---------- helpers ----------
 
-    private ScenarioKey keyOf(MarketScenario s) {
+    ScenarioKey keyOf(MarketScenario s) {
         return new ScenarioKey(
                 s.getOwner(),
                 s.getType(),
@@ -130,7 +133,9 @@ public class ScenarioEngineImpl implements ScenarioEngine {
     }
 
     private void historizeIfChanged(MarketScenario scenario, ScenarioState before, ExecutionMode executionMode) {
-        if (!before.equals(scenario.getState())) {
+        ScenarioState after = scenario.getState();
+
+        if (before == null || !before.equals(after)) {
             historyLogger.logChange(scenario, executionMode);
         }
     }

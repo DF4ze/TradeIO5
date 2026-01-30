@@ -1,6 +1,7 @@
 package fr.ses10doigts.tradeIO5.model.enumerate.decision;
 
 public enum ScenarioStatus {
+    INITIAL,
     EMERGING,     // hypothèse faible
     CONFIRMING,   // se renforce
     VALIDATED,    // prête à agir

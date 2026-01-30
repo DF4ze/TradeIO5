@@ -141,7 +141,7 @@ public class TransactionService {
 	 */
 	@Transactional
 	public void incrementalSync(Wallet wallet) {
-		// Force le chargement du User avant usage
+		// Force le chargement de l'User avant usage
 		Hibernate.initialize(wallet.getUser());
 
 		logger.info("⏳ Incremental sync started for wallet={} of user={} on provider={}", wallet.getName(), wallet.getUser().getUsername(), wallet.getWebProviderCode());

@@ -6,9 +6,11 @@ import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioType;
 import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.MarketScenario;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.MarketScenarioImpl;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+@Component
 public class DefaultScenarioFactory implements ScenarioFactory {
 
     @Override
