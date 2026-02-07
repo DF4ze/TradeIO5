@@ -3,16 +3,16 @@ package fr.ses10doigts.tradeIO5.service.tree.scenario;
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionResult;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ActionIntent;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioEvent;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioKey;
-import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioState;
-import fr.ses10doigts.tradeIO5.model.enumerate.market.ExecutionMode;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioEventType;
+import fr.ses10doigts.tradeIO5.service.tree.scenario.event.ScenarioEventEmitter;
+import fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause.EngineCause;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioFactory;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioOwner;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.history.ScenarioHistoryLogger;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -21,21 +21,34 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Component
+
+/**
+ * Le moteur doit faire 3 choses seulement :
+ *
+ * Créer / injecter un ScenarioEventEmitter
+ *
+ * Appeler observe(...) et enrichFrom(...)
+ *
+ * Stocker les scénarios vivants
+ *
+ * 👉 Et c’est tout.
+ */
+
 @RequiredArgsConstructor
-public class ScenarioEngineImpl implements ScenarioEngine {
+public class DefaultScenarioEngine implements ScenarioEngine {
 
-    private final Logger log = LoggerFactory.getLogger(ScenarioEngineImpl.class);
+    private final Logger log = LoggerFactory.getLogger(DefaultScenarioEngine.class);
 
-    //private final ExecutionMode executionMode;
-    private final ScenarioHistoryLogger historyLogger;
-    private final ScenarioFactory scenarioFactory;
+    private final ScenarioEventEmitter emitter;
 
     /** Stockage centralisé et thread-safe */
     final Map<ScenarioKey, MarketScenario> scenarios = new ConcurrentHashMap<>();
 
     @Override
-    public void onMarketOpinion(MarketOpinionResult opinion, ScenarioContext context, ExecutionMode executionMode) {
+    public void onMarketOpinion(
+            MarketOpinionResult opinion,
+            ScenarioContext context
+    ) {
 
         // 1. enrichir le contexte avec les scénarios globaux actifs
         ScenarioContext enrichedContext = context.withGlobalScenarios(getGlobalScenarios(context.owner()));
@@ -43,34 +56,23 @@ public class ScenarioEngineImpl implements ScenarioEngine {
         // 2. observer les scénarios existants
         scenarios.forEach((key, scenario) -> {
             if (isVisibleForOwner(key.owner(), enrichedContext.owner())) {
-                ScenarioState before = scenario.getState();
                 scenario.observe(opinion, enrichedContext);
-                historizeIfChanged(scenario, before, executionMode);
             }
         });
 
         // 3. proposer de nouveaux scénarios
-        List<MarketScenario> created = scenarioFactory.create(opinion, enrichedContext);
+        List<MarketScenario> created = ScenarioFactory.create(opinion, enrichedContext, emitter);
 
         // 4. Si scenario existe, merge
         for (MarketScenario scenario : created) {
-            ScenarioKey key = keyOf(scenario);
-
-            MarketScenario merged = scenarios.merge(
-                    key,
+            scenarios.merge(
+                    keyOf(scenario),
                     scenario,
                     (existing, incoming) -> {
-                        ScenarioState before = existing.getState();
-                        existing.enrichFrom(incoming);
-                        historizeIfChanged(existing, before, executionMode);
+                        existing.enrichFrom(incoming, context.clock().now());
                         return existing;
                     }
             );
-
-            // Si merged == scenario, c'est un scénario **nouveau**, on historise
-            if (merged == scenario) {
-                historizeIfChanged(scenario, null, executionMode); // signal que c'est un ajout
-            }
         }
 
         log.debug("Owner {}: {} scenarios actifs",
@@ -79,7 +81,7 @@ public class ScenarioEngineImpl implements ScenarioEngine {
     }
 
     @Override
-    public List<MarketScenario> getActiveScenarios(ScenarioOwner owner, Instant now, Duration maxAge) {
+    public List<MarketScenario> getActiveScenarios(ScenarioOwner owner, Duration maxAge, Instant now) {
         return scenarios.entrySet().stream()
                 .filter(e -> isVisibleForOwner(e.getKey().owner(), owner))
                 .map(Map.Entry::getValue)
@@ -88,25 +90,34 @@ public class ScenarioEngineImpl implements ScenarioEngine {
     }
 
     @Override
-    public List<ActionIntent> collectActionIntents(ScenarioOwner owner) {
+    public List<ActionIntent> collectActionIntents(ScenarioOwner owner, Instant now) {
         return scenarios.entrySet().stream()
                 .filter(e -> isVisibleForOwner(e.getKey().owner(), owner))
                 .map(Map.Entry::getValue)
-                .map(MarketScenario::proposeIntent)
+                .map(marketScenario -> marketScenario.proposeIntent(now))
                 .flatMap(Optional::stream)
                 .toList();
     }
 
     @Override
-    public void cleanup(Instant now, Duration maxAge, ExecutionMode executionMode) {
-        scenarios.entrySet().removeIf(entry -> {
-            MarketScenario s = entry.getValue();
-            if (!s.isActive(now, maxAge)) {
-                historyLogger.logChange(s, executionMode);
-                return true;
-            }
-            return false;
-        });
+    public void cleanup( Duration maxAge, Instant now ) {
+        List<MarketScenario> toRemove = scenarios.values().stream()
+                .filter(s -> !s.isActive(now, maxAge))
+                .toList();
+
+        // On retire
+        toRemove.forEach(s -> scenarios.remove(keyOf(s)));
+
+        // On émet l'événement pour chaque scénario supprimé
+        toRemove.forEach(s -> emitter.emit(
+                new ScenarioEvent(
+                        s,
+                        ScenarioEventType.SCENARIO_EXPIRED,
+                        new EngineCause(s.getId(), "Scenario removed", "No more active"),
+                        s.getState(),
+                        now
+                )
+        ));
     }
 
     // ---------- helpers ----------
@@ -132,12 +143,6 @@ public class ScenarioEngineImpl implements ScenarioEngine {
                 .toList();
     }
 
-    private void historizeIfChanged(MarketScenario scenario, ScenarioState before, ExecutionMode executionMode) {
-        ScenarioState after = scenario.getState();
 
-        if (before == null || !before.equals(after)) {
-            historyLogger.logChange(scenario, executionMode);
-        }
-    }
 }
 

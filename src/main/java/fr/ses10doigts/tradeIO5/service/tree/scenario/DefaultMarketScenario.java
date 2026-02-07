@@ -1,36 +1,31 @@
 package fr.ses10doigts.tradeIO5.service.tree.scenario;
 
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionResult;
-import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ActionIntent;
-import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
-import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioHistoryEntry;
-import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioState;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.MarketAction;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioStatus;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioType;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
-import fr.ses10doigts.tradeIO5.service.market.DomainClock;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.*;
+import fr.ses10doigts.tradeIO5.model.enumerate.decision.*;
+import fr.ses10doigts.tradeIO5.service.tree.scenario.event.ScenarioEventEmitter;
+import fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause.EnrichmentCause;
+import fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause.InvalidityCause;
+import fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause.OpinionCause;
+import fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause.TimeCause;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioOwner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public class MarketScenarioImpl implements MarketScenario {
+public class DefaultMarketScenario implements MarketScenario {
 
-    private final Logger logger = LoggerFactory.getLogger(MarketScenarioImpl.class);
+    private final Logger logger = LoggerFactory.getLogger(DefaultMarketScenario.class);
 
     private final ScenarioOwner owner;
     private final Optional<String> symbol;
     private final String id;
     private ScenarioState state;
-    private final DomainClock clock;
-    private final List<ScenarioHistoryEntry> scenarioHistory = new ArrayList<>();
+    private final ScenarioEventEmitter emitter;
 
     private static final double CONFIRMATION_THRESHOLD = 0.7; // pour passer EMERGING → CONFIRMING
     private static final double VALIDATION_THRESHOLD = 0.9;   // pour passer CONFIRMING → VALIDATED
@@ -45,12 +40,15 @@ public class MarketScenarioImpl implements MarketScenario {
     private static final Duration EXPIRATION_IDLE = Duration.ofHours(2); // durée max sans update // TODO Parametrize
 
 
-    public MarketScenarioImpl(ScenarioType scenarioType, ScenarioOwner owner, String symbol, Instant createdAt, DomainClock clock) {
-        this.owner = owner;
-        this.symbol = Optional.ofNullable(symbol);
-        this.clock = clock;
-        this.state = new ScenarioState(scenarioType, createdAt);
+    public DefaultMarketScenario(
+            ScenarioDefinition definition,
+            ScenarioEventEmitter eventEmitter
+    ) {
+        this.owner = definition.owner();
+        this.symbol = definition.symbol();
+        this.state = new ScenarioState(definition.type(), definition.createdAt());
         this.id = generateScenarioId();
+        this.emitter = eventEmitter;
     }
 
 
@@ -58,15 +56,12 @@ public class MarketScenarioImpl implements MarketScenario {
     public void observe(MarketOpinionResult opinion, ScenarioContext context) {
 
         if (!state.isActive()) {
-            logger.debug("State isn't active : return");
+            logger.debug("Observe : State isn't active : return");
             return;
         }
 
         // 1️⃣ Mutation (signal + confiance progressive)
-        mutateScenario(
-                opinion.weightedSignal(),
-                opinion.conviction()
-        );
+        mutateScenario(opinion, context.clock().now());
 
         // 2️⃣ Évolution du status métier (basée sur la confiance résultante)
         double confidence = state.getConfidence();
@@ -111,17 +106,17 @@ public class MarketScenarioImpl implements MarketScenario {
         }
 
         // 3️⃣ Invalidation hard (sécurité logique)
-        checkInvalidation();
+        checkInvalidation(context.clock().now());
 
         // 4️⃣ Expiration temporelle
-        checkExpiration(context.now());
+        checkExpiration(context.clock().now());
 
-        state.setLastUpdated(clock.now());
+        state.setLastUpdated(context.clock().now());
     }
 
 
     @Override
-    public Optional<ActionIntent> proposeIntent() {
+    public Optional<ActionIntent> proposeIntent(Instant now) {
 
         if (!state.isStable()) {
             logger.debug("Not stable: no intent");
@@ -156,13 +151,13 @@ public class MarketScenarioImpl implements MarketScenario {
                         state.getConfidence(),
                         id,
                         "Scenario validated and stable",
-                        clock.now()
+                        now
                 )
         );
     }
 
     @Override
-    public void enrichFrom(MarketScenario other) {
+    public void enrichFrom(MarketScenario other, Instant now) {
         if(other.getSymbol().isPresent()){
             logger.debug("Enrichment only possible with GLOBAL scenario");
             return;
@@ -187,8 +182,8 @@ public class MarketScenarioImpl implements MarketScenario {
                 : current.getLastUpdated();
         // TODO : Ou state.setLastUpdated(clock.now()); ?
 
-        this.state = new ScenarioState(
-                current.getId(),
+        ScenarioState before = new ScenarioState(state, state.getCreatedAt());
+        state = new ScenarioState(
                 current.getScenarioType(),
                 newStatus,
                 newSignal,
@@ -197,23 +192,45 @@ public class MarketScenarioImpl implements MarketScenario {
                 newLastUpdated,
                 current.getCreatedAt()    // IMPORTANT : on conserve l’origine
         );
-        logger.debug("Enrichment result : {}", state);
 
+        emitter.emit(new ScenarioEvent(
+                this,
+                ScenarioEventType.SCENARIO_ENRICHED,
+                new EnrichmentCause(
+                    other.getId(),
+                    other.getState()
+                ),
+                before,
+                now
+        ));
+        logger.debug("Enrichment result : {}", state);
     }
 
+    private void mutateScenario(MarketOpinionResult opinion, Instant now) {
+        OpinionCause cause = new OpinionCause(
+                opinion.opinionId(),
+                opinion.weightedSignal(),
+                opinion.conviction()
+        );
+        ScenarioState before = new ScenarioState(state, state.getCreatedAt());
 
-    private void mutateScenario( SignalType newSignal, double newConfidence) {
         if( state.getStatus() == ScenarioStatus.INITIAL ){
-            state.setConfidence(newConfidence);
-            state.setSignal(newSignal);
-            logStateChange("INITIAL", 0.0);
+            state.setConfidence(opinion.conviction());
+            state.setSignal(opinion.weightedSignal());
+            emitter.emit(new ScenarioEvent(
+                    this,
+                    ScenarioEventType.SCENARIO_CREATED,
+                    cause,
+                    before,
+                    now
+            ));
 
         }else {
             double delta = 0;
-            if (state.getSignal() == newSignal) {
+            if (state.getSignal() == opinion.weightedSignal()) {
                 logger.debug("Mutation ++");
                 delta = REINFORCE_DELTA;
-            } else if (state.getSignal().isOpposite(newSignal)) {
+            } else if (state.getSignal().isOpposite(opinion.weightedSignal())) {
                 logger.debug("Mutation --");
                 delta = WEAKEN_DELTA;
             } else {
@@ -222,47 +239,68 @@ public class MarketScenarioImpl implements MarketScenario {
             }
 
             state.setConfidence(Math.min(1, Math.max(0, state.getConfidence() + delta)));
-            state.setSignal(adjustSignal(state.getSignal(), state.getConfidence(), newSignal, newConfidence));
-            logStateChange("MUTATION", delta);
+            state.setSignal(adjustSignal(
+                    state.getSignal(), state.getConfidence(),
+                    opinion.weightedSignal(), opinion.conviction()
+            ));
+
+            emitter.emit(new ScenarioEvent(
+                    this,
+                    ScenarioEventType.STATE_MUTATED,
+                    cause,
+                    before,
+                    now
+            ));
+            logger.debug("Mutate result : {}", state);
         }
     }
 
-    private void checkInvalidation() {
-        ScenarioState state = getState();
+    private void checkInvalidation( Instant now ) {
+        ScenarioState before = new ScenarioState(state, state.getCreatedAt());
+
         if (state.getConfidence() <= INVALID_THRESHOLD) {
             state.setStatus(ScenarioStatus.INVALIDATED);
             state.setStable(false);
-            logStateChange( "INVALIDATION", state.getConfidence());
+
+            emitter.emit(new ScenarioEvent(
+                    this,
+                    ScenarioEventType.SCENARIO_INVALIDATED,
+                    new InvalidityCause( INVALID_THRESHOLD ),
+                    before,
+                    now
+            ));
         }
+
+        logger.debug("Invalidation result : {}", state);
     }
 
     private void checkExpiration( Instant now ) {
-        ScenarioState state = getState();
+        ScenarioState before = new ScenarioState(state, state.getCreatedAt());
+
         if (Duration.between(state.getLastUpdated(), now).compareTo(EXPIRATION_IDLE) > 0) {
             state.setStatus(ScenarioStatus.EXPIRED);
             state.setStable(false);
-            logStateChange("EXPIRATION", Duration.between(state.getLastUpdated(), now).toMillis());
-        }else{
-            logger.debug("LastUpdated: {} - ContextDate: {}",state.getLastUpdated(), now);
+
+            emitter.emit(new ScenarioEvent(
+                    this,
+                    ScenarioEventType.SCENARIO_EXPIRED,
+                    new TimeCause(
+                            state.getLastUpdated(),
+                            now,
+                            EXPIRATION_IDLE
+                    ),
+                    before,
+                    now
+            ));
         }
+        logger.debug("checkExpiration {} : LastUpdated: {} - ContextDate: {} - max Duration: {}",
+                state.getStatus() == ScenarioStatus.EXPIRED ? "KO" : "OK",
+                state.getLastUpdated(),
+                now,
+                EXPIRATION_IDLE);
     }
 
-    private void logStateChange( String type, Object info) {
-        logger.debug("LogChange : {}, {}", type, info);
 
-        // Stocker dans un historique dédié
-        ScenarioState state = getState();
-        scenarioHistory.add(new ScenarioHistoryEntry(
-                getClass().getSimpleName(), // TODO
-                state.getScenarioType(),
-                state.getSignal(),
-                state.getConfidence(),
-                state.getStatus(),
-                clock.now(),
-                type, // TODO
-                info // TODO...
-        ));
-    }
 
     /**
      * Ajuste le signal d'un scénario selon le nouveau signal observé et les niveaux de confiance.
@@ -320,6 +358,11 @@ public class MarketScenarioImpl implements MarketScenario {
     @Override
     public ScenarioState getState() {
         return state;
+    }
+
+    @Override
+    public String getId() {
+        return id;
     }
 
     @Override

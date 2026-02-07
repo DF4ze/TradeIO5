@@ -14,17 +14,11 @@ import java.util.Optional;
 
 public interface MarketScenario {
 
-    ScenarioOwner getOwner();
-    ScenarioType  getType();
-    Optional<String> getSymbol();
-    ScenarioState getState();
-
-     void observe( MarketOpinionResult opinion, ScenarioContext context );
-
-    Optional<ActionIntent> proposeIntent();
-
-
-    void enrichFrom(MarketScenario other);
+    String              getId();
+    ScenarioOwner       getOwner();
+    ScenarioType        getType();
+    Optional<String>    getSymbol();
+    ScenarioState       getState();
 
     default ScenarioStatus getStatus() {
         return getState().getStatus();
@@ -33,4 +27,13 @@ public interface MarketScenario {
     default boolean isActive(Instant now, Duration duration) {
         return getState().isActive() && !getState().isExpired(now, duration);
     }
+
+    void observe( MarketOpinionResult opinion, ScenarioContext context );
+
+    Optional<ActionIntent> proposeIntent(Instant now);
+
+    void enrichFrom(MarketScenario other, Instant now);
+
+
+
 }

@@ -17,6 +17,10 @@ import java.util.Map;
  */
 public interface MarketOpinion {
 
+    default String getId( OpinionContext context ){
+        return getName()+"-"+context.hashCode();
+    }
+
     /**
      * Type de l'opinion (pour le registry)
      * Contrat moral de l'opinion : « Elle se cantonne à ce périmètre.

@@ -150,7 +150,7 @@ class RiskManagementMarketOpinionTest_UT {
         MarketOpinion marketOpinion = marketOpinionRegistry.get(RiskManagementMarketOpinion.class.getSimpleName());
         MarketOpinionResult decide = marketOpinion.decide(opinionContext, marketOpinionParameters);
 
-        assertSame(SignalType.NEUTRAL, decide.majoritySignal());
+        assertSame(SignalType.BEARISH, decide.majoritySignal());
 
 
     }

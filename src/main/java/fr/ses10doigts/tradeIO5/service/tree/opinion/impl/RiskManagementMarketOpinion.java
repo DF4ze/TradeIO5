@@ -58,6 +58,7 @@ public class RiskManagementMarketOpinion extends AbstractMarketOpinion {
 
 
         return new MarketOpinionResult(
+                getId(context),
                 majoritySignal,
                 confidenceSignal.signal,
                 confidenceSignal.confidence,

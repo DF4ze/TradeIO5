@@ -13,7 +13,6 @@ import java.time.Instant;
 @AllArgsConstructor
 public class ScenarioState{
 
-    private Long id;                        // Pour mettre à jour l'entity
     private ScenarioType scenarioType;      // scenario: le scénario actif (TRENDING_UP, RANGE, CRASH, …)
     private ScenarioStatus status;          // status : état du scenario
     private SignalType signal;              // signal: BULLISH / BEARISH / NEUTRAL
@@ -30,6 +29,16 @@ public class ScenarioState{
         this.stable = false;
         this.confidence = 0.0;
         this.signal = SignalType.NEUTRAL;
+    }
+
+    public ScenarioState(ScenarioState state, Instant now) {
+        scenarioType = state.scenarioType;
+        createdAt = now;
+        lastUpdated = now;
+        status = state.status;
+        stable = state.stable;
+        confidence = state.confidence;
+        signal = state.signal;
     }
 
     public boolean isExpired(Instant now, Duration duration) {

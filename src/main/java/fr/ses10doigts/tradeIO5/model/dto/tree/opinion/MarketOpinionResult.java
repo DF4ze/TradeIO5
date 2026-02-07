@@ -8,6 +8,7 @@ import java.util.List;
 /**
  * Résultat produit par une Opinion.
  *
+ * @param opinionId                String unique définissant l'opinion
  * @param majoritySignal    Action majoritairement proposée
  * @param weightedSignal    Action qui ressort une fois pondérée par les scores
  * @param conviction        Niveau de confiance de la décision
@@ -16,6 +17,7 @@ import java.util.List;
  * @param reason            Informations explicatives (debug, audit, reporting)
  */
 public record MarketOpinionResult(
+        String opinionId,
         SignalType majoritySignal,
         SignalType weightedSignal,
         double conviction,
