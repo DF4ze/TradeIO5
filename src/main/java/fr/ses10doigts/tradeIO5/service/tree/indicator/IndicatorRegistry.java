@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator;
 
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

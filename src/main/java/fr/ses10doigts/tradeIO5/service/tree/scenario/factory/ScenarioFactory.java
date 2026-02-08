@@ -1,13 +1,13 @@
 package fr.ses10doigts.tradeIO5.service.tree.scenario.factory;
 
-import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionResult;
+import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioDefinition;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioType;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
+import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.DefaultMarketScenario;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.MarketScenario;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.ScenarioEventEmitter;
 
 import java.util.List;
 
@@ -15,9 +15,9 @@ import java.util.List;
 public class ScenarioFactory{
 
     public static List<MarketScenario> create(
-            MarketOpinionResult opinion,
+            OpinionSignal opinion,
             ScenarioContext context,
-            ScenarioEventEmitter emitter
+            EventBus eventBus
     ) {
         ScenarioType type = classify(opinion);
 
@@ -34,7 +34,7 @@ public class ScenarioFactory{
 
         DefaultMarketScenario scenario = new DefaultMarketScenario(
                 definition,
-                emitter
+                eventBus
         );
 
         scenario.observe(opinion, context);
@@ -42,46 +42,46 @@ public class ScenarioFactory{
         return List.of( scenario );
     }
 
-    private static ScenarioType classify(MarketOpinionResult o) {
+    private static ScenarioType classify(OpinionSignal o) {
 
         // CRASH / SURGE : mouvement violent
-        if (o.score() < -0.85 && o.conviction() > 0.8) {
+        if (o.score() < -0.85 && o.confidence() > 0.8) {
             return ScenarioType.CRASH;
         }
-        if (o.score() > 0.85 && o.conviction() > 0.8) {
+        if (o.score() > 0.85 && o.confidence() > 0.8) {
             return ScenarioType.SURGE;
         }
 
         // BREAKOUT
         if (o.weightedSignal() == SignalType.BULLISH
-                && o.conviction() > 0.75
+                && o.confidence() > 0.75
                 && o.score() > 0.6) {
             return ScenarioType.BREAKOUT_UP;
         }
 
         if (o.weightedSignal() == SignalType.BEARISH
-                && o.conviction() > 0.75
+                && o.confidence() > 0.75
                 && o.score() < -0.6) {
             return ScenarioType.BREAKOUT_DOWN;
         }
 
         // TREND
         if (o.majoritySignal() == SignalType.BULLISH
-                && o.conviction() > 0.6) {
+                && o.confidence() > 0.6) {
             return ScenarioType.TREND_UP;
         }
 
         if (o.majoritySignal() == SignalType.BEARISH
-                && o.conviction() > 0.6) {
+                && o.confidence() > 0.6) {
             return ScenarioType.TREND_DOWN;
         }
 
         // RANGE / VOLATILE
-        if (o.conviction() < 0.4) {
+        if (o.confidence() < 0.4) {
             return ScenarioType.RANGE;
         }
 
-        if (Math.abs(o.score()) > 0.7 && o.conviction() < 0.5) {
+        if (Math.abs(o.score()) > 0.7 && o.confidence() < 0.5) {
             return ScenarioType.VOLATILE;
         }
 

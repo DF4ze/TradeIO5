@@ -1,12 +1,15 @@
 package fr.ses10doigts.tradeIO5.service.tree.scenario;
 
-import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionResult;
+import fr.ses10doigts.tradeIO5.model.dto.event.OpinionEvent;
+import fr.ses10doigts.tradeIO5.model.dto.event.ScenarioEvent;
+import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ActionIntent;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
-import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioEvent;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioKey;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioEventType;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.ScenarioEventEmitter;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioEventType;
+import fr.ses10doigts.tradeIO5.service.market.DomainClock;
+import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
+import fr.ses10doigts.tradeIO5.service.tree.opinion.event.OpinionConsumer;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause.EngineCause;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioFactory;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioOwner;
@@ -19,6 +22,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 
@@ -35,18 +39,43 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 
 @RequiredArgsConstructor
-public class DefaultScenarioEngine implements ScenarioEngine {
+public class DefaultScenarioEngine implements ScenarioEngine, OpinionConsumer {
 
-    private final Logger log = LoggerFactory.getLogger(DefaultScenarioEngine.class);
+    private static final Logger log = LoggerFactory.getLogger(DefaultScenarioEngine.class);
 
-    private final ScenarioEventEmitter emitter;
+    private final ScenarioOwner owner;
+    private final DomainClock clock;
+    private final Set<String> symbols;
+    private final EventBus eventBus;
 
-    /** Stockage centralisé et thread-safe */
     final Map<ScenarioKey, MarketScenario> scenarios = new ConcurrentHashMap<>();
+
+
+    @Override
+    public void onOpinionEvent(OpinionEvent event) {
+
+        if( event.getSymbol().isPresent() && !symbols.contains(event.getSymbol().get()) ){
+            log.debug("Event received for {} but not on survey list", event.getSymbol().get());
+
+        }else if(event.getSymbol().isEmpty()) {
+            log.debug("Global Event received");
+        }
+
+        OpinionSignal result = eventToOpinionSignal(event);
+        ScenarioContext context = new ScenarioContext(
+                owner,
+                event.getSymbol(),
+                clock,
+                getGlobalScenarios(owner)
+        );
+
+        onMarketOpinion(result, context);
+    }
+
 
     @Override
     public void onMarketOpinion(
-            MarketOpinionResult opinion,
+            OpinionSignal opinion,
             ScenarioContext context
     ) {
 
@@ -61,7 +90,7 @@ public class DefaultScenarioEngine implements ScenarioEngine {
         });
 
         // 3. proposer de nouveaux scénarios
-        List<MarketScenario> created = ScenarioFactory.create(opinion, enrichedContext, emitter);
+        List<MarketScenario> created = ScenarioFactory.create(opinion, enrichedContext, eventBus);
 
         // 4. Si scenario existe, merge
         for (MarketScenario scenario : created) {
@@ -79,6 +108,8 @@ public class DefaultScenarioEngine implements ScenarioEngine {
                 context.owner(),
                 scenarios.size());
     }
+
+    // ------------ Scenario manipulations -------------
 
     @Override
     public List<MarketScenario> getActiveScenarios(ScenarioOwner owner, Duration maxAge, Instant now) {
@@ -109,7 +140,7 @@ public class DefaultScenarioEngine implements ScenarioEngine {
         toRemove.forEach(s -> scenarios.remove(keyOf(s)));
 
         // On émet l'événement pour chaque scénario supprimé
-        toRemove.forEach(s -> emitter.emit(
+        toRemove.forEach(s -> eventBus.publish(
                 new ScenarioEvent(
                         s,
                         ScenarioEventType.SCENARIO_EXPIRED,
@@ -118,6 +149,36 @@ public class DefaultScenarioEngine implements ScenarioEngine {
                         now
                 )
         ));
+    }
+
+    // ---------- Symbols survey Set ----------
+
+    public void addSymbolSurvey( String symbol ){
+        symbols.add(symbol);
+    }
+
+    public void removeSymbolSurvey( String symbol ){
+        symbols.remove(symbol);
+
+        List<MarketScenario> toRemove = scenarios.values().stream()
+                .filter(s -> s.getSymbol().isPresent() && s.getSymbol().get().equals(symbol))
+                .toList();
+
+        toRemove.forEach(s -> {
+            MarketScenario toBeDelScenario = scenarios.get(keyOf(s));
+            eventBus.publish(new ScenarioEvent(
+                    s,
+                    ScenarioEventType.SCENARIO_EXPIRED,
+                    new EngineCause(
+                            toBeDelScenario.getId(),
+                            "Removing all Scenarii from symbol "+ symbol,
+                            "Symbol removed from survey list: "+ symbol
+                    ),
+                    s.getState(),
+                    clock.now()
+            ));
+            scenarios.remove(keyOf(s));
+        });
     }
 
     // ---------- helpers ----------
@@ -143,6 +204,20 @@ public class DefaultScenarioEngine implements ScenarioEngine {
                 .toList();
     }
 
+    private OpinionSignal eventToOpinionSignal( OpinionEvent event ){
+        return new OpinionSignal(
+                event.getOpinionId(),
+                event.getSymbol(),
+                event.getMajoritySignal(),
+                event.getWeightedSignal(),
+                event.getConfidence(),
+                event.getScore(),
+                event.getScope(),
+                event.getSources(),
+                event.getReason(),
+                event.getTimestamp()
+        );
+    }
 
 }
 

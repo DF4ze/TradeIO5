@@ -1,32 +1,32 @@
 package fr.ses10doigts.tradeIO5.service.tree.scenario;
 
-import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionResult;
+import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioDefinition;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioType;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.DefaultScenarioEventEmitter;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.InMemoryEventStore;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.ScenarioEventEmitter;
+import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
+import fr.ses10doigts.tradeIO5.service.tree.event.engine.InMemoryEventStore;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioOwner;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@DisplayName("Scenario - Engine IT")
 class ScenarioEngineIntegrationTest {
 
 
     private DefaultScenarioEngine engine;
-    private ScenarioEventEmitter emitter;
+    private EventBus eventBus;
 
     private ScenarioOwner owner;
     private ScenarioContext context;
@@ -46,23 +46,30 @@ class ScenarioEngineIntegrationTest {
                 new ArrayList<>()
         );
 
-        InMemoryEventStore eventStore = new InMemoryEventStore();
-        emitter = new DefaultScenarioEventEmitter(eventStore);
+        eventBus = new EventBus();
+        InMemoryEventStore eventStore = new InMemoryEventStore(eventBus);
+        eventStore.init();
         engine = new DefaultScenarioEngine(
-                emitter
+                owner,
+                clock,
+                Set.of("BTC"),
+                eventBus
         );
     }
 
     @Test
     void shouldCreateAndObserveScenario() {
-        MarketOpinionResult opinion = new MarketOpinionResult(
+        OpinionSignal opinion = new OpinionSignal(
                 "OpinionId",
+                Optional.of("BTC"),
                 SignalType.NEUTRAL,
                 SignalType.NEUTRAL,
                 1.0,
                 1.0,
-                new ArrayList<>(),
-                ""
+                OpinionScope.LOCAL,
+                new HashSet<>(),
+                "",
+                clock.now()
         ); // Crée un objet test simple
 
         // 1. Appel de l'engine
@@ -92,7 +99,7 @@ class ScenarioEngineIntegrationTest {
         );
         MarketScenario inactiveScenario = new DefaultMarketScenario(
                 def,
-                emitter
+                eventBus
         );
 
         //engine.getActiveScenarios(owner, Instant.now(), Duration.ofDays(1)).clear();
@@ -116,7 +123,7 @@ class ScenarioEngineIntegrationTest {
                 Optional.of("ETH"),
                 clock.now()
         );
-        MarketScenario scenario = new DefaultMarketScenario( def, emitter );
+        MarketScenario scenario = new DefaultMarketScenario( def, eventBus );
 
         engine.scenarios.put(engine.keyOf(scenario), scenario);
 

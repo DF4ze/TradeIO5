@@ -3,7 +3,7 @@ package fr.ses10doigts.tradeIO5.service.tree.indicator.impl;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorSnapshot;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorEngine;

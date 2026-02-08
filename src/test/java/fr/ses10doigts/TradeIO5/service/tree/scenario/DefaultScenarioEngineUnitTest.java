@@ -1,17 +1,22 @@
 package fr.ses10doigts.tradeIO5.service.tree.scenario;
 
-import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionResult;
-import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.*;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioEventType;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioType;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
+import fr.ses10doigts.tradeIO5.model.dto.event.ScenarioEvent;
+import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioDefinition;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioKey;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioEventType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.DefaultScenarioEventEmitter;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.EventStore;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.InMemoryEventStore;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.ScenarioEventEmitter;
+import fr.ses10doigts.tradeIO5.service.tree.event.PersistableEvent;
+import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
+import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventStore;
+import fr.ses10doigts.tradeIO5.service.tree.event.engine.InMemoryEventStore;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioOwner;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -20,11 +25,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
 
+@DisplayName("Scenario - Engine UT")
 @ExtendWith(MockitoExtension.class)
 class DefaultScenarioEngineUnitTest {
 
@@ -32,9 +39,9 @@ class DefaultScenarioEngineUnitTest {
     DefaultScenarioEngine engine;
 
     MarketScenario existingScenario;
-    private ScenarioEventEmitter emitter;
+    EventBus eventBus;
 
-    MarketOpinionResult mor;
+    OpinionSignal mor;
 
 
     private final ScenarioOwner owner = ScenarioOwner.user("user1");
@@ -54,8 +61,10 @@ class DefaultScenarioEngineUnitTest {
                 List.of()
         );
 
-        eventStore = new InMemoryEventStore();
-        ScenarioEventEmitter emitter = new DefaultScenarioEventEmitter(eventStore);
+        eventBus = new EventBus();
+        eventStore = new InMemoryEventStore(eventBus);
+        eventStore.init();
+
 
         ScenarioDefinition def = new ScenarioDefinition(
                 ScenarioType.TREND_UP,
@@ -63,20 +72,26 @@ class DefaultScenarioEngineUnitTest {
                 Optional.of("BTC"),
                 clock.now()
         );
-        existingScenario = new DefaultMarketScenario( def, emitter );
+        existingScenario = new DefaultMarketScenario( def, eventBus );
 
         engine = new DefaultScenarioEngine(
-                emitter
+                owner,
+                clock,
+                Set.of("BTC"),
+                eventBus
         );
 
-        mor = new MarketOpinionResult(
+        mor = new OpinionSignal(
                 "OpinionId",
+                Optional.of("BTC"),
                 SignalType.BEARISH,
                 SignalType.BEARISH,
                 0.9,
                 0.9,
-                List.of(),
-                "reason"
+                OpinionScope.LOCAL,
+                Set.of(),
+                "reason",
+                clock.now()
         );
     }
 
@@ -91,11 +106,11 @@ class DefaultScenarioEngineUnitTest {
         engine.scenarios.put(key, existingScenario);
 
         engine.onMarketOpinion(
-                mock(MarketOpinionResult.class),
+                mock(OpinionSignal.class),
                 context
         );
 
-        List<ScenarioEvent> events = eventStore.load(existingScenario.getId());
+        List<PersistableEvent> events = eventStore.loadByTargetId(existingScenario.getId());
 
         assertThat(events).isNotEmpty();
     }
@@ -122,12 +137,14 @@ class DefaultScenarioEngineUnitTest {
         assertEquals(owner, scenario.getOwner());
 
         // 🔥 vérification événementielle
-        List<ScenarioEvent> events = eventStore.load(scenario.getId());
+        List<PersistableEvent> events = eventStore.loadByTargetId(scenario.getId());
 
         assertFalse(events.isEmpty());
         assertTrue(
-                events.stream().anyMatch(e ->
-                        e.getType() == ScenarioEventType.SCENARIO_CREATED
+                events.stream()
+                        .filter(e -> e instanceof ScenarioEvent)
+                        .map(e -> (ScenarioEvent) e).anyMatch(e ->
+                        e.getScenarioEventType() == ScenarioEventType.SCENARIO_CREATED
                 )
         );
     }
@@ -151,14 +168,17 @@ class DefaultScenarioEngineUnitTest {
         engine.onMarketOpinion(mor, context);
 
         // THEN — événements produits
-        List<ScenarioEvent> events =
-                eventStore.load(existingScenario.getId());
+        List<PersistableEvent> events =
+                eventStore.loadByTargetId(existingScenario.getId());
 
         assertFalse(events.isEmpty());
 
         assertTrue(
-                events.stream().anyMatch(e ->
-                        e.getType() == ScenarioEventType.STATE_MUTATED
+                events.stream()
+                        .filter(e -> e instanceof ScenarioEvent)
+                        .map(e -> (ScenarioEvent) e)
+                        .anyMatch(e ->
+                        e.getScenarioEventType() == ScenarioEventType.STATE_MUTATED
                 )
         );
     }
@@ -206,15 +226,18 @@ class DefaultScenarioEngineUnitTest {
         assertTrue(engine.scenarios.isEmpty());
 
         // THEN — événement émis
-        List<ScenarioEvent> events =
-                eventStore.load(existingScenario.getId());
+        List<PersistableEvent> events =
+                eventStore.loadByTargetId(existingScenario.getId());
 
         assertFalse(events.isEmpty());
 
         assertTrue(
-                events.stream().anyMatch(e ->
-                        e.getType() == ScenarioEventType.SCENARIO_EXPIRED
-                                || e.getType() == ScenarioEventType.SCENARIO_INVALIDATED
+                events.stream()
+                        .filter(e -> e instanceof ScenarioEvent)
+                        .map(e -> (ScenarioEvent) e)
+                        .anyMatch(e ->
+                        e.getScenarioEventType() == ScenarioEventType.SCENARIO_EXPIRED
+                                || e.getScenarioEventType() == ScenarioEventType.SCENARIO_INVALIDATED
                 )
         );
     }

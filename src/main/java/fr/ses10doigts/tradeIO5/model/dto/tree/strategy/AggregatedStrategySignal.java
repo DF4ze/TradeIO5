@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.model.dto.tree.strategy;
 
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
 import lombok.Builder;
 import lombok.Data;
 

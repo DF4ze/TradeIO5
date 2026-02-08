@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.tree.helper;
 
 
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
 import lombok.AllArgsConstructor;
 import lombok.ToString;
 

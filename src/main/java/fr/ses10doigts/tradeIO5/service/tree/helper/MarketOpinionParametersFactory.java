@@ -3,7 +3,7 @@ package fr.ses10doigts.tradeIO5.service.tree.helper;
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionParameters;
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.StrategyKey;
 import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategyParameters;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.RiskProfile;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.RiskProfile;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.Strategy;
 
 import java.util.List;

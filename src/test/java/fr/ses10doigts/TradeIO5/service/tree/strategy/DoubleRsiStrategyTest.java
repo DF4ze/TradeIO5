@@ -3,7 +3,7 @@ package fr.ses10doigts.tradeIO5.service.tree.strategy;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
 import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.*;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TrendType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
@@ -120,8 +120,8 @@ class DoubleRsiStrategyTest {
         Strategy strategy = strategyRegistry.get( DoubleRsiStrategy.class.getSimpleName() );
         StrategySignal signal = strategy.evaluate(context, strategyParameters);
 
-//        assertEquals( SignalType.SELL, signal.getType() );
-//        assertTrue(signal.getScore() < 0);
+//        assertEquals( SignalType.SELL, weightedSignal.getType() );
+//        assertTrue(weightedSignal.getScore() < 0);
 
 
         // Test of StrategyAggregator

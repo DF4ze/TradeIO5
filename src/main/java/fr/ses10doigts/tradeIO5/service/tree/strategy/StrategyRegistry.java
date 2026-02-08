@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.tree.strategy;
 
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.StrategyType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.strategy.StrategyType;
 import org.springframework.stereotype.Component;
 
 import java.util.List;

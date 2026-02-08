@@ -6,7 +6,7 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorResult;
 import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.IndicatorKey;
 import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.MarketContext;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;

@@ -1,10 +1,9 @@
 package fr.ses10doigts.tradeIO5.service.tree.opinion;
 
-import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionResult;
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionParameters;
 import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategySignal;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.tree.helper.MarketOpinionHelper;
 import org.slf4j.Logger;
@@ -51,14 +50,14 @@ public abstract class AbstractMarketOpinion implements MarketOpinion {
      * - l'interprétation du résultat est laissée à l'implémentation
      */
     @Override
-    public MarketOpinionResult decide(OpinionContext context, MarketOpinionParameters parameters) {
+    public void decide(OpinionContext context, MarketOpinionParameters parameters) {
         List<StrategySignal> signals = evaluateStrategies(context, parameters);
 
         double weightedScore = calculateWeightedScore(signals);
         SignalType majoritySignal = determineMajoritySignal(signals);
         MarketOpinionHelper.ConfidenceSignal confidenceSignal = MarketOpinionHelper.scoreToConfidenceAndSignalType(weightedScore);
 
-        return interpretSignals(signals, context, parameters, weightedScore, majoritySignal, confidenceSignal);
+        interpretSignals(signals, context, parameters, weightedScore, majoritySignal, confidenceSignal);
     }
 
     //
@@ -67,7 +66,7 @@ public abstract class AbstractMarketOpinion implements MarketOpinion {
     /**
      * Chaque décision définit sa propre logique métier ici.
      */
-    abstract protected MarketOpinionResult interpretSignals(
+    abstract protected void interpretSignals(
             List<StrategySignal> signals,
             OpinionContext context,
             MarketOpinionParameters parameters,
@@ -88,7 +87,7 @@ public abstract class AbstractMarketOpinion implements MarketOpinion {
     }
 
     /**
-     * Détermine le signal majoritaire parmi les stratégies.
+     * Détermine le weightedSignal majoritaire parmi les stratégies.
      */
     protected SignalType determineMajoritySignal(List<StrategySignal> signals) {
         long buy = signals.stream().filter(s -> s.getType() == SignalType.BULLISH).count();
@@ -102,7 +101,7 @@ public abstract class AbstractMarketOpinion implements MarketOpinion {
 
 
     /**
-     * Résout l'action finale selon le score pondéré, le signal majoritaire et le profil utilisateur.
+     * Résout l'action finale selon le score pondéré, le weightedSignal majoritaire et le profil utilisateur.
      */
  /*   protected MarketAction resolveAction(double weightedScore,
                                          SignalType majoritySignal,
@@ -117,7 +116,7 @@ public abstract class AbstractMarketOpinion implements MarketOpinion {
         MarketOpinionHelper.ConfidenceSignal globalSignal =
                 MarketOpinionHelper.scoreToConfidenceAndSignalType(weightedScore);
 
-        SignalType scoreSignal = globalSignal.signal;
+        SignalType scoreSignal = globalSignal.weightedSignal;
         double confidence = globalSignal.confidence;
 
         logger.debug("[weightedScore:{}, scoreSignal:{}, confidence:{}], majoritySignal:{}, profile:{}",
@@ -133,7 +132,7 @@ public abstract class AbstractMarketOpinion implements MarketOpinion {
             case LOW -> {
                 logger.debug("LOW Profile rules");
                 // Profil conservateur :
-                // - BUY/SELL uniquement si signal fort et cohérent
+                // - BUY/SELL uniquement si weightedSignal fort et cohérent
                 if (confidence < LOW_PROFILE_THRESHOLD) {
                     logger.debug("confidence({}) < threshold({}) = HOLD", confidence, LOW_PROFILE_THRESHOLD);
                     yield MarketAction.HOLD;

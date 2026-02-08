@@ -6,7 +6,7 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorResult;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.external.FearAndGreedResponse;
 import fr.ses10doigts.tradeIO5.model.dto.provider.web.ApiCredentialDTO;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.Indicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.external.feargreed.FearAndGreedProvider;
 import org.springframework.stereotype.Component;

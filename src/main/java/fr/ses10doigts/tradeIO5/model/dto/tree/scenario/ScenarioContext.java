@@ -15,6 +15,7 @@ import java.util.Optional;
  * @param symbol Un éventuel symbol, sinon contexte global
  * @param clock Source du temps
  * @param globalScenarios Scenarios qui sont globaux
+ *
  */
 public record ScenarioContext(
 

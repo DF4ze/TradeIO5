@@ -1,30 +1,32 @@
 package fr.ses10doigts.tradeIO5.service.tree.scenario;
 
-import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionResult;
+import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ActionIntent;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioDefinition;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.MarketAction;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioStatus;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioType;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.MarketIntentAction;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioStatus;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.DefaultScenarioEventEmitter;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.InMemoryEventStore;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.ScenarioEventEmitter;
+import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioOwner;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@DisplayName("Scenario - Default IT")
 class DefaultMarketScenarioTest {
-    private FixedDomainClock clock;
+    private static FixedDomainClock clock;
     private DefaultMarketScenario scenario1;
     private DefaultMarketScenario scenario2;
     private DefaultMarketScenario scenario3;
@@ -56,11 +58,11 @@ class DefaultMarketScenarioTest {
                 Instant.parse("2026-01-29T19:30:00Z")
         );
 
-        ScenarioEventEmitter emitter = new DefaultScenarioEventEmitter(new InMemoryEventStore());
+        EventBus eventBus = new EventBus();
 
-        scenario1 = new DefaultMarketScenario(def1, emitter);
-        scenario2 = new DefaultMarketScenario(def2, emitter);
-        scenario3 = new DefaultMarketScenario(def3, emitter);
+        scenario1 = new DefaultMarketScenario(def1, eventBus);
+        scenario2 = new DefaultMarketScenario(def2, eventBus);
+        scenario3 = new DefaultMarketScenario(def3, eventBus);
 
     }
 
@@ -73,7 +75,7 @@ class DefaultMarketScenarioTest {
 
     @Test
     void testObserveMutateAndConfirming() {
-        // Opinion avec même signal BULLISH
+        // Opinion avec même weightedSignal BULLISH
         scenario1.observe( opResult(SignalType.BULLISH, 0.8), context(clock, owner1));
 
         assertTrue(scenario1.getState().getConfidence() > 0); // confiance augmentée
@@ -90,7 +92,7 @@ class DefaultMarketScenarioTest {
 
         Optional<ActionIntent> intent = scenario1.proposeIntent(clock.now());
         assertTrue(intent.isPresent());
-        assertEquals(MarketAction.BUY, intent.get().action());
+        assertEquals(MarketIntentAction.BUY, intent.get().action());
     }
 
     @Test
@@ -145,15 +147,19 @@ class DefaultMarketScenarioTest {
         assertEquals(ScenarioStatus.INVALIDATED, scenario1.getState().getStatus());
     }
 
-    private static MarketOpinionResult opResult( SignalType type, double confidence ){
-        return new MarketOpinionResult(
+    private static OpinionSignal opResult(SignalType type, double confidence ){
+        return new OpinionSignal(
                 "MarketOpinionId",
+                Optional.empty(),
                 type,
                 type,
                 confidence,
                 confidence,
-                new ArrayList<>(),
-                "");
+                OpinionScope.GLOBAL,
+                new HashSet<>(),
+                "",
+                clock.now()
+        );
     }
 
     private static ScenarioContext context( DomainClock clock, ScenarioOwner owner ){

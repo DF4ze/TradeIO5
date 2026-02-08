@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.tree.opinion;
 
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionParameters;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.OpinionType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -23,9 +23,9 @@ public class MarketOpinionRegistry {
     /**
      * Récupère les opinions par type.
      */
-    public List<MarketOpinion> get(OpinionType type) {
+    public List<MarketOpinion> get(OpinionScope type) {
         return registry.values().stream()
-                        .filter(d -> d.getType() == type)
+                        .filter(d -> d.getScope() == type)
                         .toList();
     }
 

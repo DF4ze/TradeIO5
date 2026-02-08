@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.model.dto.tree.scenario;
 
-import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionResult;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioStatus;
+import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioStatus;
 
 import java.time.Instant;
 
@@ -19,7 +19,7 @@ public record ScenarioSnapshot(
         int observationsCount,
 
         /** Dernière opinion reçue */
-        MarketOpinionResult lastOpinion,
+        OpinionSignal lastOpinion,
 
         /** Score / confiance interne du scénario */
         double confidence,

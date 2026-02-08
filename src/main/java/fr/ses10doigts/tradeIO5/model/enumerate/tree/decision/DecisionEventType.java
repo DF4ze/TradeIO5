@@ -1,0 +1,17 @@
+package fr.ses10doigts.tradeIO5.model.enumerate.tree.decision;
+
+public enum DecisionEventType {
+    DECISION_CREATED,
+    DECISION_EXECUTED,
+    DECISION_OBSERVATION_STARTED,
+    DECISION_CLOSED,
+    DECISION_ABORTED,
+    DECISION_EXPIRED,
+
+    ACTION_STEP_EXECUTED,
+    ACTION_STEP_FAILED,
+
+    STOP_TRIGGERED,
+    TAKE_PROFIT_REACHED,
+    TIME_CONDITION_MET
+}

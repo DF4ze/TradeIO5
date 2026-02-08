@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.tree.scenario;
 
-import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionResult;
+import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ActionIntent;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioOwner;
@@ -16,7 +16,7 @@ public interface ScenarioEngine {
      * Peut créer, mettre à jour, invalider ou expirer des scénarios.
      */
     void onMarketOpinion(
-            MarketOpinionResult opinion,
+            OpinionSignal opinion,
             ScenarioContext context
     );
 

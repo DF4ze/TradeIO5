@@ -103,7 +103,7 @@ public class StrategyAggregator {
         }
 
         if (conflict) {
-            return "Conflicting signals detected (BUY vs SELL)";
+            return "Conflicting sources detected (BUY vs SELL)";
         }
 
         return total > 0 ? "Indicators BUY pressure dominant" : "Indicators SELL pressure dominant";

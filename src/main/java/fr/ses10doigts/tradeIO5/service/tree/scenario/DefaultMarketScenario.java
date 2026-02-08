@@ -1,9 +1,17 @@
 package fr.ses10doigts.tradeIO5.service.tree.scenario;
 
-import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionResult;
-import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.*;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.*;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.ScenarioEventEmitter;
+import fr.ses10doigts.tradeIO5.model.dto.event.ScenarioEvent;
+import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ActionIntent;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioDefinition;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioState;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.MarketIntentAction;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioEventType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioStatus;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
+import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause.EnrichmentCause;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause.InvalidityCause;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause.OpinionCause;
@@ -21,12 +29,6 @@ public class DefaultMarketScenario implements MarketScenario {
 
     private final Logger logger = LoggerFactory.getLogger(DefaultMarketScenario.class);
 
-    private final ScenarioOwner owner;
-    private final Optional<String> symbol;
-    private final String id;
-    private ScenarioState state;
-    private final ScenarioEventEmitter emitter;
-
     private static final double CONFIRMATION_THRESHOLD = 0.7; // pour passer EMERGING → CONFIRMING
     private static final double VALIDATION_THRESHOLD = 0.9;   // pour passer CONFIRMING → VALIDATED
     // Pour l’instant, agir = scénario validé
@@ -39,28 +41,35 @@ public class DefaultMarketScenario implements MarketScenario {
     private static final double INVALID_THRESHOLD = 0.0;   // confiance minimale
     private static final Duration EXPIRATION_IDLE = Duration.ofHours(2); // durée max sans update // TODO Parametrize
 
+    private final ScenarioOwner owner;
+    private final Optional<String> symbol;
+    private final String id;
+    private ScenarioState state;
+    private final EventBus eventBus;
 
     public DefaultMarketScenario(
             ScenarioDefinition definition,
-            ScenarioEventEmitter eventEmitter
+            EventBus eventBus
     ) {
         this.owner = definition.owner();
         this.symbol = definition.symbol();
         this.state = new ScenarioState(definition.type(), definition.createdAt());
         this.id = generateScenarioId();
-        this.emitter = eventEmitter;
+        this.eventBus = eventBus;
     }
 
 
+
+
     @Override
-    public void observe(MarketOpinionResult opinion, ScenarioContext context) {
+    public void observe(OpinionSignal opinion, ScenarioContext context) {
 
         if (!state.isActive()) {
             logger.debug("Observe : State isn't active : return");
             return;
         }
 
-        // 1️⃣ Mutation (signal + confiance progressive)
+        // 1️⃣ Mutation (weightedSignal + confiance progressive)
         mutateScenario(opinion, context.clock().now());
 
         // 2️⃣ Évolution du status métier (basée sur la confiance résultante)
@@ -133,13 +142,13 @@ public class DefaultMarketScenario implements MarketScenario {
             return Optional.empty();
         }
 
-        MarketAction action = switch (state.getSignal()) {
-            case BULLISH -> MarketAction.BUY;
-            case BEARISH -> MarketAction.SELL;
-            case NEUTRAL -> MarketAction.HOLD;
+        MarketIntentAction action = switch (state.getSignal()) {
+            case BULLISH -> MarketIntentAction.BUY;
+            case BEARISH -> MarketIntentAction.SELL;
+            case NEUTRAL -> MarketIntentAction.HOLD;
         };
 
-        if (action == MarketAction.HOLD) {
+        if (action == MarketIntentAction.HOLD) {
             logger.debug("Stable, Validated but HOLD : no intent");
             return Optional.empty();
         }
@@ -193,7 +202,8 @@ public class DefaultMarketScenario implements MarketScenario {
                 current.getCreatedAt()    // IMPORTANT : on conserve l’origine
         );
 
-        emitter.emit(new ScenarioEvent(
+
+        eventBus.publish( new ScenarioEvent(
                 this,
                 ScenarioEventType.SCENARIO_ENRICHED,
                 new EnrichmentCause(
@@ -206,18 +216,18 @@ public class DefaultMarketScenario implements MarketScenario {
         logger.debug("Enrichment result : {}", state);
     }
 
-    private void mutateScenario(MarketOpinionResult opinion, Instant now) {
+    private void mutateScenario(OpinionSignal opinion, Instant now) {
         OpinionCause cause = new OpinionCause(
                 opinion.opinionId(),
                 opinion.weightedSignal(),
-                opinion.conviction()
+                opinion.confidence()
         );
         ScenarioState before = new ScenarioState(state, state.getCreatedAt());
 
         if( state.getStatus() == ScenarioStatus.INITIAL ){
-            state.setConfidence(opinion.conviction());
+            state.setConfidence(opinion.confidence());
             state.setSignal(opinion.weightedSignal());
-            emitter.emit(new ScenarioEvent(
+            eventBus.publish( new ScenarioEvent(
                     this,
                     ScenarioEventType.SCENARIO_CREATED,
                     cause,
@@ -241,10 +251,10 @@ public class DefaultMarketScenario implements MarketScenario {
             state.setConfidence(Math.min(1, Math.max(0, state.getConfidence() + delta)));
             state.setSignal(adjustSignal(
                     state.getSignal(), state.getConfidence(),
-                    opinion.weightedSignal(), opinion.conviction()
+                    opinion.weightedSignal(), opinion.confidence()
             ));
 
-            emitter.emit(new ScenarioEvent(
+            eventBus.publish(new ScenarioEvent(
                     this,
                     ScenarioEventType.STATE_MUTATED,
                     cause,
@@ -262,7 +272,7 @@ public class DefaultMarketScenario implements MarketScenario {
             state.setStatus(ScenarioStatus.INVALIDATED);
             state.setStable(false);
 
-            emitter.emit(new ScenarioEvent(
+            eventBus.publish(new ScenarioEvent(
                     this,
                     ScenarioEventType.SCENARIO_INVALIDATED,
                     new InvalidityCause( INVALID_THRESHOLD ),
@@ -281,7 +291,7 @@ public class DefaultMarketScenario implements MarketScenario {
             state.setStatus(ScenarioStatus.EXPIRED);
             state.setStable(false);
 
-            emitter.emit(new ScenarioEvent(
+            eventBus.publish(new ScenarioEvent(
                     this,
                     ScenarioEventType.SCENARIO_EXPIRED,
                     new TimeCause(
@@ -303,11 +313,11 @@ public class DefaultMarketScenario implements MarketScenario {
 
 
     /**
-     * Ajuste le signal d'un scénario selon le nouveau signal observé et les niveaux de confiance.
+     * Ajuste le weightedSignal d'un scénario selon le nouveau weightedSignal observé et les niveaux de confiance.
      *
      * @param currentSignal   Signal actuel du scénario
      * @param currentConfidence  Confiance actuelle du scénario (0-1)
-     * @param incomingSignal  Nouveau signal observé
+     * @param incomingSignal  Nouveau weightedSignal observé
      * @param incomingConfidence Confiance de la nouvelle opinion (0-1)
      * @return SignalType ajusté
      */
@@ -329,7 +339,7 @@ public class DefaultMarketScenario implements MarketScenario {
 
         // Sens opposé → affaiblir ou neutraliser
         if (currentSignal.isOpposite(incomingSignal)) {
-            // Si l’incoming est plus confiant, on passe à NEUTRAL ou même au signal opposé
+            // Si l’incoming est plus confiant, on passe à NEUTRAL ou même au weightedSignal opposé
             if (incomingConfidence > currentConfidence) {
                 return SignalType.NEUTRAL; // ou incomingSignal si tu veux être plus agressif
             } else {
@@ -339,11 +349,11 @@ public class DefaultMarketScenario implements MarketScenario {
 
         // Cas voisin (BULLISH ↔ NEUTRAL ou BEARISH ↔ NEUTRAL)
         if (currentSignal == SignalType.NEUTRAL || incomingSignal == SignalType.NEUTRAL) {
-            // On adopte le signal le plus confiant
+            // On adopte le weightedSignal le plus confiant
             return currentConfidence >= incomingConfidence ? currentSignal : incomingSignal;
         }
 
-        // Sécurité : par défaut on garde le signal actuel
+        // Sécurité : par défaut on garde le weightedSignal actuel
         return currentSignal;
     }
 

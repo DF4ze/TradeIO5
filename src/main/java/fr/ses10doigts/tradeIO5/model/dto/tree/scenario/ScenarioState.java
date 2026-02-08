@@ -1,8 +1,8 @@
 package fr.ses10doigts.tradeIO5.model.dto.tree.scenario;
 
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioType;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.ScenarioStatus;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.SignalType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioStatus;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -15,8 +15,8 @@ public class ScenarioState{
 
     private ScenarioType scenarioType;      // scenario: le scénario actif (TRENDING_UP, RANGE, CRASH, …)
     private ScenarioStatus status;          // status : état du scenario
-    private SignalType signal;              // signal: BULLISH / BEARISH / NEUTRAL
-    private double confidence;              // confidence: conviction globale (0–1 )
+    private SignalType signal;              // weightedSignal: BULLISH / BEARISH / NEUTRAL
+    private double confidence;              // confidence: confidence globale (0–1 )
     private boolean stable;                 // stable: validé / confirmé vs transitoire
     private Instant lastUpdated;            // lastUpdate: dernière confirmation
     private Instant createdAt;              // since: début du scénario

@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.model.dto.tree.indicator;
 
 import fr.ses10doigts.tradeIO5.model.dto.provider.web.ApiCredentialDTO;
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.IndicatorType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

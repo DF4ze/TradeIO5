@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.model.dto.tree.opinion;
 
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.RiskProfile;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.RiskProfile;
 import lombok.Builder;
 import lombok.Data;
 

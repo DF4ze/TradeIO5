@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.model.entity.tree.indicator;
 
-import fr.ses10doigts.tradeIO5.model.enumerate.decision.ParameterType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.ParameterType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
