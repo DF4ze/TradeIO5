@@ -45,14 +45,18 @@ public class MarketDatasetEngine {
 
         Instant now = request.endTime();
 
-        MarketDatasetState state = cache.getState(request);
+        // Clé = flux natif (symbole + TimeFrame + source + providerParam) — pas la fenêtre
+        // demandée (endTime/lookBack), qui elle varie à chaque appel sans changer le flux.
+        BucketKey key = BucketKey.from(request);
+
+        MarketDatasetState state = cache.getState(key);
         log.debug("Cache state retreive : {}", state);
 
         if (shouldFetch(state, request, now)) {
             log.debug("Should Fetch");
             List<MarketData> marketData = fetchDataForBucket(request, state.getBucket().getBaseTimeFrame());
             manager.merge(state, marketData, request.endTime());
-            cache.put(request, state);
+            cache.put(key, state);
         }else{
 
             log.debug("No Fetch...");

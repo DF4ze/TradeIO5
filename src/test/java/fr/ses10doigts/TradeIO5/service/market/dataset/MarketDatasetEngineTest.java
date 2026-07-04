@@ -5,6 +5,7 @@ import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
+import fr.ses10doigts.tradeIO5.service.market.dataset.time.TimeFrameConverter;
 import fr.ses10doigts.tradeIO5.service.market.provider.MarketDataProvider;
 import fr.ses10doigts.tradeIO5.service.market.provider.MarketDataProviderRegistry;
 import org.junit.jupiter.api.BeforeAll;
@@ -12,10 +13,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Instant;
 import java.util.List;
@@ -49,9 +50,6 @@ class MarketDatasetEngineTest {
 
     MarketDatasetRequest request;
     static Instant now;
-
-    @Autowired
-    private MarketDatasetEngine marketDatasetEngine;
 
     @BeforeAll
     static void init(){
@@ -87,7 +85,7 @@ class MarketDatasetEngineTest {
 
     @Test
     void shouldFetchWhenLastUpdateIsNull() {
-        when(cache.getState(any(MarketDatasetRequest.class)))
+        when(cache.getState(any(BucketKey.class)))
                 .thenReturn(state);
         when(state.getLastUpdate()).thenReturn(null);
         Bucket bucket = new Bucket(TimeFrame.H1, Bucket.BASE_MAX_ITEMS);
@@ -120,7 +118,7 @@ class MarketDatasetEngineTest {
 
     @Test
     void shouldNotFetchWhenCacheIsFreshForLiveSource() {
-        when(cache.getState(request)).thenReturn(state);
+        when(cache.getState(BucketKey.from(request))).thenReturn(state);
         when(state.getLastUpdate()).thenReturn(now.minusSeconds(10));
         when(state.getHasDataGap()).thenReturn(Map.of());
 
@@ -137,7 +135,7 @@ class MarketDatasetEngineTest {
 
     @Test
     void shouldFillMissingDataWhenGapExists() {
-        when(cache.getState(request)).thenReturn(state);
+        when(cache.getState(BucketKey.from(request))).thenReturn(state);
         when(state.getLastUpdate()).thenReturn(now.minusSeconds(3600));
         when(state.getBucket()).thenReturn(mock(Bucket.class));
 
@@ -169,7 +167,7 @@ class MarketDatasetEngineTest {
                 null
         );
 
-        when(cache.getState(historical)).thenReturn(state);
+        when(cache.getState(BucketKey.from(historical))).thenReturn(state);
         when(state.getLastUpdate()).thenReturn(now.minusSeconds(10));
         when(state.getHasDataGap()).thenReturn(Map.of());
 
@@ -181,5 +179,41 @@ class MarketDatasetEngineTest {
         verifyNoInteractions(providerRegistry);
         verify(manager, never()).merge(any(), any(), any(Instant.class));
         verify(manager).snapshot(historical, state);
+    }
+
+    @Test
+    @DisplayName("Deux requêtes avec un endTime/lookBack différents doivent réutiliser le même MarketDatasetState (même Bucket)")
+    void shouldReuseSameStateAcrossRequestsWithDifferentEndTimeAndLookBack() {
+        // Régression : la clé de cache ne doit dépendre que du flux natif
+        // (symbol + timeFrame + source + providerParam), pas de la fenêtre demandée
+        // (endTime, lookBack). On utilise ici un vrai MarketDatasetCache (pas un mock)
+        // pour prouver que le comportement réel de mise en cache est correct.
+        MarketDatasetCache realCache = new MarketDatasetCache();
+        MarketDatasetEngine localEngine = new MarketDatasetEngine(
+                realCache, manager, providerRegistry, new TimeFrameConverter());
+
+        when(providerRegistry.getProvider(any(), any())).thenReturn(provider);
+        when(provider.loadSince(any())).thenReturn(
+                new MarketDataset("BTCUSDT", TimeFrame.H1, List.of(), 0, request, now, false)
+        );
+
+        MarketDatasetRequest firstCall = new MarketDatasetRequest(
+                "BTCUSDT", TimeFrame.H1, 100, now, MarketDataSource.BINANCE, null);
+        MarketDatasetRequest secondCall = new MarketDatasetRequest(
+                "BTCUSDT", TimeFrame.H1, 30, now.plusSeconds(3600), MarketDataSource.BINANCE, null);
+
+        localEngine.getDataset(firstCall);
+        localEngine.getDataset(secondCall);
+
+        // Les deux appels doivent avoir fusionné leurs données dans le MÊME
+        // MarketDatasetState (donc le même Bucket sous-jacent), preuve que le Bucket
+        // s'accumule dans la durée au lieu de repartir de zéro à chaque endTime différent.
+        ArgumentCaptor<MarketDatasetState> mergedStateCaptor = ArgumentCaptor.forClass(MarketDatasetState.class);
+        verify(manager, times(2)).merge(mergedStateCaptor.capture(), anyList(), any(Instant.class));
+
+        List<MarketDatasetState> mergedStates = mergedStateCaptor.getAllValues();
+        assertSame(mergedStates.get(0), mergedStates.get(1),
+                "Les deux requêtes (même symbol/timeFrame/source/providerParam) doivent partager "
+                        + "le même MarketDatasetState/Bucket malgré un endTime/lookBack différent");
     }
 }

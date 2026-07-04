@@ -11,7 +11,7 @@ import java.time.Instant;
 import java.util.List;
 
 @AllArgsConstructor
-class BinanceMarketDataProvider implements MarketDataProvider {
+class KrakenMarketDataProvider implements MarketDataProvider {
 
     // Candles publiques : MarketDataApiClient n'est jamais construit à partir d'un ApiCredential
     private final MarketDataApiClient client;

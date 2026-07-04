@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -16,6 +17,13 @@ import java.time.format.DateTimeFormatter;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+// Le MarketDatasetCache (singleton Spring) est indexé par flux natif
+// (symbol + timeFrame + source + providerParam), volontairement SANS endTime/lookBack
+// (cf. BucketKey / MarketDatasetEngineTest.shouldReuseSameStateAcrossRequestsWithDifferentEndTimeAndLookBack).
+// Plusieurs méthodes ci-dessous réutilisent les mêmes symboles ("fastTF", "slowTF") avec le
+// même TrendType : sans isolation du contexte Spring entre méthodes, elles partageraient le
+// même Bucket et se pollueraient mutuellement (cf. bug résolu ici).
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Market Dataset - *Engine - Spring")
 @SpringBootTest
 class MarketDatasetEngineSpringTest {

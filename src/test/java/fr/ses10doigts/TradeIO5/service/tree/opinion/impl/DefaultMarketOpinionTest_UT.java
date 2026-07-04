@@ -26,12 +26,19 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
+// Cf. MarketDatasetEngineSpringTest / DoubleRsiStrategyTest : le MarketDatasetCache
+// (singleton Spring) est indexé par flux natif (symbol + timeFrame + source +
+// providerParam) et partagé entre toutes les classes de test utilisant le même contexte
+// Spring ("fastTF"/H1/UPTREND est aussi utilisé ailleurs). On isole le contexte par méthode
+// pour éviter toute pollution croisée.
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Decision - Risk Management - UT")
 @SpringBootTest
 class DefaultMarketOpinionTest_UT {

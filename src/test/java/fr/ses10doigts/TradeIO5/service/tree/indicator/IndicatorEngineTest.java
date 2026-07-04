@@ -19,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 
 import java.time.Instant;
 import java.util.Map;
@@ -26,6 +27,11 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+// Cf. MarketDatasetEngineSpringTest / DoubleRsiStrategyTest : le MarketDatasetCache
+// (singleton Spring) est indexé par flux natif (symbol + timeFrame + source +
+// providerParam) et partagé entre toutes les classes de test utilisant le même contexte
+// Spring. On isole le contexte par méthode pour éviter toute pollution croisée.
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Indicator - *Engine")
 @SpringBootTest
 class IndicatorEngineTest {

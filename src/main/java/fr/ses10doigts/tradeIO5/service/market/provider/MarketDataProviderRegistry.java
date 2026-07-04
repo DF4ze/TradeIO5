@@ -2,7 +2,7 @@ package fr.ses10doigts.tradeIO5.service.market.provider;
 
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TrendType;
-import fr.ses10doigts.tradeIO5.service.connector.apiclient.ProviderApiClient;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.MarketDataApiClient;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -27,9 +27,17 @@ public class MarketDataProviderRegistry {
                 MarketDataSource.DATABASE, param -> {
                     return new InDatabaseMarketDataProvider();
                 },
-                // Web example : Binance
+                // Web : Binance (candles publiques, sans ApiCredential)
                 MarketDataSource.BINANCE, param -> {
-                    return new BinanceMarketDataProvider((ProviderApiClient) param);
+                    return new BinanceMarketDataProvider((MarketDataApiClient) param);
+                },
+                // Web : Kraken (candles publiques, sans ApiCredential)
+                MarketDataSource.KRAKEN, param -> {
+                    return new KrakenMarketDataProvider((MarketDataApiClient) param);
+                },
+                // Web : OKX (candles publiques, sans ApiCredential)
+                MarketDataSource.OKX, param -> {
+                    return new OkxMarketDataProvider((MarketDataApiClient) param);
                 }
         );
     }

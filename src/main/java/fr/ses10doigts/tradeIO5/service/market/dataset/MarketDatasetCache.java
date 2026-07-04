@@ -1,6 +1,5 @@
 package fr.ses10doigts.tradeIO5.service.market.dataset;
 
-import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -9,17 +8,20 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 class MarketDatasetCache {
 
-    private final Map<MarketDatasetRequest, MarketDatasetState> states
-            = new ConcurrentHashMap<>(); // TODO : Peut-etre uniquement la paire en clé...?
+    // Clé = flux natif (symbole + TimeFrame + source + providerParam), PAS la fenêtre
+    // demandée : endTime et lookBack varient à chaque appel (ex: Instant.now() à chaque
+    // tick) sans changer le flux sous-jacent, et ne doivent donc pas faire partie de la clé.
+    private final Map<BucketKey, MarketDatasetState> states
+            = new ConcurrentHashMap<>();
 
-    MarketDatasetState getState(MarketDatasetRequest request) {
+    MarketDatasetState getState(BucketKey key) {
         return states.computeIfAbsent(
-                request,
-                r -> new MarketDatasetState(request.symbol(), Bucket.BASE_MAX_ITEMS)
+                key,
+                k -> new MarketDatasetState(k.symbol(), Bucket.BASE_MAX_ITEMS)
         );
     }
 
-    public void put(MarketDatasetRequest request, MarketDatasetState state) {
-        states.put(request, state);
+    public void put(BucketKey key, MarketDatasetState state) {
+        states.put(key, state);
     }
 }
