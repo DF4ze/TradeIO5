@@ -12,14 +12,15 @@ import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioEventType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioStatus;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
 import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause.EnrichmentCause;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause.InvalidityCause;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause.OpinionCause;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause.TimeCause;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioOwner;
+import fr.ses10doigts.tradeIO5.model.dto.event.scenario.EnrichmentCause;
+import fr.ses10doigts.tradeIO5.model.dto.event.scenario.InvalidityCause;
+import fr.ses10doigts.tradeIO5.model.dto.event.scenario.OpinionCause;
+import fr.ses10doigts.tradeIO5.model.dto.event.scenario.TimeCause;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioOwner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -127,6 +128,11 @@ public class DefaultMarketScenario implements MarketScenario {
     @Override
     public Optional<ActionIntent> proposeIntent(Instant now) {
 
+        if( symbol.isEmpty() ){
+            logger.debug("Global scenario : no ActionIntent");
+            return Optional.empty();
+        }
+
         if (!state.isStable()) {
             logger.debug("Not stable: no intent");
             return Optional.empty();
@@ -157,9 +163,11 @@ public class DefaultMarketScenario implements MarketScenario {
         return Optional.of(
                 new ActionIntent(
                         action,
+                        symbol.get(),
+                        new BigDecimal(0.0), // TODO :  Manage quantity!
                         state.getConfidence(),
                         id,
-                        "Scenario validated and stable",
+                        "["+id+"] - Scenario validated and stable",
                         now
                 )
         );

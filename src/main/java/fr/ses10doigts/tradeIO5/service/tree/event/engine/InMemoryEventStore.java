@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.EventType;
-import fr.ses10doigts.tradeIO5.service.tree.event.PersistableEvent;
+import fr.ses10doigts.tradeIO5.model.dto.event.PersistableEvent;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -27,6 +27,7 @@ public class InMemoryEventStore implements EventStore {
 
     private final ObjectMapper MAPPER = new ObjectMapper()
             .registerModule(new JavaTimeModule())
+            .registerModule(new com.fasterxml.jackson.datatype.jdk8.Jdk8Module())
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     /** Stockage par eventId */

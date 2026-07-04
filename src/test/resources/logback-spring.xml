@@ -41,8 +41,11 @@
         </encoder>
     </appender>
 
-    <!-- ROOT -->
-    <root level="${logging.level.root:DEBUG}">
+    <!-- Mon projet : DEBUG -->
+    <logger name="fr.ses10doigts.tradeio5" level="DEBUG"/>
+
+    <!-- ROOT : tout le reste en INFO -->
+    <root level="INFO">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="APP_FILE"/>
         <appender-ref ref="ERROR_FILE"/>

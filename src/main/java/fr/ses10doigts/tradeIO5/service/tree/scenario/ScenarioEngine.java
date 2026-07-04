@@ -3,7 +3,7 @@ package fr.ses10doigts.tradeIO5.service.tree.scenario;
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ActionIntent;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioOwner;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioOwner;
 
 import java.time.Duration;
 import java.time.Instant;

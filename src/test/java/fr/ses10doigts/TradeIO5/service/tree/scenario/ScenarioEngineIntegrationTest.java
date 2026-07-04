@@ -9,7 +9,7 @@ import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
 import fr.ses10doigts.tradeIO5.service.tree.event.engine.InMemoryEventStore;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioOwner;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioOwner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -1,15 +1,18 @@
 <configuration>
 
-      <!-- Console appender -->
+    <!-- Appender console -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
 
-    <!-- Logger root en DEBUG pour les tests -->
-    <root level="DEBUG">
-        <appender-ref ref="CONSOLE"/>
+    <!-- Niveau par défaut : INFO -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
     </root>
+
+    <!-- Mon projet : DEBUG -->
+    <logger name="fr.ses10doigts.tradeio5" level="DEBUG"/>
 
 </configuration>

@@ -2,44 +2,35 @@ package fr.ses10doigts.tradeIO5.service.tree.scenario;
 
 import fr.ses10doigts.tradeIO5.model.dto.event.OpinionEvent;
 import fr.ses10doigts.tradeIO5.model.dto.event.ScenarioEvent;
+import fr.ses10doigts.tradeIO5.model.dto.event.scenario.EngineCause;
+import fr.ses10doigts.tradeIO5.model.dto.event.scenario.IntentCause;
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ActionIntent;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioKey;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioOwner;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioEventType;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
-import fr.ses10doigts.tradeIO5.service.tree.opinion.event.OpinionConsumer;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause.EngineCause;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioFactory;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioOwner;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 
 /**
  * Le moteur doit faire 3 choses seulement :
- *
  * Créer / injecter un ScenarioEventEmitter
- *
  * Appeler observe(...) et enrichFrom(...)
- *
  * Stocker les scénarios vivants
- *
  * 👉 Et c’est tout.
  */
 
-@RequiredArgsConstructor
-public class DefaultScenarioEngine implements ScenarioEngine, OpinionConsumer {
+public class DefaultScenarioEngine implements ScenarioEngine {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultScenarioEngine.class);
 
@@ -50,8 +41,15 @@ public class DefaultScenarioEngine implements ScenarioEngine, OpinionConsumer {
 
     final Map<ScenarioKey, MarketScenario> scenarios = new ConcurrentHashMap<>();
 
+    public DefaultScenarioEngine(ScenarioOwner owner, DomainClock clock, Set<String> symbols, EventBus eventBus) {
+        this.owner = owner;
+        this.clock = clock;
+        this.symbols = symbols;
+        this.eventBus = eventBus;
 
-    @Override
+        eventBus.subscribe(OpinionEvent.class, this::onOpinionEvent);
+    }
+
     public void onOpinionEvent(OpinionEvent event) {
 
         if( event.getSymbol().isPresent() && !symbols.contains(event.getSymbol().get()) ){
@@ -104,9 +102,13 @@ public class DefaultScenarioEngine implements ScenarioEngine, OpinionConsumer {
             );
         }
 
-        log.debug("Owner {}: {} scenarios actifs",
+        // 5. Récupération des scenarios mûrs
+        List<ActionIntent> actionIntents = collectActionIntents(owner, clock.now());
+
+        log.debug("Owner {}: {} scenarios actifs, {} Intent(s)",
                 context.owner(),
-                scenarios.size());
+                scenarios.size(),
+                actionIntents.size());
     }
 
     // ------------ Scenario manipulations -------------
@@ -122,12 +124,41 @@ public class DefaultScenarioEngine implements ScenarioEngine, OpinionConsumer {
 
     @Override
     public List<ActionIntent> collectActionIntents(ScenarioOwner owner, Instant now) {
-        return scenarios.entrySet().stream()
-                .filter(e -> isVisibleForOwner(e.getKey().owner(), owner))
-                .map(Map.Entry::getValue)
-                .map(marketScenario -> marketScenario.proposeIntent(now))
-                .flatMap(Optional::stream)
-                .toList();
+        List<ActionIntent> intents = new ArrayList<>();
+
+        for (var entry : scenarios.entrySet()) {
+            if (!isVisibleForOwner(entry.getKey().owner(), owner)) {
+                continue;
+            }
+
+            MarketScenario marketScenario = entry.getValue();
+
+            // TODO : Warning... Est-ce que ca ne flooderait pas avec des Intent déjà proposées?
+            Optional<ActionIntent> proposedIntent = marketScenario.proposeIntent(now);
+            if (proposedIntent.isEmpty()) {
+                continue;
+            }
+
+            ActionIntent intent = proposedIntent.get();
+
+            eventBus.publish(
+                    new ScenarioEvent(
+                            marketScenario,
+                            ScenarioEventType.ACTION_PROPOSED,
+                            new IntentCause(
+                                    marketScenario.getId(),
+                                    intent,
+                                    intent.reason()
+                            ),
+                            marketScenario.getState(),
+                            now
+                    )
+            );
+
+            intents.add(intent);
+        }
+
+        return intents;
     }
 
     @Override

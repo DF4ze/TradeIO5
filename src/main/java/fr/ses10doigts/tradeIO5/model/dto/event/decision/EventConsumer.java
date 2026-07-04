@@ -1,4 +1,4 @@
-package fr.ses10doigts.tradeIO5.service.tree.decision.event;
+package fr.ses10doigts.tradeIO5.model.dto.event.decision;
 
 public interface EventConsumer<E> {
     void apply(E event);

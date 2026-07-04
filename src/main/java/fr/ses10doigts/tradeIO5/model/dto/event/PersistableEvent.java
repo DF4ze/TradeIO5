@@ -1,4 +1,4 @@
-package fr.ses10doigts.tradeIO5.service.tree.event;
+package fr.ses10doigts.tradeIO5.model.dto.event;
 
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.EventType;
 

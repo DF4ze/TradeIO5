@@ -6,7 +6,7 @@ import fr.ses10doigts.tradeIO5.model.dto.event.ScenarioEvent;
 import fr.ses10doigts.tradeIO5.model.entity.tree.EventEntity;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.EventType;
 import fr.ses10doigts.tradeIO5.repository.decision.EventRepository;
-import fr.ses10doigts.tradeIO5.service.tree.event.PersistableEvent;
+import fr.ses10doigts.tradeIO5.model.dto.event.PersistableEvent;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;

@@ -1,4 +1,4 @@
-package fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause;
+package fr.ses10doigts.tradeIO5.model.dto.event.scenario;
 
 public record InvalidityCause(
         double threshold

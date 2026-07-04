@@ -2,7 +2,6 @@ package fr.ses10doigts.tradeIO5.model.dto.tree.scenario;
 
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.MarketScenario;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioOwner;
 
 import java.util.List;
 import java.util.Objects;

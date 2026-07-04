@@ -1,14 +1,12 @@
 package fr.ses10doigts.tradeIO5.model.dto.event;
 
-import com.github.f4b6a3.ulid.UlidCreator;
+import fr.ses10doigts.tradeIO5.model.dto.event.scenario.ScenarioEventCause;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioOwner;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioState;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.EventType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioEventType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
-import fr.ses10doigts.tradeIO5.service.tree.event.PersistableEvent;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.MarketScenario;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.event.cause.ScenarioEventCause;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioOwner;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -34,7 +32,7 @@ public class ScenarioEvent implements PersistableEvent {
     private final Instant timestamp;
 
     public ScenarioEvent(MarketScenario scenario, ScenarioEventType scenarioEventType, ScenarioEventCause cause, ScenarioState before, Instant now){
-        id = "[ScenarioEvent-"+ UlidCreator.getUlid().toString()+"]"+scenario.getId();
+        id = "[ScenarioEvent]"+scenario.getId();
         scenarioId = scenario.getId();
         scenarioType = scenario.getType();
         owner = scenario.getOwner();

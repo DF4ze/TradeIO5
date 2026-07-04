@@ -6,7 +6,7 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioState;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioStatus;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
-import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioOwner;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioOwner;
 
 import java.time.Duration;
 import java.time.Instant;

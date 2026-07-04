@@ -5,7 +5,6 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.EventType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
-import fr.ses10doigts.tradeIO5.service.tree.event.PersistableEvent;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 

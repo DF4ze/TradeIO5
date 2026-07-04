@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.tree.event.engine;
 
 import fr.ses10doigts.tradeIO5.model.enumerate.market.ExecutionMode;
-import fr.ses10doigts.tradeIO5.service.tree.event.PersistableEvent;
+import fr.ses10doigts.tradeIO5.model.dto.event.PersistableEvent;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;

@@ -1,4 +1,4 @@
-package fr.ses10doigts.tradeIO5.service.tree.scenario.factory;
+package fr.ses10doigts.tradeIO5.model.dto.tree.scenario;
 
 public sealed interface ScenarioOwner
         permits ScenarioOwner.SystemOwner, ScenarioOwner.UserOwner {
@@ -33,5 +33,9 @@ public sealed interface ScenarioOwner
     ScenarioOwner SYSTEM = new SystemOwner();
     static ScenarioOwner user(String userId) {
         return new UserOwner(userId);
+    }
+
+    default boolean isVisible( ScenarioOwner other ){
+        return other.getId().equals(getId()) || other.getId().equals("SYSTEM");
     }
 }
