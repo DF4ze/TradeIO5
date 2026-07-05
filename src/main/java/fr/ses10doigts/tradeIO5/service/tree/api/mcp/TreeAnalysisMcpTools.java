@@ -194,7 +194,12 @@ public class TreeAnalysisMcpTools {
                     spec.numericParams() != null ? spec.numericParams() : Map.of(),
                     strings,
                     Map.of(),
-                    null
+                    // Nécessaire pour les indicateurs externes (ex: FEAR_GREED) : sans credential
+                    // résolue ici, FearGreedStrategy recevait un IndicatorResult invalid en
+                    // passant par evaluate_strategy/get_opinion, alors que get_indicator (qui
+                    // appelle déjà resolveCredential) fonctionnait correctement pour le même
+                    // indicateur.
+                    treeAnalysisFacade.resolveCredential(spec.indicatorType())
             );
 
             IndicatorKey key = new IndicatorKey(spec.indicatorType(), spec.timeFrame(), indicatorParams);
@@ -210,12 +215,18 @@ public class TreeAnalysisMcpTools {
                 if (spec.strategyType() == null) {
                     throw new TreeAnalysisException("Each strategy spec requires a strategyType");
                 }
-                List<Strategy> matches = strategyRegistry.getByType(spec.strategyType());
-                if (matches.isEmpty()) {
-                    throw new TreeAnalysisException("No Strategy registered for type: " + spec.strategyType());
+                StrategyParameters strategyParameters = toStrategyParameters(spec);
+                // Résolution désormais déléguée à StrategyRegistry#resolveBestMatch, qui
+                // désambiguïse par Strategy#accepts(...) plutôt que par matches.get(0) (bug
+                // découvert en testant l'opinion GLOBAL/FearGreedStrategy via ce tool : ENTRY
+                // résolvait systématiquement vers TrendConfirmationStrategy).
+                Strategy strategy;
+                try {
+                    strategy = strategyRegistry.resolveBestMatch(spec.strategyType(), strategyParameters);
+                } catch (IllegalArgumentException e) {
+                    throw new TreeAnalysisException(e.getMessage(), e);
                 }
-                Strategy strategy = matches.get(0);
-                keys.add(new StrategyKey(strategy, toStrategyParameters(spec)));
+                keys.add(new StrategyKey(strategy, strategyParameters));
             }
         }
 

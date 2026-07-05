@@ -176,11 +176,12 @@ public class TreeAnalysisFacade {
     ) {
         requireSymbol(symbol);
         requireTimeFrame(timeFrame);
-        Strategy strategy = resolveStrategy(strategyType);
 
         if (params == null) {
             throw new TreeAnalysisException("StrategyParameters must not be null");
         }
+
+        Strategy strategy = resolveStrategy(strategyType, params);
 
         Instant now = clock.now();
 
@@ -333,7 +334,14 @@ public class TreeAnalysisFacade {
      * "System" pour le provider concerné ; retourne {@code null} si l'indicateur n'en a pas
      * besoin ou si rien n'est configuré (l'indicateur retombera alors en invalid proprement).
      */
-    private ApiCredentialDTO resolveCredential(IndicatorType type) {
+    /**
+     * Rendu public : réutilisé par {@code TreeAnalysisMcpTools#toIndicatorParameters} pour que
+     * les indicateurs nécessitant une credential (ex: FEAR_GREED) fonctionnent aussi quand ils
+     * sont appelés via {@code evaluate_strategy}/{@code get_opinion} (chemin générique
+     * Strategy/Opinion), pas seulement via {@code get_indicator} (seul appelant avant que
+     * FearGreedStrategy n'existe).
+     */
+    public ApiCredentialDTO resolveCredential(IndicatorType type) {
         WebProviderCode provider = switch (type) {
             case FEAR_GREED -> WebProviderCode.COINSTATS;
             default -> null;
@@ -368,19 +376,20 @@ public class TreeAnalysisFacade {
         return indicatorRegistry.get(type);
     }
 
-    private Strategy resolveStrategy(StrategyType strategyType) {
+    /**
+     * Résolution désormais déléguée à {@link StrategyRegistry#resolveBestMatch}, qui
+     * désambiguïse entre plusieurs Strategies partageant le même {@link StrategyType} via
+     * {@code Strategy#accepts(StrategyParameters)} plutôt que de prendre le premier match.
+     */
+    private Strategy resolveStrategy(StrategyType strategyType, StrategyParameters params) {
         if (strategyType == null) {
             throw new TreeAnalysisException("StrategyType must not be null");
         }
-        List<Strategy> matches = strategyRegistry.getByType(strategyType);
-        if (matches.isEmpty()) {
-            throw new TreeAnalysisException("No Strategy registered for type: " + strategyType);
+        try {
+            return strategyRegistry.resolveBestMatch(strategyType, params);
+        } catch (IllegalArgumentException e) {
+            throw new TreeAnalysisException(e.getMessage(), e);
         }
-        if (matches.size() > 1) {
-            log.warn("Several strategies match type {} ({}), using the first one: {}",
-                    strategyType, matches, matches.get(0).getName());
-        }
-        return matches.get(0);
     }
 
     private MarketOpinion resolveOpinion(OpinionScope scope) {

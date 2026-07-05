@@ -8,6 +8,7 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorSnapshot;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.strategy.StrategyType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.tree.helper.MarketOpinionHelper;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorEngine;
@@ -109,5 +110,14 @@ public class DoubleRsiStrategy extends AbstractStrategy {
     @Override
     public Set<StrategyType> getType() {
         return new HashSet<>(List.of(StrategyType.ENTRY, StrategyType.EXIT));
+    }
+
+    @Override
+    public boolean accepts(StrategyParameters parameters) {
+        Map<IndicatorKey, IndicatorParameters> indicatorParameters = parameters.getIndicatorParameters();
+        return indicatorParameters != null
+                && indicatorParameters.size() == 2
+                && indicatorParameters.values().stream()
+                        .allMatch(p -> p.getIndicatorType() == IndicatorType.RSI);
     }
 }

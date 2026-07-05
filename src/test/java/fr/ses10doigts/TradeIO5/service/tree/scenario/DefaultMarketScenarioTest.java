@@ -43,18 +43,21 @@ class DefaultMarketScenarioTest {
                 ScenarioType.TREND_UP,
                 owner1,
                 Optional.of("BTCUSD"),
+                OpinionScope.LOCAL,
                 Instant.parse("2026-01-29T19:00:00Z")
         );
         ScenarioDefinition def2 = new ScenarioDefinition(
                 ScenarioType.TREND_UP,
                 owner2,
                 Optional.of("BTCUSD"),
+                OpinionScope.LOCAL,
                 Instant.parse("2026-01-29T19:30:00Z")
         );
         ScenarioDefinition def3 = new ScenarioDefinition(
                 ScenarioType.TREND_UP,
                 owner2,
                 Optional.empty(),
+                OpinionScope.GLOBAL,
                 Instant.parse("2026-01-29T19:30:00Z")
         );
 

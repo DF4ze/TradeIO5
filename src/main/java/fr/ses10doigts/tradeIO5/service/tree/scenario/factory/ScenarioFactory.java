@@ -29,6 +29,7 @@ public class ScenarioFactory{
                 type,
                 context.owner(),
                 context.symbol(),
+                opinion.scope(),
                 context.clock().now()
         );
 

@@ -1,11 +1,28 @@
 package fr.ses10doigts.tradeIO5.service.tree.helper;
 
 
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.MarketIntentAction;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
 import lombok.AllArgsConstructor;
 import lombok.ToString;
 
 public class MarketOpinionHelper {
+
+    /**
+     * Mapping MarketIntentAction -> SignalType (étude "extension-risk-macro-external" §4.1),
+     * pour une opinion EXTERNAL (LlmAdvice) qui doit produire un OpinionSignal au même
+     * contrat que les opinions techniques. ADJUST/SUSPEND n'ont pas d'équivalent direct en
+     * SignalType et retombent sur NEUTRAL : en pratique, le prompt d'OpenAIAdvisor
+     * (AbstractAdvisor#expectedOutputBlock) ne demande au LLM que "BUY|SELL|HOLD", ces deux
+     * valeurs ne sont donc pas produites aujourd'hui par ce chemin.
+     */
+    public static SignalType mapIntentActionToSignalType(MarketIntentAction action) {
+        return switch (action) {
+            case BUY -> SignalType.BULLISH;
+            case SELL -> SignalType.BEARISH;
+            case HOLD, ADJUST, SUSPEND -> SignalType.NEUTRAL;
+        };
+    }
 
     public static ConfidenceSignal scoreToConfidenceAndSignalType(double score){
         double barrier = 1.0 / 6.0;

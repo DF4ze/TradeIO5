@@ -35,6 +35,22 @@ public interface Strategy {
 
     Set<StrategyType> getType();
 
+    /**
+     * Permet à {@link StrategyRegistry#resolveBestMatch(StrategyType, StrategyParameters)} de
+     * discriminer entre plusieurs Strategies qui partagent le même {@link StrategyType} (ex :
+     * DoubleRsiStrategy et TrendConfirmationStrategy déclarent toutes deux ENTRY), en vérifiant
+     * que les {@code IndicatorParameters} fournis correspondent à ce que cette Strategy attend
+     * réellement (nombre et {@code IndicatorType} des indicateurs), plutôt que de résoudre
+     * uniquement par {@code StrategyType} et prendre la première trouvée au hasard.
+     * <p>
+     * Par défaut, {@code true} (comportement historique inchangé pour toute Strategy qui ne
+     * surcharge pas cette méthode) : la désambiguïsation ne s'applique qu'aux Strategies qui la
+     * déclarent explicitement.
+     */
+    default boolean accepts(StrategyParameters parameters) {
+        return true;
+    }
+
     default String getName() {
         return this.getClass().getSimpleName();
     }

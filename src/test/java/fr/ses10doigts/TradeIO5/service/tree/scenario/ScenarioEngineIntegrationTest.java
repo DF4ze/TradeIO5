@@ -95,6 +95,7 @@ class ScenarioEngineIntegrationTest {
                 ScenarioType.TREND_UP,
                 owner,
                 Optional.of("BTC"),
+                OpinionScope.LOCAL,
                 clock.now()
         );
         MarketScenario inactiveScenario = new DefaultMarketScenario(
@@ -121,6 +122,7 @@ class ScenarioEngineIntegrationTest {
                 ScenarioType.RANGE,
                 otherOwner,
                 Optional.of("ETH"),
+                OpinionScope.LOCAL,
                 clock.now()
         );
         MarketScenario scenario = new DefaultMarketScenario( def, eventBus );

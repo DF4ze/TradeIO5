@@ -70,6 +70,7 @@ class DefaultScenarioEngineUnitTest {
                 ScenarioType.TREND_UP,
                 owner,
                 Optional.of("BTC"),
+                OpinionScope.LOCAL,
                 clock.now()
         );
         existingScenario = new DefaultMarketScenario( def, eventBus );
@@ -101,7 +102,8 @@ class DefaultScenarioEngineUnitTest {
         ScenarioKey key = new ScenarioKey(
                 owner,
                 ScenarioType.TREND_UP,
-                Optional.of("BTC")
+                Optional.of("BTC"),
+                OpinionScope.LOCAL
         );
         engine.scenarios.put(key, existingScenario);
 
@@ -157,7 +159,8 @@ class DefaultScenarioEngineUnitTest {
         ScenarioKey key = new ScenarioKey(
                 owner,
                 ScenarioType.TREND_UP,
-                Optional.of("BTC")
+                Optional.of("BTC"),
+                OpinionScope.LOCAL
         );
 
         engine.scenarios.put(key, existingScenario);
@@ -189,7 +192,8 @@ class DefaultScenarioEngineUnitTest {
         ScenarioKey key = new ScenarioKey(
                 otherOwner,
                 ScenarioType.CRASH,
-                Optional.empty()
+                Optional.empty(),
+                OpinionScope.LOCAL
         );
 
         engine.scenarios.put(key, existingScenario);
@@ -211,7 +215,8 @@ class DefaultScenarioEngineUnitTest {
         ScenarioKey key = new ScenarioKey(
                 owner,
                 ScenarioType.TREND_UP,
-                Optional.of("BTC")
+                Optional.of("BTC"),
+                OpinionScope.LOCAL
         );
         engine.scenarios.put(key, existingScenario);
 

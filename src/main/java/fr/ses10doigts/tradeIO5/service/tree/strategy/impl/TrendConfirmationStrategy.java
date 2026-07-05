@@ -213,4 +213,18 @@ public class TrendConfirmationStrategy extends AbstractStrategy {
     public Set<StrategyType> getType() {
         return Set.of(StrategyType.ENTRY);
     }
+
+    @Override
+    public boolean accepts(StrategyParameters parameters) {
+        Map<IndicatorKey, IndicatorParameters> indicatorParameters = parameters.getIndicatorParameters();
+        if (indicatorParameters == null || indicatorParameters.size() != 4) {
+            return false;
+        }
+
+        long emaCount = indicatorParameters.values().stream().filter(p -> p.getIndicatorType() == IndicatorType.EMA).count();
+        long adxCount = indicatorParameters.values().stream().filter(p -> p.getIndicatorType() == IndicatorType.ADX).count();
+        long rsiCount = indicatorParameters.values().stream().filter(p -> p.getIndicatorType() == IndicatorType.RSI).count();
+
+        return emaCount == 2 && adxCount == 1 && rsiCount == 1;
+    }
 }

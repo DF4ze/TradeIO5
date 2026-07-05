@@ -8,6 +8,7 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioDefinition;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioState;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.MarketIntentAction;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioEventType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioStatus;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
@@ -44,6 +45,7 @@ public class DefaultMarketScenario implements MarketScenario {
 
     private final ScenarioOwner owner;
     private final Optional<String> symbol;
+    private final OpinionScope scope;
     private final String id;
     private ScenarioState state;
     private final EventBus eventBus;
@@ -54,6 +56,7 @@ public class DefaultMarketScenario implements MarketScenario {
     ) {
         this.owner = definition.owner();
         this.symbol = definition.symbol();
+        this.scope = definition.scope();
         this.state = new ScenarioState(definition.type(), definition.createdAt());
         this.id = generateScenarioId();
         this.eventBus = eventBus;
@@ -391,6 +394,11 @@ public class DefaultMarketScenario implements MarketScenario {
     @Override
     public Optional<String> getSymbol(){
         return symbol;
+    }
+
+    @Override
+    public OpinionScope getScope(){
+        return scope;
     }
 
     @Override

@@ -218,7 +218,8 @@ public class DefaultScenarioEngine implements ScenarioEngine {
         return new ScenarioKey(
                 s.getOwner(),
                 s.getType(),
-                s.getSymbol()
+                s.getSymbol(),
+                s.getScope()
         );
     }
 

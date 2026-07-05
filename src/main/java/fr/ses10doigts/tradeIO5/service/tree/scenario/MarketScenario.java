@@ -4,6 +4,7 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ActionIntent;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioState;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioStatus;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioOwner;
@@ -18,6 +19,7 @@ public interface MarketScenario {
     ScenarioOwner       getOwner();
     ScenarioType        getType();
     Optional<String>    getSymbol();
+    OpinionScope        getScope();
     ScenarioState       getState();
 
     default ScenarioStatus getStatus() {
