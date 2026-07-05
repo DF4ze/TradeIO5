@@ -7,6 +7,7 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.AdxIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.MacdIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.RainbowSmaIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.RsiIndicator;
@@ -34,6 +35,43 @@ public class TestFactory {
                 Map.of(),
                 clock
         );
+    }
+
+    /**
+     * Construit un IndicatorContext à partir de bougies OHLC complètes (high/low/close),
+     * nécessaire pour tester des indicateurs comme ADX qui ont besoin du True Range.
+     * Chaque élément de {@code ohlc} est {high, low, close}.
+     * Ne modifie pas {@link #context(List, DomainClock)} pour ne pas casser les tests
+     * existants (RSI/EMA/MACD/Rainbow) qui ne construisent que des closes.
+     */
+    public static IndicatorContext contextOhlc(List<double[]> ohlc, DomainClock clock) {
+        List<MarketData> data = ohlc.stream()
+                .map(candle -> MarketData.builder()
+                        .high(bd(candle[0]))
+                        .low(bd(candle[1]))
+                        .close(bd(candle[2]))
+                        .build())
+                .toList();
+
+        MarketDataset series = MarketDataset.builder()
+                .marketDatas(data)
+                .timeFrame(TimeFrame.MIN1)
+                .build();
+
+        return new IndicatorContext(
+                "BTCUSDT",
+                series.getTimeFrame(),
+                series,
+                Map.of(),
+                clock
+        );
+    }
+
+    public static IndicatorParameters adxParams(int period) {
+        return IndicatorParameters.builder()
+                .numerics(Map.of(AdxIndicator.P_PERIOD_NAME, (double) period))
+                .indicatorType(IndicatorType.ADX)
+                .build();
     }
 
     public static IndicatorParameters periodParams(int period) {

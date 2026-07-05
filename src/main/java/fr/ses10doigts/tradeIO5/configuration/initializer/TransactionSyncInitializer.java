@@ -37,7 +37,7 @@ public class TransactionSyncInitializer implements ApplicationRunner {
 				try {
 					transactionService.incrementalSync(wallet);
 				} catch (Exception e) {
-					logger.error("❌ Echec de la synchronisation pour le wallet id={} ({}), poursuite avec les autres wallets.",
+					logger.warn("❌ Echec de la synchronisation pour le wallet id={} ({}), poursuite avec les autres wallets.",
 							wallet.getId(), wallet.getSource(), e);
 				}
 			}

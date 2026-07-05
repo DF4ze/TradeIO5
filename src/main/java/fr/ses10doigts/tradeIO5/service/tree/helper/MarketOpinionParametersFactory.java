@@ -25,4 +25,22 @@ public class MarketOpinionParametersFactory {
                 .strategies(List.of(key))
                 .build();
     }
+
+    /**
+     * Symétrique à {@link #buildRiskManagementParamWithDoubleRSI}, mais branche
+     * {@link fr.ses10doigts.tradeIO5.service.tree.strategy.impl.TrendConfirmationStrategy}
+     * (EMA + ADX + RSI) sur une {@code MarketOpinion} de scope {@code LOCAL}.
+     */
+    public static MarketOpinionParameters buildLocalOpinionParamWithTrendConfirmation(
+            Strategy strategy,
+            StrategyParametersFactory.TrendConfirmationParam param
+    ){
+        StrategyParameters strategyParameters = StrategyParametersFactory.buildTrendConfirmationStrategyParam(param);
+
+        StrategyKey key = new StrategyKey(strategy, strategyParameters);
+
+        return MarketOpinionParameters.builder()
+                .strategies(List.of(key))
+                .build();
+    }
 }

@@ -2,10 +2,10 @@ package fr.ses10doigts.tradeIO5.service.tree.opinion;
 
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionParameters;
-import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategySignal;
-import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.AggregatedStrategySignal;
+import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategyAggregatorParam;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
-import fr.ses10doigts.tradeIO5.service.tree.helper.MarketOpinionHelper;
+import fr.ses10doigts.tradeIO5.service.tree.strategy.StrategyAggregator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,31 +33,20 @@ public abstract class AbstractMarketOpinion implements MarketOpinion {
     }
 
     /**
-     * Exécute toutes les stratégies associées à la décision.
-     */
-    protected List<StrategySignal> evaluateStrategies(
-            OpinionContext context,
-            MarketOpinionParameters parameters
-    ) {
-        return parameters.getStrategies().stream()
-                .map(key -> key.getStrategy().evaluate(context.marketContext(), key.getParameters()))
-                .toList();
-    }
-
-    /**
      * Méthode template :
-     * - les stratégies sont évaluées
-     * - l'interprétation du résultat est laissée à l'implémentation
+     * - les stratégies déclarées par les paramètres sont déléguées au {@link StrategyAggregator},
+     *   seul responsable de l'agrégation (score, weightedSignal final, détection de conflit)
+     * - l'interprétation du résultat agrégé est laissée à l'implémentation
      */
     @Override
     public void decide(OpinionContext context, MarketOpinionParameters parameters) {
-        List<StrategySignal> signals = evaluateStrategies(context, parameters);
+        List<StrategyAggregatorParam> aggregatorParams = parameters.getStrategies().stream()
+                .map(key -> new StrategyAggregatorParam(key.getStrategy(), key.getParameters()))
+                .toList();
 
-        double weightedScore = calculateWeightedScore(signals);
-        SignalType majoritySignal = determineMajoritySignal(signals);
-        MarketOpinionHelper.ConfidenceSignal confidenceSignal = MarketOpinionHelper.scoreToConfidenceAndSignalType(weightedScore);
+        AggregatedStrategySignal aggregatedSignal = StrategyAggregator.evaluate(context.marketContext(), aggregatorParams);
 
-        interpretSignals(signals, context, parameters, weightedScore, majoritySignal, confidenceSignal);
+        interpretSignals(context, parameters, aggregatedSignal);
     }
 
     //
@@ -67,37 +56,9 @@ public abstract class AbstractMarketOpinion implements MarketOpinion {
      * Chaque décision définit sa propre logique métier ici.
      */
     abstract protected void interpretSignals(
-            List<StrategySignal> signals,
             OpinionContext context,
             MarketOpinionParameters parameters,
-            double weightedScore,
-            SignalType majoritySignal,
-            MarketOpinionHelper.ConfidenceSignal confidenceSignal) ;
-
-
-
-    /**
-     * Calcule le score moyen pondéré par la confiance.
-     */
-    protected double calculateWeightedScore(List<StrategySignal> signals) {
-        return signals.stream()
-                .mapToDouble(s -> s.getScore() * s.getConfidence())
-                .average()
-                .orElse(0.0);
-    }
-
-    /**
-     * Détermine le weightedSignal majoritaire parmi les stratégies.
-     */
-    protected SignalType determineMajoritySignal(List<StrategySignal> signals) {
-        long buy = signals.stream().filter(s -> s.getType() == SignalType.BULLISH).count();
-        long sell = signals.stream().filter(s -> s.getType() == SignalType.BEARISH).count();
-        long hold = signals.stream().filter(s -> s.getType() == SignalType.NEUTRAL).count();
-
-        if (buy > sell && buy > hold) return SignalType.BULLISH;
-        if (sell > buy && sell > hold) return SignalType.BEARISH;
-        return SignalType.NEUTRAL;
-    }
+            AggregatedStrategySignal aggregatedSignal);
 
 
     /**

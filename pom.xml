@@ -207,6 +207,13 @@
 				<configuration>
 					<argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
 					<useManifestOnlyJar>false</useManifestOnlyJar>
+					<includes>
+						<include>**/*Test.java</include>
+						<include>**/*Tests.java</include>
+						<include>**/*TestCase.java</include>
+						<include>**/*_UT.java</include>
+						<include>**/*_IT.java</include>
+					</includes>
 				</configuration>
 			</plugin>
 		</plugins>
