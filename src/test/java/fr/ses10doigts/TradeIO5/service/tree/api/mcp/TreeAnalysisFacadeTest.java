@@ -78,7 +78,7 @@ class TreeAnalysisFacadeTest {
 
         OpinionSignal signal = treeAnalysisFacade.getOpinion(
                 "mcpFacadeOpinion",
-                OpinionScope.MACRO,
+                OpinionScope.LOCAL,
                 params,
                 MarketDataSource.MEMORY,
                 TrendType.UPTREND
@@ -89,7 +89,7 @@ class TreeAnalysisFacadeTest {
         assertNotNull(signal.weightedSignal());
         assertNotNull(signal.majoritySignal());
         assertNotNull(signal.timestamp());
-        assertEquals(OpinionScope.MACRO, signal.scope());
+        assertEquals(OpinionScope.LOCAL, signal.scope());
     }
 
     @Test
@@ -116,21 +116,21 @@ class TreeAnalysisFacadeTest {
     @Test
     @DisplayName("getOpinion avec un OpinionScope non enregistré renvoie une erreur claire")
     void getOpinion_unknownScope_shouldThrowClearError() {
-        // Aucune MarketOpinion enregistrée aujourd'hui ne couvre OpinionScope.LOCAL (seule
-        // DefaultMarketOpinion existe, sur MACRO).
+        // Aucune MarketOpinion enregistrée aujourd'hui ne couvre OpinionScope.MACRO (seule
+        // DefaultMarketOpinion existe, sur LOCAL).
         MarketOpinionParameters params = MarketOpinionParameters.builder().build();
 
         TreeAnalysisException ex = assertThrows(TreeAnalysisException.class, () ->
                 treeAnalysisFacade.getOpinion(
                         "mcpFacadeUnknownScope",
-                        OpinionScope.LOCAL,
+                        OpinionScope.MACRO,
                         params,
                         MarketDataSource.MEMORY,
                         TrendType.FLAT
                 )
         );
 
-        assertTrue(ex.getMessage().contains("LOCAL"));
+        assertTrue(ex.getMessage().contains("MACRO"));
     }
 
     @Test

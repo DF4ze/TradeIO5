@@ -24,7 +24,7 @@ public class TestFactory {
 
         MarketDataset series = MarketDataset.builder()
                 .marketDatas(data)
-                .timeFrame(TimeFrame.M1)
+                .timeFrame(TimeFrame.MIN1)
                 .build();
 
         return new IndicatorContext(

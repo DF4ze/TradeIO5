@@ -74,8 +74,8 @@ public class StrategyAggregator {
             double score = s.getScore();
             totalScore += score;
 
-            hasBuy = score > tier;
-            hasSell = score < -tier;
+            hasBuy |= score > tier;
+            hasSell |= score < -tier;
         }
 
         boolean conflict = hasBuy && hasSell;

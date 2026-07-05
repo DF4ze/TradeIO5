@@ -29,7 +29,7 @@ public class DefaultMarketOpinion extends AbstractMarketOpinion {
 
     @Override
     public OpinionScope getScope() {
-        return OpinionScope.MACRO;
+        return OpinionScope.LOCAL;
     }
 
     @Override

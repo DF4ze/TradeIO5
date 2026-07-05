@@ -54,6 +54,6 @@ public class IndicatorCache {
 
     private boolean isOutdated(IndicatorContext ctx, Instant now) {
         TimeFrame tf = ctx.timeframe();
-        return now.isAfter(ctx.clock().now().plus(tf.getAmount(), tf.getUnit()));
+        return now.isAfter(tf.addTo(ctx.clock().now()));
     }
 }
