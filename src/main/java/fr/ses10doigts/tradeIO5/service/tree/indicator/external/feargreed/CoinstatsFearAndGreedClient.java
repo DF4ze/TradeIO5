@@ -53,7 +53,11 @@ public class CoinstatsFearAndGreedClient extends AbstractExternalIndicator imple
                                         "CoinStats 5xx: " + body))
                 )
                 .bodyToMono(FearAndGreedResponse.class)
-                .timeout(Duration.ofSeconds(5))
+                // 5s s'est avéré trop court en pratique (timeout systématique observé alors
+                // qu'un curl direct répond en <1s) : 5s ne laisse pas de marge pour une
+                // résolution DNS/handshake TLS un peu lente. 20s pour absorber ça sans pour
+                // autant bloquer indéfiniment un appel MCP.
+                .timeout(Duration.ofSeconds(20))
                 .block();
     }
 

@@ -34,7 +34,12 @@ public class TransactionSyncInitializer implements ApplicationRunner {
 		List<Wallet> wallets = walletService.getAllActiveWallets();
 		for( Wallet wallet : wallets ){
 			if( wallet.getSource() == WalletSource.EXCHANGE ) {
-				transactionService.incrementalSync(wallet);
+				try {
+					transactionService.incrementalSync(wallet);
+				} catch (Exception e) {
+					logger.error("❌ Echec de la synchronisation pour le wallet id={} ({}), poursuite avec les autres wallets.",
+							wallet.getId(), wallet.getSource(), e);
+				}
 			}
 		}
 

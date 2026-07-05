@@ -84,6 +84,10 @@ class MarketDatasetManager {
             throw new IllegalStateException("Incoming TimeFrame differs from Base TimeFrame");
         }
 
+        // incoming peut être une liste immuable (ex: Stream.toList() côté fournisseur de
+        // candles) : on trie une copie mutable plutôt que la liste reçue en paramètre, pour
+        // éviter un UnsupportedOperationException sur List.sort(...).
+        incoming = new ArrayList<>(incoming);
         incoming.sort(Comparator.comparing(MarketData::getTimestamp));
 
         Bucket bucket = state.getBucket();

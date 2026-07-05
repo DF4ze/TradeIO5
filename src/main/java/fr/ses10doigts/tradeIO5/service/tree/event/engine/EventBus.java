@@ -20,6 +20,19 @@ public class EventBus {
         subscribers.computeIfAbsent(eventType, k -> new ArrayList<>()).add(consumer);
     }
 
+    /**
+     * Retire un consumer précédemment enregistré via {@link #subscribe(Class, Consumer)}.
+     * <p>
+     * Utile pour les abonnements temporaires (ex: capture synchrone d'un event le temps d'un
+     * seul appel) afin d'éviter d'accumuler des consumers morts au fil des appels.
+     */
+    public <T> void unsubscribe(Class<T> eventType, Consumer<T> consumer) {
+        List<Consumer<?>> consumers = subscribers.get(eventType);
+        if (consumers != null) {
+            consumers.remove(consumer);
+        }
+    }
+
     public <T> void publish(T event) {
         int delivered = 0;
 

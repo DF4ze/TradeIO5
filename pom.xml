@@ -15,7 +15,21 @@
 	<description>TradeIO5</description>
 	<properties>
 		<java.version>17</java.version>
+		<!-- Dernière version stable de la branche 1.0.x de Spring AI compatible avec
+		     spring-boot-starter-parent 3.3.4 (la branche 1.1.x exige Spring Boot 3.5+). -->
+		<spring-ai.version>1.0.9</spring-ai.version>
 	</properties>
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.ai</groupId>
+				<artifactId>spring-ai-bom</artifactId>
+				<version>${spring-ai.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -118,6 +132,13 @@
 			<groupId>com.h2database</groupId>
 			<artifactId>h2</artifactId>
 			<scope>test</scope>
+		</dependency>
+
+		<!-- Serveur MCP exposant Indicator/Strategy/Opinion comme tools (transport HTTP/SSE via Spring MVC,
+		     cohérent avec spring-boot-starter-web déjà présent). -->
+		<dependency>
+			<groupId>org.springframework.ai</groupId>
+			<artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
 		</dependency>
 
 	</dependencies>

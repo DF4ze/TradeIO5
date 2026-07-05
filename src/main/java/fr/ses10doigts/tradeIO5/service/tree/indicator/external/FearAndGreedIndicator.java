@@ -48,6 +48,15 @@ public class FearAndGreedIndicator implements Indicator {
 
             FearAndGreedResponse response = provider.fetch(credential);
 
+            // provider.fetch(...) retourne FearAndGreedResponse.invalid() (valid=false, now/
+            // yesterday/lastWeek à null) en cas de timeout ou d'erreur API — sans ce check, un
+            // simple timeout réseau devient un NullPointerException au lieu d'un résultat
+            // proprement invalide.
+            if (!response.isValid() || response.getNow() == null
+                    || response.getYesterday() == null || response.getLastWeek() == null) {
+                return IndicatorResult.invalid();
+            }
+
             return IndicatorResult.builder()
                     .valid(true)
                     .values(
