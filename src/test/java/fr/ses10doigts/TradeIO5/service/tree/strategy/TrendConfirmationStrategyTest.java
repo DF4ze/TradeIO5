@@ -31,10 +31,10 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// Cf. DoubleRsiStrategyTest : le MarketDatasetCache (singleton Spring) est indexé par flux
-// natif (symbol + timeFrame + source + providerParam), sans endTime/lookBack. On utilise donc
-// un symbole distinct par scénario/test pour éviter toute pollution croisée du même Bucket,
-// y compris vis-à-vis des autres classes de test partageant le même contexte Spring.
+// Le MarketDatasetCache (singleton Spring) est indexé par flux natif (symbol + timeFrame +
+// source + providerParam), sans endTime/lookBack. On utilise donc un symbole distinct par
+// scénario/test pour éviter toute pollution croisée du même Bucket, y compris vis-à-vis des
+// autres classes de test partageant le même contexte Spring.
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Strategy - TrendConfirmation")
 @SpringBootTest

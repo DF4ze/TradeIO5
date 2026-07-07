@@ -16,21 +16,17 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.WalletSnapshot;
 import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.MarketContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategyParameters;
 import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategySignal;
-import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
-import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.strategy.StrategyType;
-import fr.ses10doigts.tradeIO5.repository.ApiCredentialRepository;
-import fr.ses10doigts.tradeIO5.security.model.User;
-import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
-import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.BinanceMarketDataApiClient;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.MarketDataApiClient;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
 import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.Indicator;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorCredentialResolver;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorEngine;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorRegistry;
 import fr.ses10doigts.tradeIO5.service.tree.opinion.MarketOpinion;
@@ -39,6 +35,7 @@ import fr.ses10doigts.tradeIO5.service.tree.strategy.Strategy;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.StrategyRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -53,7 +50,7 @@ import java.util.function.Consumer;
  * Façade d'orchestration Indicator → Strategy → Opinion.
  * <p>
  * Avant ce service, rien dans le code applicatif n'enchaînait réellement ces 3 couches en
- * dehors des tests (cf. {@code IndicatorEngineTest}, {@code DoubleRsiStrategyTest},
+ * dehors des tests (cf. {@code IndicatorEngineTest}, {@code TrendConfirmationStrategyTest},
  * {@code DefaultMarketOpinionTest_UT/_IT}). Cette classe reproduit la même séquence
  * d'appels que ces tests, pour un appelant "métier" (typiquement les tools MCP de
  * {@link TreeAnalysisMcpTools}) :
@@ -71,6 +68,12 @@ import java.util.function.Consumer;
  * surcharges avec {@link MarketDataSource} explicite existent pour permettre aux tests
  * d'utiliser {@link MarketDataSource#MEMORY} (comme le reste de la base de tests) sans
  * dépendre du réseau.
+ * <p>
+ * Le client Binance injecté est la version décorée par
+ * {@link fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.CachingMarketDataApiClient}
+ * (bean {@code cachingBinanceMarketDataApiClient}, cf. {@link fr.ses10doigts.tradeIO5.configuration.MarketDataCachingConfig}) :
+ * les candles closes déjà récupérées sont lues en base plutôt que re-fetchées au réseau, de
+ * façon transparente pour cette façade (cf. docs/etude-cache-db-candles-h1.md).
  */
 @Service
 public class TreeAnalysisFacade {
@@ -84,13 +87,8 @@ public class TreeAnalysisFacade {
     private final MarketOpinionRegistry marketOpinionRegistry;
     private final EventBus eventBus;
     private final DomainClock clock;
-    private final BinanceMarketDataApiClient binanceMarketDataApiClient;
-    private final UserRepository userRepository;
-    private final ApiCredentialRepository apiCredentialRepository;
-
-    /** Utilisateur technique portant les credentials des indicateurs externes (ex: Fear&Greed/CoinStats),
-     *  qui ne sont rattachés à aucun wallet utilisateur. Voir {@code UserInitializer}/{@code ApiCredentialInitializer}. */
-    private static final String SYSTEM_USERNAME = "System";
+    private final MarketDataApiClient binanceMarketDataApiClient;
+    private final IndicatorCredentialResolver credentialResolver;
 
     public TreeAnalysisFacade(
             MarketDatasetEngine marketDatasetEngine,
@@ -100,9 +98,8 @@ public class TreeAnalysisFacade {
             MarketOpinionRegistry marketOpinionRegistry,
             EventBus eventBus,
             DomainClock clock,
-            BinanceMarketDataApiClient binanceMarketDataApiClient,
-            UserRepository userRepository,
-            ApiCredentialRepository apiCredentialRepository
+            @Qualifier("cachingBinanceMarketDataApiClient") MarketDataApiClient binanceMarketDataApiClient,
+            IndicatorCredentialResolver credentialResolver
     ) {
         this.marketDatasetEngine = marketDatasetEngine;
         this.indicatorEngine = indicatorEngine;
@@ -112,8 +109,7 @@ public class TreeAnalysisFacade {
         this.eventBus = eventBus;
         this.clock = clock;
         this.binanceMarketDataApiClient = binanceMarketDataApiClient;
-        this.userRepository = userRepository;
-        this.apiCredentialRepository = apiCredentialRepository;
+        this.credentialResolver = credentialResolver;
     }
 
     // =====================================================================================
@@ -328,42 +324,16 @@ public class TreeAnalysisFacade {
     }
 
     /**
-     * Certains indicateurs externes (ex: FEAR_GREED via CoinStats) ont besoin d'une
-     * {@link ApiCredentialDTO}, mais ne sont rattachés à aucun wallet/utilisateur appelant
-     * (contrairement à Binance/Kraken). On va chercher la credential du user technique
-     * "System" pour le provider concerné ; retourne {@code null} si l'indicateur n'en a pas
-     * besoin ou si rien n'est configuré (l'indicateur retombera alors en invalid proprement).
-     */
-    /**
-     * Rendu public : réutilisé par {@code TreeAnalysisMcpTools#toIndicatorParameters} pour que
-     * les indicateurs nécessitant une credential (ex: FEAR_GREED) fonctionnent aussi quand ils
-     * sont appelés via {@code evaluate_strategy}/{@code get_opinion} (chemin générique
-     * Strategy/Opinion), pas seulement via {@code get_indicator} (seul appelant avant que
-     * FearGreedStrategy n'existe).
+     * Résolution déléguée à {@link IndicatorCredentialResolver} (extrait de cette classe pour
+     * être réutilisable par {@code GlobalMarketOpinion}, qui lit FEAR_GREED directement via
+     * {@code IndicatorEngine} sans passer par cette façade). Rendu public : réutilisé par
+     * {@code TreeAnalysisMcpTools#toIndicatorParameters} pour que les indicateurs nécessitant
+     * une credential (ex: FEAR_GREED) fonctionnent aussi quand ils sont appelés via
+     * {@code evaluate_strategy}/{@code get_opinion} (chemin générique Strategy/Opinion), pas
+     * seulement via {@code get_indicator}.
      */
     public ApiCredentialDTO resolveCredential(IndicatorType type) {
-        WebProviderCode provider = switch (type) {
-            case FEAR_GREED -> WebProviderCode.COINSTATS;
-            default -> null;
-        };
-        if (provider == null) {
-            return null;
-        }
-
-        return userRepository.findByUsername(SYSTEM_USERNAME)
-                .flatMap(sysUser -> apiCredentialRepository
-                        .findByUserAndEnabledTrueAndWebProvider_CodeAndWebProvider_EnabledTrue(sysUser, provider))
-                .map(cred -> new ApiCredentialDTO(
-                        provider,
-                        cred.getApiKey(),
-                        cred.getSecretKey(),
-                        cred.getWebProvider().getApiBaseUrl()
-                ))
-                .orElseGet(() -> {
-                    log.warn("Aucune credential '{}' trouvée pour l'utilisateur '{}' : indicateur {} sera invalid.",
-                            provider, SYSTEM_USERNAME, type);
-                    return null;
-                });
+        return credentialResolver.resolve(type);
     }
 
     private Indicator resolveIndicator(IndicatorType type) {

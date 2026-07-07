@@ -8,7 +8,6 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategyParameters;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TrendType;
-import fr.ses10doigts.tradeIO5.model.enumerate.tree.RiskProfile;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.strategy.StrategyType;
@@ -16,7 +15,7 @@ import fr.ses10doigts.tradeIO5.service.tree.helper.MarketOpinionParametersFactor
 import fr.ses10doigts.tradeIO5.service.tree.helper.StrategyParametersFactory;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.Strategy;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.StrategyRegistry;
-import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.DoubleRsiStrategy;
+import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.TrendConfirmationStrategy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,13 +66,16 @@ class TreeAnalysisFacadeTest {
     @Test
     @DisplayName("getOpinion sur source MEMORY déclenche toute la chaîne et retourne un OpinionSignal valide")
     void getOpinion_onMemorySource_shouldReturnValidOpinionSignal() {
-        Strategy strategy = strategyRegistry.get(DoubleRsiStrategy.class.getSimpleName());
+        Strategy strategy = strategyRegistry.get(TrendConfirmationStrategy.class.getSimpleName());
 
-        StrategyParametersFactory.RsiParam slowRsiParam = new StrategyParametersFactory.RsiParam(TimeFrame.H12, 24, 60, 28);
-        StrategyParametersFactory.RsiParam fastRsiParam = new StrategyParametersFactory.RsiParam(TimeFrame.H1, 12, 70, 30);
+        StrategyParametersFactory.TrendConfirmationParam param = new StrategyParametersFactory.TrendConfirmationParam(
+                TimeFrame.H1, 10, 20, 14, 14,
+                15.0, 25.0,
+                80.0, 20.0
+        );
 
-        MarketOpinionParameters params = MarketOpinionParametersFactory.buildRiskManagementParamWithDoubleRSI(
-                strategy, slowRsiParam, fastRsiParam, RiskProfile.MEDIUM
+        MarketOpinionParameters params = MarketOpinionParametersFactory.buildLocalOpinionParamWithTrendConfirmation(
+                strategy, param
         );
 
         OpinionSignal signal = treeAnalysisFacade.getOpinion(
@@ -95,8 +97,8 @@ class TreeAnalysisFacadeTest {
     @Test
     @DisplayName("evaluateStrategy avec un StrategyType non enregistré renvoie une erreur claire")
     void evaluateStrategy_unknownStrategyType_shouldThrowClearError() {
-        // Aucune Strategy enregistrée aujourd'hui ne couvre StrategyType.RISK (seule
-        // DoubleRsiStrategy existe, sur ENTRY/EXIT).
+        // Aucune Strategy enregistrée aujourd'hui ne couvre StrategyType.RISK (cf.
+        // StrategyType#RISK : intentionnellement non implémenté, hors scope de cette phase).
         StrategyParameters params = new StrategyParameters();
 
         TreeAnalysisException ex = assertThrows(TreeAnalysisException.class, () ->

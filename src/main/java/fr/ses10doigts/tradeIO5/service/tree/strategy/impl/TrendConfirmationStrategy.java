@@ -25,14 +25,12 @@ import java.util.*;
  * "Tendance confirmée" (étude §3.1) : EMA cross (biais directionnel) + ADX (filtre de force
  * de tendance) + RSI (garde-fou anti-épuisement).
  *
- * Contrairement à {@link DoubleRsiStrategy}, dont les entrées {@code IndicatorKey} sont toutes
- * homogènes (des RSI interchangeables moyennés ensemble), cette Strategy mélange des catégories
- * d'indicateurs complémentaires qui jouent chacune un rôle différent dans le calcul du score.
- * Elle discrimine donc explicitement chaque entrée de {@code parameters.getIndicatorParameters()}
- * via son {@code IndicatorType}, et, pour les deux EMA (même type, même TimeFrame mais des
- * {@code IndicatorParameters}/périodes différentes, donc des {@code IndicatorKey} distinctes),
- * via la valeur du paramètre {@code period} pour savoir laquelle est la rapide et laquelle est
- * la lente.
+ * Cette Strategy mélange des catégories d'indicateurs complémentaires qui jouent chacune un
+ * rôle différent dans le calcul du score. Elle discrimine donc explicitement chaque entrée de
+ * {@code parameters.getIndicatorParameters()} via son {@code IndicatorType}, et, pour les deux
+ * EMA (même type, même TimeFrame mais des {@code IndicatorParameters}/périodes différentes,
+ * donc des {@code IndicatorKey} distinctes), via la valeur du paramètre {@code period} pour
+ * savoir laquelle est la rapide et laquelle est la lente.
  */
 @Component
 public class TrendConfirmationStrategy extends AbstractStrategy {
@@ -70,9 +68,8 @@ public class TrendConfirmationStrategy extends AbstractStrategy {
 
         boolean hasError = false;
 
-        // Contrairement à DoubleRsiStrategy qui traite ses entrées de façon homogène (toutes
-        // RSI, moyennées), ici chaque entrée joue un rôle distinct. On les répartit d'abord par
-        // rôle en discriminant via IndicatorKey#getType(), puis on les interprète.
+        // Chaque entrée joue un rôle distinct (EMA rapide/lente, ADX, RSI). On les répartit
+        // d'abord par rôle en discriminant via IndicatorKey#getType(), puis on les interprète.
         List<double[]> emaCandidates = new ArrayList<>(); // {period, value}
         Double adxValue = null;
         Double rsiValue = null;
@@ -81,7 +78,7 @@ public class TrendConfirmationStrategy extends AbstractStrategy {
             IndicatorKey indicatorKey = entry.getKey();
             IndicatorParameters indicatorParams = entry.getValue();
 
-            // Choix du TF depuis les paramètres de l'indicateur, comme dans DoubleRsiStrategy
+            // Choix du TF depuis les paramètres de l'indicateur.
             TimeFrame tf = TimeFrame.valueOf(indicatorParams.getStrings().getOrDefault(P_TIME_FRAME_NAME, "H1"));
 
             IndicatorContext indicatorContext = new IndicatorContext(
@@ -100,7 +97,7 @@ public class TrendConfirmationStrategy extends AbstractStrategy {
                 continue;
             }
 
-            // Stocker dans le MarketContext, comme DoubleRsiStrategy
+            // Stocker dans le MarketContext pour référence/debug ultérieur.
             context.addIndicatorValue(indicatorKey, snapshot.getResult());
 
             double value = snapshot.getResult().getValue();

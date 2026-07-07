@@ -17,7 +17,7 @@ import fr.ses10doigts.tradeIO5.service.tree.api.mcp.dto.IndicatorSpec;
 import fr.ses10doigts.tradeIO5.service.tree.api.mcp.dto.StrategySpec;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.Strategy;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.StrategyRegistry;
-import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.DoubleRsiStrategy;
+import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.TrendConfirmationStrategy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.slf4j.Logger;
@@ -104,14 +104,14 @@ public class TreeAnalysisMcpTools {
 
     @Tool(
             name = "get_indicator",
-            description = "Calcule un indicateur technique (SMA, EMA, RSI, MACD, FEAR_GREED, RAINBOW) pour un "
-                    + "symbole et une timeframe donnés, en récupérant les candles réelles nécessaires. "
-                    + "Retourne la valeur calculée, ses bornes théoriques et si le calcul est valide."
+            description = "Calcule un indicateur technique (SMA, EMA, RSI, MACD, FEAR_GREED, RAINBOW, ADX, ATR, "
+                    + "BOLLINGER, OBV) pour un symbole et une timeframe donnés, en récupérant les candles réelles "
+                    + "nécessaires. Retourne la valeur calculée, ses bornes théoriques et si le calcul est valide."
     )
     public String getIndicator(
             @ToolParam(description = "Symbole du marché, ex: BTCUSDT") String symbol,
-            @ToolParam(description = "Timeframe des candles: Y1, Y3, M1, M2, M3, M6, W1, W2, D1, H1, H4, H12") TimeFrame timeFrame,
-            @ToolParam(description = "Type d'indicateur: SMA, EMA, RSI, MACD, FEAR_GREED, RAINBOW") IndicatorType type,
+            @ToolParam(description = "Timeframe des candles: Y1, Y3, M1, M2, M3, M6, W1, W2, D1, H1, H4, H12, MIN1, MIN5") TimeFrame timeFrame,
+            @ToolParam(description = "Type d'indicateur: SMA, EMA, RSI, MACD, FEAR_GREED, RAINBOW, ADX, ATR, BOLLINGER, OBV") IndicatorType type,
             @ToolParam(description = "Paramètres numériques de l'indicateur (ex: {\"period\": 14})", required = false) Map<String, Double> numericParams
     ) {
         return toJsonOrError("get_indicator", () -> {
@@ -122,7 +122,7 @@ public class TreeAnalysisMcpTools {
 
     @Tool(
             name = "evaluate_strategy",
-            description = "Évalue une stratégie de trading (ex: DoubleRsiStrategy) pour un symbole donné : "
+            description = "Évalue une stratégie de trading (ex: TrendConfirmationStrategy) pour un symbole donné : "
                     + "calcule les indicateurs requis à partir de candles réelles, puis exécute la logique de la "
                     + "stratégie. Retourne un score directionnel (-1 à 1), une confiance, et le type de signal."
     )
@@ -146,14 +146,17 @@ public class TreeAnalysisMcpTools {
 
     @Tool(
             name = "get_opinion",
-            description = "Produit une opinion de marché (ex: DefaultMarketOpinion) pour un symbole donné, en "
-                    + "évaluant une ou plusieurs stratégies à partir de candles réelles, puis en pondérant leurs "
-                    + "signaux. Retourne le signal pondéré, la confiance, le score et les sources ayant contribué."
+            description = "Produit une opinion de marché pour un symbole donné. Pour le scope LOCAL (ex: "
+                    + "DefaultMarketOpinion), évalue une ou plusieurs stratégies à partir de candles réelles, "
+                    + "puis pondère leurs signaux : renseigner 'strategies'. Pour GLOBAL/MACRO (sentiment Fear & "
+                    + "Greed) et EXTERNAL (avis LLM), 'strategies' est ignoré et peut être une liste vide : ces "
+                    + "opinions ne dépendent d'aucune Strategy. Retourne le signal pondéré, la confiance, le "
+                    + "score et les sources ayant contribué."
     )
     public String getOpinion(
             @ToolParam(description = "Symbole du marché, ex: BTCUSDT") String symbol,
             @ToolParam(description = "Périmètre de l'opinion: LOCAL, GLOBAL, MACRO, EXTERNAL") OpinionScope scope,
-            @ToolParam(description = "Stratégies à évaluer pour cette opinion (chacune avec ses propres indicateurs)") List<StrategySpec> strategies
+            @ToolParam(description = "Stratégies à évaluer (scope LOCAL uniquement ; ignoré pour GLOBAL/MACRO/EXTERNAL, peut être vide dans ce cas)") List<StrategySpec> strategies
     ) {
         return toJsonOrError("get_opinion", () -> {
             MarketOpinionParameters params = toMarketOpinionParameters(strategies);
@@ -184,10 +187,10 @@ public class TreeAnalysisMcpTools {
             if (spec.indicatorType() == null || spec.timeFrame() == null) {
                 throw new TreeAnalysisException("Each indicator spec requires an indicatorType and a timeFrame");
             }
-            // Convention utilisée par DoubleRsiStrategy (seule Strategy existante à ce jour) pour
+            // Convention partagée par toutes les Strategy (cf. TrendConfirmationStrategy) pour
             // savoir sur quel TimeFrame lire l'indicateur au sein du MarketContext.
             Map<String, String> strings = new HashMap<>();
-            strings.put(DoubleRsiStrategy.P_TIME_FRAME_NAME, spec.timeFrame().toString());
+            strings.put(TrendConfirmationStrategy.P_TIME_FRAME_NAME, spec.timeFrame().toString());
 
             IndicatorParameters indicatorParams = new IndicatorParameters(
                     spec.indicatorType(),
@@ -195,9 +198,9 @@ public class TreeAnalysisMcpTools {
                     strings,
                     Map.of(),
                     // Nécessaire pour les indicateurs externes (ex: FEAR_GREED) : sans credential
-                    // résolue ici, FearGreedStrategy recevait un IndicatorResult invalid en
-                    // passant par evaluate_strategy/get_opinion, alors que get_indicator (qui
-                    // appelle déjà resolveCredential) fonctionnait correctement pour le même
+                    // résolue ici, une Strategy consommant FEAR_GREED via evaluate_strategy/
+                    // get_opinion recevrait un IndicatorResult invalid, alors que get_indicator
+                    // (qui appelle déjà resolveCredential) fonctionne correctement pour le même
                     // indicateur.
                     treeAnalysisFacade.resolveCredential(spec.indicatorType())
             );
