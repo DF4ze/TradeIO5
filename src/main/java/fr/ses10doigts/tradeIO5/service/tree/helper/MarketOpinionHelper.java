@@ -48,6 +48,43 @@ public class MarketOpinionHelper {
         }
     }
 
+    /**
+     * Facteur d'atténuation de confidence pour un signal contrarian (ex. Fear&amp;Greed) dont la
+     * valeur vient de bouger trop vite (étude "indicateurs-macro-externes", §2) : une hausse/baisse
+     * brutale en zone extrême est plutôt le signe d'un retournement en cours que d'un signal
+     * contrarian fiable à suivre tel quel.
+     * <p>
+     * Retourne {@code 1.0} (comportement inchangé) sauf si {@code now} est dans une zone extrême
+     * ({@code now <= buyThreshold} ou {@code now >= sellThreshold}) <b>et</b> que
+     * {@code |now - yesterday|} dépasse {@code deltaThreshold} : dans ce cas, retourne un facteur
+     * dans {@code ]0, 1[} qui décroît continûment (jamais annulé brutalement à {@code 0}) à mesure
+     * que le mouvement s'amplifie au-delà du seuil ({@code deltaThreshold / |delta|}, borné à 1 au
+     * seuil lui-même).
+     *
+     * @param yesterday peut être {@code null} si la donnée n'est pas disponible (réponse externe
+     *                  incomplète) : dans ce cas, pas d'atténuation possible, on retombe sur le
+     *                  comportement actuel ({@code 1.0}).
+     */
+    public static double computeSentimentShiftDampening(
+            double now, Double yesterday, double buyThreshold, double sellThreshold, double deltaThreshold) {
+        if (yesterday == null) {
+            return 1.0;
+        }
+
+        boolean extremeZone = now <= buyThreshold || now >= sellThreshold;
+        if (!extremeZone) {
+            return 1.0;
+        }
+
+        double delta = now - yesterday;
+        double absDelta = Math.abs(delta);
+        if (absDelta <= deltaThreshold) {
+            return 1.0;
+        }
+
+        return deltaThreshold / absDelta;
+    }
+
     public static double computeRsiScore(double value, double buyThreshold, double sellThreshold) {
         // plage centrale HOLD = [-1/6, +1/6]
         double holdMin = -1.0/6.0;
@@ -76,7 +113,7 @@ public class MarketOpinionHelper {
         }
 
         // clamp au cas où
-        score = Math.max(-1.0, Math.min(1.0, score));
+        score = Math.clamp(score, -1.0, 1.0);
 
         return score;
     }

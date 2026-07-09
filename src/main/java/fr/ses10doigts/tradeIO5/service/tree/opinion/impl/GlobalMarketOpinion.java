@@ -51,9 +51,15 @@ public class GlobalMarketOpinion implements MarketOpinion {
     public static final String P_TIME_FRAME_NAME = "timeframe";
     public static final String P_BUY_THRESHOLD = "fearGreedBuyThreshold";
     public static final String P_SELL_THRESHOLD = "fearGreedSellThreshold";
+    public static final String P_DELTA_THRESHOLD = "fearGreedDeltaThreshold";
 
     private static final double DEFAULT_BUY_THRESHOLD = 25.0;   // <= 25 : extreme fear -> contrarian BUY
     private static final double DEFAULT_SELL_THRESHOLD = 75.0;  // >= 75 : extreme greed -> contrarian SELL
+    // Amplitude (points, sur 24h/"yesterday") au-delà de laquelle un Fear&Greed déjà en zone
+    // extrême est jugé "a bougé trop vite" et voit sa confidence atténuée (étude §2) : valeur
+    // par défaut proposée, pas mesurée empiriquement, à ajuster si le signal s'avère trop/trop peu
+    // conservateur en pratique.
+    private static final double DEFAULT_DELTA_THRESHOLD = 15.0;
     private static final TimeFrame DEFAULT_TIME_FRAME = TimeFrame.H1;
 
     private final IndicatorEngine indicatorEngine;
@@ -86,6 +92,8 @@ public class GlobalMarketOpinion implements MarketOpinion {
                 ? parameters.get(P_BUY_THRESHOLD, DEFAULT_BUY_THRESHOLD) : DEFAULT_BUY_THRESHOLD;
         double sellThreshold = parameters != null
                 ? parameters.get(P_SELL_THRESHOLD, DEFAULT_SELL_THRESHOLD) : DEFAULT_SELL_THRESHOLD;
+        double deltaThreshold = parameters != null
+                ? parameters.get(P_DELTA_THRESHOLD, DEFAULT_DELTA_THRESHOLD) : DEFAULT_DELTA_THRESHOLD;
 
         ApiCredentialDTO credential = credentialResolver.resolve(IndicatorType.FEAR_GREED);
         IndicatorParameters fgParams = new IndicatorParameters(
@@ -111,6 +119,10 @@ public class GlobalMarketOpinion implements MarketOpinion {
             logger.warn("{} : FEAR_GREED snapshot sans valeur 'now', aucun OpinionEvent publié", getName());
             return;
         }
+        // "yesterday" (voire "lastWeek") est déjà présent dans la même réponse externe que "now"
+        // (FearAndGreedResponse) : pas de nouvel appel réseau, juste une lecture supplémentaire du
+        // même IndicatorResult.getValues() déjà obtenu ci-dessus.
+        Double yesterday = snapshot.getResult().getValues().get("yesterday");
 
         // Réutilise computeRsiScore : malgré son nom, le mapping (valeur [0,100] + seuils
         // buy/sell -> score [-1,1]) n'a rien de spécifique au RSI, et c'est exactement le
@@ -118,8 +130,18 @@ public class GlobalMarketOpinion implements MarketOpinion {
         double score = MarketOpinionHelper.computeRsiScore(now, buyThreshold, sellThreshold);
         MarketOpinionHelper.ConfidenceSignal confidenceSignal = MarketOpinionHelper.scoreToConfidenceAndSignalType(score);
 
-        logger.debug("{} : Fear&Greed(now={}) => score={}, signal={}, confidence={}",
-                getName(), now, score, confidenceSignal.signal, confidenceSignal.confidence);
+        // Étude §2 : une hausse/baisse brutale du Fear&Greed en zone extrême est plutôt un signe de
+        // retournement probable qu'un signal contrarian fiable à suivre tel quel -> on atténue la
+        // confidence (jamais le score directionnel) proportionnellement à l'ampleur du mouvement.
+        double dampeningFactor = MarketOpinionHelper.computeSentimentShiftDampening(
+                now, yesterday, buyThreshold, sellThreshold, deltaThreshold);
+        double confidence = confidenceSignal.confidence * dampeningFactor;
+
+        double delta = yesterday != null ? now - yesterday : 0.0;
+        logger.debug("{} : Fear&Greed(now={}, yesterday={}, delta={}) => score={}, signal={}, "
+                        + "confidence(raw)={}, dampeningFactor={}, confidence(final)={}",
+                getName(), now, yesterday, delta, score, confidenceSignal.signal,
+                confidenceSignal.confidence, dampeningFactor, confidence);
 
         // Opinion GLOBAL : pas de symbole par construction (contexte de marché large), mais on
         // garde la même vérification défensive que DefaultMarketOpinion au cas où un symbole
@@ -131,11 +153,11 @@ public class GlobalMarketOpinion implements MarketOpinion {
                 opinionSymbol,
                 confidenceSignal.signal,
                 confidenceSignal.signal,
-                confidenceSignal.confidence,
+                confidence,
                 score,
                 getScope(),
                 Set.of("FEAR_GREED"),
-                "Fear&Greed(now=" + now + ")",
+                "Fear&Greed(now=" + now + ", yesterday=" + yesterday + ")",
                 context.clock().now()
         ));
 

@@ -5,5 +5,11 @@ public enum WebProviderCode {
     BINANCE_TESTNET,
     KRAKEN,
     LEDGER,
-    COINSTATS, METAMASK
+    COINSTATS, METAMASK,
+    DEFILLAMA,
+    COINALYZE,
+    TWELVE_DATA,
+    FINNHUB,
+    FOREXFACTORY,
+    FARSIDE
 }

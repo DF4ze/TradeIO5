@@ -29,13 +29,7 @@ public abstract class AbstractStrategy implements Strategy{
             TimeFrame timeFrame = set.getKey().getTimeFrame();
             int requiredData = indicator.getRequiredData(set.getValue());
 
-            if(nbRequired.containsKey( timeFrame) && requiredData > nbRequired.get(timeFrame)) {
-                if (requiredData > nbRequired.get(timeFrame)) {
-                    nbRequired.put( timeFrame, requiredData );
-                }
-            }else{
-                nbRequired.put(timeFrame, requiredData);
-            }
+            nbRequired.merge(timeFrame, requiredData, Math::max);
         }
 
         return nbRequired;

@@ -134,6 +134,15 @@
 			<scope>test</scope>
 		</dependency>
 
+		<!-- Parsing HTML pour le scraping Farside (Lot 3, item I "Flow ETF") : la page
+		     https://farside.co.uk/btc(eth)/ est servie côté serveur, un simple client HTTP +
+		     parseur HTML suffit, pas besoin de navigateur headless. -->
+		<dependency>
+			<groupId>org.jsoup</groupId>
+			<artifactId>jsoup</artifactId>
+			<version>1.17.2</version>
+		</dependency>
+
 		<!-- Serveur MCP exposant Indicator/Strategy/Opinion comme tools (transport HTTP/SSE via Spring MVC,
 		     cohérent avec spring-boot-starter-web déjà présent). -->
 		<dependency>

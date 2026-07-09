@@ -41,6 +41,10 @@ public class IndicatorCredentialResolver {
     public ApiCredentialDTO resolve(IndicatorType type) {
         WebProviderCode provider = switch (type) {
             case FEAR_GREED -> WebProviderCode.COINSTATS;
+            case STABLECOIN_MARKET_CAP -> WebProviderCode.DEFILLAMA;
+            case OPEN_INTEREST, FUNDING_RATE, LIQUIDATIONS -> WebProviderCode.COINALYZE;
+            case DXY, SP500, NASDAQ -> WebProviderCode.TWELVE_DATA;
+            case ETF_FLOW -> WebProviderCode.FARSIDE;
             default -> null;
         };
         if (provider == null) {
