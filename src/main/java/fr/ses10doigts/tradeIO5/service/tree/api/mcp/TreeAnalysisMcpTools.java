@@ -104,14 +104,21 @@ public class TreeAnalysisMcpTools {
 
     @Tool(
             name = "get_indicator",
-            description = "Calcule un indicateur technique (SMA, EMA, RSI, MACD, FEAR_GREED, RAINBOW, ADX, ATR, "
-                    + "BOLLINGER, OBV) pour un symbole et une timeframe donnés, en récupérant les candles réelles "
-                    + "nécessaires. Retourne la valeur calculée, ses bornes théoriques et si le calcul est valide."
+            description = "Calcule un indicateur pour un symbole et une timeframe donnés, en récupérant les candles "
+                    + "réelles nécessaires. Couvre 3 familles : (1) indicateurs techniques internes calculés sur les "
+                    + "candles — SMA, EMA, RSI, MACD, RAINBOW, ADX, ATR, BOLLINGER, OBV, REJECTION_ZONE ; (2) "
+                    + "indicateurs externes nécessitant une credential fournisseur déjà configurée côté serveur — "
+                    + "FEAR_GREED (CoinStats), STABLECOIN_MARKET_CAP (DefiLlama), OPEN_INTEREST/FUNDING_RATE/"
+                    + "LIQUIDATIONS (Coinalyze, par symbole), DXY/SP500/NASDAQ (Twelve Data), ETF_FLOW (Farside) ; "
+                    + "(3) ORDER_BOOK (carnet d'ordres Binance, sans credential). Retourne la valeur calculée, ses "
+                    + "bornes théoriques et si le calcul est valide (ex: credential manquante ou historique trop court)."
     )
     public String getIndicator(
             @ToolParam(description = "Symbole du marché, ex: BTCUSDT") String symbol,
             @ToolParam(description = "Timeframe des candles: Y1, Y3, M1, M2, M3, M6, W1, W2, D1, H1, H4, H12, MIN1, MIN5") TimeFrame timeFrame,
-            @ToolParam(description = "Type d'indicateur: SMA, EMA, RSI, MACD, FEAR_GREED, RAINBOW, ADX, ATR, BOLLINGER, OBV") IndicatorType type,
+            @ToolParam(description = "Type d'indicateur: SMA, EMA, RSI, MACD, FEAR_GREED, RAINBOW, ADX, ATR, BOLLINGER, "
+                    + "OBV, STABLECOIN_MARKET_CAP, OPEN_INTEREST, FUNDING_RATE, LIQUIDATIONS, ORDER_BOOK, DXY, SP500, "
+                    + "NASDAQ, ETF_FLOW, REJECTION_ZONE") IndicatorType type,
             @ToolParam(description = "Paramètres numériques de l'indicateur (ex: {\"period\": 14})", required = false) Map<String, Double> numericParams
     ) {
         return toJsonOrError("get_indicator", () -> {
@@ -122,9 +129,13 @@ public class TreeAnalysisMcpTools {
 
     @Tool(
             name = "evaluate_strategy",
-            description = "Évalue une stratégie de trading (ex: TrendConfirmationStrategy) pour un symbole donné : "
-                    + "calcule les indicateurs requis à partir de candles réelles, puis exécute la logique de la "
-                    + "stratégie. Retourne un score directionnel (-1 à 1), une confiance, et le type de signal."
+            description = "Évalue une stratégie de trading pour un symbole donné : calcule les indicateurs requis à "
+                    + "partir de candles réelles, puis exécute la logique de la stratégie. Stratégies disponibles : "
+                    + "TrendConfirmationStrategy (ENTRY, EMA rapide + EMA lente + ADX + RSI) et "
+                    + "MovementQualificationStrategy (ENTRY, requiert exactement 1 OPEN_INTEREST + 1 FUNDING_RATE + "
+                    + "1 OBV en 'indicators' — nécessite la credential Coinalyze). La résolution entre plusieurs "
+                    + "stratégies du même StrategyType se fait selon les indicateurs fournis dans 'indicators'. "
+                    + "Retourne un score directionnel (-1 à 1), une confiance, et le type de signal."
     )
     public String evaluateStrategy(
             @ToolParam(description = "Symbole du marché, ex: BTCUSDT") String symbol,
@@ -272,7 +283,7 @@ public class TreeAnalysisMcpTools {
     private static Map<String, Object> opinionResponse(OpinionSignal signal) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("opinionId", signal.opinionId());
-        response.put("symbol", signal.symbol() != null ? signal.symbol().orElse(null) : null);
+        response.put("symbol", signal.symbol().isPresent() ? signal.symbol().orElse(null) : null);
         response.put("scope", signal.scope() != null ? signal.scope().name() : null);
         response.put("majoritySignal", signal.majoritySignal() != null ? signal.majoritySignal().name() : null);
         response.put("weightedSignal", signal.weightedSignal() != null ? signal.weightedSignal().name() : null);

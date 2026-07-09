@@ -28,7 +28,6 @@ class MarketDatasetManager {
     public MarketDataset snapshot(MarketDatasetRequest request, MarketDatasetState state) {
         // Récupère la vue
         BucketView view = state.getBucket().view(request.timeFrame(), request.endTime());
-        log.debug("View from Bucket : {}", view);
         log.debug("Count Bucket : {}", view.size());
 
         Instant startTime =  request.timeFrame().removeTo(request.endTime(), request.lookBack());
@@ -80,7 +79,7 @@ class MarketDatasetManager {
             return;
         }
 
-        if( incoming.get(0).getTimeFrame() != state.getBucket().getBaseTimeFrame() ){
+        if( incoming.getFirst().getTimeFrame() != state.getBucket().getBaseTimeFrame() ){
             throw new IllegalStateException("Incoming TimeFrame differs from Base TimeFrame");
         }
 

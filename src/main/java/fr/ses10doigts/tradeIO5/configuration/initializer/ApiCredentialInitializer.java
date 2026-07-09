@@ -161,17 +161,15 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			// return;
 
 		} else {
-			ApiCredential credential = ApiCredential.builder()
-					.user(user)
-					.webProvider(webProviderBinance)
-					.apiKey("ookiVIjsqami8rrYSHsGWZiRxjBxjGsoVwtb9hPTz01FiB2Q2oKeUvQeNGmaP5A3")
-					.secretKey("tyPupQa10QibqIXddoMscZVtsEPeITReslLDJDio7ghtKFkJl7x6b2zZ8p5DSU0O")
-					.enabled(true)
-					.createdAt(LocalDateTime.now())
-					.build();
-
-			credentialRepository.save(credential);
-			logger.debug("- Clé API ajoutée pour OKlm sur BINANCE");
+			// Clé API-utilisateur (compte trading réel de Clem), pas une clé System partagée comme
+			// Coinalyze/Twelve Data/Finnhub/CoinStats : le patron `application-dev.properties` ne
+			// convient pas ici (config unique par déploiement, pas par utilisateur), et aucun flux de
+			// saisie utilisateur (écran de configuration exchange) n'existe encore côté web. Retiré
+			// du code en dur le 2026-07-09 (backlog 5.1) — plus aucun seed automatique d'une vraie
+			// clé Binance. Gestion : mise à jour directe de la ligne `api_credentials` existante en DB
+			// en cas de rotation, jusqu'à ce qu'un vrai flux de saisie utilisateur soit écrit.
+			logger.warn("❗ Aucune credential BINANCE créée pour OKlm (clé retirée du code, cf. backlog 5.1) : "
+					+ "à gérer directement en DB (table api_credentials) en attendant un flux de saisie utilisateur.");
         }
 
 		if (alreadyExistsKraken) {
@@ -179,19 +177,10 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			// return;
 
 		} else {
-			//@formatter:off
-			ApiCredential credential = ApiCredential.builder()
-					.user(user)
-					.webProvider(webProviderKraken)
-					.apiKey("rG/lccLLc0K7sbVorYcDexoSLWC9z140YyVzU2tncG/GkpHJjwF2d0pn")
-					.secretKey("jX+uMxkb9/tTypQiqgD+m4lXtE+lXZF0X5SkAsqPJGkyalIr71nWURPJ/aaNU0ev1ZyHu3HPk2jd6Td5yKQw7g==")
-					.enabled(true)
-					.createdAt(LocalDateTime.now())
-					.build();
-			//@formatter:on
-
-			credentialRepository.save(credential);
-			logger.debug("- Clé API ajoutée pour OKlm sur KRAKEN");
+			// Même principe que BINANCE ci-dessus : clé API-utilisateur, retirée du code en dur le
+			// 2026-07-09 (backlog 5.1). Gestion directe en DB.
+			logger.warn("❗ Aucune credential KRAKEN créée pour OKlm (clé retirée du code, cf. backlog 5.1) : "
+					+ "à gérer directement en DB (table api_credentials) en attendant un flux de saisie utilisateur.");
 		}
 
 		if (alreadyExistsCoinstats) {
@@ -199,18 +188,31 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			// return;
 
 		} else {
-			//@formatter:off
-			ApiCredential credential = ApiCredential.builder()
-					.user(sys)
-					.webProvider(webProviderCoinstats)
-					.apiKey("v8ZVIcChU67x9vyMi1Ts0fzyNgwbetIHiNodpD4UonI=")
-					.enabled(true)
-					.createdAt(LocalDateTime.now())
-					.build();
-			//@formatter:on
+			// Clé System partagée (Fear & Greed, aucun wallet/utilisateur rattaché — cf.
+			// IndicatorCredentialResolver), même principe que COINALYZE/TWELVE_DATA/FINNHUB ci-dessous :
+			// migrée hors du code en dur le 2026-07-09 (backlog 5.1) vers application-dev.properties
+			// (gitignoré) sous `tradeio.coinstats.apiKey`. Si absente, on n'insère pas de credential :
+			// FEAR_GREED retombera proprement en invalid() plutôt que d'utiliser une clé factice.
+			String coinstatsApiKey = environment.getProperty("tradeio.coinstats.apiKey");
 
-			credentialRepository.save(credential);
-			logger.debug("- Clé API ajoutée pour System sur COINSTATS");
+			if (coinstatsApiKey == null || coinstatsApiKey.isBlank()) {
+				logger.warn("❗ `tradeio.coinstats.apiKey` absente d'application-dev.properties : "
+						+ "aucune credential COINSTATS créée pour System (FEAR_GREED restera invalid "
+						+ "tant qu'elle n'est pas renseignée).");
+			} else {
+				//@formatter:off
+				ApiCredential credential = ApiCredential.builder()
+						.user(sys)
+						.webProvider(webProviderCoinstats)
+						.apiKey(coinstatsApiKey)
+						.enabled(true)
+						.createdAt(LocalDateTime.now())
+						.build();
+				//@formatter:on
+
+				credentialRepository.save(credential);
+				logger.debug("- Clé API ajoutée pour System sur COINSTATS");
+			}
 		}
 
 		if (alreadyExistsDefiLlama) {

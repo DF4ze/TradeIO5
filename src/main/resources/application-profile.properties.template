@@ -24,4 +24,19 @@ tradeio.openai.apiKey=yourKey
 tradeio.openai.defaultModel=GPT_4_1_MINI
 tradeio.openai.baseUrl=https://api.openai.com/v1
 
+# Clé generee manuellement sur https://coinalyze.net/account/api-key/ (compte gratuit). Voir
+# ApiCredentialInitializer#run : sans cette valeur, aucune credential COINALYZE n'est creee pour
+# l'utilisateur System et OPEN_INTEREST/FUNDING_RATE/LIQUIDATIONS restent invalid.
+tradeio.coinalyze.apiKey=yourKey
 
+# Clé generee manuellement sur https://twelvedata.com (compte gratuit). Sans cette valeur, DXY/SP500/NASDAQ restent
+# invalid (voir ApiCredentialInitializer#run).
+tradeio.twelvedata.apiKey=yourKey
+
+# Clé generee manuellement sur https://finnhub.io (compte gratuit) Sans cette valeur, le calendrier macro
+# (MacroEventCalendarService) se limite a ForexFactory (voir ApiCredentialInitializer#run).
+tradeio.finnhub.apiKey=yourKey
+
+# Clé CoinStats (compte System). Sans cette valeur, aucune credential COINSTATS n'est
+# creee et FEAR_GREED reste invalid (voir ApiCredentialInitializer#run).
+tradeio.coinstats.apiKey=yourKey
