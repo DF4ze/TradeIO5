@@ -2,6 +2,7 @@ package fr.ses10doigts.tradeIO5.service.tree.opinion.advisor;
 
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.LlmAdvice;
+import fr.ses10doigts.tradeIO5.model.enumerate.LlmTier;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.AdvisorType;
 import fr.ses10doigts.tradeIO5.service.connector.OpenAIService;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,6 @@ public class OpenAIAdvisor extends AbstractAdvisor{
 
     @Override
     protected LlmAdvice callModel(OpinionContext ctx) {
-        return service.ask(buildPrompt(ctx));
+        return service.ask(buildPrompt(ctx), LlmTier.MEDIUM);
     }
 }

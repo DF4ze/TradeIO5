@@ -4,7 +4,8 @@ import com.openai.models.ChatModel;
 
 public enum OpenAIModel {
     GPT_4_1_MINI("gpt-4.1-mini"),
-    GPT_4_1("gpt-4.1");
+    GPT_4_1("gpt-4.1"),
+    GPT_5_5("gpt-5.5");
 
     private final String apiName;
 

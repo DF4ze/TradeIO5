@@ -23,7 +23,7 @@ class ChatGptApiTest {
     void HelloWorld(){
         Response response = openAIClient.responses().create(
                 ResponseCreateParams.builder()
-                        .model(props.defaultModel().toChatModel())
+                        .model(props.model().low().toChatModel())
                         .input("Dis simplement : Hello World depuis OpenAI")
                         .build()
         );

@@ -21,7 +21,11 @@ fr.ses10doigts.crawler.botUsername=botname...
 
 # OpenAI
 tradeio.openai.apiKey=yourKey
-tradeio.openai.defaultModel=GPT_4_1_MINI
+# Mapping niveau logique -> modele concret. LOW obligatoire (utilise en repli si MEDIUM/HIGH absents) ;
+# MEDIUM/HIGH optionnels (voir LlmTier / OpenAIService#resolveModel pour la logique de repli).
+tradeio.openai.model.low=GPT_4_1_MINI
+tradeio.openai.model.medium=GPT_4_1
+tradeio.openai.model.high=GPT_5_5
 tradeio.openai.baseUrl=https://api.openai.com/v1
 
 # Clé generee manuellement sur https://coinalyze.net/account/api-key/ (compte gratuit). Voir

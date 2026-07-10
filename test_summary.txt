@@ -1,0 +1,19 @@
+﻿--- BUILD lines ---
+--- Tests run aggregate ---
+--- Maven [ERROR] lines ---
+--- Last 15 lines of file ---
+17:45:30.671 [main] INFO  f.s.t.c.initializer.UserInitializer - ? Utilisateur System créé.
+17:45:30.674 [main] INFO  f.s.t.c.i.WebProviderInitializer - ? WebProvider initialisé : BINANCE
+17:45:30.675 [main] INFO  f.s.t.c.i.WebProviderInitializer - ? WebProvider initialisé : BINANCE_TESTNET
+17:45:30.676 [main] INFO  f.s.t.c.i.WebProviderInitializer - ? WebProvider initialisé : KRAKEN
+17:45:30.676 [main] INFO  f.s.t.c.i.WebProviderInitializer - ? WebProvider initialisé : COINSTATS
+17:45:30.678 [main] INFO  f.s.t.c.i.WebProviderInitializer - ? WebProvider initialisé : DEFILLAMA
+17:45:30.679 [main] INFO  f.s.t.c.i.WebProviderInitializer - ? WebProvider initialisé : COINALYZE
+17:45:30.680 [main] INFO  f.s.t.c.i.WebProviderInitializer - ? WebProvider initialisé : TWELVE_DATA
+17:45:30.681 [main] INFO  f.s.t.c.i.WebProviderInitializer - ? WebProvider initialisé : FINNHUB
+17:45:30.682 [main] INFO  f.s.t.c.i.WebProviderInitializer - ? WebProvider initialisé : FOREXFACTORY
+17:45:30.683 [main] INFO  f.s.t.c.i.WebProviderInitializer - ? WebProvider initialisé : FARSIDE
+17:45:30.683 [main] INFO  f.s.t.c.i.WebProviderInitializer - ? Tous les WebProvider sont initialisés.
+17:45:30.699 [main] INFO  o.s.o.j.LocalContainerEntityManagerFactoryBean - Closing JPA EntityManagerFactory for persistence unit 'default'
+17:45:30.701 [main] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-17 - Shutdown initiated...
+17:45:30.705 [main] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-17 - Shutdown completed.

@@ -36,6 +36,7 @@ import random
 import statistics
 import sys
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 
 
 # --------------------------------------------------------------------------------------
@@ -100,8 +101,17 @@ def load_csv(path):
     with open(path, newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
+            raw_ts = row.get("timestamp", len(candles))
+            # Timestamp réel (ISO-8601, ex: export fetch_real_klines.py / BucketResample.java) ->
+            # datetime, pour permettre une fenêtre de tenue en durée calendaire (cf.
+            # reaction_rate_per_level) plutôt qu'un nombre fixe de bougies. Reste un entier simple
+            # pour la série synthétique (generate_synthetic_series, pas de vraie notion de temps).
+            try:
+                ts = datetime.fromisoformat(str(raw_ts).replace("Z", "+00:00"))
+            except ValueError:
+                ts = raw_ts
             candles.append({
-                "timestamp": row.get("timestamp", len(candles)),
+                "timestamp": ts,
                 "open": float(row["open"]),
                 "high": float(row["high"]),
                 "low": float(row["low"]),
@@ -240,16 +250,30 @@ def detect_all_zones(candles, k1, k2, p, cluster_distance_mult, atr_period, look
 # 3. Test statistique : taux de réaction
 # --------------------------------------------------------------------------------------
 
-def reaction_rate(levels, candles, start_index, touch_tolerance, hold_margin, lookahead=5):
-    """Pour chaque niveau, repère chaque "approche" du niveau (début d'une séquence de bougies
-    dont le range touche le niveau +/- touch_tolerance ; les bougies consécutives qui touchent
-    encore le même niveau ne comptent PAS comme un nouveau test, pour ne pas gonfler artificiellement
-    le taux avec des micro-rebonds intra-séquence). Pour chaque approche, regarde les `lookahead`
-    bougies suivantes : "tient" (rejet confirmé) si aucune ne clôture au-delà de `hold_margin` du
-    mauvais côté du niveau, "cassé" sinon. Retourne (taux_de_reaction, nb_tests)."""
-    holds = 0
-    total = 0
-    for level in levels:
+def reaction_rate_per_level(levels, candles, start_index, touch_tolerance, hold_margin,
+                             lookahead_candles=5, hold_days=None):
+    """Même logique que l'ancien `reaction_rate` (repère chaque "approche" d'un niveau, teste si
+    les bougies suivantes tiennent ou cassent), mais retourne le détail **par niveau** (holds,
+    total) plutôt qu'un agrégat global immédiat — nécessaire pour agréger ensuite de plusieurs
+    façons (brut, pondéré par `strength`, filtré par seuil de force). `levels` est une liste de
+    `(level, weight)` ; `weight` n'intervient pas dans le calcul par niveau, il est juste reporté
+    tel quel pour l'agrégation en aval (cf. `run_statistical_test`).
+    <p>
+    **Fenêtre de "tenue" normalisée en durée calendaire, pas en nombre de bougies** (cf.
+    docs/calibration-rejection-zone.md, run du 2026-07-09) : un nombre fixe de bougies ("tient sur
+    les 5 prochaines") ne veut pas dire la même chose selon le TF (5h en H1, 5 jours en D1, plus
+    d'un mois en W1) — comparer des taux de réaction obtenus avec des fenêtres temporelles aussi
+    différentes n'est pas une comparaison honnête entre TF. Si `hold_days` est fourni ET que les
+    timestamps des candles sont de vrais `datetime` (CSV réel, pas la série synthétique), la
+    fenêtre est bornée en jours calendaires réels, identique quel que soit le TF. Sinon (série
+    synthétique sans vrai temps, ou `hold_days=None`), on retombe sur l'ancien comportement à
+    nombre de bougies fixe (`lookahead_candles`)."""
+    use_calendar = hold_days is not None and len(candles) > 0 and isinstance(candles[0]["timestamp"], datetime)
+
+    results = []
+    for level, weight in levels:
+        holds = 0
+        total = 0
         in_touch = False
         for i in range(start_index, len(candles) - 1):
             c = candles[i]
@@ -257,22 +281,50 @@ def reaction_rate(levels, candles, start_index, touch_tolerance, hold_margin, lo
             if touching and not in_touch:
                 was_above = c["close"] >= level
                 broke = False
-                for j in range(i + 1, min(i + 1 + lookahead, len(candles))):
-                    nxt = candles[j]
-                    if (was_above and nxt["close"] < level - hold_margin) or \
-                            (not was_above and nxt["close"] > level + hold_margin):
-                        broke = True
-                        break
+                if use_calendar:
+                    deadline = c["timestamp"] + timedelta(days=hold_days)
+                    j = i + 1
+                    while j < len(candles) and candles[j]["timestamp"] <= deadline:
+                        nxt = candles[j]
+                        if (was_above and nxt["close"] < level - hold_margin) or \
+                                (not was_above and nxt["close"] > level + hold_margin):
+                            broke = True
+                            break
+                        j += 1
+                else:
+                    for j in range(i + 1, min(i + 1 + lookahead_candles, len(candles))):
+                        nxt = candles[j]
+                        if (was_above and nxt["close"] < level - hold_margin) or \
+                                (not was_above and nxt["close"] > level + hold_margin):
+                            broke = True
+                            break
                 total += 1
                 if not broke:
                     holds += 1
             in_touch = touching
-    if total == 0:
-        return None, 0
-    return holds / total, total
+        results.append((weight, holds, total))
+    return results
 
 
-def run_statistical_test(candles, zones, rng):
+def _aggregate(per_level, weighted=False):
+    if weighted:
+        total = sum(w * t for w, h, t in per_level)
+        holds = sum(w * h for w, h, t in per_level)
+    else:
+        total = sum(t for w, h, t in per_level)
+        holds = sum(h for w, h, t in per_level)
+    rate = holds / total if total > 0 else None
+    return rate, total
+
+
+def run_statistical_test(candles, zones, rng, min_strength=None, hold_days=None):
+    """Test statistique en 3 lectures (cf. docs/calibration-rejection-zone.md, run du 2026-07-09) :
+    taux "brut" (toutes zones à égalité), **pondéré par `strength`**, et **filtré** (uniquement les
+    zones au-dessus d'un seuil de force, médiane du run par défaut) — comparaison, pas substitution.
+    <p>
+    `hold_days` (si fourni, avec des candles à vrais timestamps) normalise la fenêtre de "tenue" en
+    durée calendaire plutôt qu'en nombre fixe de bougies, pour permettre une comparaison honnête
+    entre TF (cf. reaction_rate_per_level) — sinon comportement historique à 5 bougies."""
     if not zones:
         return None
 
@@ -282,17 +334,35 @@ def run_statistical_test(candles, zones, rng):
     touch_tolerance = avg_range * 0.25
     hold_margin = avg_range * 0.5
 
-    zone_levels = [z.level for z in zones]
-    zone_rate, zone_n = reaction_rate(zone_levels, candles, 0, touch_tolerance, hold_margin)
+    strengths = [z.strength for z in zones]
+    threshold = min_strength if min_strength is not None else statistics.median(strengths)
 
-    random_levels = [rng.uniform(price_min, price_max) for _ in zones]
-    random_rate, random_n = reaction_rate(random_levels, candles, 0, touch_tolerance, hold_margin)
+    zone_levels = [(z.level, z.strength) for z in zones]
+    per_level = reaction_rate_per_level(zone_levels, candles, 0, touch_tolerance, hold_margin, hold_days=hold_days)
+
+    raw_rate, raw_tests = _aggregate(per_level, weighted=False)
+    weighted_rate, weighted_tests = _aggregate(per_level, weighted=True)
+
+    filtered = [(w, h, t) for w, h, t in per_level if w >= threshold]
+    filtered_rate, filtered_tests = _aggregate(filtered, weighted=False)
+    filtered_zone_count = len(filtered)
+
+    random_levels = [(rng.uniform(price_min, price_max), 1.0) for _ in zones]
+    random_per_level = reaction_rate_per_level(random_levels, candles, 0, touch_tolerance, hold_margin, hold_days=hold_days)
+    random_rate, random_tests = _aggregate(random_per_level, weighted=False)
 
     return {
-        "zone_reaction_rate": zone_rate,
-        "zone_tests": zone_n,
+        # Compat avec le code existant (grille de sensibilité) : taux brut, mêmes clés qu'avant.
+        "zone_reaction_rate": raw_rate,
+        "zone_tests": raw_tests,
+        "weighted_reaction_rate": weighted_rate,
+        "weighted_tests": weighted_tests,
+        "filtered_reaction_rate": filtered_rate,
+        "filtered_tests": filtered_tests,
+        "filtered_zone_count": filtered_zone_count,
+        "filtered_threshold": threshold,
         "random_reaction_rate": random_rate,
-        "random_tests": random_n,
+        "random_tests": random_tests,
     }
 
 
@@ -307,7 +377,22 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv", help="Chemin d'un CSV OHLCV réel (timestamp,open,high,low,close,volume)")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--lookback", type=int, default=None,
+                         help="Surcharge DEFAULT_PARAMS['lookback'] (200 par défaut) — utile pour "
+                              "scanner une fenêtre plus large selon le TF (ex: W1 sur plusieurs années).")
+    parser.add_argument("--label", default=None, help="Etiquette affichée dans les logs (ex: 'W1')")
+    parser.add_argument("--min-strength", type=float, default=None,
+                         help="Seuil de force pour le taux de réaction 'filtré' (défaut : médiane des "
+                              "zones détectées sur ce run).")
+    parser.add_argument("--hold-days", type=float, default=None,
+                         help="Fenêtre de 'tenue' normalisée en jours calendaires réels (ex: 5), "
+                              "identique quel que soit le TF, au lieu de l'ancien comportement à "
+                              "5 bougies fixes (qui ne veut pas dire la même durée en H1 vs D1 vs W1). "
+                              "Nécessite un CSV réel (timestamps ISO), ignoré sur série synthétique.")
     args = parser.parse_args()
+
+    if args.lookback is not None:
+        DEFAULT_PARAMS["lookback"] = args.lookback
 
     if args.csv:
         candles = load_csv(args.csv)
@@ -317,8 +402,11 @@ def main():
         source = "série synthétique (generate_synthetic_series) — PAS des données de marché réelles, cf. avertissement en tête de fichier"
 
     print(f"=== RejectionZone — protocole de validation ===")
+    if args.label:
+        print(f"Label: {args.label}")
     print(f"Source: {source}")
     print(f"Bougies: {len(candles)}")
+    print(f"Params: {DEFAULT_PARAMS}")
     print()
 
     # ---- Étape 1 : calibration visuelle (résumé texte des zones sur les paramètres par défaut) ----
@@ -330,15 +418,37 @@ def main():
     print(f"  Total zones: {len(zones)}")
     print()
 
-    # ---- Étape 2 : test statistique (taux de réaction vs baseline aléatoire) ----
+    # ---- Étape 2 : test statistique (taux de réaction vs baseline aléatoire, 3 lectures) ----
     rng = random.Random(args.seed)
-    stats = run_statistical_test(candles, zones, rng)
+    stats = run_statistical_test(candles, zones, rng, min_strength=args.min_strength, hold_days=args.hold_days)
     print("--- TEST STATISTIQUE (taux de réaction) ---")
+    if args.hold_days is not None:
+        print(f"  (fenêtre de tenue normalisée : {args.hold_days} jours calendaires)")
+        if len(candles) >= 2 and isinstance(candles[0]["timestamp"], datetime):
+            avg_spacing_days = (candles[-1]["timestamp"] - candles[0]["timestamp"]).total_seconds() \
+                                / (len(candles) - 1) / 86400
+            if args.hold_days < avg_spacing_days:
+                print(f"  ⚠ hold_days ({args.hold_days}) < espacement moyen des bougies "
+                      f"({avg_spacing_days:.2f} jours) : la fenêtre de tenue ne contient alors "
+                      f"AUCUNE bougie suivante à tester -> tout 'tient' par construction (taux "
+                      f"artificiellement à 100%, pas un vrai résultat). Augmenter --hold-days pour "
+                      f"ce TF.")
     if stats is None:
         print("  Aucune zone détectée avec les paramètres par défaut : impossible de calculer un taux de réaction.")
     else:
-        print(f"  Zones détectées   : taux de réaction = {stats['zone_reaction_rate']:.1%}  ({stats['zone_tests']} tests)")
-        print(f"  Niveaux aléatoires: taux de réaction = {stats['random_reaction_rate']:.1%}  ({stats['random_tests']} tests)")
+        print(f"  Brut (toutes zones à égalité)      : {stats['zone_reaction_rate']:.1%}  ({stats['zone_tests']} tests)")
+        if stats['weighted_reaction_rate'] is not None:
+            print(f"  Pondéré par strength                : {stats['weighted_reaction_rate']:.1%}  "
+                  f"(poids total {stats['weighted_tests']:.1f})")
+        else:
+            print(f"  Pondéré par strength                : n/a")
+        if stats['filtered_reaction_rate'] is not None:
+            print(f"  Filtré (strength >= {stats['filtered_threshold']:.3f})       : "
+                  f"{stats['filtered_reaction_rate']:.1%}  ({stats['filtered_tests']} tests, "
+                  f"{stats['filtered_zone_count']}/{len(zones)} zones retenues)")
+        else:
+            print(f"  Filtré (strength >= {stats['filtered_threshold']:.3f})       : n/a (aucune zone au-dessus du seuil)")
+        print(f"  Niveaux aléatoires                  : {stats['random_reaction_rate']:.1%}  ({stats['random_tests']} tests)")
     print()
 
     # ---- Étape 3 : sensibilité aux paramètres ----
@@ -354,7 +464,7 @@ def main():
     results = []
     for params in grid:
         z = detect_all_zones(candles, **params)
-        s = run_statistical_test(candles, z, random.Random(args.seed))
+        s = run_statistical_test(candles, z, random.Random(args.seed), hold_days=args.hold_days)
         if s is not None and s["zone_reaction_rate"] is not None:
             results.append((params, len(z), s["zone_reaction_rate"], s["zone_tests"]))
 

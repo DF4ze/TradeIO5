@@ -1,0 +1,703 @@
+{
+  "generated_at": "2026-07-09T00:00:00+00:00",
+  "hist_cutoff_days": 60,
+  "historical": [
+    {
+      "type": "historical",
+      "band_low": 50527.4,
+      "band_high": 52792.17,
+      "anchor_date": "2024-02-26T00:00:00+00:00",
+      "touches": 12,
+      "label": "Consolidation D1 (2024-02-26)"
+    },
+    {
+      "type": "historical",
+      "band_low": 64857.1,
+      "band_high": 73585.23,
+      "anchor_date": "2024-03-19T00:00:00+00:00",
+      "touches": 12,
+      "label": "Consolidation D1 (2024-03-19)"
+    },
+    {
+      "type": "historical",
+      "band_low": 64257.16,
+      "band_high": 71759.32,
+      "anchor_date": "2024-04-15T00:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation D1 (2024-04-15)"
+    },
+    {
+      "type": "historical",
+      "band_low": 60899.57,
+      "band_high": 67171.75,
+      "anchor_date": "2024-04-30T00:00:00+00:00",
+      "touches": 12,
+      "label": "Consolidation D1 (2024-04-30)"
+    },
+    {
+      "type": "historical",
+      "band_low": 60217.12,
+      "band_high": 64635.4,
+      "anchor_date": "2024-05-15T00:00:00+00:00",
+      "touches": 12,
+      "label": "Consolidation D1 (2024-05-15)"
+    },
+    {
+      "type": "historical",
+      "band_low": 68177.74,
+      "band_high": 71829.71,
+      "anchor_date": "2024-06-11T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2024-06-11)"
+    },
+    {
+      "type": "historical",
+      "band_low": 63855.8,
+      "band_high": 67320.24,
+      "anchor_date": "2024-06-22T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2024-06-22)"
+    },
+    {
+      "type": "historical",
+      "band_low": 60198.84,
+      "band_high": 63460.71,
+      "anchor_date": "2024-07-03T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2024-07-03)"
+    },
+    {
+      "type": "historical",
+      "band_low": 55285.11,
+      "band_high": 59710.0,
+      "anchor_date": "2024-07-14T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2024-07-14)"
+    },
+    {
+      "type": "historical",
+      "band_low": 63269.58,
+      "band_high": 68937.27,
+      "anchor_date": "2024-08-02T00:00:00+00:00",
+      "touches": 16,
+      "label": "Consolidation D1 (2024-08-02)"
+    },
+    {
+      "type": "historical",
+      "band_low": 55404.27,
+      "band_high": 61839.46,
+      "anchor_date": "2024-08-23T00:00:00+00:00",
+      "touches": 16,
+      "label": "Consolidation D1 (2024-08-23)"
+    },
+    {
+      "type": "historical",
+      "band_low": 57179.1,
+      "band_high": 61780.49,
+      "anchor_date": "2024-09-04T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2024-09-04)"
+    },
+    {
+      "type": "historical",
+      "band_low": 55259.22,
+      "band_high": 60614.81,
+      "anchor_date": "2024-09-17T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2024-09-17)"
+    },
+    {
+      "type": "historical",
+      "band_low": 62350.79,
+      "band_high": 66241.61,
+      "anchor_date": "2024-10-02T00:00:00+00:00",
+      "touches": 12,
+      "label": "Consolidation D1 (2024-10-02)"
+    },
+    {
+      "type": "historical",
+      "band_low": 59745.15,
+      "band_high": 63779.46,
+      "anchor_date": "2024-10-13T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2024-10-13)"
+    },
+    {
+      "type": "historical",
+      "band_low": 65680.65,
+      "band_high": 69360.0,
+      "anchor_date": "2024-10-28T00:00:00+00:00",
+      "touches": 12,
+      "label": "Consolidation D1 (2024-10-28)"
+    },
+    {
+      "type": "historical",
+      "band_low": 85811.19,
+      "band_high": 93457.6,
+      "anchor_date": "2024-11-20T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2024-11-20)"
+    },
+    {
+      "type": "historical",
+      "band_low": 91692.04,
+      "band_high": 101963.09,
+      "anchor_date": "2024-12-13T00:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation D1 (2024-12-13)"
+    },
+    {
+      "type": "historical",
+      "band_low": 92133.14,
+      "band_high": 99766.42,
+      "anchor_date": "2025-01-04T00:00:00+00:00",
+      "touches": 16,
+      "label": "Consolidation D1 (2025-01-04)"
+    },
+    {
+      "type": "historical",
+      "band_low": 90619.58,
+      "band_high": 98977.01,
+      "anchor_date": "2025-01-15T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2025-01-15)"
+    },
+    {
+      "type": "historical",
+      "band_low": 93598.13,
+      "band_high": 101649.6,
+      "anchor_date": "2025-02-25T00:00:00+00:00",
+      "touches": 24,
+      "label": "Consolidation D1 (2025-02-25)"
+    },
+    {
+      "type": "historical",
+      "band_low": 83127.35,
+      "band_high": 94591.52,
+      "anchor_date": "2025-03-09T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2025-03-09)"
+    },
+    {
+      "type": "historical",
+      "band_low": 81157.63,
+      "band_high": 88432.5,
+      "anchor_date": "2025-04-06T00:00:00+00:00",
+      "touches": 24,
+      "label": "Consolidation D1 (2025-04-06)"
+    },
+    {
+      "type": "historical",
+      "band_low": 78514.88,
+      "band_high": 86080.5,
+      "anchor_date": "2025-04-21T00:00:00+00:00",
+      "touches": 12,
+      "label": "Consolidation D1 (2025-04-21)"
+    },
+    {
+      "type": "historical",
+      "band_low": 92805.6,
+      "band_high": 97375.18,
+      "anchor_date": "2025-05-06T00:00:00+00:00",
+      "touches": 12,
+      "label": "Consolidation D1 (2025-05-06)"
+    },
+    {
+      "type": "historical",
+      "band_low": 101387.73,
+      "band_high": 107063.76,
+      "anchor_date": "2025-05-21T00:00:00+00:00",
+      "touches": 12,
+      "label": "Consolidation D1 (2025-05-21)"
+    },
+    {
+      "type": "historical",
+      "band_low": 103624.89,
+      "band_high": 110330.6,
+      "anchor_date": "2025-06-05T00:00:00+00:00",
+      "touches": 12,
+      "label": "Consolidation D1 (2025-06-05)"
+    },
+    {
+      "type": "historical",
+      "band_low": 103383.92,
+      "band_high": 110399.2,
+      "anchor_date": "2025-06-20T00:00:00+00:00",
+      "touches": 12,
+      "label": "Consolidation D1 (2025-06-20)"
+    },
+    {
+      "type": "historical",
+      "band_low": 104861.11,
+      "band_high": 109748.8,
+      "anchor_date": "2025-07-09T00:00:00+00:00",
+      "touches": 16,
+      "label": "Consolidation D1 (2025-07-09)"
+    },
+    {
+      "type": "historical",
+      "band_low": 115713.23,
+      "band_high": 120838.51,
+      "anchor_date": "2025-08-01T00:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation D1 (2025-08-01)"
+    },
+    {
+      "type": "historical",
+      "band_low": 111916.41,
+      "band_high": 118767.55,
+      "anchor_date": "2025-08-23T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2025-08-23)"
+    },
+    {
+      "type": "historical",
+      "band_low": 107407.0,
+      "band_high": 113435.26,
+      "anchor_date": "2025-09-11T00:00:00+00:00",
+      "touches": 16,
+      "label": "Consolidation D1 (2025-09-11)"
+    },
+    {
+      "type": "historical",
+      "band_low": 114619.77,
+      "band_high": 117591.99,
+      "anchor_date": "2025-09-22T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2025-09-22)"
+    },
+    {
+      "type": "historical",
+      "band_low": 118957.6,
+      "band_high": 125855.78,
+      "anchor_date": "2025-10-10T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2025-10-10)"
+    },
+    {
+      "type": "historical",
+      "band_low": 106423.91,
+      "band_high": 116024.08,
+      "anchor_date": "2025-11-04T00:00:00+00:00",
+      "touches": 12,
+      "label": "Consolidation D1 (2025-11-04)"
+    },
+    {
+      "type": "historical",
+      "band_low": 96804.02,
+      "band_high": 106919.08,
+      "anchor_date": "2025-11-15T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2025-11-15)"
+    },
+    {
+      "type": "historical",
+      "band_low": 87591.55,
+      "band_high": 94436.4,
+      "anchor_date": "2025-12-16T00:00:00+00:00",
+      "touches": 12,
+      "label": "Consolidation D1 (2025-12-16)"
+    },
+    {
+      "type": "historical",
+      "band_low": 86510.95,
+      "band_high": 90664.7,
+      "anchor_date": "2026-01-04T00:00:00+00:00",
+      "touches": 16,
+      "label": "Consolidation D1 (2026-01-04)"
+    },
+    {
+      "type": "historical",
+      "band_low": 86379.16,
+      "band_high": 91718.49,
+      "anchor_date": "2026-01-28T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2026-01-28)"
+    },
+    {
+      "type": "historical",
+      "band_low": 63115.88,
+      "band_high": 69875.95,
+      "anchor_date": "2026-03-03T00:00:00+00:00",
+      "touches": 12,
+      "label": "Consolidation D1 (2026-03-03)"
+    },
+    {
+      "type": "historical",
+      "band_low": 65760.93,
+      "band_high": 72418.02,
+      "anchor_date": "2026-03-14T00:00:00+00:00",
+      "touches": 8,
+      "label": "Consolidation D1 (2026-03-14)"
+    },
+    {
+      "type": "historical",
+      "band_low": 65564.64,
+      "band_high": 70247.31,
+      "anchor_date": "2026-04-07T00:00:00+00:00",
+      "touches": 12,
+      "label": "Consolidation D1 (2026-04-07)"
+    },
+    {
+      "type": "historical",
+      "band_low": 74146.15,
+      "band_high": 79336.15,
+      "anchor_date": "2026-05-03T00:00:00+00:00",
+      "touches": 16,
+      "label": "Consolidation D1 (2026-05-03)"
+    }
+  ],
+  "recent": [
+    {
+      "type": "recent",
+      "band_low": 80610.96,
+      "band_high": 80999.42,
+      "level": 80805.19,
+      "anchor_date": "2026-05-10T16:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-05-10)"
+    },
+    {
+      "type": "recent",
+      "band_low": 80563.75,
+      "band_high": 81526.64,
+      "level": 81045.19,
+      "anchor_date": "2026-05-11T16:00:00+00:00",
+      "touches": 15,
+      "label": "Consolidation H1 (2026-05-11)"
+    },
+    {
+      "type": "recent",
+      "band_low": 80397.39,
+      "band_high": 81321.47,
+      "level": 80859.43,
+      "anchor_date": "2026-05-12T16:00:00+00:00",
+      "touches": 15,
+      "label": "Consolidation H1 (2026-05-12)"
+    },
+    {
+      "type": "recent",
+      "band_low": 80461.94,
+      "band_high": 81299.39,
+      "level": 80880.67,
+      "anchor_date": "2026-05-13T12:00:00+00:00",
+      "touches": 15,
+      "label": "Consolidation H1 (2026-05-13)"
+    },
+    {
+      "type": "recent",
+      "band_low": 79088.21,
+      "band_high": 79939.17,
+      "level": 79513.69,
+      "anchor_date": "2026-05-14T13:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-05-14)"
+    },
+    {
+      "type": "recent",
+      "band_low": 80314.0,
+      "band_high": 81550.04,
+      "level": 80932.02,
+      "anchor_date": "2026-05-15T14:00:00+00:00",
+      "touches": 15,
+      "label": "Consolidation H1 (2026-05-15)"
+    },
+    {
+      "type": "recent",
+      "band_low": 78619.92,
+      "band_high": 79418.9,
+      "level": 79019.41,
+      "anchor_date": "2026-05-16T08:00:00+00:00",
+      "touches": 15,
+      "label": "Consolidation H1 (2026-05-16)"
+    },
+    {
+      "type": "recent",
+      "band_low": 77640.73,
+      "band_high": 78469.0,
+      "level": 78054.86,
+      "anchor_date": "2026-05-18T03:00:00+00:00",
+      "touches": 40,
+      "label": "Consolidation H1 (2026-05-18)"
+    },
+    {
+      "type": "recent",
+      "band_low": 76439.76,
+      "band_high": 77256.26,
+      "level": 76848.01,
+      "anchor_date": "2026-05-20T06:00:00+00:00",
+      "touches": 35,
+      "label": "Consolidation H1 (2026-05-20)"
+    },
+    {
+      "type": "recent",
+      "band_low": 76988.18,
+      "band_high": 77763.96,
+      "level": 77376.07,
+      "anchor_date": "2026-05-21T00:00:00+00:00",
+      "touches": 15,
+      "label": "Consolidation H1 (2026-05-21)"
+    },
+    {
+      "type": "recent",
+      "band_low": 77198.45,
+      "band_high": 77902.2,
+      "level": 77550.32,
+      "anchor_date": "2026-05-22T13:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-05-22)"
+    },
+    {
+      "type": "recent",
+      "band_low": 76574.62,
+      "band_high": 77344.26,
+      "level": 76959.44,
+      "anchor_date": "2026-05-24T13:00:00+00:00",
+      "touches": 15,
+      "label": "Consolidation H1 (2026-05-24)"
+    },
+    {
+      "type": "recent",
+      "band_low": 77067.11,
+      "band_high": 77804.76,
+      "level": 77435.93,
+      "anchor_date": "2026-05-26T00:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-05-26)"
+    },
+    {
+      "type": "recent",
+      "band_low": 75578.68,
+      "band_high": 76189.37,
+      "level": 75884.02,
+      "anchor_date": "2026-05-27T13:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-05-27)"
+    },
+    {
+      "type": "recent",
+      "band_low": 73311.94,
+      "band_high": 73837.75,
+      "level": 73574.84,
+      "anchor_date": "2026-05-30T15:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-05-30)"
+    },
+    {
+      "type": "recent",
+      "band_low": 73794.54,
+      "band_high": 74228.5,
+      "level": 74011.52,
+      "anchor_date": "2026-05-31T14:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-05-31)"
+    },
+    {
+      "type": "recent",
+      "band_low": 70639.21,
+      "band_high": 71756.44,
+      "level": 71197.83,
+      "anchor_date": "2026-06-02T05:00:00+00:00",
+      "touches": 15,
+      "label": "Consolidation H1 (2026-06-02)"
+    },
+    {
+      "type": "recent",
+      "band_low": 62060.99,
+      "band_high": 64211.97,
+      "level": 63136.48,
+      "anchor_date": "2026-06-05T12:00:00+00:00",
+      "touches": 25,
+      "label": "Consolidation H1 (2026-06-05)"
+    },
+    {
+      "type": "recent",
+      "band_low": 60374.36,
+      "band_high": 61675.32,
+      "level": 61024.84,
+      "anchor_date": "2026-06-07T04:00:00+00:00",
+      "touches": 30,
+      "label": "Consolidation H1 (2026-06-07)"
+    },
+    {
+      "type": "recent",
+      "band_low": 61361.15,
+      "band_high": 62841.78,
+      "level": 62101.46,
+      "anchor_date": "2026-06-07T22:00:00+00:00",
+      "touches": 15,
+      "label": "Consolidation H1 (2026-06-07)"
+    },
+    {
+      "type": "recent",
+      "band_low": 62884.0,
+      "band_high": 64065.29,
+      "level": 63474.64,
+      "anchor_date": "2026-06-08T22:00:00+00:00",
+      "touches": 15,
+      "label": "Consolidation H1 (2026-06-08)"
+    },
+    {
+      "type": "recent",
+      "band_low": 60950.72,
+      "band_high": 62259.41,
+      "level": 61605.06,
+      "anchor_date": "2026-06-10T15:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-06-10)"
+    },
+    {
+      "type": "recent",
+      "band_low": 62207.2,
+      "band_high": 63229.65,
+      "level": 62718.42,
+      "anchor_date": "2026-06-11T17:00:00+00:00",
+      "touches": 15,
+      "label": "Consolidation H1 (2026-06-11)"
+    },
+    {
+      "type": "recent",
+      "band_low": 63386.8,
+      "band_high": 63998.4,
+      "level": 63692.6,
+      "anchor_date": "2026-06-13T10:00:00+00:00",
+      "touches": 25,
+      "label": "Consolidation H1 (2026-06-13)"
+    },
+    {
+      "type": "recent",
+      "band_low": 64207.8,
+      "band_high": 64668.6,
+      "level": 64438.2,
+      "anchor_date": "2026-06-14T14:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-06-14)"
+    },
+    {
+      "type": "recent",
+      "band_low": 65295.33,
+      "band_high": 66231.07,
+      "level": 65763.2,
+      "anchor_date": "2026-06-15T13:00:00+00:00",
+      "touches": 15,
+      "label": "Consolidation H1 (2026-06-15)"
+    },
+    {
+      "type": "recent",
+      "band_low": 65465.84,
+      "band_high": 66285.53,
+      "level": 65875.69,
+      "anchor_date": "2026-06-17T08:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-06-17)"
+    },
+    {
+      "type": "recent",
+      "band_low": 63789.63,
+      "band_high": 64779.59,
+      "level": 64284.61,
+      "anchor_date": "2026-06-18T15:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-06-18)"
+    },
+    {
+      "type": "recent",
+      "band_low": 63146.4,
+      "band_high": 63799.5,
+      "level": 63472.95,
+      "anchor_date": "2026-06-20T12:00:00+00:00",
+      "touches": 15,
+      "label": "Consolidation H1 (2026-06-20)"
+    },
+    {
+      "type": "recent",
+      "band_low": 63687.5,
+      "band_high": 64474.09,
+      "level": 64080.8,
+      "anchor_date": "2026-06-22T11:00:00+00:00",
+      "touches": 40,
+      "label": "Consolidation H1 (2026-06-22)"
+    },
+    {
+      "type": "recent",
+      "band_low": 62309.99,
+      "band_high": 63078.04,
+      "level": 62694.02,
+      "anchor_date": "2026-06-24T12:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-06-24)"
+    },
+    {
+      "type": "recent",
+      "band_low": 60708.1,
+      "band_high": 61899.61,
+      "level": 61303.85,
+      "anchor_date": "2026-06-25T13:00:00+00:00",
+      "touches": 15,
+      "label": "Consolidation H1 (2026-06-25)"
+    },
+    {
+      "type": "recent",
+      "band_low": 59612.76,
+      "band_high": 60515.66,
+      "level": 60064.21,
+      "anchor_date": "2026-06-27T13:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-06-27)"
+    },
+    {
+      "type": "recent",
+      "band_low": 59850.44,
+      "band_high": 60548.11,
+      "level": 60199.28,
+      "anchor_date": "2026-06-28T14:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-06-28)"
+    },
+    {
+      "type": "recent",
+      "band_low": 58310.65,
+      "band_high": 59323.85,
+      "level": 58817.25,
+      "anchor_date": "2026-07-01T13:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-07-01)"
+    },
+    {
+      "type": "recent",
+      "band_low": 61282.29,
+      "band_high": 61906.5,
+      "level": 61594.4,
+      "anchor_date": "2026-07-03T11:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-07-03)"
+    },
+    {
+      "type": "recent",
+      "band_low": 62396.65,
+      "band_high": 62949.39,
+      "level": 62673.02,
+      "anchor_date": "2026-07-04T16:00:00+00:00",
+      "touches": 20,
+      "label": "Consolidation H1 (2026-07-04)"
+    },
+    {
+      "type": "recent",
+      "band_low": 62577.63,
+      "band_high": 63232.8,
+      "level": 62905.21,
+      "anchor_date": "2026-07-06T00:00:00+00:00",
+      "touches": 25,
+      "label": "Consolidation H1 (2026-07-06)"
+    },
+    {
+      "type": "recent",
+      "band_low": 63046.41,
+      "band_high": 64214.4,
+      "level": 63630.4,
+      "anchor_date": "2026-07-08T01:00:00+00:00",
+      "touches": 15,
+      "label": "Consolidation H1 (2026-07-08)"
+    }
+  ]
+}
