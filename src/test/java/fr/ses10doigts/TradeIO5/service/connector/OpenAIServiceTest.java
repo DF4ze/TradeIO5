@@ -7,6 +7,8 @@ import fr.ses10doigts.tradeIO5.model.enumerate.OpenAIModel;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -17,10 +19,11 @@ class OpenAIServiceTest {
         OpenAIProperties props = new OpenAIProperties(
                 "fake-key",
                 new OpenAIProperties.ModelTiers(low, medium, high),
-                "https://api.openai.com/v1"
+                "https://api.openai.com/v1",
+                Map.of()
         );
-        // Le client n'est pas sollicité par resolveModel(), null suffit pour ces tests.
-        return new OpenAIService((OpenAIClient) null, props);
+        // Le client et le repository ne sont pas sollicités par resolveModel(), null suffit pour ces tests.
+        return new OpenAIService((OpenAIClient) null, props, null);
     }
 
     @Test

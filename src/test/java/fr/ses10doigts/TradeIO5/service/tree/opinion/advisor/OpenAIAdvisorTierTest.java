@@ -47,7 +47,7 @@ class OpenAIAdvisorTierTest {
     void callModel_requestsMediumTier() {
         OpenAIService service = mock(OpenAIService.class);
         LlmAdvice expected = LlmAdvice.invalid();
-        when(service.ask(anyString(), eq(LlmTier.MEDIUM))).thenReturn(expected);
+        when(service.ask(anyString(), eq(LlmTier.MEDIUM), anyString())).thenReturn(expected);
 
         OpenAIAdvisor advisor = new OpenAIAdvisor(service);
 
@@ -70,6 +70,6 @@ class OpenAIAdvisorTierTest {
 
         advisor.advise(ctx);
 
-        verify(service).ask(anyString(), eq(LlmTier.MEDIUM));
+        verify(service).ask(anyString(), eq(LlmTier.MEDIUM), eq("opinion:openai-advisor"));
     }
 }

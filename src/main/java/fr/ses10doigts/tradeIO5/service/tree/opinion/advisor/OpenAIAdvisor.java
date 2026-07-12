@@ -21,6 +21,6 @@ public class OpenAIAdvisor extends AbstractAdvisor{
 
     @Override
     protected LlmAdvice callModel(OpinionContext ctx) {
-        return service.ask(buildPrompt(ctx), LlmTier.MEDIUM);
+        return service.ask(buildPrompt(ctx), LlmTier.MEDIUM, "opinion:openai-advisor");
     }
 }

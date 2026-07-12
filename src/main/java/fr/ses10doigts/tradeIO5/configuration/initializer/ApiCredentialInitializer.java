@@ -47,6 +47,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		Optional<WebProvider> wpFinnhubOpt = providerRepository.findByCode(WebProviderCode.FINNHUB);
 		Optional<WebProvider> wpForexFactoryOpt = providerRepository.findByCode(WebProviderCode.FOREXFACTORY);
 		Optional<WebProvider> wpFarsideOpt = providerRepository.findByCode(WebProviderCode.FARSIDE);
+		Optional<WebProvider> wpYoutubeOpt = providerRepository.findByCode(WebProviderCode.YOUTUBE);
 
 		if (userOpt.isEmpty()) {
 			logger.warn("❗ Impossible d’ajouter la clé API : utilisateur manquant.");
@@ -108,6 +109,11 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			return;
 		}
 
+		if (wpYoutubeOpt.isEmpty()) {
+			logger.warn("❗ Impossible d’ajouter la clé API : provider YouTube manquant.");
+			return;
+		}
+
         User user = userOpt.get();
 		User sys = sysOpt.get();
 		WebProvider webProviderBinanceTestnet = wpBinanceTestNetOpt.get();
@@ -120,6 +126,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		WebProvider webProviderFinnhub = wpFinnhubOpt.get();
 		WebProvider webProviderForexFactory = wpForexFactoryOpt.get();
 		WebProvider webProviderFarside = wpFarsideOpt.get();
+		WebProvider webProviderYoutube = wpYoutubeOpt.get();
 
 		boolean alreadyExistsBTN = credentialRepository.findByUserAndWebProvider(user, webProviderBinanceTestnet).isPresent();
 		boolean alreadyExistsBin = credentialRepository.findByUserAndWebProvider(user, webProviderBinance).isPresent();
@@ -132,6 +139,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		boolean alreadyExistsFinnhub = credentialRepository.findByUserAndWebProvider(sys, webProviderFinnhub).isPresent();
 		boolean alreadyExistsForexFactory = credentialRepository.findByUserAndWebProvider(sys, webProviderForexFactory).isPresent();
 		boolean alreadyExistsFarside = credentialRepository.findByUserAndWebProvider(sys, webProviderFarside).isPresent();
+		boolean alreadyExistsYoutube = credentialRepository.findByUserAndWebProvider(sys, webProviderYoutube).isPresent();
 
 		if (alreadyExistsBTN) {
 			logger.debug("🔑 Clé API " + webProviderBinanceTestnet.getName() + " déjà présente pour l'utilisateur OKlm.");
@@ -376,6 +384,30 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 			credentialRepository.save(credential);
 			logger.debug("- Clé API ajoutée pour System sur FARSIDE");
+		}
+
+		if (alreadyExistsYoutube) {
+			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur System.", webProviderYoutube.getName());
+			// return;
+
+		} else {
+			// Flux RSS (/feeds/videos.xml) et page /watch ne demandent aucune clé API (endpoints
+			// publics), même principe que DEFILLAMA/FOREXFACTORY/FARSIDE ci-dessus : apiKey vide,
+			// seul le baseUrl porté par la credential résolue importe (cf.
+			// AbstractExternalIndicator#getWebClient et docs/prompt-implementation-veille-media-full.md,
+			// Lot 1a).
+			//@formatter:off
+			ApiCredential credential = ApiCredential.builder()
+					.user(sys)
+					.webProvider(webProviderYoutube)
+					.apiKey("")
+					.enabled(true)
+					.createdAt(LocalDateTime.now())
+					.build();
+			//@formatter:on
+
+			credentialRepository.save(credential);
+			logger.debug("- Clé API ajoutée pour System sur YOUTUBE");
 		}
 
     }

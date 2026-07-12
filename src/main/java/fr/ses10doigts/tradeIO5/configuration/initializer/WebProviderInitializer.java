@@ -96,6 +96,13 @@ public class WebProviderInitializer implements CommandLineRunner {
                         .apiBaseUrl("https://farside.co.uk")
                         .enabled(true)
                         .createdAt(LocalDateTime.now())
+                        .build(),
+                WebProvider.builder()
+                        .code(WebProviderCode.YOUTUBE)
+                        .name("YouTube")
+                        .apiBaseUrl("https://www.youtube.com")
+                        .enabled(true)
+                        .createdAt(LocalDateTime.now())
                         .build()
         )) {
             providerRepository.findByCode(wp.getCode())

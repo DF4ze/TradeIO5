@@ -8,15 +8,20 @@ import com.openai.models.responses.ResponseCreateParams;
 import com.openai.models.responses.ResponseOutputItem;
 import com.openai.models.responses.ResponseOutputMessage.Content;
 import com.openai.models.responses.ResponseOutputText;
+import com.openai.models.responses.ResponseUsage;
 import fr.ses10doigts.tradeIO5.configuration.properties.OpenAIProperties;
+import fr.ses10doigts.tradeIO5.exceptions.LlmResponseParsingException;
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.LlmAdvice;
+import fr.ses10doigts.tradeIO5.model.entity.llm.LlmCallLogEntity;
 import fr.ses10doigts.tradeIO5.model.enumerate.LlmTier;
 import fr.ses10doigts.tradeIO5.model.enumerate.OpenAIModel;
+import fr.ses10doigts.tradeIO5.repository.LlmCallLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,14 +32,43 @@ public class OpenAIService {
 
     private final OpenAIClient client;
     private final OpenAIProperties props;
+    private final LlmCallLogRepository llmCallLogRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Envoie une requête au modèle pour le niveau donné et retourne directement un LlmAdvice.
      * Le niveau ({@link LlmTier}) est obligatoire : il n'y a volontairement pas de modèle par
      * défaut implicite, chaque appelant doit choisir explicitement son niveau de coût/capacité.
+     * <p>
+     * {@code callSite} identifie le site d'appel (ex. {@code "opinion:openai-advisor"},
+     * {@code "media-watch:classification"}) pour permettre de suivre le coût LLM par cas d'usage.
+     * Volontairement une {@code String} libre plutôt qu'un enum fermé : un enum obligerait à
+     * modifier ce fichier à chaque nouveau site d'appel (ex. futur pipeline de veille média),
+     * ce qui couple des modules qui n'ont pas à se connaître.
      */
-    public LlmAdvice ask(String userInput, LlmTier tier ){
+    public LlmAdvice ask(String userInput, LlmTier tier, String callSite){
+        try {
+            LlmAdvice advice = ask(userInput, tier, callSite, LlmAdvice.class);
+            advice.setValid(true);
+            return advice;
+        } catch (LlmResponseParsingException e) {
+            logger.error("Error mapping OpenAI response: {}\nPrompt: \n{}", e.getMessage(), userInput);
+            return LlmAdvice.invalid();
+        }
+    }
+
+    /**
+     * Variante générique de {@link #ask(String, LlmTier, String)} : même appel/logging d'usage,
+     * mais désérialise vers {@code responseType} au lieu de {@link LlmAdvice} — nécessaire pour
+     * les sites d'appel dont le schéma JSON de réponse n'a rien à voir avec BUY/SELL/HOLD (ex.
+     * classification/extraction de la veille média, cf.
+     * docs/prompt-implementation-veille-media-full.md, Lot 2 item 0). Contrairement à
+     * {@link #ask(String, LlmTier, String)}, ne retourne jamais de valeur "invalide" en silence :
+     * lève {@link LlmResponseParsingException} sur réponse vide ou JSON non désérialisable, à
+     * l'appelant de décider quoi en faire (pas de notion de "invalid()" générique hors contexte
+     * trading).
+     */
+    public <T> T ask(String userInput, LlmTier tier, String callSite, Class<T> responseType){
 
         OpenAIModel model = resolveModel(tier);
 
@@ -48,21 +82,50 @@ public class OpenAIService {
         logger.debug("Input : {}", userInput);
         logger.debug("Response : {}", response);
 
+        logUsage(response, tier, model, callSite);
+
         List<String> texts = extractText(response);
 
-        if( !texts.isEmpty() ){
-            // Conversion JSON → DTO
-            try {
-                LlmAdvice advice = objectMapper.readValue(cleanString(texts.getFirst().replaceAll("```\\w*", "")), LlmAdvice.class);
-                advice.setValid(true);
-                return advice;
-            } catch (JsonProcessingException e) {
-                logger.error("Error mapping OpenAI response: {}\nPrompt: \n{}\nResponse: {}",
-                        e.getMessage(), userInput, response);
-            }
+        if (texts.isEmpty()) {
+            throw new LlmResponseParsingException("Réponse LLM vide (callSite=" + callSite + ", tier=" + tier + ")");
         }
 
-        return LlmAdvice.invalid();
+        try {
+            return objectMapper.readValue(cleanString(texts.getFirst().replaceAll("```\\w*", "")), responseType);
+        } catch (JsonProcessingException e) {
+            throw new LlmResponseParsingException(
+                    "Échec de désérialisation de la réponse LLM vers " + responseType.getSimpleName()
+                            + " (callSite=" + callSite + ", tier=" + tier + ") : " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Capte l'usage tokens réel remonté par l'API (uniquement disponible en mode non-streamé,
+     * cf. en-tête de classe) et le persiste. Si l'API ne remonte rien (cas non censé arriver
+     * en non-streamé, mais pas d'exception à lever pour autant), on se contente d'un warning :
+     * pas de log LlmCallLogEntity créé pour cet appel.
+     */
+    private void logUsage(Response response, LlmTier tier, OpenAIModel model, String callSite) {
+        Optional<ResponseUsage> usage = response.usage();
+
+        if (usage.isEmpty()) {
+            logger.warn("Pas d'usage token remonté par l'API OpenAI (callSite={}, tier={}, model={}) — rien persisté",
+                    callSite, tier, model);
+            return;
+        }
+
+        ResponseUsage responseUsage = usage.get();
+
+        LlmCallLogEntity log = new LlmCallLogEntity();
+        log.setCallSite(callSite);
+        log.setTier(tier);
+        log.setModel(model.name());
+        log.setInputTokens(responseUsage.inputTokens());
+        log.setOutputTokens(responseUsage.outputTokens());
+        log.setTotalTokens(responseUsage.totalTokens());
+        log.setOccurredAt(Instant.now());
+
+        llmCallLogRepository.save(log);
     }
 
     /**

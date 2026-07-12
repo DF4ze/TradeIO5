@@ -11,5 +11,6 @@ public enum WebProviderCode {
     TWELVE_DATA,
     FINNHUB,
     FOREXFACTORY,
-    FARSIDE
+    FARSIDE,
+    YOUTUBE
 }
