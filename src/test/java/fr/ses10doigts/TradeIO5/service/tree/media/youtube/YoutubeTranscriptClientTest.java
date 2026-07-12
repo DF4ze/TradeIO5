@@ -1,5 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.tree.media.youtube;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import fr.ses10doigts.tradeIO5.model.dto.provider.web.ApiCredentialDTO;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
@@ -10,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,6 +32,8 @@ class YoutubeTranscriptClientTest {
             <text start="4.32" dur="3.1">Deuxieme segment</text>\
             </transcript>""";
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     private HttpServer server;
 
     @AfterEach
@@ -39,42 +44,34 @@ class YoutubeTranscriptClientTest {
     }
 
     @Test
-    @DisplayName("extractJsonObject() extrait le bloc JSON complet malgré un ';' interne à une chaîne")
-    void extractJsonObject_stopsAtMatchingClosingBrace() {
-        String html = """
-                <html><body><script>
-                var ytInitialData = {"foo":"bar; baz"};
-                var ytInitialPlayerResponse = {"videoDetails":{"title":"Test; avec point-virgule"},"captions":{"playerCaptionsTracklistRenderer":{"captionTracks":[{"baseUrl":"https://example.com/timedtext?lang=fr","languageCode":"fr"}]}}};
-                var otherVar = "not relevant; ignore";
-                </script></body></html>
-                """;
+    @DisplayName("extractInnertubeApiKey() extrait la clé depuis le HTML de /watch")
+    void extractInnertubeApiKey_extractsFromHtml() {
+        String html = "<html><script>var ytcfg={\"INNERTUBE_API_KEY\":\"AIzaSyABC123_-def\",\"other\":1};</script></html>";
 
-        String json = YoutubeTranscriptClient.extractJsonObject(html, "ytInitialPlayerResponse");
+        Optional<String> apiKey = YoutubeTranscriptClient.extractInnertubeApiKey(html);
 
-        assertEquals(
-                "{\"videoDetails\":{\"title\":\"Test; avec point-virgule\"},\"captions\":{\"playerCaptionsTracklistRenderer\":{\"captionTracks\":[{\"baseUrl\":\"https://example.com/timedtext?lang=fr\",\"languageCode\":\"fr\"}]}}}",
-                json
-        );
+        assertTrue(apiKey.isPresent());
+        assertEquals("AIzaSyABC123_-def", apiKey.get());
     }
 
     @Test
-    @DisplayName("extractJsonObject() retourne null si le marqueur est absent")
-    void extractJsonObject_returnsNull_whenMarkerAbsent() {
-        assertEquals(null, YoutubeTranscriptClient.extractJsonObject("<html></html>", "ytInitialPlayerResponse"));
-        assertEquals(null, YoutubeTranscriptClient.extractJsonObject(null, "ytInitialPlayerResponse"));
+    @DisplayName("extractInnertubeApiKey() retourne Optional.empty() si absente ou HTML null")
+    void extractInnertubeApiKey_empty_whenAbsent() {
+        assertFalse(YoutubeTranscriptClient.extractInnertubeApiKey("<html>rien ici</html>").isPresent());
+        assertFalse(YoutubeTranscriptClient.extractInnertubeApiKey(null).isPresent());
     }
 
     @Test
     @DisplayName("extractCaptionBaseUrl() choisit la piste fr en priorité si plusieurs langues disponibles")
-    void extractCaptionBaseUrl_prefersFrench() {
-        String html = playerResponseHtml("""
+    void extractCaptionBaseUrl_prefersFrench() throws Exception {
+        JsonNode playerResponse = objectMapper.readTree("""
                 {"captions":{"playerCaptionsTracklistRenderer":{"captionTracks":[
                   {"baseUrl":"https://example.com/timedtext?lang=en","languageCode":"en"},
                   {"baseUrl":"https://example.com/timedtext?lang=fr","languageCode":"fr"}
                 ]}}}
                 """);
 
-        Optional<String> baseUrl = new YoutubeTranscriptClient().extractCaptionBaseUrl(html);
+        Optional<String> baseUrl = YoutubeTranscriptClient.extractCaptionBaseUrl(playerResponse);
 
         assertTrue(baseUrl.isPresent());
         assertEquals("https://example.com/timedtext?lang=fr", baseUrl.get());
@@ -82,15 +79,15 @@ class YoutubeTranscriptClientTest {
 
     @Test
     @DisplayName("extractCaptionBaseUrl() retombe sur la première piste dispo si pas de fr")
-    void extractCaptionBaseUrl_fallsBackToFirstTrack_whenNoFrench() {
-        String html = playerResponseHtml("""
+    void extractCaptionBaseUrl_fallsBackToFirstTrack_whenNoFrench() throws Exception {
+        JsonNode playerResponse = objectMapper.readTree("""
                 {"captions":{"playerCaptionsTracklistRenderer":{"captionTracks":[
                   {"baseUrl":"https://example.com/timedtext?lang=en","languageCode":"en"},
                   {"baseUrl":"https://example.com/timedtext?lang=es","languageCode":"es"}
                 ]}}}
                 """);
 
-        Optional<String> baseUrl = new YoutubeTranscriptClient().extractCaptionBaseUrl(html);
+        Optional<String> baseUrl = YoutubeTranscriptClient.extractCaptionBaseUrl(playerResponse);
 
         assertTrue(baseUrl.isPresent());
         assertEquals("https://example.com/timedtext?lang=en", baseUrl.get());
@@ -98,14 +95,45 @@ class YoutubeTranscriptClientTest {
 
     @Test
     @DisplayName("extractCaptionBaseUrl() retourne Optional.empty() quand la vidéo n'a aucun sous-titre")
-    void extractCaptionBaseUrl_empty_whenNoCaptions() {
-        String html = playerResponseHtml("""
+    void extractCaptionBaseUrl_empty_whenNoCaptions() throws Exception {
+        JsonNode playerResponse = objectMapper.readTree("""
                 {"videoDetails":{"videoId":"ABCDEF12345"}}
                 """);
 
-        Optional<String> baseUrl = new YoutubeTranscriptClient().extractCaptionBaseUrl(html);
+        assertFalse(YoutubeTranscriptClient.extractCaptionBaseUrl(playerResponse).isPresent());
+    }
 
-        assertFalse(baseUrl.isPresent());
+    @Test
+    @DisplayName("extractCaptionBaseUrl() retourne Optional.empty() sur une réponse null")
+    void extractCaptionBaseUrl_empty_whenNullResponse() {
+        assertFalse(YoutubeTranscriptClient.extractCaptionBaseUrl(null).isPresent());
+    }
+
+    @Test
+    @DisplayName("extractCaptionBaseUrl() retire le paramètre fmt (ex. fmt=srv3) du baseUrl choisi")
+    void extractCaptionBaseUrl_stripsFmtParam() throws Exception {
+        JsonNode playerResponse = objectMapper.readTree("""
+                {"captions":{"playerCaptionsTracklistRenderer":{"captionTracks":[
+                  {"baseUrl":"https://example.com/timedtext?v=x&kind=asr&lang=fr&fmt=srv3","languageCode":"fr"}
+                ]}}}
+                """);
+
+        Optional<String> baseUrl = YoutubeTranscriptClient.extractCaptionBaseUrl(playerResponse);
+
+        assertTrue(baseUrl.isPresent());
+        assertEquals("https://example.com/timedtext?v=x&kind=asr&lang=fr", baseUrl.get());
+    }
+
+    @Test
+    @DisplayName("stripFmtParam() retire fmt en milieu, en fin d'URL et gère l'absence de fmt")
+    void stripFmtParam_variousPositions() {
+        assertEquals("https://x.com/t?a=1&b=2",
+                YoutubeTranscriptClient.stripFmtParam("https://x.com/t?a=1&fmt=srv3&b=2"));
+        assertEquals("https://x.com/t?a=1&b=2",
+                YoutubeTranscriptClient.stripFmtParam("https://x.com/t?a=1&b=2&fmt=srv3"));
+        assertEquals("https://x.com/t?a=1&b=2",
+                YoutubeTranscriptClient.stripFmtParam("https://x.com/t?a=1&b=2"));
+        assertEquals(null, YoutubeTranscriptClient.stripFmtParam(null));
     }
 
     @Test
@@ -135,19 +163,39 @@ class YoutubeTranscriptClientTest {
     }
 
     @Test
-    @DisplayName("fetchTranscript() bout-en-bout : /watch -> extraction JSON -> timedtext -> segments")
+    @DisplayName("buildCookieHeader() reconstitue un header Cookie depuis des Set-Cookie (ignore les attributs)")
+    void buildCookieHeader_joinsNameValuePairs() {
+        String cookieHeader = YoutubeTranscriptClient.buildCookieHeader(List.of(
+                "VISITOR_INFO1_LIVE=abc123; Path=/; Domain=.youtube.com; Secure",
+                "YSC=def456; Path=/"
+        ));
+
+        assertEquals("VISITOR_INFO1_LIVE=abc123; YSC=def456", cookieHeader);
+    }
+
+    @Test
+    @DisplayName("buildCookieHeader() retourne null quand la liste est vide ou nulle")
+    void buildCookieHeader_null_whenNoCookies() {
+        assertEquals(null, YoutubeTranscriptClient.buildCookieHeader(null));
+        assertEquals(null, YoutubeTranscriptClient.buildCookieHeader(List.of()));
+    }
+
+    @Test
+    @DisplayName("fetchTranscript() bout-en-bout : /watch -> clé Innertube -> POST player -> timedtext -> segments")
     void fetchTranscript_endToEnd_returnsSegments() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         int port = server.getAddress().getPort();
         String timedTextUrl = "http://127.0.0.1:" + port + "/timedtext?lang=fr";
 
-        String watchHtml = playerResponseHtml("""
+        String watchHtml = "<html><script>var ytcfg={\"INNERTUBE_API_KEY\":\"TEST_API_KEY\"};</script></html>";
+        String playerResponseJson = """
                 {"captions":{"playerCaptionsTracklistRenderer":{"captionTracks":[
                   {"baseUrl":"%s","languageCode":"fr"}
                 ]}}}
-                """.formatted(timedTextUrl));
+                """.formatted(timedTextUrl);
 
         registerContext(server, "/watch", 200, watchHtml, "text/html");
+        registerContext(server, "/youtubei/v1/player", 200, playerResponseJson, "application/json");
         registerContext(server, "/timedtext", 200, SAMPLE_TIMEDTEXT, "text/xml");
         server.start();
 
@@ -160,13 +208,60 @@ class YoutubeTranscriptClientTest {
     }
 
     @Test
+    @DisplayName("fetchTranscript() propage les cookies de /watch vers l'appel Innertube (POST player)")
+    void fetchTranscript_propagatesCookiesFromWatchToInnertube() throws IOException {
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        int port = server.getAddress().getPort();
+        String timedTextUrl = "http://127.0.0.1:" + port + "/timedtext?lang=fr";
+
+        String watchHtml = "<html><script>var ytcfg={\"INNERTUBE_API_KEY\":\"TEST_API_KEY\"};</script></html>";
+        String playerResponseJson = """
+                {"captions":{"playerCaptionsTracklistRenderer":{"captionTracks":[
+                  {"baseUrl":"%s","languageCode":"fr"}
+                ]}}}
+                """.formatted(timedTextUrl);
+
+        byte[] watchBytes = watchHtml.getBytes(StandardCharsets.UTF_8);
+        server.createContext("/watch", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "text/html");
+            exchange.getResponseHeaders().add("Set-Cookie", "VISITOR_INFO1_LIVE=abc123; Path=/; Secure");
+            exchange.getResponseHeaders().add("Set-Cookie", "YSC=def456; Path=/");
+            exchange.sendResponseHeaders(200, watchBytes.length);
+            exchange.getResponseBody().write(watchBytes);
+            exchange.close();
+        });
+
+        List<String> capturedCookieHeaders = new ArrayList<>();
+        byte[] playerBytes = playerResponseJson.getBytes(StandardCharsets.UTF_8);
+        server.createContext("/youtubei/v1/player", exchange -> {
+            capturedCookieHeaders.add(exchange.getRequestHeaders().getFirst("Cookie"));
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, playerBytes.length);
+            exchange.getResponseBody().write(playerBytes);
+            exchange.close();
+        });
+
+        registerContext(server, "/timedtext", 200, SAMPLE_TIMEDTEXT, "text/xml");
+        server.start();
+
+        YoutubeTranscriptClient client = new YoutubeTranscriptClient();
+        Optional<List<TranscriptSegment>> result = client.fetchTranscript(credentialFor(server), "ABCDEF12345");
+
+        assertTrue(result.isPresent());
+        assertEquals(1, capturedCookieHeaders.size());
+        assertEquals("VISITOR_INFO1_LIVE=abc123; YSC=def456", capturedCookieHeaders.get(0));
+    }
+
+    @Test
     @DisplayName("fetchTranscript() retourne Optional.empty() quand la vidéo n'a pas de sous-titres")
     void fetchTranscript_returnsEmpty_whenNoCaptions() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        String watchHtml = playerResponseHtml("""
-                {"videoDetails":{"videoId":"NOCAPTIONS"}}
-                """);
+
+        String watchHtml = "<html><script>var ytcfg={\"INNERTUBE_API_KEY\":\"TEST_API_KEY\"};</script></html>";
+        String playerResponseJson = "{\"videoDetails\":{\"videoId\":\"NOCAPTIONS\"}}";
+
         registerContext(server, "/watch", 200, watchHtml, "text/html");
+        registerContext(server, "/youtubei/v1/player", 200, playerResponseJson, "application/json");
         server.start();
 
         YoutubeTranscriptClient client = new YoutubeTranscriptClient();
@@ -175,10 +270,18 @@ class YoutubeTranscriptClientTest {
         assertFalse(result.isPresent());
     }
 
-    private String playerResponseHtml(String jsonBody) {
-        return "<html><head></head><body><script>\n" +
-                "var ytInitialPlayerResponse = " + jsonBody.strip() + ";\n" +
-                "</script></body></html>";
+    @Test
+    @DisplayName("fetchTranscript() retourne Optional.empty() quand la clé Innertube est introuvable")
+    void fetchTranscript_returnsEmpty_whenNoApiKey() throws IOException {
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+
+        registerContext(server, "/watch", 200, "<html>rien ici</html>", "text/html");
+        server.start();
+
+        YoutubeTranscriptClient client = new YoutubeTranscriptClient();
+        Optional<List<TranscriptSegment>> result = client.fetchTranscript(credentialFor(server), "NOKEY");
+
+        assertFalse(result.isPresent());
     }
 
     private ApiCredentialDTO credentialFor(HttpServer srv) {

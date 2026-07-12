@@ -23,14 +23,14 @@ import static org.mockito.Mockito.when;
 class TranscriptClassificationServiceTest {
 
     @Test
-    @DisplayName("buildExcerpt() ne garde que les segments dont startSeconds < 120 (2 minutes)")
-    void buildExcerpt_truncatesAt120Seconds() {
+    @DisplayName("buildExcerpt() ne garde que les segments dont startSeconds < 300 (5 minutes)")
+    void buildExcerpt_truncatesAt300Seconds() {
         List<TranscriptSegment> segments = List.of(
                 new TranscriptSegment("Bonjour à tous", 0.0, 3.0),
                 new TranscriptSegment("aujourd'hui on regarde BTC", 3.0, 4.0),
-                new TranscriptSegment("juste avant la limite", 119.9, 2.0),
-                new TranscriptSegment("pile à la limite exclue", 120.0, 2.0),
-                new TranscriptSegment("bien après la limite", 300.0, 2.0)
+                new TranscriptSegment("juste avant la limite", 299.9, 2.0),
+                new TranscriptSegment("pile à la limite exclue", 300.0, 2.0),
+                new TranscriptSegment("bien après la limite", 600.0, 2.0)
         );
 
         String excerpt = TranscriptClassificationService.buildExcerpt(segments);
