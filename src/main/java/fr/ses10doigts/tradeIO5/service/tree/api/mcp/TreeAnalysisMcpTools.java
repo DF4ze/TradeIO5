@@ -109,7 +109,8 @@ public class TreeAnalysisMcpTools {
                     + "candles — SMA, EMA, RSI, MACD, RAINBOW, ADX, ATR, BOLLINGER, OBV, REJECTION_ZONE ; (2) "
                     + "indicateurs externes nécessitant une credential fournisseur déjà configurée côté serveur — "
                     + "FEAR_GREED (CoinStats), STABLECOIN_MARKET_CAP (DefiLlama), OPEN_INTEREST/FUNDING_RATE/"
-                    + "LIQUIDATIONS (Coinalyze, par symbole), DXY/SP500/NASDAQ (Twelve Data), ETF_FLOW (Farside) ; "
+                    + "LIQUIDATIONS (Coinalyze, par symbole), DXY (Twelve Data), SP500/NASDAQ (Yahoo Finance), "
+                    + "ETF_FLOW (Farside) ; "
                     + "(3) ORDER_BOOK (carnet d'ordres Binance, sans credential). Retourne la valeur calculée, ses "
                     + "bornes théoriques et si le calcul est valide (ex: credential manquante ou historique trop court)."
     )

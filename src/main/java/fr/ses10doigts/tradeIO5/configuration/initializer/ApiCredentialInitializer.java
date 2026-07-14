@@ -48,6 +48,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		Optional<WebProvider> wpForexFactoryOpt = providerRepository.findByCode(WebProviderCode.FOREXFACTORY);
 		Optional<WebProvider> wpFarsideOpt = providerRepository.findByCode(WebProviderCode.FARSIDE);
 		Optional<WebProvider> wpYoutubeOpt = providerRepository.findByCode(WebProviderCode.YOUTUBE);
+		Optional<WebProvider> wpYahooFinanceOpt = providerRepository.findByCode(WebProviderCode.YAHOO_FINANCE);
 
 		if (userOpt.isEmpty()) {
 			logger.warn("❗ Impossible d’ajouter la clé API : utilisateur manquant.");
@@ -114,6 +115,11 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			return;
 		}
 
+		if (wpYahooFinanceOpt.isEmpty()) {
+			logger.warn("❗ Impossible d’ajouter la clé API : provider Yahoo Finance manquant.");
+			return;
+		}
+
         User user = userOpt.get();
 		User sys = sysOpt.get();
 		WebProvider webProviderBinanceTestnet = wpBinanceTestNetOpt.get();
@@ -127,6 +133,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		WebProvider webProviderForexFactory = wpForexFactoryOpt.get();
 		WebProvider webProviderFarside = wpFarsideOpt.get();
 		WebProvider webProviderYoutube = wpYoutubeOpt.get();
+		WebProvider webProviderYahooFinance = wpYahooFinanceOpt.get();
 
 		boolean alreadyExistsBTN = credentialRepository.findByUserAndWebProvider(user, webProviderBinanceTestnet).isPresent();
 		boolean alreadyExistsBin = credentialRepository.findByUserAndWebProvider(user, webProviderBinance).isPresent();
@@ -140,6 +147,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		boolean alreadyExistsForexFactory = credentialRepository.findByUserAndWebProvider(sys, webProviderForexFactory).isPresent();
 		boolean alreadyExistsFarside = credentialRepository.findByUserAndWebProvider(sys, webProviderFarside).isPresent();
 		boolean alreadyExistsYoutube = credentialRepository.findByUserAndWebProvider(sys, webProviderYoutube).isPresent();
+		boolean alreadyExistsYahooFinance = credentialRepository.findByUserAndWebProvider(sys, webProviderYahooFinance).isPresent();
 
 		if (alreadyExistsBTN) {
 			logger.debug("🔑 Clé API " + webProviderBinanceTestnet.getName() + " déjà présente pour l'utilisateur OKlm.");
@@ -408,6 +416,30 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 			credentialRepository.save(credential);
 			logger.debug("- Clé API ajoutée pour System sur YOUTUBE");
+		}
+
+		if (alreadyExistsYahooFinance) {
+			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur System.", webProviderYahooFinance.getName());
+			// return;
+
+		} else {
+			// /v8/finance/chart/{symbol} ne demande aucune clé API (endpoint public non officiel),
+			// même principe que DEFILLAMA/FOREXFACTORY/FARSIDE/YOUTUBE ci-dessus : apiKey vide, seul
+			// le baseUrl porté par la credential résolue importe. Source de secours pour SP500/NASDAQ
+			// (cf. IndicatorCredentialResolver) après confirmation le 2026-07-15 que les tickers
+			// Twelve Data SPX/IXIC sont verrouillés au palier payant — DXY reste sur TWELVE_DATA.
+			//@formatter:off
+			ApiCredential credential = ApiCredential.builder()
+					.user(sys)
+					.webProvider(webProviderYahooFinance)
+					.apiKey("")
+					.enabled(true)
+					.createdAt(LocalDateTime.now())
+					.build();
+			//@formatter:on
+
+			credentialRepository.save(credential);
+			logger.debug("- Clé API ajoutée pour System sur YAHOO_FINANCE");
 		}
 
     }

@@ -43,7 +43,11 @@ public class IndicatorCredentialResolver {
             case FEAR_GREED -> WebProviderCode.COINSTATS;
             case STABLECOIN_MARKET_CAP -> WebProviderCode.DEFILLAMA;
             case OPEN_INTEREST, FUNDING_RATE, LIQUIDATIONS -> WebProviderCode.COINALYZE;
-            case DXY, SP500, NASDAQ -> WebProviderCode.TWELVE_DATA;
+            case DXY -> WebProviderCode.TWELVE_DATA;
+            // SP500/NASDAQ : Twelve Data (tickers SPX/IXIC) verrouillé au palier payant, confirmé
+            // par test réel le 2026-07-15 — bascule sur Yahoo Finance (gratuit, sans clé), cf.
+            // YahooFinanceQuoteProvider.
+            case SP500, NASDAQ -> WebProviderCode.YAHOO_FINANCE;
             case ETF_FLOW -> WebProviderCode.FARSIDE;
             default -> null;
         };

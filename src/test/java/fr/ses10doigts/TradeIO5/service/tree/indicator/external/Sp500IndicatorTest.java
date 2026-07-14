@@ -4,8 +4,8 @@ import fr.ses10doigts.tradeIO5.model.dto.provider.web.ApiCredentialDTO;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorResult;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
-import fr.ses10doigts.tradeIO5.service.tree.indicator.external.twelvedata.TwelveDataQuote;
-import fr.ses10doigts.tradeIO5.service.tree.indicator.external.twelvedata.TwelveDataQuoteProvider;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.external.yahoo.YahooFinanceQuote;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.external.yahoo.YahooFinanceQuoteProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -24,7 +24,7 @@ class Sp500IndicatorTest {
     @DisplayName("compute() expose value=prix et values.lastTradeTime quand la quote porte un timestamp")
     void compute_exposesValueAndLastTradeTime() {
         FakeProvider provider = new FakeProvider(Map.of(
-                Sp500Indicator.SYMBOL, new TwelveDataQuote(5600.25, 1751500800L, true)
+                Sp500Indicator.SYMBOL, new YahooFinanceQuote(5600.25, 1751500800L)
         ));
         Sp500Indicator indicator = new Sp500Indicator(provider);
 
@@ -39,7 +39,7 @@ class Sp500IndicatorTest {
     @DisplayName("compute() n'expose pas values quand le timestamp est absent (pas d'exception)")
     void compute_omitsValues_whenTimestampMissing() {
         FakeProvider provider = new FakeProvider(Map.of(
-                Sp500Indicator.SYMBOL, new TwelveDataQuote(5600.25, null, null)
+                Sp500Indicator.SYMBOL, new YahooFinanceQuote(5600.25, null)
         ));
         Sp500Indicator indicator = new Sp500Indicator(provider);
 
@@ -63,27 +63,22 @@ class Sp500IndicatorTest {
 
     private IndicatorParameters parameters() {
         return IndicatorParameters.builder()
-                .credential(new ApiCredentialDTO(WebProviderCode.TWELVE_DATA, "k", "", "http://irrelevant"))
+                .credential(new ApiCredentialDTO(WebProviderCode.YAHOO_FINANCE, "", "", "http://irrelevant"))
                 .numerics(Map.of())
                 .strings(Map.of())
                 .booleans(Map.of())
                 .build();
     }
 
-    private static class FakeProvider implements TwelveDataQuoteProvider {
-        private final Map<String, TwelveDataQuote> quotes;
+    private static class FakeProvider implements YahooFinanceQuoteProvider {
+        private final Map<String, YahooFinanceQuote> quotes;
 
-        FakeProvider(Map<String, TwelveDataQuote> quotes) {
+        FakeProvider(Map<String, YahooFinanceQuote> quotes) {
             this.quotes = quotes;
         }
 
         @Override
-        public Map<String, Double> fetchPrices(ApiCredentialDTO credential, List<String> symbols) {
-            throw new UnsupportedOperationException("not used by Sp500Indicator");
-        }
-
-        @Override
-        public Map<String, TwelveDataQuote> fetchQuotes(ApiCredentialDTO credential, List<String> symbols) {
+        public Map<String, YahooFinanceQuote> fetchQuotes(ApiCredentialDTO credential, List<String> symbols) {
             return quotes;
         }
     }

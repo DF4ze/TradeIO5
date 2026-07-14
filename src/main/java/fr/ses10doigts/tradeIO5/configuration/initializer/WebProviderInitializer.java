@@ -103,6 +103,15 @@ public class WebProviderInitializer implements CommandLineRunner {
                         .apiBaseUrl("https://www.youtube.com")
                         .enabled(true)
                         .createdAt(LocalDateTime.now())
+                        .build(),
+                WebProvider.builder()
+                        .code(WebProviderCode.YAHOO_FINANCE)
+                        .name("Yahoo Finance")
+                        // SP500/NASDAQ (item F) : source de secours gratuite/sans clé, cf. YahooFinanceQuoteClient.
+                        // Twelve Data reste le provider DXY (item E, déjà fonctionnel).
+                        .apiBaseUrl("https://query1.finance.yahoo.com")
+                        .enabled(true)
+                        .createdAt(LocalDateTime.now())
                         .build()
         )) {
             providerRepository.findByCode(wp.getCode())

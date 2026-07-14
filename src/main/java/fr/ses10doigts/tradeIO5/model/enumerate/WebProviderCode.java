@@ -12,5 +12,6 @@ public enum WebProviderCode {
     FINNHUB,
     FOREXFACTORY,
     FARSIDE,
-    YOUTUBE
+    YOUTUBE,
+    YAHOO_FINANCE
 }
