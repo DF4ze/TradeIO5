@@ -15,6 +15,7 @@ import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
 import fr.ses10doigts.tradeIO5.service.tree.helper.MarketOpinionHelper;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorCredentialResolver;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorEngine;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.external.StablecoinMarketCapIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.opinion.MarketOpinion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,23 +27,32 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Opinion {@code GLOBAL}/{@code MACRO} (étude "extension-risk-macro-external" §3) : sentiment
- * de marché large (Fear &amp; Greed), sans lien avec un symbole précis.
+ * Opinion {@code GLOBAL} (étude "extension-risk-macro-external" §3, scindée de {@code MACRO} par
+ * l'étude "nouvelles-opinions-indicateurs-non-branches" §1) : sentiment du marché crypto lui-même
+ * (Fear &amp; Greed + capitalisation stablecoin), sans lien avec un symbole précis. La toile de
+ * fond TradFi (DXY/SP500/NASDAQ) vit désormais séparément dans {@code MacroMarketOpinion} (scope
+ * {@code MACRO}) — voir cette étude §1 pour le raisonnement de la répartition.
  * <p>
  * Implémente {@link MarketOpinion} directement plutôt que d'étendre {@code AbstractMarketOpinion}
- * (comme {@link ExternalMarketOpinion}), et lit l'indicateur FEAR_GREED directement via
- * {@link IndicatorEngine} : Fear &amp; Greed n'est pas une décision d'entrée/sortie sur un actif
- * (ce que modélise {@code Strategy}), mais une simple lecture de sentiment global, jamais agrégée
- * avec d'autres signaux. La faire passer par {@code Strategy}/{@code StrategyAggregator}
- * n'apportait donc rien et forçait un rattachement arbitraire à {@code StrategyType.ENTRY}
- * (l'ancienne {@code FearGreedStrategy}, désormais repliée ici).
+ * (comme {@link ExternalMarketOpinion}), et lit les indicateurs FEAR_GREED/STABLECOIN_MARKET_CAP
+ * directement via {@link IndicatorEngine} : ni l'un ni l'autre n'est une décision d'entrée/sortie
+ * sur un actif (ce que modélise {@code Strategy}), mais une simple lecture de sentiment/liquidité
+ * globale. Les faire passer par {@code Strategy}/{@code StrategyAggregator} n'apportait donc rien
+ * et forçait un rattachement arbitraire à {@code StrategyType.ENTRY} (l'ancienne
+ * {@code FearGreedStrategy}, désormais repliée ici).
  * <p>
- * Lecture contrarian : peur extrême (valeur basse) traitée comme un signal haussier (rebond
- * probable), avidité extrême (valeur haute) comme un signal baissier.
+ * Lecture contrarian pour Fear &amp; Greed : peur extrême (valeur basse) traitée comme un signal
+ * haussier (rebond probable), avidité extrême (valeur haute) comme un signal baissier.
  * <p>
- * {@code GLOBAL} et {@code MACRO} restent fusionnés en un seul scope ({@code GLOBAL}) pour
- * l'instant, faute d'un deuxième indicateur macro-économique réel qui justifierait de les
- * séparer (voir étude, §3.3).
+ * STABLECOIN_MARKET_CAP (étude "nouvelles-opinions-indicateurs-non-branches" §3) : proxy de
+ * liquidité crypto-native (capital déjà entré dans l'écosystème). Sa croissance hebdomadaire est
+ * combinée au score Fear &amp; Greed avec un poids minoritaire ({@link #P_STABLECOIN_WEIGHT}, défaut
+ * {@link #DEFAULT_STABLECOIN_WEIGHT}) : Fear &amp; Greed reste le signal dominant (déjà en place,
+ * dampening déjà affiné), le stablecoin score est neuf et doit faire ses preuves. Si l'indicateur
+ * est invalide/indisponible, repli propre sur 100% Fear &amp; Greed (jamais d'invalidation de toute
+ * l'Opinion pour un signal secondaire manquant) — le dampening
+ * {@link MarketOpinionHelper#computeSentimentShiftDampening} continue de ne s'appliquer qu'à la
+ * composante Fear &amp; Greed (pas de raison empirique d'étendre ce comportement au stablecoin score).
  */
 @Component
 public class GlobalMarketOpinion implements MarketOpinion {
@@ -52,6 +62,8 @@ public class GlobalMarketOpinion implements MarketOpinion {
     public static final String P_BUY_THRESHOLD = "fearGreedBuyThreshold";
     public static final String P_SELL_THRESHOLD = "fearGreedSellThreshold";
     public static final String P_DELTA_THRESHOLD = "fearGreedDeltaThreshold";
+    public static final String P_STABLECOIN_WEEKLY_SCALE = "stablecoinWeeklyScale";
+    public static final String P_STABLECOIN_WEIGHT = "stablecoinWeight";
 
     private static final double DEFAULT_BUY_THRESHOLD = 25.0;   // <= 25 : extreme fear -> contrarian BUY
     private static final double DEFAULT_SELL_THRESHOLD = 75.0;  // >= 75 : extreme greed -> contrarian SELL
@@ -60,6 +72,11 @@ public class GlobalMarketOpinion implements MarketOpinion {
     // par défaut proposée, pas mesurée empiriquement, à ajuster si le signal s'avère trop/trop peu
     // conservateur en pratique.
     private static final double DEFAULT_DELTA_THRESHOLD = 15.0;
+    // Croissance hebdomadaire stablecoin "typique" au-delà de laquelle le score sature à ±1 (étude
+    // "nouvelles-opinions-indicateurs-non-branches" §3) : valeur par défaut proposée, à calibrer.
+    private static final double DEFAULT_STABLECOIN_WEEKLY_SCALE = 0.03;
+    // Poids minoritaire : Fear&Greed reste dominant (1 - ce poids), le stablecoin score est neuf.
+    private static final double DEFAULT_STABLECOIN_WEIGHT = 0.4;
     private static final TimeFrame DEFAULT_TIME_FRAME = TimeFrame.H1;
 
     private final IndicatorEngine indicatorEngine;
@@ -127,26 +144,64 @@ public class GlobalMarketOpinion implements MarketOpinion {
         // Réutilise computeRsiScore : malgré son nom, le mapping (valeur [0,100] + seuils
         // buy/sell -> score [-1,1]) n'a rien de spécifique au RSI, et c'est exactement le
         // mapping contrarian recherché ici.
-        double score = MarketOpinionHelper.computeRsiScore(now, buyThreshold, sellThreshold);
+        double fearGreedScore = MarketOpinionHelper.computeRsiScore(now, buyThreshold, sellThreshold);
+
+        // STABLECOIN_MARKET_CAP (étude "nouvelles-opinions-indicateurs-non-branches" §3) : proxy de
+        // liquidité crypto-native, combiné en complément de Fear&Greed avec un poids minoritaire.
+        // Repli propre sur 100% Fear&Greed si l'indicateur est invalide/indisponible (jamais
+        // d'invalidation de toute l'Opinion pour un signal secondaire manquant).
+        double stablecoinWeeklyScale = parameters != null
+                ? parameters.get(P_STABLECOIN_WEEKLY_SCALE, DEFAULT_STABLECOIN_WEEKLY_SCALE) : DEFAULT_STABLECOIN_WEEKLY_SCALE;
+        double stablecoinWeight = parameters != null
+                ? parameters.get(P_STABLECOIN_WEIGHT, DEFAULT_STABLECOIN_WEIGHT) : DEFAULT_STABLECOIN_WEIGHT;
+
+        ApiCredentialDTO stablecoinCredential = credentialResolver.resolve(IndicatorType.STABLECOIN_MARKET_CAP);
+        IndicatorParameters stablecoinParams = new IndicatorParameters(
+                IndicatorType.STABLECOIN_MARKET_CAP, Map.of(), Map.of(), Map.of(), stablecoinCredential);
+        IndicatorSnapshot stablecoinSnapshot = indicatorEngine.execute(indicatorContext, stablecoinParams);
+
+        Double stablecoinScore = null;
+        if (stablecoinSnapshot.getResult().isValid() && stablecoinSnapshot.getResult().getValues() != null) {
+            Double total = stablecoinSnapshot.getResult().getValues().get(StablecoinMarketCapIndicator.V_TOTAL);
+            Double totalPrevWeek = stablecoinSnapshot.getResult().getValues().get(StablecoinMarketCapIndicator.V_TOTAL_PREV_WEEK);
+            if (total != null) {
+                stablecoinScore = MarketOpinionHelper.computeStablecoinScore(total, totalPrevWeek, stablecoinWeeklyScale);
+            }
+        }
+
+        double score = stablecoinScore != null
+                ? (1 - stablecoinWeight) * fearGreedScore + stablecoinWeight * stablecoinScore
+                : fearGreedScore;
+
         MarketOpinionHelper.ConfidenceSignal confidenceSignal = MarketOpinionHelper.scoreToConfidenceAndSignalType(score);
 
         // Étude §2 : une hausse/baisse brutale du Fear&Greed en zone extrême est plutôt un signe de
         // retournement probable qu'un signal contrarian fiable à suivre tel quel -> on atténue la
         // confidence (jamais le score directionnel) proportionnellement à l'ampleur du mouvement.
+        // Le dampening reste calculé sur Fear&Greed seul (now/yesterday), pas sur le score combiné :
+        // pas de raison empirique d'étendre ce comportement au stablecoin score (cf. javadoc classe).
         double dampeningFactor = MarketOpinionHelper.computeSentimentShiftDampening(
                 now, yesterday, buyThreshold, sellThreshold, deltaThreshold);
         double confidence = confidenceSignal.confidence * dampeningFactor;
 
         double delta = yesterday != null ? now - yesterday : 0.0;
-        logger.debug("{} : Fear&Greed(now={}, yesterday={}, delta={}) => score={}, signal={}, "
-                        + "confidence(raw)={}, dampeningFactor={}, confidence(final)={}",
-                getName(), now, yesterday, delta, score, confidenceSignal.signal,
+        logger.debug("{} : Fear&Greed(now={}, yesterday={}, delta={}, score={}), stablecoinScore={} "
+                        + "=> combinedScore={}, signal={}, confidence(raw)={}, dampeningFactor={}, confidence(final)={}",
+                getName(), now, yesterday, delta, fearGreedScore, stablecoinScore, score, confidenceSignal.signal,
                 confidenceSignal.confidence, dampeningFactor, confidence);
 
         // Opinion GLOBAL : pas de symbole par construction (contexte de marché large), mais on
         // garde la même vérification défensive que DefaultMarketOpinion au cas où un symbole
         // s'y glisserait malgré tout.
         Optional<String> opinionSymbol = symbol != null ? Optional.of(symbol) : Optional.empty();
+
+        Set<String> sources = stablecoinScore != null
+                ? Set.of("FEAR_GREED", "STABLECOIN_MARKET_CAP")
+                : Set.of("FEAR_GREED");
+        String reason = stablecoinScore != null
+                ? "Fear&Greed(now=" + now + ", yesterday=" + yesterday + ", score=" + fearGreedScore
+                        + ") + Stablecoin(score=" + stablecoinScore + ", weight=" + stablecoinWeight + ")"
+                : "Fear&Greed(now=" + now + ", yesterday=" + yesterday + ")";
 
         OpinionEvent event = new OpinionEvent(new OpinionSignal(
                 getId(),
@@ -156,8 +211,8 @@ public class GlobalMarketOpinion implements MarketOpinion {
                 confidence,
                 score,
                 getScope(),
-                Set.of("FEAR_GREED"),
-                "Fear&Greed(now=" + now + ", yesterday=" + yesterday + ")",
+                sources,
+                reason,
                 context.clock().now()
         ));
 

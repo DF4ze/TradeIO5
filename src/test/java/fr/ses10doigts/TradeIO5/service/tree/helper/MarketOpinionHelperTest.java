@@ -1,7 +1,10 @@
 package fr.ses10doigts.tradeIO5.service.tree.helper;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -55,5 +58,82 @@ class MarketOpinionHelperTest {
                 80.0, 65.0, BUY_THRESHOLD, SELL_THRESHOLD, DELTA_THRESHOLD); // delta = 15
 
         assertEquals(1.0, factor, 1e-9);
+    }
+
+    @Nested
+    @DisplayName("normalizeChangeScore (étude nouvelles-opinions §2.2)")
+    class NormalizeChangeScoreTest {
+
+        @Test
+        @DisplayName("interpolation linéaire dans [-scale, scale], saturée à ±1 au-delà")
+        void interpolatesThenSaturates() {
+            assertEquals(0.5, MarketOpinionHelper.normalizeChangeScore(0.005, 0.01), 1e-9);
+            assertEquals(-0.5, MarketOpinionHelper.normalizeChangeScore(-0.005, 0.01), 1e-9);
+            assertEquals(1.0, MarketOpinionHelper.normalizeChangeScore(0.05, 0.01), 1e-9);
+            assertEquals(-1.0, MarketOpinionHelper.normalizeChangeScore(-0.05, 0.01), 1e-9);
+            assertEquals(0.0, MarketOpinionHelper.normalizeChangeScore(0.0, 0.01), 1e-9);
+        }
+
+        @Test
+        @DisplayName("scale nulle/négative => 0.0, jamais de division par zéro")
+        void nonPositiveScale_returnsZero() {
+            assertEquals(0.0, MarketOpinionHelper.normalizeChangeScore(0.02, 0.0), 1e-9);
+            assertEquals(0.0, MarketOpinionHelper.normalizeChangeScore(0.02, -0.01), 1e-9);
+        }
+    }
+
+    @Nested
+    @DisplayName("computeStablecoinScore (étude nouvelles-opinions §3)")
+    class ComputeStablecoinScoreTest {
+
+        @Test
+        @DisplayName("croissance hebdomadaire positive => score positif proportionnel")
+        void positiveGrowth_positiveScore() {
+            // +1.5% sur une échelle de 3% => 0.5
+            double score = MarketOpinionHelper.computeStablecoinScore(101.5, 100.0, 0.03);
+            assertEquals(0.5, score, 1e-9);
+        }
+
+        @Test
+        @DisplayName("totalPrevWeek absent/nul => score neutre 0.0")
+        void missingOrZeroPrevWeek_returnsZero() {
+            assertEquals(0.0, MarketOpinionHelper.computeStablecoinScore(101.5, null, 0.03), 1e-9);
+            assertEquals(0.0, MarketOpinionHelper.computeStablecoinScore(101.5, 0.0, 0.03), 1e-9);
+        }
+    }
+
+    @Nested
+    @DisplayName("computeStalenessDampening (étude nouvelles-opinions §2.3)")
+    class ComputeStalenessDampeningTest {
+
+        @Test
+        @DisplayName("valeur fraîche (sous le seuil) => facteur neutre 1.0")
+        void freshValue_noDampening() {
+            Instant now = Instant.parse("2026-07-15T12:00:00Z");
+            long lastTradeEpoch = now.minusSeconds(3600).getEpochSecond(); // 1h
+
+            double factor = MarketOpinionHelper.computeStalenessDampening(lastTradeEpoch, now, 18.0);
+
+            assertEquals(1.0, factor, 1e-9);
+        }
+
+        @Test
+        @DisplayName("valeur figée depuis longtemps (week-end) => facteur < 1, jamais annulé brutalement")
+        void staleValue_dampenedContinuously() {
+            Instant now = Instant.parse("2026-07-13T12:00:00Z"); // dimanche
+            long lastTradeEpoch = now.minusSeconds(60L * 60 * 40).getEpochSecond(); // 40h (vendredi soir)
+
+            double factor = MarketOpinionHelper.computeStalenessDampening(lastTradeEpoch, now, 18.0);
+
+            assertTrue(factor > 0.0 && factor < 1.0);
+            assertEquals(18.0 / 40.0, factor, 1e-6);
+        }
+
+        @Test
+        @DisplayName("timestamp absent => comportement inchangé (facteur neutre 1.0)")
+        void missingTimestamp_fallsBackToNeutralFactor() {
+            double factor = MarketOpinionHelper.computeStalenessDampening(null, Instant.now(), 18.0);
+            assertEquals(1.0, factor, 1e-9);
+        }
     }
 }

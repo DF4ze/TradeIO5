@@ -21,10 +21,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class Sp500IndicatorTest {
 
     @Test
-    @DisplayName("compute() expose value=prix et values.lastTradeTime quand la quote porte un timestamp")
+    @DisplayName("compute() expose value=prix, values.lastTradeTime et values.previous quand la quote porte ces champs")
     void compute_exposesValueAndLastTradeTime() {
         FakeProvider provider = new FakeProvider(Map.of(
-                Sp500Indicator.SYMBOL, new YahooFinanceQuote(5600.25, 1751500800L)
+                Sp500Indicator.SYMBOL, new YahooFinanceQuote(5600.25, 1751500800L, 5580.10)
         ));
         Sp500Indicator indicator = new Sp500Indicator(provider);
 
@@ -33,13 +33,14 @@ class Sp500IndicatorTest {
         assertTrue(result.isValid());
         assertEquals(5600.25, result.getValue(), 0.001);
         assertEquals(1751500800.0, result.getValues().get(Sp500Indicator.V_LAST_TRADE_TIME), 0.001);
+        assertEquals(5580.10, result.getValues().get(Sp500Indicator.V_PREVIOUS), 0.001);
     }
 
     @Test
-    @DisplayName("compute() n'expose pas values quand le timestamp est absent (pas d'exception)")
+    @DisplayName("compute() n'expose pas values quand timestamp et previousClose sont absents (pas d'exception)")
     void compute_omitsValues_whenTimestampMissing() {
         FakeProvider provider = new FakeProvider(Map.of(
-                Sp500Indicator.SYMBOL, new YahooFinanceQuote(5600.25, null)
+                Sp500Indicator.SYMBOL, new YahooFinanceQuote(5600.25, null, null)
         ));
         Sp500Indicator indicator = new Sp500Indicator(provider);
 

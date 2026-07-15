@@ -69,8 +69,15 @@ public class NasdaqIndicator implements Indicator {
                 .valid(true)
                 .value(quote.price());
 
-        if (quote.timestampEpochSeconds() != null) {
-            builder.values(Map.of(Sp500Indicator.V_LAST_TRADE_TIME, quote.timestampEpochSeconds().doubleValue()));
+        if (quote.timestampEpochSeconds() != null || quote.previousClose() != null) {
+            Map<String, Double> values = new java.util.HashMap<>();
+            if (quote.timestampEpochSeconds() != null) {
+                values.put(Sp500Indicator.V_LAST_TRADE_TIME, quote.timestampEpochSeconds().doubleValue());
+            }
+            if (quote.previousClose() != null) {
+                values.put(Sp500Indicator.V_PREVIOUS, quote.previousClose());
+            }
+            builder.values(values);
         }
 
         return builder.build();

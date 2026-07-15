@@ -191,8 +191,11 @@ public class TwelveDataQuoteClient extends AbstractExternalIndicator implements 
         Boolean marketOpen = node.has("is_market_open") && !node.get("is_market_open").isNull()
                 ? node.get("is_market_open").asBoolean()
                 : null;
+        Double previousClose = node.has("previous_close") && !node.get("previous_close").isNull()
+                ? parseDouble(node.get("previous_close").asText(null))
+                : null;
 
-        return new TwelveDataQuote(price, timestamp, marketOpen);
+        return new TwelveDataQuote(price, timestamp, marketOpen, previousClose);
     }
 
     private static JsonNode readTree(String body) {

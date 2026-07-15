@@ -6,11 +6,13 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorResult;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.Indicator;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.external.twelvedata.TwelveDataQuote;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.external.twelvedata.TwelveDataQuoteProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,9 +27,27 @@ import java.util.Map;
  * Si une seule des 6 paires manque/est invalide, l'indicateur retourne {@link IndicatorResult#invalid()}
  * plutôt que de calculer avec une valeur par défaut arbitraire : une formule à 6 facteurs
  * multiplicatifs avec un facteur manquant ne peut pas être silencieusement approximée.
+ * <p>
+ * <b>Un seul appel réseau, {@code /quote}</b> (pas {@code /price}) : premier branchement réel de
+ * {@code MacroMarketOpinion} le 2026-07-15 avait introduit un second appel {@code /quote} distinct
+ * pour {@code values.previous} (étude "nouvelles-opinions-indicateurs-non-branches" §2.1),
+ * <b>doublant le coût en crédits Twelve Data de cet indicateur (6 → 12 par évaluation) et dépassant
+ * à lui seul la limite du palier gratuit (8 crédits/minute)</b> — confirmé en conditions réelles
+ * (log applicatif : {@code "You have run out of API credits for the current minute (...)"} sur les
+ * deux appels). {@code /quote} porte déjà {@code close} (prix courant, même donnée que {@code /price})
+ * <b>et</b> {@code previous_close} dans la même réponse : un seul appel suffit pour les deux, remis
+ * en un seul ici plutôt que deux.
  */
 @Component
 public class DxyIndicator implements Indicator {
+
+    /**
+     * DXY "hier", recalculé à partir de {@code TwelveDataQuote.previousClose()} des 6 paires (même
+     * appel {@code /quote} que la valeur courante, cf. javadoc classe). Best-effort seulement au
+     * sens "une paire sans previousClose n'invalide pas {@code value}/{@code valid}" — plus au sens
+     * "second appel réseau", supprimé (cf. javadoc classe).
+     */
+    public static final String V_PREVIOUS = "previous";
 
     // Ordre sans importance pour le calcul (map par symbole), mais fixé ici pour la lisibilité
     // des tests / logs.
@@ -69,19 +89,43 @@ public class DxyIndicator implements Indicator {
     public IndicatorResult compute(IndicatorContext context, IndicatorParameters parameters) {
         ApiCredentialDTO credential = parameters.getCredential();
 
-        Map<String, Double> prices = provider.fetchPrices(credential, PAIRS);
+        // Un seul appel /quote pour les 6 paires (cf. javadoc classe) : "close" = prix courant,
+        // "previous_close" = veille, les deux dans la même réponse.
+        Map<String, TwelveDataQuote> quotes = provider.fetchQuotes(credential, PAIRS);
 
-        Double dxy = computeDxy(prices);
+        Map<String, Double> currentPrices = new HashMap<>();
+        Map<String, Double> previousPrices = new HashMap<>();
+        for (String pair : PAIRS) {
+            TwelveDataQuote quote = quotes.get(pair);
+            if (quote == null) {
+                continue;
+            }
+            currentPrices.put(pair, quote.price());
+            if (quote.previousClose() != null) {
+                previousPrices.put(pair, quote.previousClose());
+            }
+        }
+
+        Double dxy = computeDxy(currentPrices);
         if (dxy == null) {
             logger.warn("{} : au moins une des 6 paires forex manque/est invalide ({}), indicateur invalid",
-                    getType(), prices.keySet());
+                    getType(), currentPrices.keySet());
             return IndicatorResult.invalid();
         }
 
-        return IndicatorResult.builder()
+        IndicatorResult.IndicatorResultBuilder builder = IndicatorResult.builder()
                 .valid(true)
-                .value(dxy)
-                .build();
+                .value(dxy);
+
+        // computeDxy retourne null si une seule des 6 paires n'a pas de previousClose : pas de
+        // values.previous exposé dans ce cas, mais value/valid ci-dessus restent inchangés
+        // (best-effort au sens "ne bloque jamais la valeur courante", cf. javadoc classe).
+        Double previous = computeDxy(previousPrices);
+        if (previous != null) {
+            builder.values(Map.of(V_PREVIOUS, previous));
+        }
+
+        return builder.build();
     }
 
     /**

@@ -20,10 +20,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class NasdaqIndicatorTest {
 
     @Test
-    @DisplayName("compute() expose value=prix et values.lastTradeTime quand la quote porte un timestamp")
+    @DisplayName("compute() expose value=prix, values.lastTradeTime et values.previous quand la quote porte ces champs")
     void compute_exposesValueAndLastTradeTime() {
         FakeProvider provider = new FakeProvider(Map.of(
-                NasdaqIndicator.SYMBOL, new YahooFinanceQuote(18200.10, 1751500800L)
+                NasdaqIndicator.SYMBOL, new YahooFinanceQuote(18200.10, 1751500800L, 18100.50)
         ));
         NasdaqIndicator indicator = new NasdaqIndicator(provider);
 
@@ -32,6 +32,7 @@ class NasdaqIndicatorTest {
         assertTrue(result.isValid());
         assertEquals(18200.10, result.getValue(), 0.001);
         assertEquals(1751500800.0, result.getValues().get(Sp500Indicator.V_LAST_TRADE_TIME), 0.001);
+        assertEquals(18100.50, result.getValues().get(Sp500Indicator.V_PREVIOUS), 0.001);
     }
 
     @Test

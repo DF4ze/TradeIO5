@@ -6,6 +6,9 @@ import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
 import lombok.AllArgsConstructor;
 import lombok.ToString;
 
+import java.time.Duration;
+import java.time.Instant;
+
 public class MarketOpinionHelper {
 
     /**
@@ -85,10 +88,68 @@ public class MarketOpinionHelper {
         return deltaThreshold / absDelta;
     }
 
+    /**
+     * Normalise un pourcentage de variation (ex : delta j/j d'un indice) en score borné [-1,1]
+     * (étude "nouvelles-opinions-indicateurs-non-branches" §2.2/§3) : interpolation linéaire
+     * autour de zéro, saturée à ±1 au-delà de {@code scale} en valeur absolue. Même esprit que
+     * l'interpolation ADX de {@code TrendConfirmationStrategy}, mais pour une variation relative
+     * plutôt qu'un niveau absolu.
+     *
+     * @param scale échelle "mouvement typique" au-delà de laquelle le score sature ; doit être
+     *              strictement positive, sinon retourne {@code 0.0} (posture conservatrice, pas
+     *              de division par zéro).
+     */
+    public static double normalizeChangeScore(double changePct, double scale) {
+        if (scale <= 0) {
+            return 0.0;
+        }
+        return Math.clamp(changePct / scale, -1.0, 1.0);
+    }
+
+    /**
+     * Score [-1,1] pour la croissance hebdomadaire de la capitalisation stablecoin (étude
+     * "nouvelles-opinions-indicateurs-non-branches" §3) : proxy de liquidité crypto-native, injecté
+     * dans {@code GlobalMarketOpinion} en complément de Fear&amp;Greed.
+     *
+     * @param totalPrevWeek peut être {@code null}/0 (réponse externe incomplète) : dans ce cas,
+     *                      pas de croissance calculable, retourne {@code 0.0} (contribution neutre)
+     *                      plutôt qu'une exception.
+     */
+    public static double computeStablecoinScore(double total, Double totalPrevWeek, double weeklyScale) {
+        if (totalPrevWeek == null || totalPrevWeek == 0) {
+            return 0.0;
+        }
+        double weeklyGrowthPct = (total - totalPrevWeek) / totalPrevWeek;
+        return normalizeChangeScore(weeklyGrowthPct, weeklyScale);
+    }
+
+    /**
+     * Facteur d'atténuation de confidence pour une valeur qui date (étude
+     * "nouvelles-opinions-indicateurs-non-branches" §2.3) : les indices actions (SP500/NASDAQ) ne
+     * tradant pas 24/7, une valeur restée figée depuis la dernière clôture ne doit pas peser autant
+     * qu'une valeur fraîche. Décroissance continue au-delà de {@code staleThresholdHours} (jamais un
+     * 0 brutal), même forme que {@link #computeSentimentShiftDampening}.
+     *
+     * @param lastTradeTimeEpochSeconds peut être {@code null} (timestamp non fourni par le
+     *                                  provider) : dans ce cas, pas d'atténuation possible, retombe
+     *                                  sur {@code 1.0}.
+     */
+    public static double computeStalenessDampening(
+            Long lastTradeTimeEpochSeconds, Instant now, double staleThresholdHours) {
+        if (lastTradeTimeEpochSeconds == null || staleThresholdHours <= 0) {
+            return 1.0;
+        }
+        double ageHours = Duration.between(Instant.ofEpochSecond(lastTradeTimeEpochSeconds), now).toSeconds() / 3600.0;
+        if (ageHours <= staleThresholdHours) {
+            return 1.0;
+        }
+        return staleThresholdHours / ageHours;
+    }
+
     public static double computeRsiScore(double value, double buyThreshold, double sellThreshold) {
         // plage centrale HOLD = [-1/6, +1/6]
         double holdMin = -1.0/6.0;
-        double holdMax = +1.0/6.0;
+        double holdMax = 1.0/6.0;
 
         // derniers tiers pour BUY et SELL
         double upperTierMin = 5.0/6.0;

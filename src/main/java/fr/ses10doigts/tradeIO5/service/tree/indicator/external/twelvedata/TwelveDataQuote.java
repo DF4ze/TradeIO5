@@ -15,10 +15,18 @@ package fr.ses10doigts.tradeIO5.service.tree.indicator.external.twelvedata;
  * champs {@code timestamp}/{@code is_market_open} documentés publiquement par Twelve Data pour
  * {@code /quote}, à confirmer/ajuster au premier appel réel avant de committer un consommateur qui
  * en dépendrait de façon critique.
+ * <p>
+ * {@code previousClose} (étude "nouvelles-opinions-indicateurs-non-branches" §2.1, ajouté pour
+ * {@code DxyIndicator}) : mappé depuis le champ {@code previous_close}, documenté publiquement par
+ * Twelve Data pour {@code /quote} sur toutes les classes d'instrument (forex compris) — <b>non plus
+ * vérifié contre un appel réel que {@code timestampEpochSeconds}/{@code marketOpen}</b> ci-dessus,
+ * même réserve. {@code DxyIndicator} traite ce champ en best-effort (jamais bloquant pour la valeur
+ * DXY courante, déjà fonctionnelle via {@code /price}).
  */
 public record TwelveDataQuote(
         double price,
         Long timestampEpochSeconds,
-        Boolean marketOpen
+        Boolean marketOpen,
+        Double previousClose
 ) {
 }

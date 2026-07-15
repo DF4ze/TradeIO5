@@ -82,6 +82,45 @@ class YahooFinanceQuoteClientTest {
     }
 
     @Test
+    @DisplayName("parseQuote() mappe previousClose quand présent")
+    void parseQuote_mapsPreviousClose() {
+        String body = """
+                {"chart":{"result":[{"meta":{"symbol":"^GSPC","regularMarketPrice":7543.59,"previousClose":7538.20}}],"error":null}}
+                """;
+
+        YahooFinanceQuote quote = YahooFinanceQuoteClient.parseQuote(body);
+
+        assertNotNull(quote);
+        assertEquals(7538.20, quote.previousClose(), 0.001);
+    }
+
+    @Test
+    @DisplayName("parseQuote() retombe sur chartPreviousClose quand previousClose est absent")
+    void parseQuote_fallsBackToChartPreviousClose() {
+        String body = """
+                {"chart":{"result":[{"meta":{"symbol":"^GSPC","regularMarketPrice":7543.59,"chartPreviousClose":7530.00}}],"error":null}}
+                """;
+
+        YahooFinanceQuote quote = YahooFinanceQuoteClient.parseQuote(body);
+
+        assertNotNull(quote);
+        assertEquals(7530.00, quote.previousClose(), 0.001);
+    }
+
+    @Test
+    @DisplayName("parseQuote() tolère l'absence de previousClose/chartPreviousClose (null, pas d'exception)")
+    void parseQuote_toleratesMissingPreviousClose() {
+        String body = """
+                {"chart":{"result":[{"meta":{"symbol":"^GSPC","regularMarketPrice":7543.59}}],"error":null}}
+                """;
+
+        YahooFinanceQuote quote = YahooFinanceQuoteClient.parseQuote(body);
+
+        assertNotNull(quote);
+        assertNull(quote.previousClose());
+    }
+
+    @Test
     @DisplayName("parseQuote() retourne null quand regularMarketPrice est absent")
     void parseQuote_returnsNull_whenPriceMissing() {
         String body = """

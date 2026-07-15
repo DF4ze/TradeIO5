@@ -116,15 +116,21 @@ class TreeAnalysisFacadeTest {
     }
 
     @Test
-    @DisplayName("getOpinion avec un OpinionScope non enregistré renvoie une erreur claire")
-    void getOpinion_unknownScope_shouldThrowClearError() {
-        // Aucune MarketOpinion enregistrée aujourd'hui ne couvre OpinionScope.MACRO (seule
-        // DefaultMarketOpinion existe, sur LOCAL).
+    @DisplayName("getOpinion sur MACRO sans credential Twelve Data en test renvoie une erreur claire (aucun OpinionEvent émis)")
+    void getOpinion_macroWithoutCredentials_shouldThrowClearError() {
+        // Depuis MacroMarketOpinion (étude "nouvelles-opinions-indicateurs-non-branches" §2), les
+        // 4 OpinionScope ont désormais tous une MarketOpinion enregistrée -> ce test ne peut plus
+        // vérifier "aucune MarketOpinion pour ce scope" (résolution de scope, plus de scope
+        // "orphelin" disponible dans l'enum). Il vérifie à la place le comportement en aval :
+        // MacroMarketOpinion ne publie aucun OpinionEvent si DXY est invalid (pas de credential
+        // Twelve Data configurée dans application-test.properties), ce que la façade doit remonter
+        // comme une TreeAnalysisException claire plutôt qu'un throw silencieux ailleurs — même
+        // contrat vérifié pour les autres cas d'erreur de cette classe.
         MarketOpinionParameters params = MarketOpinionParameters.builder().build();
 
         TreeAnalysisException ex = assertThrows(TreeAnalysisException.class, () ->
                 treeAnalysisFacade.getOpinion(
-                        "mcpFacadeUnknownScope",
+                        "mcpFacadeMacroNoCredentials",
                         OpinionScope.MACRO,
                         params,
                         MarketDataSource.MEMORY,
@@ -132,7 +138,7 @@ class TreeAnalysisFacadeTest {
                 )
         );
 
-        assertTrue(ex.getMessage().contains("MACRO"));
+        assertTrue(ex.getMessage().contains("did not emit"));
     }
 
     @Test

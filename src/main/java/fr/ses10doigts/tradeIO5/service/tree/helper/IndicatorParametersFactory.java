@@ -8,7 +8,9 @@ import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.TrendConfirmationStrat
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.AdxIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.EmaIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.ObvIndicator;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.OrderBookIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.RsiIndicator;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.external.LiquidationsIndicator;
 
 import java.util.Map;
 
@@ -91,6 +93,40 @@ public class IndicatorParametersFactory {
         return new IndicatorParameters(
                 IndicatorType.FUNDING_RATE,
                 Map.of(),                                                                        // Numeric
+                Map.of( TrendConfirmationStrategy.P_TIME_FRAME_NAME, timeFrame.toString()),    // String
+                Map.of(),                                                                        // Boolean
+                credential
+        );
+    }
+
+    /**
+     * ORDER_BOOK (Binance, carnet public) : pas de credential requise (endpoint public), même
+     * principe que {@link #buildObvParams} pour la partie "indicateur interne" — voir
+     * {@link fr.ses10doigts.tradeIO5.service.tree.strategy.impl.OrderFlowStrategy}.
+     */
+    public static IndicatorParameters buildOrderBookParams(TimeFrame timeFrame, double priceBandPercent){
+        return new IndicatorParameters(
+                IndicatorType.ORDER_BOOK,
+                Map.of(
+                        OrderBookIndicator.P_PRICE_BAND_PERCENT, priceBandPercent
+                ),                                                                              // Numeric
+                Map.of( TrendConfirmationStrategy.P_TIME_FRAME_NAME, timeFrame.toString()),    // String
+                Map.of(),                                                                        // Boolean
+                null
+        );
+    }
+
+    /**
+     * LIQUIDATIONS (Coinalyze) : même principe que {@link #buildOpenInterestParams}, credential
+     * Coinalyze résolue par l'appelant (ex: {@code IndicatorCredentialResolver.resolve(IndicatorType.LIQUIDATIONS)}) —
+     * voir {@link fr.ses10doigts.tradeIO5.service.tree.strategy.impl.OrderFlowStrategy}.
+     */
+    public static IndicatorParameters buildLiquidationsParams(TimeFrame timeFrame, double windowHours, ApiCredentialDTO credential){
+        return new IndicatorParameters(
+                IndicatorType.LIQUIDATIONS,
+                Map.of(
+                        LiquidationsIndicator.P_WINDOW_HOURS, windowHours
+                ),                                                                              // Numeric
                 Map.of( TrendConfirmationStrategy.P_TIME_FRAME_NAME, timeFrame.toString()),    // String
                 Map.of(),                                                                        // Boolean
                 credential

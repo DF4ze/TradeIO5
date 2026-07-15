@@ -27,6 +27,11 @@ import java.util.Map;
  * ({@code meta.regularMarketTime} côté Yahoo) dans {@code IndicatorResult.values} sous
  * {@value #V_LAST_TRADE_TIME}, pour qu'un consommateur en aval distingue une valeur fraîche d'une
  * clôture de vendredi soir reconduite tout le week-end.
+ * <p>
+ * {@code V_PREVIOUS} (étude "nouvelles-opinions-indicateurs-non-branches" §2.1, ajouté pour
+ * {@code MacroMarketOpinion}) : mappé depuis {@code YahooFinanceQuote.previousClose}, best-effort
+ * (peut être absent, cf. {@link YahooFinanceQuote}) — jamais bloquant pour {@code value}/{@code
+ * valid}.
  */
 @Component
 public class Sp500Indicator implements Indicator {
@@ -34,6 +39,7 @@ public class Sp500Indicator implements Indicator {
     static final String SYMBOL = "^GSPC";
 
     public static final String V_LAST_TRADE_TIME = "lastTradeTime";
+    public static final String V_PREVIOUS = "previous";
 
     private final Logger logger = LoggerFactory.getLogger(Sp500Indicator.class);
 
@@ -74,8 +80,15 @@ public class Sp500Indicator implements Indicator {
                 .valid(true)
                 .value(quote.price());
 
-        if (quote.timestampEpochSeconds() != null) {
-            builder.values(Map.of(V_LAST_TRADE_TIME, quote.timestampEpochSeconds().doubleValue()));
+        if (quote.timestampEpochSeconds() != null || quote.previousClose() != null) {
+            Map<String, Double> values = new java.util.HashMap<>();
+            if (quote.timestampEpochSeconds() != null) {
+                values.put(V_LAST_TRADE_TIME, quote.timestampEpochSeconds().doubleValue());
+            }
+            if (quote.previousClose() != null) {
+                values.put(V_PREVIOUS, quote.previousClose());
+            }
+            builder.values(values);
         }
 
         return builder.build();

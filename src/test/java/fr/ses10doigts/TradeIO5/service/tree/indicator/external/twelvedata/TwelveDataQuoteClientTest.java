@@ -133,6 +133,31 @@ class TwelveDataQuoteClientTest {
         assertNull(quote.marketOpen());
     }
 
+    @Test
+    @DisplayName("parseQuotes() mappe previous_close quand présent (étude nouvelles-opinions §2.1)")
+    void parseQuotes_mapsPreviousClose() {
+        String body = """
+                {"EUR/USD": {"close": "1.0850", "previous_close": "1.0800"}}
+                """;
+
+        Map<String, TwelveDataQuote> result = TwelveDataQuoteClient.parseQuotes(body, List.of("EUR/USD"));
+
+        TwelveDataQuote quote = result.get("EUR/USD");
+        assertEquals(1.0800, quote.previousClose(), 0.0001);
+    }
+
+    @Test
+    @DisplayName("parseQuotes() tolère l'absence de previous_close (null, pas d'entrée rejetée)")
+    void parseQuotes_toleratesMissingPreviousClose() {
+        String body = """
+                {"close": "5600.25"}
+                """;
+
+        Map<String, TwelveDataQuote> result = TwelveDataQuoteClient.parseQuotes(body, List.of("SPX"));
+
+        assertNull(result.get("SPX").previousClose());
+    }
+
     // --- fetchPrices()/fetchQuotes() : bout en bout avec un vrai serveur HTTP local -------
 
     @Test

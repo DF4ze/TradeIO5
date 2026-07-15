@@ -6,7 +6,10 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategyParameters;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.external.LiquidationsIndicator;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.OrderBookIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.MovementQualificationStrategy;
+import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.OrderFlowStrategy;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.TrendConfirmationStrategy;
 import lombok.AllArgsConstructor;
 
@@ -125,6 +128,67 @@ public class StrategyParametersFactory {
                     0.0005, 0.01,
                     0.6, 0.3,
                     0.02, 10.0
+            );
+        }
+    }
+
+    /**
+     * Construit les 2 {@code IndicatorKey}/{@code IndicatorParameters} (ORDER_BOOK, LIQUIDATIONS)
+     * requis par {@link OrderFlowStrategy}, ainsi que les 6 seuils de la Strategy elle-même — même
+     * patron que {@link #buildMovementQualificationStrategyParam}.
+     * <p>
+     * ORDER_BOOK est public (pas de credential) ; LIQUIDATIONS est externe (Coinalyze) :
+     * {@code coinalyzeCredential} doit être résolue par l'appelant (ex:
+     * {@code IndicatorCredentialResolver.resolve(IndicatorType.LIQUIDATIONS)}), cette classe reste
+     * volontairement statique/sans dépendance Spring.
+     */
+    public static StrategyParameters buildOrderFlowStrategyParam(
+            OrderFlowParam param,
+            ApiCredentialDTO coinalyzeCredential
+    ){
+        IndicatorParameters orderBookParams = IndicatorParametersFactory.buildOrderBookParams(param.timeFrame, param.priceBandPercent);
+        IndicatorParameters liquidationsParams = IndicatorParametersFactory.buildLiquidationsParams(param.timeFrame, param.liquidationsWindowHours, coinalyzeCredential);
+
+        IndicatorKey orderBookKey = new IndicatorKey(IndicatorType.ORDER_BOOK, param.timeFrame, orderBookParams);
+        IndicatorKey liquidationsKey = new IndicatorKey(IndicatorType.LIQUIDATIONS, param.timeFrame, liquidationsParams);
+
+        StrategyParameters params = new StrategyParameters();
+        params.getIndicatorParameters().put(orderBookKey, orderBookParams);
+        params.getIndicatorParameters().put(liquidationsKey, liquidationsParams);
+
+        params.getNumericParams().put(OrderFlowStrategy.P_LIQUIDATION_SKEW_THRESHOLD, param.liquidationSkewThreshold);
+        params.getNumericParams().put(OrderFlowStrategy.P_LIQUIDATION_VOLUME_RATIO_THRESHOLD, param.liquidationVolumeRatioThreshold);
+        params.getNumericParams().put(OrderFlowStrategy.P_ORDER_BOOK_IMBALANCE_THRESHOLD, param.orderBookImbalanceThreshold);
+        params.getNumericParams().put(OrderFlowStrategy.P_PRICE_MOVE_THRESHOLD, param.priceMoveThreshold);
+        params.getNumericParams().put(OrderFlowStrategy.P_PRICE_LOOKBACK_CANDLES, param.priceLookbackCandles);
+        params.getNumericParams().put(OrderFlowStrategy.P_EXHAUSTION_DAMPENING_FACTOR, param.exhaustionDampeningFactor);
+
+        return params;
+    }
+
+    /**
+     * Valeurs par défaut alignées sur {@code OrderFlowStrategy.DEFAULT_*} (mêmes réserves que
+     * {@link MovementQualificationParam} : point de départ, pas mesuré empiriquement).
+     */
+    @AllArgsConstructor
+    public static class OrderFlowParam {
+        TimeFrame timeFrame;
+        double priceBandPercent;
+        double liquidationsWindowHours;
+        double liquidationSkewThreshold;
+        double liquidationVolumeRatioThreshold;
+        double orderBookImbalanceThreshold;
+        double priceMoveThreshold;
+        double priceLookbackCandles;
+        double exhaustionDampeningFactor;
+
+        public static OrderFlowParam defaults(TimeFrame timeFrame){
+            return new OrderFlowParam(
+                    timeFrame,
+                    OrderBookIndicator.DEFAULT_PRICE_BAND_PERCENT,
+                    LiquidationsIndicator.DEFAULT_WINDOW_HOURS,
+                    0.3, 0.02, 0.15,
+                    0.02, 10.0, 0.3
             );
         }
     }

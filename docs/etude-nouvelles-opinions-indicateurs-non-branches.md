@@ -1,5 +1,11 @@
 # Étude — Nouvelles Opinions à partir des indicateurs non branchés (2026-07-15)
 
+> **Implémenté le 2026-07-15** ("implémente tout ça") avec les recommandations de ce document
+> retenues telles quelles pour les 5 décisions §7 (STABLECOIN_MARKET_CAP en GLOBAL, MACRO en
+> `symbol=null`, extension `values.previous` sur DXY/SP500/NASDAQ, ratio relatif au volume pour le
+> seuil de liquidations, ETF_FLOW différé). Détail du branchement et des tests :
+> `docs/etat-des-lieux-indicateurs-strategies-opinions.md` §8.
+
 Demande de Clem : plus d'`Opinion`, en utilisant les indicateurs codés/testés mais sans consommateur
 (`STABLECOIN_MARKET_CAP`, `ORDER_BOOK`, `ETF_FLOW`, `LIQUIDATIONS`, `DXY`/`SP500`/`NASDAQ` —
 voir `docs/etat-des-lieux-indicateurs-strategies-opinions.md` §2-4), en réfléchissant aux

@@ -122,8 +122,25 @@ public class YahooFinanceQuoteClient extends AbstractExternalIndicator implement
         Long timestamp = meta.has("regularMarketTime") && !meta.get("regularMarketTime").isNull()
                 ? meta.get("regularMarketTime").asLong()
                 : null;
+        Double previousClose = readPreviousClose(meta);
 
-        return new YahooFinanceQuote(price, timestamp);
+        return new YahooFinanceQuote(price, timestamp, previousClose);
+    }
+
+    /**
+     * {@code previousClose}, avec repli sur {@code chartPreviousClose} (cf. javadoc
+     * {@link YahooFinanceQuote}) — jamais vérifié pour tous les symboles contre un appel réel
+     * (seul {@code regularMarketPrice}/{@code regularMarketTime} l'ont été le 2026-07-15), d'où le
+     * repli défensif plutôt qu'un seul nom de champ supposé fiable.
+     */
+    private static Double readPreviousClose(JsonNode meta) {
+        if (meta.has("previousClose") && !meta.get("previousClose").isNull()) {
+            return meta.get("previousClose").asDouble();
+        }
+        if (meta.has("chartPreviousClose") && !meta.get("chartPreviousClose").isNull()) {
+            return meta.get("chartPreviousClose").asDouble();
+        }
+        return null;
     }
 
     private static JsonNode readTree(String body) {

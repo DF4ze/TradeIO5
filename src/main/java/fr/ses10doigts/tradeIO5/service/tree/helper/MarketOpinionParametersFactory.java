@@ -57,4 +57,32 @@ public class MarketOpinionParametersFactory {
                 .strategies(List.of(key))
                 .build();
     }
+
+    /**
+     * Branche {@link fr.ses10doigts.tradeIO5.service.tree.strategy.impl.OrderFlowStrategy}
+     * (ORDER_BOOK + LIQUIDATIONS) sur une {@code MarketOpinion} de scope {@code LOCAL} — étude
+     * "nouvelles-opinions-indicateurs-non-branches" §4, même patron que
+     * {@link #buildLocalOpinionParamWithMovementQualification}. Même limite déjà documentée dans
+     * {@code OrderFlowStrategy} : agrégée comme une Strategy {@code ENTRY} classique alors qu'elle
+     * joue plutôt un rôle de modulateur de confiance. Pour combiner avec Trend/MovementQualification
+     * dans une seule Opinion, l'appelant peut concaténer les {@code StrategyKey} des différents
+     * {@code MarketOpinionParameters} (voir {@code strategies()}).
+     * <p>
+     * {@code coinalyzeCredential} doit être résolue par l'appelant (ex:
+     * {@code IndicatorCredentialResolver.resolve(IndicatorType.LIQUIDATIONS)}).
+     */
+    public static MarketOpinionParameters buildLocalOpinionParamWithOrderFlow(
+            Strategy strategy,
+            StrategyParametersFactory.OrderFlowParam param,
+            ApiCredentialDTO coinalyzeCredential
+    ){
+        StrategyParameters strategyParameters =
+                StrategyParametersFactory.buildOrderFlowStrategyParam(param, coinalyzeCredential);
+
+        StrategyKey key = new StrategyKey(strategy, strategyParameters);
+
+        return MarketOpinionParameters.builder()
+                .strategies(List.of(key))
+                .build();
+    }
 }

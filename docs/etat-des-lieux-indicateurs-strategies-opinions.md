@@ -187,7 +187,60 @@ Décisions/actions :
 3. ~~Brancher `MovementQualificationStrategy` sur une `MarketOpinionParameters` réutilisable~~ — fait
    le 2026-07-09 (voir §3).
 4. Rejouer la calibration `REJECTION_ZONE` sur données réelles avant tout branchement.
-5. Trancher l'architecture du calendrier macro (fenêtre de risque événementiel) et de la séparation
-   `GLOBAL`/`MACRO` (DXY/SP500/NASDAQ/STABLECOIN_MARKET_CAP) — décisions de conception, pas de code.
+5. ~~Trancher l'architecture ... et de la séparation `GLOBAL`/`MACRO`~~ — fait le 2026-07-15, voir
+   §8 (`docs/etude-nouvelles-opinions-indicateurs-non-branches.md`). Calendrier macro (fenêtre de
+   risque événementiel) reste ouvert, hors périmètre de ce lot.
 6. Si une décision automatique (pas seulement à la demande via MCP) est souhaitée : ajouter un
    scheduler qui appelle `get_opinion`/`evaluate_strategy` périodiquement pour les symboles suivis.
+
+## 8. Branchement du 2026-07-15 — STABLECOIN_MARKET_CAP, DXY/SP500/NASDAQ, ORDER_BOOK+LIQUIDATIONS
+
+Suite à `docs/etude-nouvelles-opinions-indicateurs-non-branches.md` (design validé par Clem le
+2026-07-15, "implémente tout ça") : 3 des 5 indicateurs listés en §2-4 ci-dessus sont maintenant
+branchés, testés (313 tests, 0 échec, `mvn test` sur la machine réelle), et invocables via
+`get_opinion`/MCP.
+
+- **STABLECOIN_MARKET_CAP** — `GlobalMarketOpinion` (scope `GLOBAL`) combine désormais Fear&Greed
+  (poids 60%) et croissance hebdomadaire stablecoin (poids 40%, `computeStablecoinScore`), avec
+  repli propre sur 100% Fear&Greed si l'indicateur est invalide. **DONE et branché.**
+- **DXY/SP500/NASDAQ** — nouvelle `MacroMarketOpinion`, premier consommateur du scope `MACRO`
+  (déclaré dans l'enum depuis le début, resté vide jusqu'ici). Risk appetite score (dollar fort =
+  risk-off, actions en hausse = risk-on, NASDAQ pondéré plus haut que SP500). Contrat de
+  `DxyIndicator`/`Sp500Indicator`/`NasdaqIndicator` étendu (`values.previous`) pour permettre le
+  calcul de delta j/j. Publie un
+  `OpinionEvent` **sans symbole** (signal d'ambiance, hors arbitrage `DecisionEngine` pour
+  l'instant — décision assumée, réversible, voir étude §2.4). **DONE et branché.**
+- **ORDER_BOOK + LIQUIDATIONS** — nouvelle `OrderFlowStrategy` (scope `LOCAL`, `StrategyType.ENTRY`),
+  branchée dans `DefaultMarketOpinion` aux côtés de `TrendConfirmationStrategy`/
+  `MovementQualificationStrategy`. Combine déséquilibre du carnet et cascade de liquidations
+  récente (seuil de significativité en ratio du volume-devise récent, pas en absolu — cf. étude
+  §4.2). Même dette assumée que `MovementQualificationStrategy` (modulateur de confiance traité
+  comme `ENTRY` classique, mécanisme dédié toujours pas écrit). **DONE et branché.**
+- **ETF_FLOW** — toujours volontairement laissé de côté (étude §5) : scraping Farside jugé trop
+  fragile pour être plus qu'un modulateur, qui n'a pas encore de mécanisme dédié. Reste accessible
+  en ad hoc via `get_indicator` seulement.
+
+Tests ajoutés : `MarketOpinionHelperTest` (3 nouvelles méthodes), `GlobalMarketOpinionTest`
+(nouveau), `MacroMarketOpinionTest` (nouveau, logique pure + intégration), `OrderFlowStrategyTest`
+(nouveau), `MarketOpinionParametersFactoryOrderFlowTest` (nouveau), plus les tests existants
+(`DxyIndicatorTest`, `Sp500IndicatorTest`, `NasdaqIndicatorTest`, `YahooFinanceQuoteClientTest`,
+`TwelveDataQuoteClientTest`) étendus pour `values.previous`. Un test préexistant
+(`TreeAnalysisFacadeTest`) a dû être adapté : son scénario "aucune MarketOpinion pour ce scope"
+utilisait `OpinionScope.MACRO` comme scope volontairement non couvert — ce n'est plus vrai
+maintenant que `MacroMarketOpinion` existe, le test vérifie désormais un autre mode d'échec propre
+(absence de credential Twelve Data en profil de test → aucun `OpinionEvent` émis).
+
+**Bug trouvé et corrigé lors de la vérification live (2026-07-15)** : la première version de
+`DxyIndicator` faisait 2 appels réseau Twelve Data par évaluation (`/price` pour la valeur courante
++ `/quote` pour `previous`), soit 12 crédits — au-dessus du palier gratuit (8 crédits/minute) à elle
+seule. Résultat : `DXY` (et donc `MacroMarketOpinion`) échouait quasi systématiquement en conditions
+réelles (429 confirmé dans `logs/TradeIO5.log`), alors que `mvn test` restait vert (le mock réseau
+des tests ne pouvait pas révéler ce problème). Corrigé en dérivant courant **et** précédent d'un
+seul appel `/quote` (6 crédits/évaluation, sous le palier). `DxyIndicatorTest` réécrit en
+conséquence, 313 tests toujours au vert après correction.
+
+Vérification live via `get_opinion`/`get_indicator`/`evaluate_strategy` (MCP) **faite** le
+2026-07-15 : `DXY` (`values.previous` peuplé), `get_opinion MACRO` (BULLISH, confidence 0.49,
+sources DXY/SP500/NASDAQ), `get_opinion GLOBAL` (blend Fear&Greed + stablecoin visible dans
+`reason`), `evaluate_strategy OrderFlowStrategy` (NEUTRAL, raisonnement liquidations affiché) —
+tous testés avec succès contre l'app réelle.
