@@ -32,14 +32,16 @@ import java.util.Set;
  * absolu) et OBV (signe) pour distinguer une cascade de liquidations d'un mouvement de conviction
  * spot, ou détecter un sur-effet-de-levier en construction.
  * <p>
- * <b>Limite déjà connue et acceptée pour ce lot</b> (signalée dans l'étude "extension-risk-macro-
- * external" §4.1, cf. prompt d'implémentation) : cette Strategy est agrégée par
- * {@code StrategyAggregator} de la même façon qu'une Strategy directionnelle classique
- * ({@code ENTRY}), alors qu'elle joue conceptuellement un rôle de <b>modulateur de confiance</b>
- * plutôt que de générateur de signal indépendant (dans le même esprit que Fear &amp; Greed vis-à-vis
- * d'un signal technique). Le mécanisme de modulation dédié n'existe pas encore dans le code — cette
- * Strategy est traitée comme {@link StrategyType#ENTRY} classique en attendant, comme une
- * simplification assumée pour ce lot.
+ * <b>Strategy {@link StrategyType#CONFIDENCE_MODULATOR}</b> (résolu le 2026-07-15, cf. étude
+ * "extension-risk-macro-external" §4.1 pour l'origine de la dette, et
+ * {@link fr.ses10doigts.tradeIO5.service.tree.opinion.AbstractMarketOpinion#decide} pour le
+ * mécanisme) : cette Strategy ne vote pas sur la direction du marché, elle qualifie la fiabilité
+ * d'un mouvement déjà voté par les Strategies {@code ENTRY} (dans le même esprit que Fear &amp;
+ * Greed vis-à-vis d'un signal technique). Elle n'est donc plus agrégée par
+ * {@code StrategyAggregator} avec les Strategies directionnelles : son score est converti par
+ * {@code MarketOpinionHelper#computeConfidenceModulationFactor} en un facteur qui n'atténue que la
+ * confidence finale de l'Opinion, jamais son score. Même mécanisme, même moment de résolution que
+ * {@link OrderFlowStrategy}, qui partageait exactement la même dette documentée.
  * <p>
  * Patron de référence : {@link TrendConfirmationStrategy} (Strategy qui combine plusieurs
  * {@code IndicatorType}, discrimination par {@code IndicatorKey.getType()}).
@@ -311,7 +313,7 @@ public class MovementQualificationStrategy extends AbstractStrategy {
 
     @Override
     public Set<StrategyType> getType() {
-        return Set.of(StrategyType.ENTRY);
+        return Set.of(StrategyType.CONFIDENCE_MODULATOR);
     }
 
     @Override

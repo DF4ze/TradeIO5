@@ -136,4 +136,50 @@ class MarketOpinionHelperTest {
             assertEquals(1.0, factor, 1e-9);
         }
     }
+
+    /**
+     * Introduit le 2026-07-15 pour résoudre la dette partagée documentée dans
+     * {@code MovementQualificationStrategy}/{@code OrderFlowStrategy} : ces Strategies
+     * {@code CONFIDENCE_MODULATOR} qualifient la fiabilité d'un mouvement plutôt que de voter sur
+     * sa direction ; leur score doit atténuer la confidence d'une Opinion, jamais l'amplifier ni
+     * l'annuler brutalement.
+     */
+    @Nested
+    @DisplayName("computeConfidenceModulationFactor (StrategyType.CONFIDENCE_MODULATOR)")
+    class ComputeConfidenceModulationFactorTest {
+
+        @Test
+        @DisplayName("score positif (conviction confirmée) => facteur neutre 1.0, jamais d'amplification")
+        void positiveScore_neutralFactor() {
+            assertEquals(1.0, MarketOpinionHelper.computeConfidenceModulationFactor(1.0), 1e-9);
+            assertEquals(1.0, MarketOpinionHelper.computeConfidenceModulationFactor(0.3), 1e-9);
+        }
+
+        @Test
+        @DisplayName("score neutre (aucun pattern détecté) => facteur neutre 1.0")
+        void zeroScore_neutralFactor() {
+            assertEquals(1.0, MarketOpinionHelper.computeConfidenceModulationFactor(0.0), 1e-9);
+        }
+
+        @Test
+        @DisplayName("score négatif => atténuation continue, jamais 0 brutal, plancher à 0.5 au score minimal -1.0")
+        void negativeScore_continuousAttenuation_neverZero() {
+            double factorMild = MarketOpinionHelper.computeConfidenceModulationFactor(-0.2);
+            double factorSevere = MarketOpinionHelper.computeConfidenceModulationFactor(-0.8);
+            double factorMax = MarketOpinionHelper.computeConfidenceModulationFactor(-1.0);
+
+            assertTrue(factorMild < 1.0 && factorMild > factorSevere,
+                    "un score plus négatif doit atténuer davantage : " + factorMild + " vs " + factorSevere);
+            assertTrue(factorSevere > factorMax);
+            assertEquals(0.5, factorMax, 1e-9, "score -1.0 (fragilité maximale) => facteur plancher 0.5, jamais 0");
+            assertTrue(factorMax > 0.0, "jamais un 0 brutal, même au score le plus négatif possible");
+        }
+
+        @Test
+        @DisplayName("score hors [-1,1] => clampé avant conversion")
+        void outOfRangeScore_isClamped() {
+            assertEquals(1.0, MarketOpinionHelper.computeConfidenceModulationFactor(5.0), 1e-9);
+            assertEquals(0.5, MarketOpinionHelper.computeConfidenceModulationFactor(-5.0), 1e-9);
+        }
+    }
 }

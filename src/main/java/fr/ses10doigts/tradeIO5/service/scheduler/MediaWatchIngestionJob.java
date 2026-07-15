@@ -30,8 +30,15 @@ import java.util.Optional;
  * (docs/etude-veille-media-youtube.md §4, Lot 1 ; docs/prompt-implementation-veille-media-full.md,
  * Lot 1b). {@code @EnableScheduling} déjà présent sur {@code TradeIO5} (classe principale).
  * <p>
- * Cadence par défaut : toutes les 6h — la cadence de publication observée (~4 vidéos/semaine chez
- * Cryptolyze) ne justifie pas un polling agressif.
+ * Cadence par défaut : 4×/jour (9h30, 15h30, 21h30, 3h30, heure locale de la JVM — confirmé
+ * {@code Europe/Paris} sur la machine de déploiement, aucun {@code zone} explicite sur
+ * {@code @Scheduled}). Révisé le 2026-07-15 (était {@code 0 0 *&#47;6 * * *}, soit 00h/06h/12h/18h) :
+ * l'analyse des horaires réels de publication Cryptolyze (§ mémoire projet) montre deux créneaux
+ * quotidiens réguliers, ~09h00 et ~18h17 heure de Paris. L'ancien calage à 00h/06h/12h/18h ratait
+ * de peu la vidéo du soir (captée seulement à minuit, ~5h43 de retard) et ne remontait la vidéo du
+ * matin qu'à 12h (~3h de retard). Le nouveau calage à 9h30/15h30/21h30/3h30 capte la vidéo du matin
+ * en moins de 30 min (dispo avant 10h avec l'extraction à 9h45, cf. {@link MediaWatchExtractionJob})
+ * et réduit le retard sur la vidéo du soir à ~3h13 (poll de 21h30) au lieu de ~5h43.
  */
 @Component
 @RequiredArgsConstructor
@@ -48,7 +55,7 @@ public class MediaWatchIngestionJob {
     private final MediaCredentialResolver credentialResolver;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Scheduled(cron = "${tradeio.media-watch.poll-cron:0 0 */6 * * *}")
+    @Scheduled(cron = "${tradeio.media-watch.poll-cron:0 30 9,15,21,3 * * *}")
     public void pollActiveSources() {
         List<ContentSourceEntity> sources = contentSourceRepository.findByActiveTrue();
 

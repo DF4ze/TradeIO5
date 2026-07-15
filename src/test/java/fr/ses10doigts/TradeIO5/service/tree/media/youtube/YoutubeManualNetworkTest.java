@@ -48,6 +48,11 @@ class YoutubeManualNetworkTest {
         List<YoutubeVideoRef> videos = client.fetchLatestVideos(credential, CRYPTOLYZE_CHANNEL_ID);
 
         assertFalse(videos.isEmpty(), "Le flux RSS Cryptolyze doit renvoyer au moins une vidéo");
-        System.out.println("Vidéos récupérées : " + videos.size() + ", première : " + videos.get(0));
+        System.out.println("Vidéos récupérées : " + videos.size());
+        System.out.println("PUBLISH_STATS_START");
+        for (YoutubeVideoRef v : videos) {
+            System.out.println("PUBLISH|" + v.videoId() + "|" + v.publishedAt() + "|" + v.title());
+        }
+        System.out.println("PUBLISH_STATS_END");
     }
 }

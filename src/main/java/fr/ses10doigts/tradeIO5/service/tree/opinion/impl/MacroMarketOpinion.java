@@ -19,12 +19,16 @@ import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorEngine;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.external.DxyIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.external.Sp500Indicator;
 import fr.ses10doigts.tradeIO5.service.tree.opinion.MarketOpinion;
+import fr.ses10doigts.tradeIO5.service.tree.opinion.modulator.ConfidenceModulation;
+import fr.ses10doigts.tradeIO5.service.tree.opinion.modulator.ModulationResult;
+import fr.ses10doigts.tradeIO5.service.tree.opinion.modulator.StalenessModulator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -158,12 +162,17 @@ public class MacroMarketOpinion implements MarketOpinion {
         MarketOpinionHelper.ConfidenceSignal confidenceSignal = MarketOpinionHelper.scoreToConfidenceAndSignalType(score);
 
         // Fraîcheur (étude §2.3) : le facteur le plus conservateur des deux quotes actions retenu.
+        // Étude "unification-confidence-modulator" : computeStalenessDampening n'est plus appelée
+        // directement ici, mais via l'adaptateur StalenessModulator (une seule instance qui reproduit
+        // le Math.min ci-dessous, cf. javadoc StalenessModulator §5 point 2) + la boucle commune
+        // ConfidenceModulation.
         Instant now = context.clock().now();
-        double sp500Staleness = MarketOpinionHelper.computeStalenessDampening(
-                lastTradeTime(sp500Snapshot), now, staleQuoteHours);
-        double nasdaqStaleness = MarketOpinionHelper.computeStalenessDampening(
-                lastTradeTime(nasdaqSnapshot), now, staleQuoteHours);
-        double stalenessFactor = Math.min(sp500Staleness, nasdaqStaleness);
+        StalenessModulator stalenessModulator = new StalenessModulator(now, staleQuoteHours,
+                new StalenessModulator.StalenessInput("SP500", lastTradeTime(sp500Snapshot)),
+                new StalenessModulator.StalenessInput("NASDAQ", lastTradeTime(nasdaqSnapshot)));
+        List<ModulationResult> modulationResults = ConfidenceModulation.evaluateAll(
+                List.of(stalenessModulator), context, parameters);
+        double stalenessFactor = ConfidenceModulation.combinedFactor(modulationResults);
         double confidence = confidenceSignal.confidence * stalenessFactor;
 
         logger.debug("{} : dxyChangePct={}, sp500ChangePct={}, nasdaqChangePct={} => score={}, signal={}, "

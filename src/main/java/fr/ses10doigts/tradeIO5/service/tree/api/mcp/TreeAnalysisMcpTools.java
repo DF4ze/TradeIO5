@@ -132,16 +132,21 @@ public class TreeAnalysisMcpTools {
             name = "evaluate_strategy",
             description = "Évalue une stratégie de trading pour un symbole donné : calcule les indicateurs requis à "
                     + "partir de candles réelles, puis exécute la logique de la stratégie. Stratégies disponibles : "
-                    + "TrendConfirmationStrategy (ENTRY, EMA rapide + EMA lente + ADX + RSI) et "
-                    + "MovementQualificationStrategy (ENTRY, requiert exactement 1 OPEN_INTEREST + 1 FUNDING_RATE + "
-                    + "1 OBV en 'indicators' — nécessite la credential Coinalyze). La résolution entre plusieurs "
-                    + "stratégies du même StrategyType se fait selon les indicateurs fournis dans 'indicators'. "
-                    + "Retourne un score directionnel (-1 à 1), une confiance, et le type de signal."
+                    + "TrendConfirmationStrategy (ENTRY, EMA rapide + EMA lente + ADX + RSI), "
+                    + "MovementQualificationStrategy (CONFIDENCE_MODULATOR, requiert exactement 1 OPEN_INTEREST + "
+                    + "1 FUNDING_RATE + 1 OBV en 'indicators' — nécessite la credential Coinalyze) et "
+                    + "OrderFlowStrategy (CONFIDENCE_MODULATOR, requiert exactement 1 ORDER_BOOK + 1 LIQUIDATIONS en "
+                    + "'indicators' — nécessite la credential Coinalyze pour LIQUIDATIONS). Les Strategies "
+                    + "CONFIDENCE_MODULATOR ne votent pas sur la direction du marché : leur score qualifie la "
+                    + "fiabilité d'un mouvement (cascade de liquidations, sur-effet-de-levier, épuisement...), à "
+                    + "utiliser comme atténuateur de confidence dans une Opinion plutôt que comme signal isolé. "
+                    + "La résolution entre plusieurs stratégies du même StrategyType se fait selon les indicateurs "
+                    + "fournis dans 'indicators'. Retourne un score (-1 à 1), une confiance, et le type de signal."
     )
     public String evaluateStrategy(
             @ToolParam(description = "Symbole du marché, ex: BTCUSDT") String symbol,
             @ToolParam(description = "Timeframe de référence pour cette évaluation") TimeFrame timeFrame,
-            @ToolParam(description = "Type de stratégie: ENTRY, EXIT, RISK") StrategyType strategyType,
+            @ToolParam(description = "Type de stratégie: ENTRY, EXIT, RISK, CONFIDENCE_MODULATOR") StrategyType strategyType,
             @ToolParam(description = "Indicateurs requis par la stratégie (type, timeframe, paramètres numériques)") List<IndicatorSpec> indicators,
             @ToolParam(description = "Paramètres numériques propres à la stratégie", required = false) Map<String, Double> numericParams,
             @ToolParam(description = "Paramètres texte propres à la stratégie", required = false) Map<String, String> stringParams,

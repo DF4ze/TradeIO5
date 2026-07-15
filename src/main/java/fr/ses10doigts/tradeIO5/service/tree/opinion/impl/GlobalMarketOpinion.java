@@ -17,11 +17,15 @@ import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorCredentialResolve
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorEngine;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.external.StablecoinMarketCapIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.opinion.MarketOpinion;
+import fr.ses10doigts.tradeIO5.service.tree.opinion.modulator.ConfidenceModulation;
+import fr.ses10doigts.tradeIO5.service.tree.opinion.modulator.ModulationResult;
+import fr.ses10doigts.tradeIO5.service.tree.opinion.modulator.SentimentShiftModulator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -180,8 +184,14 @@ public class GlobalMarketOpinion implements MarketOpinion {
         // confidence (jamais le score directionnel) proportionnellement à l'ampleur du mouvement.
         // Le dampening reste calculé sur Fear&Greed seul (now/yesterday), pas sur le score combiné :
         // pas de raison empirique d'étendre ce comportement au stablecoin score (cf. javadoc classe).
-        double dampeningFactor = MarketOpinionHelper.computeSentimentShiftDampening(
+        // Étude "unification-confidence-modulator" : computeSentimentShiftDampening n'est plus
+        // appelée directement ici, mais via l'adaptateur SentimentShiftModulator + la boucle commune
+        // ConfidenceModulation (même calcul, même résultat).
+        SentimentShiftModulator sentimentShiftModulator = new SentimentShiftModulator(
                 now, yesterday, buyThreshold, sellThreshold, deltaThreshold);
+        List<ModulationResult> modulationResults = ConfidenceModulation.evaluateAll(
+                List.of(sentimentShiftModulator), context, parameters);
+        double dampeningFactor = ConfidenceModulation.combinedFactor(modulationResults);
         double confidence = confidenceSignal.confidence * dampeningFactor;
 
         double delta = yesterday != null ? now - yesterday : 0.0;

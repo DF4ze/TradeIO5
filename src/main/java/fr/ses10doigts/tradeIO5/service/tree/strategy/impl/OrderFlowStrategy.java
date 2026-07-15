@@ -37,13 +37,14 @@ import java.util.Set;
  * (positionnement dérivés OI/Funding/OBV) ne couvrent cette question : le flux forcé récent est-il
  * en train de se reconstruire dans le même sens, ou le carnet montre-t-il un épuisement ?
  * <p>
- * <b>Limite déjà connue et acceptée</b>, même réserve que {@link MovementQualificationStrategy}
- * (étude §4.3) : ce signal est conceptuellement un <b>modulateur de confiance</b> plutôt qu'un
- * générateur de signal indépendant, mais le mécanisme de modulation dédié n'existe pas encore dans
- * le code — traitée comme {@link StrategyType#ENTRY} classique en attendant, même compromis assumé
- * que {@code MovementQualificationStrategy} (dette partagée, à résoudre pour les deux Strategy en
- * même temps le jour où un vrai mécanisme de modulation existe, pas en bricolant une solution ad
- * hoc pour une seule).
+ * <b>Strategy {@link StrategyType#CONFIDENCE_MODULATOR}</b>, résolu en même temps que
+ * {@link MovementQualificationStrategy} (2026-07-15, comme promis dans la dette documentée à
+ * l'étude §4.3 : "à résoudre pour les deux Strategy en même temps... pas en bricolant une solution
+ * ad hoc pour une seule") : ce signal ne vote pas sur la direction du marché, il qualifie la
+ * fiabilité d'un mouvement déjà voté par les Strategies {@code ENTRY}. Il n'est donc plus agrégé
+ * par {@code StrategyAggregator} avec elles ; son score est converti par
+ * {@code MarketOpinionHelper#computeConfidenceModulationFactor} en un facteur qui n'atténue que la
+ * confidence finale de l'Opinion (cf. {@code AbstractMarketOpinion#decide}), jamais son score.
  * <p>
  * <b>Seuil de significativité des liquidations</b> (étude §4.2, point le plus ouvert de l'étude) :
  * en <i>relatif</i> au volume récent en devise de cotation ({@code volume × close} sommé sur la
@@ -324,7 +325,7 @@ public class OrderFlowStrategy extends AbstractStrategy {
 
     @Override
     public Set<StrategyType> getType() {
-        return Set.of(StrategyType.ENTRY);
+        return Set.of(StrategyType.CONFIDENCE_MODULATOR);
     }
 
     @Override

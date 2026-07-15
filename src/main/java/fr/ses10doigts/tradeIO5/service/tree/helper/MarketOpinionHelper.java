@@ -146,6 +146,31 @@ public class MarketOpinionHelper {
         return staleThresholdHours / ageHours;
     }
 
+    /**
+     * Convertit le score d'une Strategy {@code StrategyType.CONFIDENCE_MODULATOR} (ex :
+     * {@code MovementQualificationStrategy}, {@code OrderFlowStrategy}) en un facteur de
+     * confidence, sur le même principe que {@link #computeSentimentShiftDampening} et
+     * {@link #computeStalenessDampening} : jamais d'amplification, seulement une atténuation
+     * continue, jamais un {@code 0} brutal.
+     * <p>
+     * Ces Strategies produisent un score {@code [-1,1]} qui qualifie la fiabilité d'un mouvement
+     * plutôt qu'un vote directionnel : positif ou neutre (mouvement de conviction confirmé, ou
+     * aucun pattern détecté) ne doit rien changer à la confidence des Strategies {@code ENTRY}
+     * ({@code 1.0}) ; négatif (cascade de liquidations, sur-effet-de-levier, flush qui s'épuise...)
+     * l'atténue proportionnellement à sa magnitude, bornée dans {@code [0.5, 1.0]} — jamais 0,
+     * une seule Strategy modulatrice ne doit jamais pouvoir annuler entièrement la confidence.
+     *
+     * @param modulatorScore score du signal modulateur, attendu dans {@code [-1,1]} (clampé sinon)
+     */
+    public static double computeConfidenceModulationFactor(double modulatorScore) {
+        double clamped = Math.clamp(modulatorScore, -1.0, 1.0);
+        if (clamped >= 0) {
+            return 1.0;
+        }
+        double fragility = -clamped; // dans ]0,1]
+        return 1.0 / (1.0 + fragility);
+    }
+
     public static double computeRsiScore(double value, double buyThreshold, double sellThreshold) {
         // plage centrale HOLD = [-1/6, +1/6]
         double holdMin = -1.0/6.0;
