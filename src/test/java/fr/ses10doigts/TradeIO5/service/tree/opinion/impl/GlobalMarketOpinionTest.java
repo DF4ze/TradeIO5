@@ -101,6 +101,55 @@ class GlobalMarketOpinionTest {
         assertTrue(captor.getValue().getSources().contains("FEAR_GREED"));
     }
 
+    @Test
+    @DisplayName("Fear&Greed en zone extrême + mouvement brutal j/j => confidence atténuée vs mouvement stable "
+            + "(SentimentShiftModulator, étude unification-confidence-modulator)")
+    void decide_dampensConfidence_onBrutalSentimentShift() throws Exception {
+        // "stable" : now=80 (extreme greed, seuil défaut 75), yesterday=78 => delta=2, sous le seuil
+        // par défaut (15) => pas d'atténuation. Stablecoin invalide pour isoler la seule contribution
+        // Fear&Greed (même pattern que decide_fallsBackToPureFearGreed_whenStablecoinInvalid).
+        mockIndicator(IndicatorType.FEAR_GREED, Map.of("now", 80.0, "yesterday", 78.0));
+        when(indicatorEngine.execute(any(), argThatType(IndicatorType.STABLECOIN_MARKET_CAP)))
+                .thenReturn(IndicatorSnapshot.builder().result(IndicatorResult.invalid()).build());
+
+        opinion.decide(context(), MarketOpinionParameters.builder().build());
+        ArgumentCaptor<OpinionEvent> stableCaptor = ArgumentCaptor.forClass(OpinionEvent.class);
+        verify(eventBus).publish(stableCaptor.capture());
+
+        // "brutal" : même now=80, mais yesterday=40 => delta=40, largement au-dessus du seuil =>
+        // atténuation. Instance/mocks séparés (même patron que
+        // MacroMarketOpinionTest#decide_dampensConfidence_whenQuotesStale) pour comparer deux
+        // publications indépendantes.
+        IndicatorEngine brutalEngine = mock(IndicatorEngine.class);
+        EventBus brutalEventBus = mock(EventBus.class);
+        when(brutalEngine.execute(any(), argThatType(IndicatorType.FEAR_GREED)))
+                .thenReturn(IndicatorSnapshot.builder()
+                        .result(IndicatorResult.builder().valid(true)
+                                .values(Map.of("now", 80.0, "yesterday", 40.0)).build())
+                        .build());
+        when(brutalEngine.execute(any(), argThatType(IndicatorType.STABLECOIN_MARKET_CAP)))
+                .thenReturn(IndicatorSnapshot.builder().result(IndicatorResult.invalid()).build());
+        GlobalMarketOpinion brutalOpinion = newOpinion(brutalEngine, brutalEventBus);
+
+        brutalOpinion.decide(context(), MarketOpinionParameters.builder().build());
+        ArgumentCaptor<OpinionEvent> brutalCaptor = ArgumentCaptor.forClass(OpinionEvent.class);
+        verify(brutalEventBus).publish(brutalCaptor.capture());
+
+        assertTrue(brutalCaptor.getValue().getConfidence() < stableCaptor.getValue().getConfidence(),
+                "un mouvement brutal en zone extrême doit atténuer la confidence par rapport à un "
+                        + "mouvement stable, jamais l'amplifier");
+        assertTrue(brutalCaptor.getValue().getConfidence() > 0.0,
+                "jamais un 0 brutal, même pour un mouvement très brutal");
+    }
+
+    private GlobalMarketOpinion newOpinion(IndicatorEngine engine, EventBus bus) throws Exception {
+        GlobalMarketOpinion o = new GlobalMarketOpinion(engine, mock(IndicatorCredentialResolver.class));
+        Field field = GlobalMarketOpinion.class.getDeclaredField("eventBus");
+        field.setAccessible(true);
+        field.set(o, bus);
+        return o;
+    }
+
     private void mockIndicator(IndicatorType type, Map<String, Double> values) {
         when(indicatorEngine.execute(any(), argThatType(type)))
                 .thenReturn(IndicatorSnapshot.builder()
