@@ -216,6 +216,18 @@ blocage.
 
 ## 5. `ETF_FLOW` — pourquoi je ne le branche pas dans une Strategy maintenant
 
+> **Mise à jour 2026-07-16 (sourcing)** : la limite "scraping HTML Farside non versionné" citée
+> ci-dessous comme motivation ne s'applique plus — `EtfFlowIndicator` est passé sur l'API REST
+> officielle SoSoValue (`SosoValueEtfFlowClient`), cf. `docs/etude-sourcing-etf-flow-alternative-farside.md`.
+>
+> **Mise à jour 2026-07-16 (branchement)** : l'option (a) ci-dessous est désormais faite —
+> `EtfFlowConfidenceStrategy` (`StrategyType.CONFIDENCE_MODULATOR`, restreint à `BTCUSDT`/`ETHUSDT`)
+> branchée, cf. `docs/etude-branchement-etf-flow-confidence-modulator.md`. Nuance : volontairement
+> **pas** ajoutée par défaut à `DefaultMarketOpinion` — accessible en ad hoc via `evaluate_strategy`/
+> `get_opinion` le temps d'observer son comportement en réel, même progression que
+> `MovementQualificationStrategy` en son temps. La réserve de fond ("jamais un signal directionnel
+> sans supervision") reste respectée : c'est un modulateur de confidence, jamais un vote directionnel.
+
 Objectif de Clem : "meilleures combinaisons", pas juste maximiser le nombre d'Opinions — je prends
 ça au mot ici. `EtfFlowIndicator` a une limite documentée dans son propre code (scraping HTML Farside
 non versionné) et le rapport du 09/07 est explicite : "à traiter comme best-effort, **jamais** comme
@@ -246,7 +258,7 @@ Recommandation : ne pas coder `ETF_FLOW` dans ce lot, le garder accessible en ad
 | DXY, SP500, NASDAQ | `RiskAppetiteStrategy` → `MacroMarketOpinion` (nouvelle) | `MACRO` (activé) | Clé Twelve Data + extension contrat `values.previous` sur les 3 indicateurs |
 | STABLECOIN_MARKET_CAP | Enrichissement direct de `GlobalMarketOpinion` | `GLOBAL` (existant) | Aucun — déjà exploitable tel quel |
 | ORDER_BOOK, LIQUIDATIONS | `OrderFlowStrategy` (nouvelle) → concaténée dans `DefaultMarketOpinion` | `LOCAL` (existant) | Clé Coinalyze (déjà fournie) |
-| ETF_FLOW | Différé — pas de Strategy dans ce lot | — | Mécanisme de modulateur de confiance (dette partagée avec `MovementQualificationStrategy`) |
+| ETF_FLOW | `EtfFlowConfidenceStrategy` (`CONFIDENCE_MODULATOR`), branchée le 2026-07-16 mais **pas** ajoutée par défaut à `DefaultMarketOpinion` (ad hoc uniquement) | — | Fait (cf. `docs/etude-branchement-etf-flow-confidence-modulator.md`) |
 
 Résultat : **1 nouvelle Opinion** (`MacroMarketOpinion`, scope `MACRO` activé pour la première fois),
 **1 Opinion existante enrichie** (`GlobalMarketOpinion`), **1 nouvelle Strategy locale** branchée dans

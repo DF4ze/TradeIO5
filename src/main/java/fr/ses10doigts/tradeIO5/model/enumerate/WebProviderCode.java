@@ -13,5 +13,6 @@ public enum WebProviderCode {
     FOREXFACTORY,
     FARSIDE,
     YOUTUBE,
-    YAHOO_FINANCE
+    YAHOO_FINANCE,
+    SOSOVALUE
 }

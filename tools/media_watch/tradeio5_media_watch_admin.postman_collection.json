@@ -1,0 +1,60 @@
+{
+  "info": {
+    "name": "TradeIO5 - Media Watch Admin",
+    "description": "Déclenchement manuel des jobs de veille média (MediaWatchAdminController). Lancer d'abord 'Login (get JWT cookie)' pour obtenir le cookie de session ROLE_ADMIN, puis les deux requêtes de trigger.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "adminUserName", "value": "", "type": "string" },
+    { "key": "adminPassword", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Login (get JWT cookie)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "userName", "value": "{{adminUserName}}", "type": "text" },
+            { "key": "password", "value": "{{adminPassword}}", "type": "text" }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/signinForm",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "signinForm"]
+        },
+        "description": "Renseigner adminUserName/adminPassword (variables de la collection ou de l'environnement) avant d'exécuter. La réponse est une redirection (302) qui pose le cookie JWT dans le cookie jar de Postman pour {{baseUrl}} — les 2 requêtes suivantes le réutilisent automatiquement tant qu'on reste sur le même baseUrl."
+      }
+    },
+    {
+      "name": "Trigger ingestion",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/media-watch/ingest",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "media-watch", "ingest"]
+        },
+        "description": "Relance MediaWatchIngestionJob.pollActiveSources() (découverte RSS + transcript). Nécessite d'être authentifié ROLE_ADMIN (cf. requête Login)."
+      }
+    },
+    {
+      "name": "Trigger extraction",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/media-watch/extract",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "media-watch", "extract"]
+        },
+        "description": "Relance MediaWatchExtractionJob.processPendingVideos() (classification + extraction LLM des vidéos PENDING). À lancer après 'Trigger ingestion' si besoin."
+      }
+    }
+  ]
+}

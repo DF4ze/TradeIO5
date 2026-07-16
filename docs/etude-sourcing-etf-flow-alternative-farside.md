@@ -1,5 +1,31 @@
 # Étude : sourcing d'un flux ETF Bitcoin/Ethereum plus fiable que le scraping Farside
 
+> **Implémenté le 2026-07-16** avec **SoSoValue** (pas CoinGlass, la recommandation principale du
+> §0/§3 initial) : Clem avait déjà une clé SoSoValue gratuite (palier "Demo") au moment de trancher,
+> ce qui rendait le repli payant CoinGlass inutile pour un simple modulateur de confidence. Détail :
+> `SosoValueEtfFlowClient` (remplace `FarsideEtfFlowClient`, retiré du wiring Spring),
+> `WebProviderCode.SOSOVALUE`, credential via `tradeio.sosovalue.apiKey`
+> (`application-dev.properties`, gitignoré). Décision prise en cours d'implémentation, validée avec
+> Clem : total agrégé seulement (`byIssuer` toujours vide), pas de détail par émetteur — cf. §2.1
+> révisé ci-dessous pour l'arbitrage coût/richesse. 348 tests, vérifié en réel (BTC +107,8 M$, ETH
+> +53,8 M$ le 2026-07-16, valeurs recoupées par Clem avec des sources publiques).
+>
+> Deux bugs trouvés et corrigés en testant en réel (pas anticipables sans une vraie clé, cf. §2.1) :
+> 1. **Enveloppe de réponse** : l'exemple JSON de la doc endpoint-spécifique
+>    (`2.-etf/summary-history.md`) montre un tableau brut, mais toutes les réponses SoSoValue sont en
+>    réalité enveloppées (`{"code":0,"message":"success","data":[...]}`, documenté seulement sur la
+>    page générale "Response Format"). `SosoValueEtfFlowClient.parse` déballe désormais `data` et
+>    vérifie `code`.
+> 2. **Outil MCP `get_indicator`** : n'exposait que des `numericParams`, aucun moyen de transmettre
+>    le paramètre `asset` (string) d'`EtfFlowIndicator` — `ETF_FLOW` retombait toujours sur BTC par
+>    défaut, y compris pour `symbol=ETHUSDT`. Corrigé en ajoutant `stringParams` à `get_indicator`
+>    (`TreeAnalysisMcpTools`/`TreeAnalysisFacade`), rétrocompatible (nouvelles surcharges, anciennes
+>    conservées).
+>
+> Reste à faire (hors périmètre de cette étude, cf. §5 de
+> `docs/etude-nouvelles-opinions-indicateurs-non-branches.md`) : le branchement effectif d'`ETF_FLOW`
+> comme `StrategyType.CONFIDENCE_MODULATOR`.
+
 > Contexte : `EtfFlowIndicator`/`FarsideEtfFlowClient` scrapent du HTML Farside non versionné
 > (`docs/etude-nouvelles-opinions-indicateurs-non-branches.md` §5). Plan retenu et validé : brancher
 > `ETF_FLOW` comme `StrategyType.CONFIDENCE_MODULATOR` (patron `MovementQualificationStrategy`/
@@ -100,6 +126,11 @@ n'est pas une information on-chain — elle n'existe que dans le registre intern
 signal directionnel fiable par émetteur ne peut être reconstruit ainsi.
 
 ## 3. Recommandation
+
+> **Décision finale (2026-07-16) : SoSoValue, pas CoinGlass.** Clem avait déjà une clé SoSoValue
+> gratuite en main au moment de trancher — voir l'addendum en tête de document pour le détail de
+> l'implémentation. La recommandation CoinGlass ci-dessous reste la lecture "coûts/bénéfices dans
+> l'absolu" faite avant que cette contrainte pratique ne referme le choix.
 
 **Basculer `FarsideEtfFlowClient` vers CoinGlass** (`CoinglassEtfFlowClient`, même interface
 `EtfFlowProvider`), pour ~$29/mois, avant de coder le branchement `CONFIDENCE_MODULATOR`. Gain

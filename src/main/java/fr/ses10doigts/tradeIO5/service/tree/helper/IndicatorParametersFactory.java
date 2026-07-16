@@ -133,4 +133,25 @@ public class IndicatorParametersFactory {
         );
     }
 
+    /**
+     * ETF_FLOW (SoSoValue) : même principe que {@link #buildOpenInterestParams}, credential SoSoValue
+     * résolue par l'appelant (ex: {@code IndicatorCredentialResolver.resolve(IndicatorType.ETF_FLOW)})
+     * — voir {@link fr.ses10doigts.tradeIO5.service.tree.strategy.impl.EtfFlowConfidenceStrategy}.
+     * <p>
+     * Volontairement <b>sans</b> le paramètre {@code "asset"} ("BTC"/"ETH") ici : cette factory
+     * construit des {@code IndicatorParameters} réutilisables pour n'importe quel symbole, alors que
+     * l'actif dépend du symbole évalué (résolu seulement à {@code evaluate()},
+     * cf. {@code EtfFlowConfidenceStrategy}, décision étude §2.2 — même piège que le bug
+     * {@code get_indicator} corrigé le 2026-07-16).
+     */
+    public static IndicatorParameters buildEtfFlowParams(TimeFrame timeFrame, ApiCredentialDTO credential){
+        return new IndicatorParameters(
+                IndicatorType.ETF_FLOW,
+                Map.of(),                                                                        // Numeric
+                Map.of( TrendConfirmationStrategy.P_TIME_FRAME_NAME, timeFrame.toString()),    // String
+                Map.of(),                                                                        // Boolean
+                credential
+        );
+    }
+
 }

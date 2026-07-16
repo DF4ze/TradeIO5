@@ -11,7 +11,6 @@ import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatusCode;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -30,8 +29,14 @@ import java.util.regex.Pattern;
  * distinction {@code -} vs {@code 0.0}, lignes de synthèse à ignorer par contenu de cellule plutôt
  * que par position). Voir {@link #parse(String)} pour le détail, isolé de l'appel réseau pour être
  * testable sur une fixture HTML statique (patron {@code DefiLlamaStablecoinClient.aggregate}).
+ * <p>
+ * <b>Retiré du wiring Spring le 2026-07-16</b> (annotation {@code @Component} supprimée) : remplacé
+ * par {@code SosoValueEtfFlowClient} (API REST officielle documentée) suite à
+ * docs/etude-sourcing-etf-flow-alternative-farside.md. Classe et tests conservés tels quels comme
+ * référence/repli possible, mais {@code IndicatorCredentialResolver} ne résout plus jamais
+ * {@code WebProviderCode.FARSIDE} pour {@code ETF_FLOW} — cette implémentation n'est donc plus
+ * injectée nulle part en pratique.
  */
-@Component
 public class FarsideEtfFlowClient extends AbstractExternalIndicator implements EtfFlowProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(FarsideEtfFlowClient.class);

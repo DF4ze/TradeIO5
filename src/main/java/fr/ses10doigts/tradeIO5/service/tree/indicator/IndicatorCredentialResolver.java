@@ -48,7 +48,9 @@ public class IndicatorCredentialResolver {
             // par test réel le 2026-07-15 — bascule sur Yahoo Finance (gratuit, sans clé), cf.
             // YahooFinanceQuoteProvider.
             case SP500, NASDAQ -> WebProviderCode.YAHOO_FINANCE;
-            case ETF_FLOW -> WebProviderCode.FARSIDE;
+            // ETF_FLOW : bascule FARSIDE (scraping HTML) -> SOSOVALUE (API REST officielle) le
+            // 2026-07-16, cf. docs/etude-sourcing-etf-flow-alternative-farside.md.
+            case ETF_FLOW -> WebProviderCode.SOSOVALUE;
             default -> null;
         };
         if (provider == null) {

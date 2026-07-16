@@ -112,6 +112,16 @@ public class WebProviderInitializer implements CommandLineRunner {
                         .apiBaseUrl("https://query1.finance.yahoo.com")
                         .enabled(true)
                         .createdAt(LocalDateTime.now())
+                        .build(),
+                WebProvider.builder()
+                        .code(WebProviderCode.SOSOVALUE)
+                        .name("SoSoValue")
+                        // ETF_FLOW (docs/etude-sourcing-etf-flow-alternative-farside.md) : remplace FARSIDE
+                        // (scraping HTML) par une API REST officielle documentée. Auth par header
+                        // x-soso-api-key (pas de query param), cf. SosoValueEtfFlowClient.
+                        .apiBaseUrl("https://openapi.sosovalue.com/openapi/v1")
+                        .enabled(true)
+                        .createdAt(LocalDateTime.now())
                         .build()
         )) {
             providerRepository.findByCode(wp.getCode())

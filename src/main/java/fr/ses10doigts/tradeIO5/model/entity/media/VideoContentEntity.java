@@ -56,7 +56,7 @@ public class VideoContentEntity {
      * les timestamps par segment plutôt qu'un simple texte joint. Le texte complet (passe 2) se
      * reconstruit en joignant le texte de tous les segments.
      */
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "LONGTEXT")
     private String transcript;
 
     @Enumerated(EnumType.STRING)

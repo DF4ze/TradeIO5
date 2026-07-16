@@ -140,11 +140,13 @@ Décisions/actions :
 
 ## 4. Détail — Lot 3 (scraping fragile / définition à inventer)
 
-- **ETF_FLOW** (Farside, scraping HTML) — codé et testé (fallback `invalid()` systématique en cas de
-  structure de page inattendue, vérifié par les tests). Credential Farside déjà en base (pas de clé).
-  **Pas branché** dans une Opinion. Point d'attention permanent (pas un "reste à faire" ponctuel) :
-  c'est une page HTML publique non versionnée qui peut casser sans préavis — à traiter comme
-  best-effort, jamais comme un signal sur lequel une décision automatique s'appuie sans supervision.
+- **ETF_FLOW** — **mise à jour 2026-07-16** : basculé de Farside (scraping HTML) vers l'API REST
+  officielle SoSoValue (`SosoValueEtfFlowClient`), cf. `docs/etude-sourcing-etf-flow-alternative-farside.md`.
+  Codé et testé (348 tests, vérifié en réel avec une vraie clé le 2026-07-16 — BTC et ETH renvoient
+  des flux nets distincts et cohérents avec les chiffres publics). Credential `SOSOVALUE` en base
+  (clé gratuite `tradeio.sosovalue.apiKey`, palier "Demo"). **Toujours pas branché** dans une
+  Opinion/Strategy — la réserve "best-effort, jamais un signal sans supervision" reste d'actualité
+  (cf. étude §5 mise à jour), indépendamment de la fiabilité de la source désormais réglée.
 
 - **REJECTION_ZONE** — codé et testé. **Ne pas brancher tel quel** : le protocole de calibration
   (`docs/calibration-rejection-zone.md`) n'a été exécuté que sur des **données synthétiques**
@@ -216,9 +218,13 @@ branchés, testés (313 tests, 0 échec, `mvn test` sur la machine réelle), et 
   récente (seuil de significativité en ratio du volume-devise récent, pas en absolu — cf. étude
   §4.2). Même dette assumée que `MovementQualificationStrategy` (modulateur de confiance traité
   comme `ENTRY` classique, mécanisme dédié toujours pas écrit). **DONE et branché.**
-- **ETF_FLOW** — toujours volontairement laissé de côté (étude §5) : scraping Farside jugé trop
-  fragile pour être plus qu'un modulateur, qui n'a pas encore de mécanisme dédié. Reste accessible
-  en ad hoc via `get_indicator` seulement.
+- **ETF_FLOW** — **mise à jour 2026-07-16** : branché. `EtfFlowConfidenceStrategy`
+  (`StrategyType.CONFIDENCE_MODULATOR`, restreint à `BTCUSDT`/`ETHUSDT`) compare le flux net ETF
+  (SoSoValue, USD brut) au mouvement de prix D1 récent — divergence = atténuation de confidence,
+  jamais un signal directionnel. Cf. `docs/etude-branchement-etf-flow-confidence-modulator.md`.
+  Volontairement **pas** ajoutée par défaut à `DefaultMarketOpinion` dans ce lot — accessible en ad
+  hoc via `evaluate_strategy`/`get_opinion`/`get_indicator` (paramètre `stringParams.asset`), même
+  progression prudente que `MovementQualificationStrategy` en son temps. 359 tests, vérifié en réel.
 
 Tests ajoutés : `MarketOpinionHelperTest` (3 nouvelles méthodes), `GlobalMarketOpinionTest`
 (nouveau), `MacroMarketOpinionTest` (nouveau, logique pure + intégration), `OrderFlowStrategyTest`

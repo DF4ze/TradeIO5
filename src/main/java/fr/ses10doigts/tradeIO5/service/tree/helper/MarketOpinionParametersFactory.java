@@ -87,4 +87,36 @@ public class MarketOpinionParametersFactory {
                 .strategies(List.of(key))
                 .build();
     }
+
+    /**
+     * Branche {@link fr.ses10doigts.tradeIO5.service.tree.strategy.impl.EtfFlowConfidenceStrategy}
+     * sur une {@code MarketOpinion} de scope {@code LOCAL} — docs/etude-branchement-etf-flow-confidence-modulator.md,
+     * même patron que {@link #buildLocalOpinionParamWithOrderFlow}.
+     * <p>
+     * <b>Décision étude §9.4</b> : contrairement à {@code MovementQualificationStrategy}/
+     * {@code OrderFlowStrategy}, cette fabrique n'est <b>pas</b> appelée automatiquement par
+     * {@code DefaultMarketOpinion} dans ce lot — {@code EtfFlowConfidenceStrategy} reste accessible
+     * uniquement en ad hoc (appel explicite de cette méthode via {@code evaluate_strategy}/
+     * {@code get_opinion}), le temps d'observer son comportement en réel avant un branchement par
+     * défaut. Pour combiner avec Trend/MovementQualification/OrderFlow dans une seule Opinion,
+     * l'appelant peut concaténer les {@code StrategyKey} des différents {@code MarketOpinionParameters}
+     * (voir {@code strategies()}).
+     * <p>
+     * {@code sosoValueCredential} doit être résolue par l'appelant (ex:
+     * {@code IndicatorCredentialResolver.resolve(IndicatorType.ETF_FLOW)}).
+     */
+    public static MarketOpinionParameters buildLocalOpinionParamWithEtfFlow(
+            Strategy strategy,
+            StrategyParametersFactory.EtfFlowConfidenceParam param,
+            ApiCredentialDTO sosoValueCredential
+    ){
+        StrategyParameters strategyParameters =
+                StrategyParametersFactory.buildEtfFlowConfidenceStrategyParam(param, sosoValueCredential);
+
+        StrategyKey key = new StrategyKey(strategy, strategyParameters);
+
+        return MarketOpinionParameters.builder()
+                .strategies(List.of(key))
+                .build();
+    }
 }

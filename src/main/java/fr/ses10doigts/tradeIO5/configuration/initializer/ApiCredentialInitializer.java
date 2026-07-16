@@ -49,6 +49,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		Optional<WebProvider> wpFarsideOpt = providerRepository.findByCode(WebProviderCode.FARSIDE);
 		Optional<WebProvider> wpYoutubeOpt = providerRepository.findByCode(WebProviderCode.YOUTUBE);
 		Optional<WebProvider> wpYahooFinanceOpt = providerRepository.findByCode(WebProviderCode.YAHOO_FINANCE);
+		Optional<WebProvider> wpSosoValueOpt = providerRepository.findByCode(WebProviderCode.SOSOVALUE);
 
 		if (userOpt.isEmpty()) {
 			logger.warn("❗ Impossible d’ajouter la clé API : utilisateur manquant.");
@@ -120,6 +121,11 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			return;
 		}
 
+		if (wpSosoValueOpt.isEmpty()) {
+			logger.warn("❗ Impossible d’ajouter la clé API : provider SoSoValue manquant.");
+			return;
+		}
+
         User user = userOpt.get();
 		User sys = sysOpt.get();
 		WebProvider webProviderBinanceTestnet = wpBinanceTestNetOpt.get();
@@ -134,6 +140,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		WebProvider webProviderFarside = wpFarsideOpt.get();
 		WebProvider webProviderYoutube = wpYoutubeOpt.get();
 		WebProvider webProviderYahooFinance = wpYahooFinanceOpt.get();
+		WebProvider webProviderSosoValue = wpSosoValueOpt.get();
 
 		boolean alreadyExistsBTN = credentialRepository.findByUserAndWebProvider(user, webProviderBinanceTestnet).isPresent();
 		boolean alreadyExistsBin = credentialRepository.findByUserAndWebProvider(user, webProviderBinance).isPresent();
@@ -148,14 +155,12 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		boolean alreadyExistsFarside = credentialRepository.findByUserAndWebProvider(sys, webProviderFarside).isPresent();
 		boolean alreadyExistsYoutube = credentialRepository.findByUserAndWebProvider(sys, webProviderYoutube).isPresent();
 		boolean alreadyExistsYahooFinance = credentialRepository.findByUserAndWebProvider(sys, webProviderYahooFinance).isPresent();
+		boolean alreadyExistsSosoValue = credentialRepository.findByUserAndWebProvider(sys, webProviderSosoValue).isPresent();
 
 		if (alreadyExistsBTN) {
 			logger.debug("🔑 Clé API " + webProviderBinanceTestnet.getName() + " déjà présente pour l'utilisateur OKlm.");
-			// return;
 
 		} else {
-
-			//@formatter:off
 			ApiCredential credential = ApiCredential.builder()
 					.user(user)
 					.webProvider(webProviderBinanceTestnet)
@@ -165,8 +170,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 					.createdAt(LocalDateTime.now())
 					.build();
 
-			//@formatter:on
-
 			credentialRepository.save(credential);
 
 			logger.debug("- Clé API ajoutée pour OKlm sur BINANCE_TESTNET");
@@ -174,7 +177,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 		if (alreadyExistsBin) {
             logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur OKlm.", webProviderBinance.getName());
-			// return;
 
 		} else {
 			// Clé API-utilisateur (compte trading réel de Clem), pas une clé System partagée comme
@@ -190,7 +192,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 		if (alreadyExistsKraken) {
 			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur OKlm.", webProviderKraken.getName());
-			// return;
 
 		} else {
 			// Même principe que BINANCE ci-dessus : clé API-utilisateur, retirée du code en dur le
@@ -201,7 +202,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 		if (alreadyExistsCoinstats) {
 			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur System.", webProviderCoinstats.getName());
-			// return;
 
 		} else {
 			// Clé System partagée (Fear & Greed, aucun wallet/utilisateur rattaché — cf.
@@ -216,7 +216,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 						+ "aucune credential COINSTATS créée pour System (FEAR_GREED restera invalid "
 						+ "tant qu'elle n'est pas renseignée).");
 			} else {
-				//@formatter:off
 				ApiCredential credential = ApiCredential.builder()
 						.user(sys)
 						.webProvider(webProviderCoinstats)
@@ -224,7 +223,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 						.enabled(true)
 						.createdAt(LocalDateTime.now())
 						.build();
-				//@formatter:on
 
 				credentialRepository.save(credential);
 				logger.debug("- Clé API ajoutée pour System sur COINSTATS");
@@ -233,13 +231,12 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 		if (alreadyExistsDefiLlama) {
 			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur System.", webProviderDefiLlama.getName());
-			// return;
 
 		} else {
 			// DefiLlama /stablecoins ne demande aucune clé API (endpoint public) : apiKey/secretKey
 			// restent vides, seul le baseUrl porté par la credential résolue importe (cf.
 			// AbstractExternalIndicator#getWebClient et étude "indicateurs-macro-externes" §7).
-			//@formatter:off
+
 			ApiCredential credential = ApiCredential.builder()
 					.user(sys)
 					.webProvider(webProviderDefiLlama)
@@ -247,7 +244,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 					.enabled(true)
 					.createdAt(LocalDateTime.now())
 					.build();
-			//@formatter:on
 
 			credentialRepository.save(credential);
 			logger.debug("- Clé API ajoutée pour System sur DEFILLAMA");
@@ -255,7 +251,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 		if (alreadyExistsCoinalyze) {
 			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur System.", webProviderCoinalyze.getName());
-			// return;
 
 		} else {
 			// Contrairement aux autres providers de cette méthode, la clé Coinalyze n'est PAS
@@ -272,7 +267,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 						+ "aucune credential COINALYZE créée pour System (OPEN_INTEREST/FUNDING_RATE/"
 						+ "LIQUIDATIONS resteront invalid tant qu'elle n'est pas renseignée).");
 			} else {
-				//@formatter:off
 				ApiCredential credential = ApiCredential.builder()
 						.user(sys)
 						.webProvider(webProviderCoinalyze)
@@ -280,7 +274,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 						.enabled(true)
 						.createdAt(LocalDateTime.now())
 						.build();
-				//@formatter:on
 
 				credentialRepository.save(credential);
 				logger.debug("- Clé API ajoutée pour System sur COINALYZE");
@@ -289,7 +282,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 		if (alreadyExistsTwelveData) {
 			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur System.", webProviderTwelveData.getName());
-			// return;
 
 		} else {
 			// Même principe que COINALYZE ci-dessus : clé générée manuellement sur twelvedata.com
@@ -303,7 +295,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 						+ "aucune credential TWELVE_DATA créée pour System (DXY/SP500/NASDAQ resteront "
 						+ "invalid tant qu'elle n'est pas renseignée).");
 			} else {
-				//@formatter:off
 				ApiCredential credential = ApiCredential.builder()
 						.user(sys)
 						.webProvider(webProviderTwelveData)
@@ -311,7 +302,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 						.enabled(true)
 						.createdAt(LocalDateTime.now())
 						.build();
-				//@formatter:on
 
 				credentialRepository.save(credential);
 				logger.debug("- Clé API ajoutée pour System sur TWELVE_DATA");
@@ -320,7 +310,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 		if (alreadyExistsFinnhub) {
 			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur System.", webProviderFinnhub.getName());
-			// return;
 
 		} else {
 			// Même principe : clé générée manuellement sur finnhub.io (compte gratuit), jamais
@@ -334,7 +323,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 						+ "aucune credential FINNHUB créée pour System (calendrier macro limité à "
 						+ "ForexFactory tant qu'elle n'est pas renseignée).");
 			} else {
-				//@formatter:off
 				ApiCredential credential = ApiCredential.builder()
 						.user(sys)
 						.webProvider(webProviderFinnhub)
@@ -342,7 +330,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 						.enabled(true)
 						.createdAt(LocalDateTime.now())
 						.build();
-				//@formatter:on
 
 				credentialRepository.save(credential);
 				logger.debug("- Clé API ajoutée pour System sur FINNHUB");
@@ -351,13 +338,12 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 		if (alreadyExistsForexFactory) {
 			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur System.", webProviderForexFactory.getName());
-			// return;
 
 		} else {
 			// ff_calendar_thisweek.json ne demande aucune clé API (endpoint public), même principe
 			// que DEFILLAMA ci-dessus : apiKey vide, seul le baseUrl porté par la credential résolue
 			// importe.
-			//@formatter:off
+
 			ApiCredential credential = ApiCredential.builder()
 					.user(sys)
 					.webProvider(webProviderForexFactory)
@@ -365,7 +351,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 					.enabled(true)
 					.createdAt(LocalDateTime.now())
 					.build();
-			//@formatter:on
 
 			credentialRepository.save(credential);
 			logger.debug("- Clé API ajoutée pour System sur FOREXFACTORY");
@@ -380,7 +365,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			// principe que DEFILLAMA/FOREXFACTORY ci-dessus : apiKey vide, seul le baseUrl porté
 			// par la credential résolue importe (cf. AbstractExternalIndicator#getWebClient et
 			// prompt d'implémentation Lot 3, item I).
-			//@formatter:off
+
 			ApiCredential credential = ApiCredential.builder()
 					.user(sys)
 					.webProvider(webProviderFarside)
@@ -388,7 +373,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 					.enabled(true)
 					.createdAt(LocalDateTime.now())
 					.build();
-			//@formatter:on
 
 			credentialRepository.save(credential);
 			logger.debug("- Clé API ajoutée pour System sur FARSIDE");
@@ -396,7 +380,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 		if (alreadyExistsYoutube) {
 			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur System.", webProviderYoutube.getName());
-			// return;
 
 		} else {
 			// Flux RSS (/feeds/videos.xml) et page /watch ne demandent aucune clé API (endpoints
@@ -404,7 +387,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			// seul le baseUrl porté par la credential résolue importe (cf.
 			// AbstractExternalIndicator#getWebClient et docs/prompt-implementation-veille-media-full.md,
 			// Lot 1a).
-			//@formatter:off
+
 			ApiCredential credential = ApiCredential.builder()
 					.user(sys)
 					.webProvider(webProviderYoutube)
@@ -412,7 +395,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 					.enabled(true)
 					.createdAt(LocalDateTime.now())
 					.build();
-			//@formatter:on
 
 			credentialRepository.save(credential);
 			logger.debug("- Clé API ajoutée pour System sur YOUTUBE");
@@ -420,7 +402,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 		if (alreadyExistsYahooFinance) {
 			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur System.", webProviderYahooFinance.getName());
-			// return;
 
 		} else {
 			// /v8/finance/chart/{symbol} ne demande aucune clé API (endpoint public non officiel),
@@ -428,7 +409,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			// le baseUrl porté par la credential résolue importe. Source de secours pour SP500/NASDAQ
 			// (cf. IndicatorCredentialResolver) après confirmation le 2026-07-15 que les tickers
 			// Twelve Data SPX/IXIC sont verrouillés au palier payant — DXY reste sur TWELVE_DATA.
-			//@formatter:off
+
 			ApiCredential credential = ApiCredential.builder()
 					.user(sys)
 					.webProvider(webProviderYahooFinance)
@@ -436,12 +417,39 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 					.enabled(true)
 					.createdAt(LocalDateTime.now())
 					.build();
-			//@formatter:on
 
 			credentialRepository.save(credential);
 			logger.debug("- Clé API ajoutée pour System sur YAHOO_FINANCE");
 		}
 
-    }
+		if (alreadyExistsSosoValue) {
+			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur System.", webProviderSosoValue.getName());
 
+		} else {
+			// ETF_FLOW (docs/etude-sourcing-etf-flow-alternative-farside.md) : remplace FARSIDE
+			// (scraping HTML) le 2026-07-16. Clé obtenue via inscription gratuite sur
+			// sosovalue.com/developer (palier "Demo", 20 appels/min), jamais committée en clair (ce
+			// fichier est gitignoré). À renseigner via application-dev.properties sous
+			// `tradeio.sosovalue.apiKey`. Sans elle, ETF_FLOW reste invalid (voir
+			// IndicatorCredentialResolver) — même principe que COINALYZE/TWELVE_DATA/FINNHUB/COINSTATS.
+			String sosoValueApiKey = environment.getProperty("tradeio.sosovalue.apiKey");
+
+			if (sosoValueApiKey == null || sosoValueApiKey.isBlank()) {
+				logger.warn("❗ `tradeio.sosovalue.apiKey` absente d'application-dev.properties : "
+						+ "aucune credential SOSOVALUE créée pour System (ETF_FLOW restera invalid "
+						+ "tant qu'elle n'est pas renseignée).");
+			} else {
+				ApiCredential credential = ApiCredential.builder()
+						.user(sys)
+						.webProvider(webProviderSosoValue)
+						.apiKey(sosoValueApiKey)
+						.enabled(true)
+						.createdAt(LocalDateTime.now())
+						.build();
+
+				credentialRepository.save(credential);
+				logger.debug("- Clé API ajoutée pour System sur SOSOVALUE");
+			}
+		}
+    }
 }

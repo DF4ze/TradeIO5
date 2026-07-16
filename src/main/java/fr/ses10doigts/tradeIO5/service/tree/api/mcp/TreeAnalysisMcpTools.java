@@ -110,7 +110,7 @@ public class TreeAnalysisMcpTools {
                     + "indicateurs externes nécessitant une credential fournisseur déjà configurée côté serveur — "
                     + "FEAR_GREED (CoinStats), STABLECOIN_MARKET_CAP (DefiLlama), OPEN_INTEREST/FUNDING_RATE/"
                     + "LIQUIDATIONS (Coinalyze, par symbole), DXY (Twelve Data), SP500/NASDAQ (Yahoo Finance), "
-                    + "ETF_FLOW (Farside) ; "
+                    + "ETF_FLOW (SoSoValue, paramètre stringParams['asset']='BTC'|'ETH', 'BTC' par défaut) ; "
                     + "(3) ORDER_BOOK (carnet d'ordres Binance, sans credential). Retourne la valeur calculée, ses "
                     + "bornes théoriques et si le calcul est valide (ex: credential manquante ou historique trop court)."
     )
@@ -120,10 +120,12 @@ public class TreeAnalysisMcpTools {
             @ToolParam(description = "Type d'indicateur: SMA, EMA, RSI, MACD, FEAR_GREED, RAINBOW, ADX, ATR, BOLLINGER, "
                     + "OBV, STABLECOIN_MARKET_CAP, OPEN_INTEREST, FUNDING_RATE, LIQUIDATIONS, ORDER_BOOK, DXY, SP500, "
                     + "NASDAQ, ETF_FLOW, REJECTION_ZONE") IndicatorType type,
-            @ToolParam(description = "Paramètres numériques de l'indicateur (ex: {\"period\": 14})", required = false) Map<String, Double> numericParams
+            @ToolParam(description = "Paramètres numériques de l'indicateur (ex: {\"period\": 14})", required = false) Map<String, Double> numericParams,
+            @ToolParam(description = "Paramètres texte de l'indicateur (ex: {\"asset\": \"ETH\"} pour ETF_FLOW)", required = false) Map<String, String> stringParams
     ) {
         return toJsonOrError("get_indicator", () -> {
-            IndicatorSnapshot snapshot = treeAnalysisFacade.getIndicator(symbol, timeFrame, type, numericParams);
+            IndicatorSnapshot snapshot = treeAnalysisFacade.getIndicator(
+                    symbol, timeFrame, type, numericParams, stringParams != null ? stringParams : Map.of());
             return indicatorResponse(symbol, timeFrame, snapshot);
         });
     }

@@ -15,9 +15,18 @@ spring.jpa.hibernate.ddl-auto=update
 spring.datasource.username=setYourDBUserName
 spring.datasource.password=setYourDBPassword
 
+# Optionnel : uniquement si ce profil sert des fichiers statiques depuis un chemin non
+# embarque dans le jar (voir application-prod.properties).
+#spring.web.resources.static-locations=file:/path/to/static/files
+
 #Telegram bot
 fr.ses10doigts.crawler.botToken=token...
 fr.ses10doigts.crawler.botUsername=botname...
+
+# App Properties (JWT - Spring Security)
+bezkoder.app.jwtCookieName=setYourCookieName
+bezkoder.app.jwtSecret=setYourJwtSecret
+bezkoder.app.jwtExpirationMs=86400000
 
 # OpenAI
 tradeio.openai.apiKey=yourKey
@@ -44,3 +53,8 @@ tradeio.finnhub.apiKey=yourKey
 # Clé CoinStats (compte System). Sans cette valeur, aucune credential COINSTATS n'est
 # creee et FEAR_GREED reste invalid (voir ApiCredentialInitializer#run).
 tradeio.coinstats.apiKey=yourKey
+
+# Clé generee via inscription gratuite sur https://sosovalue.com/developer (palier "Demo",
+# 20 appels/min). Voir ApiCredentialInitializer#run : sans cette valeur, aucune credential
+# SOSOVALUE n'est creee pour l'utilisateur System et ETF_FLOW reste invalid.
+tradeio.sosovalue.apiKey=yourKey

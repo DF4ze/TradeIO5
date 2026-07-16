@@ -8,6 +8,7 @@ import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.external.LiquidationsIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.OrderBookIndicator;
+import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.EtfFlowConfidenceStrategy;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.MovementQualificationStrategy;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.OrderFlowStrategy;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.TrendConfirmationStrategy;
@@ -189,6 +190,60 @@ public class StrategyParametersFactory {
                     LiquidationsIndicator.DEFAULT_WINDOW_HOURS,
                     0.3, 0.02, 0.15,
                     0.02, 10.0, 0.3
+            );
+        }
+    }
+
+    /**
+     * Construit l'unique {@code IndicatorKey}/{@code IndicatorParameters} (ETF_FLOW) requis par
+     * {@link EtfFlowConfidenceStrategy}, ainsi que les 4 seuils de la Strategy elle-même — même
+     * patron que {@link #buildMovementQualificationStrategyParam}/{@link #buildOrderFlowStrategyParam}.
+     * <p>
+     * ETF_FLOW est externe (SoSoValue) : {@code sosoValueCredential} doit être résolue par
+     * l'appelant (ex: {@code IndicatorCredentialResolver.resolve(IndicatorType.ETF_FLOW)}), cette
+     * classe reste volontairement statique/sans dépendance Spring. Contrairement aux autres
+     * factories, le {@code timeFrame} retenu ici est {@code D1} par défaut (cf.
+     * {@link EtfFlowConfidenceParam#defaults()}), pas celui de la Strategy hôte — voir javadoc de
+     * classe {@link EtfFlowConfidenceStrategy}, décision étude §9.3 : ETF_FLOW ne se met à jour
+     * qu'une fois par jour, un lookback H1 serait un décalage d'échelle.
+     */
+    public static StrategyParameters buildEtfFlowConfidenceStrategyParam(
+            EtfFlowConfidenceParam param,
+            ApiCredentialDTO sosoValueCredential
+    ){
+        IndicatorParameters etfFlowParams = IndicatorParametersFactory.buildEtfFlowParams(param.timeFrame, sosoValueCredential);
+
+        IndicatorKey etfFlowKey = new IndicatorKey(IndicatorType.ETF_FLOW, param.timeFrame, etfFlowParams);
+
+        StrategyParameters params = new StrategyParameters();
+        params.getIndicatorParameters().put(etfFlowKey, etfFlowParams);
+
+        params.getNumericParams().put(EtfFlowConfidenceStrategy.P_FLOW_SIGNIFICANCE_THRESHOLD_USD, param.flowSignificanceThresholdUsd);
+        params.getNumericParams().put(EtfFlowConfidenceStrategy.P_MAGNITUDE_SCALE_FACTOR, param.magnitudeScaleFactor);
+        params.getNumericParams().put(EtfFlowConfidenceStrategy.P_PRICE_MOVE_THRESHOLD, param.priceMoveThreshold);
+        params.getNumericParams().put(EtfFlowConfidenceStrategy.P_PRICE_LOOKBACK_CANDLES, param.priceLookbackCandles);
+
+        return params;
+    }
+
+    /**
+     * Valeurs par défaut alignées sur {@code EtfFlowConfidenceStrategy.DEFAULT_*} (mêmes réserves
+     * que {@link MovementQualificationParam}/{@link OrderFlowParam} : point de départ, pas mesuré
+     * empiriquement — cf. docs/etude-branchement-etf-flow-confidence-modulator.md §9.2).
+     */
+    @AllArgsConstructor
+    public static class EtfFlowConfidenceParam {
+        TimeFrame timeFrame;
+        double flowSignificanceThresholdUsd;
+        double magnitudeScaleFactor;
+        double priceMoveThreshold;
+        double priceLookbackCandles;
+
+        public static EtfFlowConfidenceParam defaults(){
+            return new EtfFlowConfidenceParam(
+                    TimeFrame.D1,
+                    50_000_000.0, 3.0,
+                    0.02, 1.0
             );
         }
     }

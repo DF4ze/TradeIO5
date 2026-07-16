@@ -16,16 +16,20 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Flux ETF quotidien (scraping Farside), étude "indicateurs-macro-externes" §14 item I. Valeur
- * externe sans notion de MarketData ({@code getRequiredData() == 0}), même patron que
+ * Flux ETF quotidien, étude "indicateurs-macro-externes" §14 item I. Valeur externe sans notion
+ * de MarketData ({@code getRequiredData() == 0}), même patron que
  * {@link FearAndGreedIndicator}/{@link StablecoinMarketCapIndicator}. Paramètre supplémentaire
- * {@code asset} ("BTC"/"ETH", "BTC" par défaut) pour choisir la page Farside consultée — le
- * document source demandait explicitement les deux actifs.
+ * {@code asset} ("BTC"/"ETH", "BTC" par défaut) — le document source demandait explicitement les
+ * deux actifs.
  * <p>
- * {@code values} expose {@code "total"} (flux du jour toutes émetteurs confondus) plus le détail
- * par émetteur directement dans la map ({@code "IBIT"}, {@code "FBTC"}, ...) : la liste de clés
- * peut varier dans le temps si Farside ajoute/retire un émetteur, ce n'est pas un problème pour un
- * {@code Map<String,Double>}.
+ * Source : {@code SosoValueEtfFlowClient} (API REST officielle) depuis le 2026-07-16, remplace le
+ * scraping HTML Farside d'origine (cf. docs/etude-sourcing-etf-flow-alternative-farside.md).
+ * {@code values} expose {@code "total"} (flux net du jour toutes émetteurs confondus, en USD brut
+ * — voir avertissement d'unité dans {@code SosoValueEtfFlowClient}) plus, le cas échéant, le détail
+ * par émetteur directement dans la map ({@code "IBIT"}, {@code "FBTC"}, ...) : avec le client
+ * SoSoValue actuel cette map est toujours vide (choix délibéré, cf. javadoc du client), la liste de
+ * clés reste néanmoins un {@code Map<String,Double>} ouvert pour ne pas casser le contrat si un
+ * futur client la peuple à nouveau.
  */
 @Component
 public class EtfFlowIndicator implements Indicator {

@@ -120,13 +120,38 @@ public class TreeAnalysisFacade {
     public IndicatorSnapshot getIndicator(
             String symbol, TimeFrame timeFrame, IndicatorType type, Map<String, Double> numericParams
     ) {
-        return getIndicator(symbol, timeFrame, type, numericParams, MarketDataSource.BINANCE, binanceMarketDataApiClient);
+        return getIndicator(symbol, timeFrame, type, numericParams, Map.of());
+    }
+
+    /**
+     * Surcharge avec paramètres texte (ex: {@code "asset"="ETH"} pour {@code ETF_FLOW}) — cf.
+     * docs/etude-sourcing-etf-flow-alternative-farside.md, point signalé par Clem le 2026-07-16 :
+     * sans cette surcharge, {@code get_indicator} ne pouvait transmettre aucun paramètre non
+     * numérique, donc {@code ETF_FLOW} retombait toujours sur le défaut de l'indicateur (BTC,
+     * cf. {@code EtfFlowAsset.fromParameter}) quel que soit le {@code symbol} demandé (BTCUSDT vs
+     * ETHUSDT n'influence jamais {@code EtfFlowIndicator}, qui lit exclusivement le paramètre
+     * {@code "asset"} — pas le symbole).
+     */
+    public IndicatorSnapshot getIndicator(
+            String symbol, TimeFrame timeFrame, IndicatorType type, Map<String, Double> numericParams,
+            Map<String, String> stringParams
+    ) {
+        return getIndicator(symbol, timeFrame, type, numericParams, stringParams,
+                MarketDataSource.BINANCE, binanceMarketDataApiClient);
     }
 
     /** Surcharge à source explicite (tests avec {@link MarketDataSource#MEMORY}, etc). */
     public IndicatorSnapshot getIndicator(
             String symbol, TimeFrame timeFrame, IndicatorType type, Map<String, Double> numericParams,
             MarketDataSource source, Object providerParam
+    ) {
+        return getIndicator(symbol, timeFrame, type, numericParams, Map.of(), source, providerParam);
+    }
+
+    /** Surcharge complète : source explicite + paramètres texte (cf. surcharge stringParams ci-dessus). */
+    public IndicatorSnapshot getIndicator(
+            String symbol, TimeFrame timeFrame, IndicatorType type, Map<String, Double> numericParams,
+            Map<String, String> stringParams, MarketDataSource source, Object providerParam
     ) {
         requireSymbol(symbol);
         requireTimeFrame(timeFrame);
@@ -135,7 +160,7 @@ public class TreeAnalysisFacade {
         IndicatorParameters parameters = new IndicatorParameters(
                 type,
                 numericParams != null ? numericParams : Map.of(),
-                Map.of(),
+                stringParams != null ? stringParams : Map.of(),
                 Map.of(),
                 resolveCredential(type)
         );
