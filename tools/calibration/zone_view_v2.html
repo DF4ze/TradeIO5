@@ -22,10 +22,13 @@
   .touch-marker { position:absolute; width:7px; height:7px; margin-left:-3.5px; margin-top:-3.5px;
                    border-radius:50%; background:#ff5252; box-shadow:0 0 3px rgba(255,82,82,0.9);
                    pointer-events:none; z-index: 6; }
-  .zone-label { position:absolute; pointer-events:none; font-size:10.5px; color:#e8eaed; line-height:1.5;
-                 background:rgba(19,23,34,0.94); padding:4px 7px; border-radius:3px; white-space:nowrap;
-                 z-index: 8; display:none; border:1px solid #2a2e39; }
   #debug { position:absolute; bottom:4px; left:4px; font-size:10px; color:#555; z-index:10; }
+  #zones-summary { position:absolute; top:8px; right:8px; font-size:11px; color:#e8eaed; line-height:1.7;
+                    background:rgba(19,23,34,0.94); padding:8px 11px; border-radius:4px; z-index: 9;
+                    border:1px solid #2a2e39; min-width:190px; }
+  #zones-summary .zs-title { font-weight:600; margin-bottom:4px; color:#d1d4dc; }
+  #zones-summary .zs-row { display:flex; justify-content:space-between; gap:14px; }
+  #zones-summary .zs-row span:last-child { color:#d1d4dc; }
 </style>
 </head>
 <body>
@@ -38,8 +41,9 @@
     <span><i class="swatch-trend"></i> Regime tendance (ADX&gt;=25)</span>
     <span><i class="swatch-range"></i> Regime range (ADX&lt;20)</span>
   </div>
+  <p id="live-status" style="opacity:0.7;font-style:italic;">Connexion au backend TradeIO5...</p>
 </div>
-<div id="chart-container"><div id="chart"></div><div id="debug"></div></div>
+<div id="chart-container"><div id="chart"></div><div id="debug"></div><div id="zones-summary"></div></div>
 <script>
 /*!
  * @license
@@ -70,43 +74,167 @@ candleSeries.setData(DATA.candles);
 
 const overlayContainer = document.getElementById('chart-container');
 const debugEl = document.getElementById('debug');
+const liveStatusEl = document.getElementById('live-status');
 
 const REGIME_COLOR = {
   trend: 'rgba(255,152,0,0.07)',
   range: 'rgba(33,150,243,0.07)',
 };
 
-const regimeEls = DATA.regime_segments
-  .filter(s => s.regime === 'trend' || s.regime === 'range')
-  .map(s => {
-    const band = document.createElement('div');
-    band.className = 'regime-band';
-    band.style.background = REGIME_COLOR[s.regime];
-    overlayContainer.appendChild(band);
-    return { seg: s, el: band };
-  });
+let regimeEls = [];
+function buildRegimeEls(segments) {
+  regimeEls.forEach(({ el }) => el.remove());
+  regimeEls = segments
+    .filter(s => s.regime === 'trend' || s.regime === 'range')
+    .map(s => {
+      const band = document.createElement('div');
+      band.className = 'regime-band';
+      band.style.background = REGIME_COLOR[s.regime];
+      overlayContainer.appendChild(band);
+      return { seg: s, el: band };
+    });
+}
+buildRegimeEls(DATA.regime_segments);
 
-const zoneEls = DATA.zones.map(z => {
-  const box = document.createElement('div');
-  box.className = 'zone-box';
-  const label = document.createElement('div');
-  label.className = 'zone-label';
-  label.innerHTML = `${Math.round(z.band_low)}-${Math.round(z.band_high)}<br>` +
-    `Duree formation: ${Math.round(z.duration_days)}j &nbsp;|&nbsp; Volume: x${z.volume_strength.toFixed(2)} vs base<br>` +
-    `Touches observees: ${z.n_touches} &nbsp;|&nbsp; Reaction moyenne: ${z.mean_reaction >= 0 ? '+' : ''}${z.mean_reaction.toFixed(2)} ATR<br>` +
-    `Detectee le ${z.anchor_date}`;
-  overlayContainer.appendChild(box);
-  overlayContainer.appendChild(label);
+// --- Live refresh (bougies + ADX/regime) depuis l'API publique Binance ---
+// Snapshot statique genere le 2026-07-09 par export_zones_v2.py ; ce bloc va chercher
+// les bougies D1 recentes et recalcule ADX(14)/regime cote client (meme formule que
+// export_zones_v2.py) pour prolonger le graphique et le bandeau de regime jusqu'a aujourd'hui.
+// Les zones 'consolidation' (rectangles gris) restent celles du snapshot -- leur detection
+// est un calcul offline, non reproduite ici.
+const ADX_PERIOD = 14;
+const ADX_TREND_TH = 25.0;
+const ADX_RANGE_TH = 20.0;
 
-  let marker = null;
-  if (z.first_touch) {
-    marker = document.createElement('div');
-    marker.className = 'touch-marker';
-    marker.title = `1ere touche (${z.first_touch.date}) : ${z.first_touch.reaction >= 0 ? '+' : ''}${z.first_touch.reaction.toFixed(2)} ATR`;
-    overlayContainer.appendChild(marker);
+async function fetchLiveCandles(staticCandles) {
+  const resp = await fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=30');
+  if (!resp.ok) throw new Error('Binance HTTP ' + resp.status);
+  const raw = await resp.json();
+  const liveCandles = raw.map(k => ({
+    time: new Date(k[0]).toISOString().slice(0, 10),
+    open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]),
+  }));
+  const firstLiveDate = liveCandles[0].time;
+  return staticCandles.filter(c => c.time < firstLiveDate).concat(liveCandles);
+}
+
+function computeADX(candles, period) {
+  const n = candles.length;
+  const highs = candles.map(c => c.high), lows = candles.map(c => c.low), closes = candles.map(c => c.close);
+  const upMove = new Array(n).fill(0), downMove = new Array(n).fill(0), tr = new Array(n).fill(0);
+  for (let i = 1; i < n; i++) {
+    upMove[i] = highs[i] - highs[i - 1];
+    downMove[i] = lows[i - 1] - lows[i];
+    tr[i] = Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i - 1]), Math.abs(lows[i] - closes[i - 1]));
   }
-  return { zone: z, box, label, marker };
-});
+  const plusDm = upMove.map((u, i) => (u > downMove[i] && u > 0) ? u : 0);
+  const minusDm = downMove.map((d, i) => (d > upMove[i] && d > 0) ? d : 0);
+
+  function wilderSmooth(x) {
+    const s = new Array(n).fill(NaN);
+    if (n <= period) return s;
+    let sum = 0;
+    for (let i = 1; i <= period; i++) sum += x[i];
+    s[period] = sum;
+    for (let i = period + 1; i < n; i++) s[i] = s[i - 1] - s[i - 1] / period + x[i];
+    return s;
+  }
+  const trS = wilderSmooth(tr), plusDmS = wilderSmooth(plusDm), minusDmS = wilderSmooth(minusDm);
+
+  const dx = new Array(n).fill(NaN);
+  for (let i = 0; i < n; i++) {
+    if (isNaN(trS[i]) || trS[i] === 0) continue;
+    const plusDi = 100 * plusDmS[i] / trS[i], minusDi = 100 * minusDmS[i] / trS[i];
+    const sumDi = plusDi + minusDi;
+    dx[i] = sumDi === 0 ? NaN : 100 * Math.abs(plusDi - minusDi) / sumDi;
+  }
+
+  const adx = new Array(n).fill(NaN);
+  const firstValid = period * 2;
+  if (firstValid < n) {
+    let sum = 0, count = 0;
+    for (let i = period + 1; i <= firstValid; i++) { if (!isNaN(dx[i])) { sum += dx[i]; count++; } }
+    adx[firstValid] = count > 0 ? sum / count : NaN;
+    for (let i = firstValid + 1; i < n; i++) {
+      const prev = adx[i - 1];
+      adx[i] = isNaN(dx[i]) ? prev : (prev * (period - 1) + dx[i]) / period;
+    }
+  }
+  return adx;
+}
+
+function computeRegimeSegments(candles, adx) {
+  const n = candles.length;
+  const labels = candles.map((_, i) => {
+    const a = adx[i];
+    if (isNaN(a)) return null;
+    if (a >= ADX_TREND_TH) return 'trend';
+    if (a < ADX_RANGE_TH) return 'range';
+    return 'neutral';
+  });
+  const segments = [];
+  let curLabel = null, curStart = null;
+  for (let i = 0; i < n; i++) {
+    if (labels[i] !== curLabel) {
+      if (curLabel !== null) segments.push({ start: candles[curStart].time, end: candles[i - 1].time, regime: curLabel });
+      curLabel = labels[i]; curStart = i;
+    }
+  }
+  if (curLabel !== null) segments.push({ start: candles[curStart].time, end: candles[n - 1].time, regime: curLabel });
+  return segments;
+}
+
+let zoneEls = [];
+function buildZoneEls(zones) {
+  zoneEls.forEach(({ box, marker }) => { box.remove(); if (marker) marker.remove(); });
+  zoneEls = zones.map(z => {
+    const box = document.createElement('div');
+    box.className = 'zone-box';
+    box.title = `${Math.round(z.band_low)}-${Math.round(z.band_high)} | duree ${Math.round(z.duration_days)}j | ` +
+      `touches ${z.n_touches} | reaction moy. ${z.mean_reaction >= 0 ? '+' : ''}${z.mean_reaction.toFixed(2)} ATR | ` +
+      `detectee le ${z.anchor_date}`;
+    overlayContainer.appendChild(box);
+
+    let marker = null;
+    if (z.first_touch) {
+      marker = document.createElement('div');
+      marker.className = 'touch-marker';
+      marker.title = `1ere touche (${z.first_touch.date}) : ${z.first_touch.reaction >= 0 ? '+' : ''}${z.first_touch.reaction.toFixed(2)} ATR`;
+      overlayContainer.appendChild(marker);
+    }
+    return { zone: z, box, marker };
+  });
+  updateZonesSummary(zones);
+}
+buildZoneEls(DATA.zones);
+
+// Un seul panneau agrege (au lieu d'une vignette par bande, qui devenait illisible des que
+// plusieurs zones se superposaient) : compte, periode couverte, touches totales, reaction
+// moyenne ponderee par le nombre de touches, duree moyenne de formation.
+function updateZonesSummary(zones) {
+  const summaryEl = document.getElementById('zones-summary');
+  if (!zones || zones.length === 0) {
+    summaryEl.innerHTML = '<div class="zs-title">Zones consolidation</div><div class="zs-row"><span>Aucune zone detectee</span></div>';
+    return;
+  }
+  const dates = zones.map(z => z.anchor_date).sort();
+  const oldest = dates[0];
+  const newest = dates[dates.length - 1];
+  const totalTouches = zones.reduce((s, z) => s + z.n_touches, 0);
+  const weightedReaction = totalTouches > 0
+    ? zones.reduce((s, z) => s + z.mean_reaction * z.n_touches, 0) / totalTouches
+    : 0;
+  const avgDuration = zones.reduce((s, z) => s + z.duration_days, 0) / zones.length;
+
+  summaryEl.innerHTML = `
+    <div class="zs-title">Zones consolidation</div>
+    <div class="zs-row"><span>Nombre de bandes</span><span>${zones.length}</span></div>
+    <div class="zs-row"><span>Periode couverte</span><span>${oldest} &rarr; ${newest}</span></div>
+    <div class="zs-row"><span>Touches totales</span><span>${totalTouches}</span></div>
+    <div class="zs-row"><span>Reaction moy. (pond.)</span><span>${weightedReaction >= 0 ? '+' : ''}${weightedReaction.toFixed(2)} ATR</span></div>
+    <div class="zs-row"><span>Duree moy. formation</span><span>${avgDuration.toFixed(1)} j</span></div>
+  `;
+}
 
 function repositionAll() {
   const timeScale = chart.timeScale();
@@ -122,7 +250,7 @@ function repositionAll() {
     el.style.width = Math.max(xRight - xLeft, 1) + 'px';
   });
 
-  zoneEls.forEach(({ zone, box, label, marker }) => {
+  zoneEls.forEach(({ zone, box, marker }) => {
     let xLeft = timeScale.timeToCoordinate(zone.anchor_date);
     if (xLeft === null || xLeft === undefined || xLeft < 0) xLeft = 0;
     const yTop = candleSeries.priceToCoordinate(zone.band_high);
@@ -138,8 +266,6 @@ function repositionAll() {
     box.style.top = yTop + 'px';
     box.style.width = Math.max(containerWidth - xLeft, 0) + 'px';
     box.style.height = Math.max(yBottom - yTop, 2) + 'px';
-    label.style.left = (xLeft + 4) + 'px';
-    label.style.top = (yTop + 2) + 'px';
 
     if (marker) {
       const mx = timeScale.timeToCoordinate(zone.first_touch.date);
@@ -156,29 +282,55 @@ function repositionAll() {
   debugEl.textContent = `${visibleCount}/${zoneEls.length} zones positionnees`;
 }
 
-chart.subscribeCrosshairMove(param => {
-  if (!param || !param.point) {
-    zoneEls.forEach(({ label }) => { label.style.display = 'none'; });
-    return;
-  }
-  const { x, y } = param.point;
-  zoneEls.forEach(({ box, label }) => {
-    if (box.style.display === 'none') { label.style.display = 'none'; return; }
-    const left = parseFloat(box.style.left) || 0;
-    let hovered = x >= left;
-    if (hovered) {
-      const top = parseFloat(box.style.top);
-      const bottom = top + parseFloat(box.style.height);
-      hovered = y >= top && y <= bottom;
-    }
-    label.style.display = hovered ? 'block' : 'none';
-  });
-});
-
 chart.timeScale().subscribeVisibleLogicalRangeChange(repositionAll);
 new ResizeObserver(() => repositionAll()).observe(overlayContainer);
 chart.timeScale().fitContent();
 [0, 50, 150, 400, 900, 1800].forEach(delay => setTimeout(repositionAll, delay));
+
+// Backend TradeIO5 (GET /api/calibration/zones) : recalcule bougies + zones consolidation + regime
+// ADX cote serveur, a la demande, sur l'historique D1 complet fraichement fetch depuis Binance
+// (cf. CalibrationController/ConsolidationZoneService/ConsolidationZoneDetector, portage Java de
+// export_zones_v2.py). C'est la voie "connectee au back" -- les zones grises sont donc, elles
+// aussi, recalculees a chaque chargement de page, pas seulement les bougies/regime.
+const BACKEND_BASE_URL = 'http://localhost:8080';
+
+async function fetchBackendZones(symbol) {
+  const resp = await fetch(`${BACKEND_BASE_URL}/api/calibration/zones?symbol=${encodeURIComponent(symbol)}`);
+  if (!resp.ok) throw new Error('Backend HTTP ' + resp.status);
+  return resp.json();
+}
+
+(async () => {
+  try {
+    const data = await fetchBackendZones('BTCUSDT');
+    candleSeries.setData(data.candles);
+    buildRegimeEls(data.regime_segments);
+    buildZoneEls(data.zones);
+    chart.timeScale().fitContent();
+    repositionAll();
+    const lastCandle = data.candles[data.candles.length - 1];
+    liveStatusEl.textContent = `Backend TradeIO5 connecte — bougies + ${data.zones.length} zones consolidation + regime ADX recalcules a l'instant (derniere bougie D1 : ${lastCandle.time}, close ${lastCandle.close.toLocaleString('fr-FR')}).`;
+    return;
+  } catch (backendErr) {
+    console.warn('Backend TradeIO5 injoignable, fallback sur fetch Binance direct (candles+regime seulement)', backendErr);
+  }
+
+  // Fallback : app TradeIO5 pas demarree / injoignable -- on degrade sur le fetch Binance direct
+  // (candles + regime ADX cote client, cf. plus haut) ; les zones restent alors le snapshot statique.
+  try {
+    const liveCandles = await fetchLiveCandles(DATA.candles);
+    candleSeries.setData(liveCandles);
+    const adx = computeADX(liveCandles, ADX_PERIOD);
+    buildRegimeEls(computeRegimeSegments(liveCandles, adx));
+    chart.timeScale().fitContent();
+    repositionAll();
+    const lastCandle = liveCandles[liveCandles.length - 1];
+    liveStatusEl.textContent = `Backend TradeIO5 injoignable (${BACKEND_BASE_URL}) — repli sur bougies+regime Binance direct (derniere bougie D1 : ${lastCandle.time}, close ${lastCandle.close.toLocaleString('fr-FR')}). Zones restent le snapshot statique du 2026-07-09.`;
+  } catch (e) {
+    console.warn('Live refresh failed, snapshot statique conserve', e);
+    liveStatusEl.textContent = 'Live indisponible (backend et Binance injoignables) — instantane statique du 2026-07-09 affiche.';
+  }
+})();
 </script>
 </body>
 </html>
