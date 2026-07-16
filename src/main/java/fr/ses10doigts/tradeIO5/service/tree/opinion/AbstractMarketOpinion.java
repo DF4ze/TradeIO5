@@ -43,7 +43,7 @@ public abstract class AbstractMarketOpinion implements MarketOpinion {
 
     /**
      * Méthode template :
-     * - les {@code StrategyKey} de type {@code ENTRY}/{@code EXIT} sont déléguées au
+     * - les {@code StrategyKey} de type {@link StrategyType#DIRECTIONAL} sont déléguées au
      *   {@link StrategyAggregator}, seul responsable de l'agrégation additive (score,
      *   weightedSignal final, détection de conflit)
      * - les {@code StrategyKey} de type {@link StrategyType#CONFIDENCE_MODULATOR} (ex :
@@ -51,8 +51,8 @@ public abstract class AbstractMarketOpinion implements MarketOpinion {
      *   cette somme : elles sont évaluées séparément et leur score converti en un facteur
      *   ({@link MarketOpinionHelper#computeConfidenceModulationFactor}) qui n'atténue que la
      *   confidence finale, jamais le score directionnel — et une modulatrice invalide/en erreur
-     *   ne fait jamais échouer les Strategies ENTRY (pas de contagion all-or-nothing entre les
-     *   deux familles, contrairement à ce qui se passerait si elles partageaient la même liste
+     *   ne fait jamais échouer les Strategies DIRECTIONAL (pas de contagion all-or-nothing entre
+     *   les deux familles, contrairement à ce qui se passerait si elles partageaient la même liste
      *   {@code StrategyAggregatorParam})
      * - l'interprétation du résultat agrégé (déjà modulé) est laissée à l'implémentation
      */
@@ -60,7 +60,7 @@ public abstract class AbstractMarketOpinion implements MarketOpinion {
     public void decide(OpinionContext context, MarketOpinionParameters parameters) {
         List<StrategyKey> keys = parameters.getStrategies();
 
-        List<StrategyAggregatorParam> entryParams = keys.stream()
+        List<StrategyAggregatorParam> directionalParams = keys.stream()
                 .filter(key -> !isConfidenceModulator(key.getStrategy()))
                 .map(key -> new StrategyAggregatorParam(key.getStrategy(), key.getParameters()))
                 .toList();
@@ -70,7 +70,7 @@ public abstract class AbstractMarketOpinion implements MarketOpinion {
                 .map(key -> new StrategyAggregatorParam(key.getStrategy(), key.getParameters()))
                 .toList();
 
-        AggregatedStrategySignal aggregatedSignal = StrategyAggregator.evaluate(context.marketContext(), entryParams);
+        AggregatedStrategySignal aggregatedSignal = StrategyAggregator.evaluate(context.marketContext(), directionalParams);
 
         if (!modulatorParams.isEmpty()) {
             aggregatedSignal = applyConfidenceModulators(context, parameters, modulatorParams, aggregatedSignal);
@@ -89,7 +89,7 @@ public abstract class AbstractMarketOpinion implements MarketOpinion {
      * confidence de {@code base} — jamais à son score. Une modulatrice invalide (donnée
      * manquante/en erreur) est simplement ignorée (loggée, pas d'atténuation), plutôt que
      * d'invalider toute l'Opinion comme le ferait {@code StrategyAggregator.aggregate} si elle
-     * était mélangée aux Strategies ENTRY.
+     * était mélangée aux Strategies DIRECTIONAL.
      * <p>
      * Étude "unification-confidence-modulator" : {@code computeConfidenceModulationFactor} n'est
      * plus appelée directement ici, mais via l'adaptateur {@link StrategyConfidenceModulator} + la

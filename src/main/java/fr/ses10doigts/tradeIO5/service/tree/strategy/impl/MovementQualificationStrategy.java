@@ -36,7 +36,7 @@ import java.util.Set;
  * "extension-risk-macro-external" §4.1 pour l'origine de la dette, et
  * {@link fr.ses10doigts.tradeIO5.service.tree.opinion.AbstractMarketOpinion#decide} pour le
  * mécanisme) : cette Strategy ne vote pas sur la direction du marché, elle qualifie la fiabilité
- * d'un mouvement déjà voté par les Strategies {@code ENTRY} (dans le même esprit que Fear &amp;
+ * d'un mouvement déjà voté par les Strategies {@code DIRECTIONAL} (dans le même esprit que Fear &amp;
  * Greed vis-à-vis d'un signal technique). Elle n'est donc plus agrégée par
  * {@code StrategyAggregator} avec les Strategies directionnelles : son score est converti par
  * {@code MarketOpinionHelper#computeConfidenceModulationFactor} en un facteur qui n'atténue que la

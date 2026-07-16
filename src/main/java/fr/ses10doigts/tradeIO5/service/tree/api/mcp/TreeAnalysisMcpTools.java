@@ -134,7 +134,7 @@ public class TreeAnalysisMcpTools {
             name = "evaluate_strategy",
             description = "Évalue une stratégie de trading pour un symbole donné : calcule les indicateurs requis à "
                     + "partir de candles réelles, puis exécute la logique de la stratégie. Stratégies disponibles : "
-                    + "TrendConfirmationStrategy (ENTRY, EMA rapide + EMA lente + ADX + RSI), "
+                    + "TrendConfirmationStrategy (DIRECTIONAL, EMA rapide + EMA lente + ADX + RSI), "
                     + "MovementQualificationStrategy (CONFIDENCE_MODULATOR, requiert exactement 1 OPEN_INTEREST + "
                     + "1 FUNDING_RATE + 1 OBV en 'indicators' — nécessite la credential Coinalyze) et "
                     + "OrderFlowStrategy (CONFIDENCE_MODULATOR, requiert exactement 1 ORDER_BOOK + 1 LIQUIDATIONS en "
@@ -148,7 +148,7 @@ public class TreeAnalysisMcpTools {
     public String evaluateStrategy(
             @ToolParam(description = "Symbole du marché, ex: BTCUSDT") String symbol,
             @ToolParam(description = "Timeframe de référence pour cette évaluation") TimeFrame timeFrame,
-            @ToolParam(description = "Type de stratégie: ENTRY, EXIT, RISK, CONFIDENCE_MODULATOR") StrategyType strategyType,
+            @ToolParam(description = "Type de stratégie: DIRECTIONAL, CONFIDENCE_MODULATOR") StrategyType strategyType,
             @ToolParam(description = "Indicateurs requis par la stratégie (type, timeframe, paramètres numériques)") List<IndicatorSpec> indicators,
             @ToolParam(description = "Paramètres numériques propres à la stratégie", required = false) Map<String, Double> numericParams,
             @ToolParam(description = "Paramètres texte propres à la stratégie", required = false) Map<String, String> stringParams,

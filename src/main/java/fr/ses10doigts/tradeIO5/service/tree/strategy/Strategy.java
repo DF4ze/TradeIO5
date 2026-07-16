@@ -38,7 +38,7 @@ public interface Strategy {
     /**
      * Permet à {@link StrategyRegistry#resolveBestMatch(StrategyType, StrategyParameters)} de
      * discriminer entre plusieurs Strategies qui partagent le même {@link StrategyType} (ex :
-     * DoubleRsiStrategy et TrendConfirmationStrategy déclarent toutes deux ENTRY), en vérifiant
+     * DoubleRsiStrategy et TrendConfirmationStrategy déclarent toutes deux DIRECTIONAL), en vérifiant
      * que les {@code IndicatorParameters} fournis correspondent à ce que cette Strategy attend
      * réellement (nombre et {@code IndicatorType} des indicateurs), plutôt que de résoudre
      * uniquement par {@code StrategyType} et prendre la première trouvée au hasard.

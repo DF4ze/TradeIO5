@@ -34,7 +34,7 @@ public class MarketOpinionParametersFactory {
      * via {@code evaluate_strategy} (MCP), sans fabrique réutilisable équivalente à
      * {@link #buildLocalOpinionParamWithTrendConfirmation}. Depuis le 2026-07-15, cette Strategy est
      * {@code StrategyType.CONFIDENCE_MODULATOR} : {@code AbstractMarketOpinion#decide} la sépare
-     * automatiquement des Strategies {@code ENTRY} (elle n'entre plus dans la somme
+     * automatiquement des Strategies {@code DIRECTIONAL} (elle n'entre plus dans la somme
      * {@code StrategyAggregator}, seulement dans l'atténuation de confidence) — ce branchement
      * fonctionne donc sans changement de forme, il suffit de fournir le {@code StrategyKey} au
      * même titre que TrendConfirmation. Pour combiner les deux dans une seule Opinion, l'appelant
@@ -65,7 +65,7 @@ public class MarketOpinionParametersFactory {
      * "nouvelles-opinions-indicateurs-non-branches" §4, même patron que
      * {@link #buildLocalOpinionParamWithMovementQualification}. Même résolution (2026-07-15) que
      * {@code MovementQualificationStrategy} : {@code StrategyType.CONFIDENCE_MODULATOR}, séparée
-     * automatiquement des Strategies {@code ENTRY} par {@code AbstractMarketOpinion#decide}. Pour
+     * automatiquement des Strategies {@code DIRECTIONAL} par {@code AbstractMarketOpinion#decide}. Pour
      * combiner avec Trend/MovementQualification dans une seule Opinion, l'appelant peut concaténer
      * les {@code StrategyKey} des différents {@code MarketOpinionParameters} (voir
      * {@code strategies()}).

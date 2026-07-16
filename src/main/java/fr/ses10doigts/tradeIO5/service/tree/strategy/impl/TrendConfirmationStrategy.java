@@ -181,7 +181,7 @@ public class TrendConfirmationStrategy extends AbstractStrategy {
 
         // 4. Score final = biais x atténuation ADX x garde-fou RSI, clampé à [-1,1] ------------
         double rawScore = emaBias * adxFactor * rsiGuardFactor;
-        double score = Math.max(-1.0, Math.min(1.0, rawScore));
+        double score = Math.clamp(rawScore, -1.0, 1.0);
 
         logger.debug("{} : emaBias={}, adxFactor={}, rsiGuardFactor={} => score={}",
                 getName(), emaBias, adxFactor, rsiGuardFactor, score);
@@ -203,12 +203,12 @@ public class TrendConfirmationStrategy extends AbstractStrategy {
         if (Double.isNaN(v)) {
             return 0.0;
         }
-        return Math.max(0.0, Math.min(1.0, v));
+        return Math.clamp(v, 0.0, 1.0);
     }
 
     @Override
     public Set<StrategyType> getType() {
-        return Set.of(StrategyType.ENTRY);
+        return Set.of(StrategyType.DIRECTIONAL);
     }
 
     @Override

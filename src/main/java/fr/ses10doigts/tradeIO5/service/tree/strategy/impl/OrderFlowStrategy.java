@@ -41,7 +41,7 @@ import java.util.Set;
  * {@link MovementQualificationStrategy} (2026-07-15, comme promis dans la dette documentée à
  * l'étude §4.3 : "à résoudre pour les deux Strategy en même temps... pas en bricolant une solution
  * ad hoc pour une seule") : ce signal ne vote pas sur la direction du marché, il qualifie la
- * fiabilité d'un mouvement déjà voté par les Strategies {@code ENTRY}. Il n'est donc plus agrégé
+ * fiabilité d'un mouvement déjà voté par les Strategies {@code DIRECTIONAL}. Il n'est donc plus agrégé
  * par {@code StrategyAggregator} avec elles ; son score est converti par
  * {@code MarketOpinionHelper#computeConfidenceModulationFactor} en un facteur qui n'atténue que la
  * confidence finale de l'Opinion (cf. {@code AbstractMarketOpinion#decide}), jamais son score.

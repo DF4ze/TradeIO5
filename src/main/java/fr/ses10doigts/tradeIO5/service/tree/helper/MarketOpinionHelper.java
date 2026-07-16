@@ -155,7 +155,7 @@ public class MarketOpinionHelper {
      * <p>
      * Ces Strategies produisent un score {@code [-1,1]} qui qualifie la fiabilité d'un mouvement
      * plutôt qu'un vote directionnel : positif ou neutre (mouvement de conviction confirmé, ou
-     * aucun pattern détecté) ne doit rien changer à la confidence des Strategies {@code ENTRY}
+     * aucun pattern détecté) ne doit rien changer à la confidence des Strategies {@code DIRECTIONAL}
      * ({@code 1.0}) ; négatif (cascade de liquidations, sur-effet-de-levier, flush qui s'épuise...)
      * l'atténue proportionnellement à sa magnitude, bornée dans {@code [0.5, 1.0]} — jamais 0,
      * une seule Strategy modulatrice ne doit jamais pouvoir annuler entièrement la confidence.
