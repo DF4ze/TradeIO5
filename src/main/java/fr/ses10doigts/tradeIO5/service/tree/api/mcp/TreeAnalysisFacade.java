@@ -169,10 +169,23 @@ public class TreeAnalysisFacade {
         // exacte, sans marge : RsiIndicator.compute() a en réalité besoin de period + 1 points).
         // On demande systématiquement DEFAULT_LIMIT bougies plutôt que ce minimum exact, pour ne
         // jamais se retrouver avec une série juste sous le seuil de validité de l'indicateur.
-        int lookBack = MarketDatasetEngine.DEFAULT_LIMIT;
+        //
+        // Exception : getRequiredData(...) == 0 signifie que l'indicateur n'a besoin d'aucune
+        // candle (10 indicateurs externes aujourd'hui : ETF_FLOW, FEAR_GREED, STABLECOIN_MARKET_CAP,
+        // DXY, SP500, NASDAQ, OPEN_INTEREST, FUNDING_RATE, LIQUIDATIONS, ORDER_BOOK — cf. javadoc
+        // EtfFlowIndicator "même patron que FearAndGreedIndicator/StablecoinMarketCapIndicator").
+        // Avant ce correctif, get_indicator déclenchait quand même un MarketDatasetEngine.getDataset
+        // (500 D1, jusqu'à ~9000+ H1 équivalent) pour ces types, y compris un vrai appel réseau
+        // Binance si le cache DB était incomplet — repéré par Clem le 2026-07-16 en observant les
+        // logs d'un simple get_indicator ETF_FLOW (cf. docs/etude-cache-etf-flow-historisation.md
+        // pour le détail de la trace). fetchDataset(...) n'est donc plus appelé que pour les
+        // indicateurs qui déclarent réellement en avoir besoin.
+        int requiredData = indicator.getRequiredData(parameters);
         Instant now = clock.now();
 
-        MarketDataset dataset = fetchDataset(symbol, timeFrame, lookBack, now, source, providerParam);
+        MarketDataset dataset = requiredData == 0
+                ? emptyDataset(symbol, timeFrame)
+                : fetchDataset(symbol, timeFrame, MarketDatasetEngine.DEFAULT_LIMIT, now, source, providerParam);
 
         IndicatorContext context = new IndicatorContext(symbol, timeFrame, dataset, Map.of(), clock);
 
@@ -337,6 +350,22 @@ public class TreeAnalysisFacade {
         }
     }
 
+    /**
+     * Dataset vide utilisé pour {@code getIndicator(...)} quand {@code Indicator.getRequiredData(...)
+     * == 0} — évite tout appel à {@link MarketDatasetEngine}/Binance pour un indicateur qui ne lit
+     * jamais {@code IndicatorContext.marketDataset()} (cf. commentaire d'appel). {@code isComplete}
+     * à {@code true} : l'absence de candles n'est pas une donnée manquante ici, juste hors sujet.
+     */
+    private static MarketDataset emptyDataset(String symbol, TimeFrame timeFrame) {
+        return MarketDataset.builder()
+                .pair(symbol)
+                .timeFrame(timeFrame)
+                .marketDatas(List.of())
+                .size(0)
+                .isComplete(true)
+                .build();
+    }
+
     private static BigDecimal extractLastPrice(Map<TimeFrame, MarketDataset> series) {
         for (MarketDataset dataset : series.values()) {
             List<?> candles = dataset.getMarketDatas();
@@ -397,9 +426,9 @@ public class TreeAnalysisFacade {
         }
         if (matches.size() > 1) {
             log.warn("Several opinions match scope {} ({}), using the first one: {}",
-                    scope, matches, matches.get(0).getName());
+                    scope, matches, matches.getFirst().getName());
         }
-        return matches.get(0);
+        return matches.getFirst();
     }
 
     private static void requireSymbol(String symbol) {

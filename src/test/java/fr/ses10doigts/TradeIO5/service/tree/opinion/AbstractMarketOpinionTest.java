@@ -32,16 +32,16 @@ import static org.mockito.Mockito.when;
  * Vérifie le mécanisme introduit le 2026-07-15 pour résoudre la dette documentée dans
  * {@code MovementQualificationStrategy}/{@code OrderFlowStrategy} (Strategies qui qualifient la
  * fiabilité d'un mouvement plutôt que de voter sur sa direction, mais agrégées jusqu'ici comme des
- * Strategies {@code ENTRY} classiques) : {@link AbstractMarketOpinion#decide} sépare désormais les
- * {@code StrategyKey} de type {@link StrategyType#CONFIDENCE_MODULATOR} des Strategies
- * {@code ENTRY}/{@code EXIT}, et n'utilise leur score que pour atténuer la confidence finale
+ * Strategies {@code DIRECTIONAL} classiques) : {@link AbstractMarketOpinion#decide} sépare désormais
+ * les {@code StrategyKey} de type {@link StrategyType#CONFIDENCE_MODULATOR} des Strategies
+ * {@code DIRECTIONAL}, et n'utilise leur score que pour atténuer la confidence finale
  * (jamais le score directionnel), via {@link MarketOpinionHelper#computeConfidenceModulationFactor}.
  * <p>
  * Utilise des {@link Strategy} mockées (pas de vrai indicateur/réseau) pour isoler ce mécanisme de
  * la logique métier de {@code MovementQualificationStrategy}/{@code OrderFlowStrategy} elles-mêmes
  * (déjà couvertes par leurs tests dédiés).
  */
-@DisplayName("AbstractMarketOpinion - séparation ENTRY / CONFIDENCE_MODULATOR")
+@DisplayName("AbstractMarketOpinion - séparation DIRECTIONAL / CONFIDENCE_MODULATOR")
 class AbstractMarketOpinionTest {
 
     @Test
@@ -50,13 +50,13 @@ class AbstractMarketOpinionTest {
         // StrategyAggregator.aggregate() recalcule toujours la confidence à partir du score total
         // via MarketOpinionHelper.scoreToConfidenceAndSignalType (le champ StrategySignal.confidence
         // individuel n'est pas lu) : la confidence "de base" ici est donc celle de 0.8, pas 0.9.
-        Strategy entryStrategy = mockStrategy(StrategyType.ENTRY,
-                StrategySignal.builder().valid(true).score(0.8).confidence(0.9).type(SignalType.BULLISH).strategyName("entry").build());
+        Strategy directionalStrategy = mockStrategy(StrategyType.DIRECTIONAL,
+                StrategySignal.builder().valid(true).score(0.8).confidence(0.9).type(SignalType.BULLISH).strategyName("directional").build());
 
         Strategy modulatorStrategy = mockStrategy(StrategyType.CONFIDENCE_MODULATOR,
                 StrategySignal.builder().valid(true).score(-1.0).confidence(1.0).type(SignalType.BEARISH).strategyName("modulator").build());
 
-        MarketOpinionParameters params = twoStrategyParams(entryStrategy, modulatorStrategy);
+        MarketOpinionParameters params = twoStrategyParams(directionalStrategy, modulatorStrategy);
 
         CapturingOpinion opinion = new CapturingOpinion();
         opinion.decide(dummyContext(), params);
@@ -64,8 +64,8 @@ class AbstractMarketOpinionTest {
         AggregatedStrategySignal result = opinion.captured;
         assertNotNull(result, "interpretSignals() doit avoir été appelé");
 
-        // Le score reste celui de la seule Strategy ENTRY : le -1.0 du modulateur ne s'additionne
-        // jamais dedans (contrairement à l'ancien comportement où les deux étaient sommés).
+        // Le score reste celui de la seule Strategy DIRECTIONAL : le -1.0 du modulateur ne
+        // s'additionne jamais dedans (contrairement à l'ancien comportement où les deux étaient sommés).
         assertEquals(0.8, result.getScore(), 1e-9);
 
         // confidence atténuée par le facteur du modulateur, jamais amplifiée ni mise à 0 brutalement.
@@ -79,16 +79,16 @@ class AbstractMarketOpinionTest {
     }
 
     @Test
-    @DisplayName("un modulateur invalide (donnée manquante) n'invalide pas les Strategies ENTRY (pas de contagion all-or-nothing)")
-    void invalidModulator_doesNotZeroOutEntryStrategies() {
-        Strategy entryStrategy = mockStrategy(StrategyType.ENTRY,
-                StrategySignal.builder().valid(true).score(0.8).confidence(0.9).type(SignalType.BULLISH).strategyName("entry").build());
+    @DisplayName("un modulateur invalide (donnée manquante) n'invalide pas les Strategies DIRECTIONAL (pas de contagion all-or-nothing)")
+    void invalidModulator_doesNotZeroOutDirectionalStrategies() {
+        Strategy directionalStrategy = mockStrategy(StrategyType.DIRECTIONAL,
+                StrategySignal.builder().valid(true).score(0.8).confidence(0.9).type(SignalType.BULLISH).strategyName("directional").build());
 
         Strategy modulatorStrategy = mockStrategy(StrategyType.CONFIDENCE_MODULATOR,
                 StrategySignal.notValid("brokenModulator", "missing OPEN_INTEREST"));
         when(modulatorStrategy.getName()).thenReturn("brokenModulator");
 
-        MarketOpinionParameters params = twoStrategyParams(entryStrategy, modulatorStrategy);
+        MarketOpinionParameters params = twoStrategyParams(directionalStrategy, modulatorStrategy);
 
         CapturingOpinion opinion = new CapturingOpinion();
         opinion.decide(dummyContext(), params);
@@ -98,7 +98,7 @@ class AbstractMarketOpinionTest {
 
         // Avec l'ancien comportement (StrategyAggregator.aggregate mélangeant tout), une seule
         // Strategy invalide mettait totalScore/confidence à 0 pour TOUTES les Strategies. Ici,
-        // un modulateur invalide ne doit avoir aucun effet sur le résultat de l'ENTRY.
+        // un modulateur invalide ne doit avoir aucun effet sur le résultat du DIRECTIONAL.
         double baseConfidence = MarketOpinionHelper.scoreToConfidenceAndSignalType(0.8).confidence;
         assertEquals(0.8, result.getScore(), 1e-9);
         assertEquals(baseConfidence, result.getConfidence(), 1e-9);
@@ -107,11 +107,11 @@ class AbstractMarketOpinionTest {
     @Test
     @DisplayName("aucune Strategy CONFIDENCE_MODULATOR déclarée -> comportement inchangé (pas de facteur appliqué)")
     void noModulator_behavesLikePlainAggregation() {
-        Strategy entryStrategy = mockStrategy(StrategyType.ENTRY,
-                StrategySignal.builder().valid(true).score(0.5).confidence(0.6).type(SignalType.BULLISH).strategyName("entry").build());
+        Strategy directionalStrategy = mockStrategy(StrategyType.DIRECTIONAL,
+                StrategySignal.builder().valid(true).score(0.5).confidence(0.6).type(SignalType.BULLISH).strategyName("directional").build());
 
         MarketOpinionParameters params = MarketOpinionParameters.builder()
-                .strategies(List.of(new StrategyKey(entryStrategy, new StrategyParameters())))
+                .strategies(List.of(new StrategyKey(directionalStrategy, new StrategyParameters())))
                 .build();
 
         CapturingOpinion opinion = new CapturingOpinion();

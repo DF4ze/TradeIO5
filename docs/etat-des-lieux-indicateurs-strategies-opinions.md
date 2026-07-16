@@ -144,9 +144,9 @@ Décisions/actions :
   officielle SoSoValue (`SosoValueEtfFlowClient`), cf. `docs/etude-sourcing-etf-flow-alternative-farside.md`.
   Codé et testé (348 tests, vérifié en réel avec une vraie clé le 2026-07-16 — BTC et ETH renvoient
   des flux nets distincts et cohérents avec les chiffres publics). Credential `SOSOVALUE` en base
-  (clé gratuite `tradeio.sosovalue.apiKey`, palier "Demo"). **Toujours pas branché** dans une
-  Opinion/Strategy — la réserve "best-effort, jamais un signal sans supervision" reste d'actualité
-  (cf. étude §5 mise à jour), indépendamment de la fiabilité de la source désormais réglée.
+  (clé gratuite `tradeio.sosovalue.apiKey`, palier "Demo"). Branché dans `CONFIDENCE_MODULATOR` et
+  doté d'un cache DB + historisation le même jour — voir §5 (Strategies) pour le détail, cette entrée
+  Lot 3 ne concerne que le sourcing de la donnée.
 
 - **REJECTION_ZONE** — codé et testé. **Ne pas brancher tel quel** : le protocole de calibration
   (`docs/calibration-rejection-zone.md`) n'a été exécuté que sur des **données synthétiques**
@@ -225,6 +225,18 @@ branchés, testés (313 tests, 0 échec, `mvn test` sur la machine réelle), et 
   Volontairement **pas** ajoutée par défaut à `DefaultMarketOpinion` dans ce lot — accessible en ad
   hoc via `evaluate_strategy`/`get_opinion`/`get_indicator` (paramètre `stringParams.asset`), même
   progression prudente que `MovementQualificationStrategy` en son temps. 359 tests, vérifié en réel.
+  **Mise à jour 2026-07-16 (cache + historisation)** : `EtfFlowIndicator` ne rappelle plus SoSoValue
+  qu'une fois par jour et par asset (`CachingEtfFlowClient`, cache-aside DB, patron
+  `CachingMarketDataApiClient`) ; nouvelle table `etf_flow_snapshot` historisant chaque valeur
+  quotidienne (BTC/ETH) en vue de futurs indicateurs de tendance ; `EtfFlowHistorizationJob` (cron
+  07h00) garantit une ligne par jour même sans évaluation utilisateur. Cf.
+  `docs/etude-cache-etf-flow-historisation.md`. 369 tests, vérifié en réel (cache MISS puis HIT
+  confirmés en log). **Mise à jour 2026-07-16 (fetch Binance inutile)** : `get_indicator` déclenchait
+  quand même un `MarketDatasetEngine.getDataset` (jusqu'à un vrai appel réseau Binance) pour ETF_FLOW
+  et 9 autres indicateurs `getRequiredData()==0` (FEAR_GREED, STABLECOIN_MARKET_CAP, DXY, SP500,
+  NASDAQ, OPEN_INTEREST, FUNDING_RATE, LIQUIDATIONS, ORDER_BOOK) — repéré par Clem en observant les
+  logs, corrigé dans `TreeAnalysisFacade#getIndicator`. 371 tests, vérifié en réel (plus aucun appel
+  Binance dans le log pour ces types).
 
 Tests ajoutés : `MarketOpinionHelperTest` (3 nouvelles méthodes), `GlobalMarketOpinionTest`
 (nouveau), `MacroMarketOpinionTest` (nouveau, logique pure + intégration), `OrderFlowStrategyTest`

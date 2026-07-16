@@ -11,7 +11,6 @@ import fr.ses10doigts.tradeIO5.service.tree.indicator.external.etfflow.EtfFlowPr
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatusCode;
-import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import reactor.core.publisher.Mono;
 
@@ -59,8 +58,14 @@ import java.util.Map;
  * {@link EtfFlowResponse#invalid()} propre en cas de panne réseau/parsing, avec un log warn
  * distinct par étape d'échec (même objectif que Farside : détecter vite un changement de contrat
  * côté SoSoValue plutôt que de le noyer en silence).
+ * <p>
+ * <b>Plus {@code @Component} depuis le 2026-07-16</b> (docs/etude-cache-etf-flow-historisation.md) :
+ * enveloppé dans {@link CachingEtfFlowClient}, seul bean {@link EtfFlowProvider} du contexte
+ * désormais (câblage dans {@code EtfFlowCachingConfig}) — même traitement que
+ * {@code FarsideEtfFlowClient} en son temps, pour éviter toute ambiguïté d'injection dans
+ * {@code EtfFlowIndicator}. Toujours instanciable directement ({@code new SosoValueEtfFlowClient()}),
+ * ses tests existants ne changent pas.
  */
-@Component
 public class SosoValueEtfFlowClient extends AbstractExternalIndicator implements EtfFlowProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(SosoValueEtfFlowClient.class);

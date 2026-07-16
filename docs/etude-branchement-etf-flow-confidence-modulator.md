@@ -12,6 +12,10 @@
 > 107 804 554 vs ETH total 53 829 997, mêmes valeurs que la vérification en réel de la migration
 > SoSoValue), `SOLUSDT` correctement rejeté ("hors périmètre ETF_FLOW"), score neutre le jour du test
 > (mouvement de prix D1 sous le seuil de 2%, comportement attendu, pas un bug).
+>
+> **Suite le même jour** : `EtfFlowIndicator` appelait SoSoValue à chaque évaluation alors que la
+> donnée ne change qu'une fois par jour — cache DB + historisation ajoutés,
+> cf. `docs/etude-cache-etf-flow-historisation.md`.
 
 Suite attendue de deux chantiers déjà fermés : le sourcing (`docs/etude-sourcing-etf-flow-alternative-farside.md`,
 `ETF_FLOW` sur SoSoValue depuis le 2026-07-16) et le mécanisme générique de modulation

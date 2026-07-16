@@ -58,3 +58,8 @@ tradeio.coinstats.apiKey=yourKey
 # 20 appels/min). Voir ApiCredentialInitializer#run : sans cette valeur, aucune credential
 # SOSOVALUE n'est creee pour l'utilisateur System et ETF_FLOW reste invalid.
 tradeio.sosovalue.apiKey=yourKey
+
+# Optionnel : cron du rafraichissement quotidien ETF_FLOW (BTC+ETH), cf. EtfFlowHistorizationJob /
+# docs/etude-cache-etf-flow-historisation.md. Valeur par defaut (7h00 heure locale JVM) utilisee si
+# absent, decommenter uniquement pour un autre creneau.
+#tradeio.etf-flow.historization-cron=0 0 7 * * *

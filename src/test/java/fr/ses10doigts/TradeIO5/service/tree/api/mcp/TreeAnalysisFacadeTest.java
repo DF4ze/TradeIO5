@@ -10,7 +10,6 @@ import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TrendType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
-import fr.ses10doigts.tradeIO5.model.enumerate.tree.strategy.StrategyType;
 import fr.ses10doigts.tradeIO5.service.tree.helper.MarketOpinionParametersFactory;
 import fr.ses10doigts.tradeIO5.service.tree.helper.StrategyParametersFactory;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.Strategy;
@@ -95,24 +94,27 @@ class TreeAnalysisFacadeTest {
     }
 
     @Test
-    @DisplayName("evaluateStrategy avec un StrategyType non enregistré renvoie une erreur claire")
-    void evaluateStrategy_unknownStrategyType_shouldThrowClearError() {
-        // Aucune Strategy enregistrée aujourd'hui ne couvre StrategyType.RISK (cf.
-        // StrategyType#RISK : intentionnellement non implémenté, hors scope de cette phase).
+    @DisplayName("evaluateStrategy avec un StrategyType null renvoie une erreur claire")
+    void evaluateStrategy_nullStrategyType_shouldThrowClearError() {
+        // Depuis la fusion ENTRY/EXIT/RISK -> DIRECTIONAL (StrategyType n'a plus que DIRECTIONAL et
+        // CONFIDENCE_MODULATOR, chacun couvert par au moins une Strategy enregistrée), il n'existe
+        // plus de valeur d'enum "connue mais non enregistrée" pour déclencher l'erreur "No Strategy
+        // registered for type". Le seul cas d'erreur claire restant côté StrategyType est un type
+        // manquant (cf. TreeAnalysisFacade#resolveStrategy).
         StrategyParameters params = new StrategyParameters();
 
         TreeAnalysisException ex = assertThrows(TreeAnalysisException.class, () ->
                 treeAnalysisFacade.evaluateStrategy(
                         "mcpFacadeUnknownStrategy",
                         TimeFrame.H1,
-                        StrategyType.RISK,
+                        null,
                         params,
                         MarketDataSource.MEMORY,
                         TrendType.FLAT
                 )
         );
 
-        assertTrue(ex.getMessage().contains("RISK"));
+        assertTrue(ex.getMessage().contains("StrategyType"));
     }
 
     @Test
