@@ -17,6 +17,8 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -183,6 +185,86 @@ public class SosoValueEtfFlowClient extends AbstractExternalIndicator implements
                 // client, map vide (pas null) pour rester compatible avec EtfFlowIndicator.compute.
                 .byIssuer(Map.of())
                 .build();
+    }
+
+    /**
+     * Backfill historique (docs/etude-cache-etf-flow-historisation.md, addendum backfill) : même
+     * endpoint que {@link #fetch}, {@code limit} paramétrable au lieu de {@code 1} fixe. Plafond
+     * dur côté SoSoValue : {@code limit} max 300, aucun paramètre de pagination au-delà (
+     * {@code start_date}/{@code end_date} existent mais sont eux-mêmes restreints "au mois le plus
+     * récent" par la doc, donc inutilisables pour remonter plus loin) — 300 lignes est le maximum
+     * atteignable en un ou plusieurs appels à cet endpoint, pas seulement en un appel. Ne lève
+     * jamais d'exception : liste vide en cas de panne réseau/parsing, même contrat que {@link #fetch}.
+     */
+    public List<EtfFlowResponse> fetchHistory(ApiCredentialDTO credential, EtfFlowAsset asset, int limit) {
+        try {
+            String body = getWebClient(credential).get()
+                    .uri(uriBuilder -> uriBuilder.path("/etfs/summary-history")
+                            .queryParam("symbol", asset.name())
+                            .queryParam("country_code", COUNTRY_CODE)
+                            .queryParam("limit", limit)
+                            .build())
+                    .header(API_KEY_HEADER, credential.apiKey())
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, this::toClientException)
+                    .onStatus(HttpStatusCode::is5xxServerError, this::toServerException)
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofSeconds(30))
+                    .block();
+
+            return parseHistory(body, asset);
+        } catch (ExternalApiException e) {
+            logger.warn("SoSoValue history ({}) unavailable: {}", asset, e.getMessage());
+            return List.of();
+        } catch (Exception e) {
+            logger.error("SoSoValue history ({}) unexpected error", asset, e);
+            return List.of();
+        }
+    }
+
+    /**
+     * Variante liste de {@link #parse} : mêmes vérifications d'enveloppe/code, mais parcourt tout
+     * le tableau {@code data} plutôt que sa seule première ligne. Écrite indépendamment de
+     * {@link #parse} (petite duplication assumée) plutôt que refactorée en commun, pour ne prendre
+     * aucun risque sur les 11 tests existants qui verrouillent le comportement exact de {@code parse}.
+     * Une ligne individuellement malformée (date/total manquant ou date illisible) est journalisée
+     * et ignorée plutôt que d'invalider tout le lot — contrairement à {@code parse}, où la première
+     * ligne malformée invalide la réponse entière (ici, un backfill partiel reste préférable à un
+     * backfill vide).
+     */
+    static List<EtfFlowResponse> parseHistory(String body, EtfFlowAsset asset) {
+        JsonNode root = readTree(body);
+        if (root == null || !root.isObject()) {
+            logger.warn("SoSoValue history ({}) parsing failed at step 'envelope': empty/invalid/non-object JSON body", asset);
+            return List.of();
+        }
+
+        int code = root.path("code").asInt(0);
+        if (code != 0) {
+            logger.warn("SoSoValue history ({}) parsing failed at step 'envelope': code={} message='{}'",
+                    asset, code, root.path("message").asText(""));
+            return List.of();
+        }
+        if (!root.hasNonNull("data") || !root.get("data").isArray()) {
+            logger.warn("SoSoValue history ({}) parsing failed at step 'body shape': 'data' missing/not an array", asset);
+            return List.of();
+        }
+
+        List<EtfFlowResponse> results = new ArrayList<>();
+        for (JsonNode row : root.get("data")) {
+            if (!row.hasNonNull("date") || !row.hasNonNull("total_net_inflow")) {
+                logger.warn("SoSoValue history ({}) : ligne ignorée (date/total_net_inflow manquant) : {}", asset, row);
+                continue;
+            }
+            try {
+                LocalDate date = LocalDate.parse(row.get("date").asText());
+                double total = row.get("total_net_inflow").asDouble();
+                results.add(EtfFlowResponse.builder().valid(true).date(date).total(total).byIssuer(Map.of()).build());
+            } catch (DateTimeParseException e) {
+                logger.warn("SoSoValue history ({}) : ligne ignorée (date illisible '{}')", asset, row.get("date").asText());
+            }
+        }
+        return results;
     }
 
     private static JsonNode readTree(String body) {

@@ -98,3 +98,81 @@ variation de prix, contrairement à `EtfFlowIndicator` seul).
 redémarrage : deux appels `get_indicator ETF_FLOW` (BTC+ETH) ne produisent plus que les lignes
 `CachingEtfFlowClient` dans le log, sans aucune ligne `MarketDatasetEngine`/`Bucket`/`Appel réseau
 BINANCE` autour.
+
+## Addendum — backfill historique (demande Clem, 2026-07-17)
+
+Ajout de `SosoValueEtfFlowClient#fetchHistory`/`parseHistory` (variante liste de `fetch`/`parse`,
+`limit` paramétrable), `CachingEtfFlowClient#upsert` (public, réutilisé par le backfill),
+`EtfFlowBackfillService` (déclenché uniquement à la demande, jamais au démarrage — même principe que
+`TransactionSyncInitializer`, dont l'`ApplicationRunner` automatique a été retiré le 2026-07-09 sur
+décision explicite de Clem) et `EtfFlowAdminController` (`POST /api/admin/etf-flow/backfill`,
+ROLE_ADMIN, même patron que `MediaWatchAdminController`). `EtfFlowCachingConfig` expose désormais
+`SosoValueEtfFlowClient` comme bean à part entière (nécessaire pour `fetchHistory`) — `@Primary`
+ajouté sur `cachingEtfFlowClient` pour lever l'ambiguïté `EtfFlowProvider` que ce second bean a
+introduite (repéré par échec de démarrage réel, `NoUniqueBeanDefinitionException`, corrigé avant
+tout redémarrage demandé à Clem). 386 tests (371+15), 0 échec.
+
+**Constat empirique important, contredit la doc SoSoValue** : la doc de `summary-history` annonce
+`limit` jusqu'à 300, avec seule la combinaison `start_date`/`end_date` documentée comme "limitée au
+mois le plus récent". En réel (`limit=300` demandé, sans dates), l'API n'a renvoyé que **20 lignes
+par asset** (BTC et ETH identiques : 2026-06-17 → 2026-07-16, soit tout juste un mois de trading).
+La restriction "most recent 1 month" s'applique donc à l'endpoint entier sur le palier "Demo", pas
+seulement aux requêtes par date explicite — le paramètre `limit` documenté jusqu'à 300 est
+théorique, pas atteignable en pratique. Conséquence : le backfill ne peut pas dépasser ~1 mois de
+recul par appel, bien loin des ~14 mois espérés (et encore plus loin des ~2,5 ans depuis le
+lancement des ETF BTC). Rejouer ce backfill plus tard (relance manuelle de l'endpoint) ne fera que
+glisser la fenêtre d'un mois, jamais remonter plus loin dans le passé — seule façon de couvrir plus
+loin : laisser le cron quotidien (`EtfFlowHistorizationJob`) accumuler 1 ligne/jour dans la durée,
+ou solliciter une source complémentaire (Farside, évoqué mais pas implémenté) pour l'historique
+antérieur à juin 2026.
+
+**Vérifié en réel** (2026-07-17, backfill déclenché par Clem via `POST /api/admin/etf-flow/backfill`) :
+20 lignes upsertées pour BTC, 20 pour ETH, 0 erreur, table `etf_flow_snapshot` passée de 1-2 lignes
+par asset à 20.
+
+## Addendum — source complémentaire Farside pour l'historique profond (2026-07-17)
+
+Suite au constat ci-dessus, Clem a demandé de rechercher une technique pour dépasser le mois
+d'historique atteignable via SoSoValue. Recherche : le second endpoint SoSoValue
+`/etfs/{ticker}/history` documente la même restriction ("most recent 1 month") — pas de
+contournement côté SoSoValue, quel que soit l'endpoint. En revanche, Farside publie une page
+"all data" par asset (`https://farside.co.uk/bitcoin-etf-flow-all-data/`,
+`.../ethereum-etf-flow-all-data/`) qui remonte au lancement de chaque ETF (11 jan. 2024 pour BTC),
+avec exactement la même structure de tableau HTML que la page live déjà scrapée par
+`FarsideEtfFlowClient` avant la bascule vers SoSoValue du 2026-07-16.
+
+**Implémentation** : `EtfFlowAsset` porte désormais un second chemin (`historyPath`, page "all
+data") en plus de `path` (page live). `FarsideEtfFlowClient#fetchHistory`/`parseHistory` (variante
+multi-lignes de `fetch`/`parse`, écrite indépendamment de `parse()` pour ne prendre aucun risque sur
+ses tests existants — même principe que `SosoValueEtfFlowClient#parseHistory` en son temps) parse
+toutes les lignes de données de cette page, en excluant les jours non publiés (fériés, toutes les
+cases émetteur à "-") plutôt que de les persister à 0 — un jour sans donnée n'est pas un jour à flux
+nul réel. `IndicatorCredentialResolver` gagne une méthode `resolveWebProvider(WebProviderCode)` de
+résolution directe par provider (extraite de `resolve(IndicatorType)`) : la credential FARSIDE
+n'avait jamais été supprimée en base (page publique, `apiKey` vide) — seul son routing via `resolve`
+avait changé le 2026-07-16, donc rien à recréer, juste une nouvelle façon d'y accéder. `EtfFlowCachingConfig`
+expose de nouveau `FarsideEtfFlowClient` comme bean (3e candidat `EtfFlowProvider` dans le contexte,
+sans casser le `@Primary` déjà en place sur `cachingEtfFlowClient`).
+
+`EtfFlowBackfillService` combine désormais les deux sources : **Farside d'abord** (historique
+profond), **SoSoValue ensuite** (dernier mois, a le dernier mot sur les dates en commun — contrainte
+unique `(asset, date)`, simple réécriture). Chaque source est indépendamment optionnelle : si une
+seule credential est résolue, le backfill se poursuit avec celle-là seule plutôt que d'échouer
+entièrement.
+
+394 tests (386+8), 0 échec. **Vérifié en réel** (2026-07-17, backfill relancé par Clem après
+redémarrage) :
+
+```
+FARSIDE: 629 lignes pour BTC (couverture 2024-01-11 -> 2026-07-16)
+SOSOVALUE: 20 lignes pour BTC (couverture 2026-06-17 -> 2026-07-16)
+=> 629 lignes distinctes en base pour BTC
+
+FARSIDE: 497 lignes pour ETH (couverture 2024-07-23 -> 2026-07-16)
+SOSOVALUE: 20 lignes pour ETH (couverture 2026-06-17 -> 2026-07-16)
+=> 497 lignes distinctes en base pour ETH
+```
+
+Couverture cohérente avec les dates de lancement réelles (BTC : 11 jan. 2024 ; ETH : 23 jul. 2024).
+Objectif initial de Clem ("cacher en DB la totalité des data") atteint dans les faits : le seul
+angle mort restant est la fenêtre antérieure au lancement de chaque ETF, qui n'existe simplement pas.

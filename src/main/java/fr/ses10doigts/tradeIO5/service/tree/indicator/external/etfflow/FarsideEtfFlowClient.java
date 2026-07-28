@@ -35,7 +35,18 @@ import java.util.regex.Pattern;
  * docs/etude-sourcing-etf-flow-alternative-farside.md. Classe et tests conservés tels quels comme
  * référence/repli possible, mais {@code IndicatorCredentialResolver} ne résout plus jamais
  * {@code WebProviderCode.FARSIDE} pour {@code ETF_FLOW} — cette implémentation n'est donc plus
- * injectée nulle part en pratique.
+ * injectée nulle part en pratique pour le {@link #fetch} live.
+ * <p>
+ * <b>Réactivé ponctuellement le 2026-07-17</b> pour {@link #fetchHistory}/{@link #parseHistory}
+ * (docs/etude-cache-etf-flow-historisation.md, addendum backfill Farside) : SoSoValue plafonne à
+ * ~1 mois d'historique par appel (constat empirique du même jour), alors que la page "all data" de
+ * Farside ({@link EtfFlowAsset#getHistoryPath()}) remonte jusqu'au lancement des ETF BTC (11 jan.
+ * 2024) sur une seule page HTML, avec la même structure de tableau que la page live
+ * ({@link EtfFlowAsset#getPath()}). Bean Spring
+ * de nouveau exposé (voir {@code EtfFlowCachingConfig}), mais seulement pour être injecté dans
+ * {@code EtfFlowBackfillService} — {@code IndicatorCredentialResolver#resolve(IndicatorType)}
+ * continue de ne router {@code ETF_FLOW} que vers SOSOVALUE ; c'est {@code resolveWebProvider}
+ * (résolution directe par provider) qui va chercher la credential FARSIDE pour ce seul usage.
  */
 public class FarsideEtfFlowClient extends AbstractExternalIndicator implements EtfFlowProvider {
 
@@ -85,6 +96,44 @@ public class FarsideEtfFlowClient extends AbstractExternalIndicator implements E
                 .bodyToMono(String.class)
                 // même marge que les autres clients externes du projet (20s).
                 .timeout(Duration.ofSeconds(20))
+                .block();
+    }
+
+    /**
+     * Historique complet depuis le lancement de l'ETF (page "all data", cf. javadoc de classe) —
+     * utilisé uniquement par {@code EtfFlowBackfillService}, jamais par {@link #fetch}.
+     */
+    public List<EtfFlowResponse> fetchHistory(ApiCredentialDTO credential, EtfFlowAsset asset) {
+        try {
+            String html = getHistoryHtml(credential, asset);
+            return parseHistory(html);
+        } catch (ExternalApiException e) {
+            logger.warn("Farside history ({}) unavailable: {}", asset, e.getMessage());
+            return List.of();
+        } catch (Exception e) {
+            logger.error("Farside history ({}) unexpected error", asset, e);
+            return List.of();
+        }
+    }
+
+    private String getHistoryHtml(ApiCredentialDTO credential, EtfFlowAsset asset) {
+        return getWebClient(credential).get()
+                .uri(asset.getHistoryPath())
+                .retrieve()
+                .onStatus(
+                        HttpStatusCode::is4xxClientError,
+                        response -> response.bodyToMono(String.class)
+                                .map(body -> new ExternalApiException("Farside 4xx: " + body))
+                )
+                .onStatus(
+                        HttpStatusCode::is5xxServerError,
+                        response -> response.bodyToMono(String.class)
+                                .map(body -> new ExternalApiException("Farside 5xx: " + body))
+                )
+                .bodyToMono(String.class)
+                // page "all data" nettement plus lourde que la page live (2+ ans d'historique) :
+                // marge élargie par rapport aux 20s de getHtml().
+                .timeout(Duration.ofSeconds(30))
                 .block();
     }
 
@@ -270,6 +319,107 @@ public class FarsideEtfFlowClient extends AbstractExternalIndicator implements E
             logger.warn("Farside parsing failed at step 'number format' on cell '{}': {}", rawText, e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Variante multi-lignes de {@link #parse(String)} : retourne l'historique complet de la page
+     * (toutes les lignes de données) au lieu de la seule dernière ligne publiée — utilisée sur la
+     * page "all data" via {@link #fetchHistory}. Réutilise {@link #cellsOf}/{@link #parseDataRow}/
+     * {@link #parseFlowNumber} tels quels (déjà couverts par les tests de {@link #parse(String)}),
+     * mais reconstruit indépendamment la boucle de repérage en-tête/lignes de données plutôt que de
+     * factoriser avec {@code parse()} — même principe que {@code SosoValueEtfFlowClient#parseHistory}
+     * vis-à-vis de son propre {@code parse()} : ne prendre aucun risque sur les tests déjà en place.
+     * <p>
+     * Une ligne dont toutes les cases émetteur valent "-" (jour férié/marché fermé, cf. règle "-" !=
+     * 0.0 documentée sur {@link #parse(String)}) est exclue du résultat plutôt que persistée à 0 :
+     * un jour sans donnée publiée n'est pas un jour à flux nul réel, et le confondre polluerait une
+     * future calibration. Une ligne individuellement malformée (date invalide, colonnes
+     * insuffisantes) est de la même façon ignorée avec un log warn, sans invalider tout le lot —
+     * cf. {@link #parseDataRow} qui retourne déjà {@code null} dans ce cas.
+     */
+    static List<EtfFlowResponse> parseHistory(String html) {
+        if (html == null || html.isBlank()) {
+            logger.warn("Farside parseHistory failed at step 'fetch': empty HTML body");
+            return List.of();
+        }
+
+        Document doc = Jsoup.parse(html);
+        Elements tables = doc.select("table");
+        if (tables.isEmpty()) {
+            logger.warn("Farside parseHistory failed at step 'table lookup': no <table> found on page");
+            return List.of();
+        }
+
+        Elements rows = Objects.requireNonNull(tables.first()).select("tr");
+        if (rows.isEmpty()) {
+            logger.warn("Farside parseHistory failed at step 'table lookup': table has no row");
+            return List.of();
+        }
+
+        List<Element> headerCells = null;
+        List<RowData> dataRows = new ArrayList<>();
+
+        for (Element row : rows) {
+            List<Element> cells = cellsOf(row);
+            if (cells.isEmpty()) {
+                continue;
+            }
+            String firstCell = cells.getFirst().text().trim();
+
+            if (DATE_PATTERN.matcher(firstCell).matches()) {
+                if (headerCells == null) {
+                    logger.warn("Farside parseHistory: data row '{}' encountered before any header "
+                            + "row, skipped", firstCell);
+                    continue;
+                }
+                RowData rowData = parseDataRow(firstCell, cells);
+                if (rowData != null) {
+                    dataRows.add(rowData);
+                }
+            } else if (!SUMMARY_ROW_LABELS.contains(firstCell.toLowerCase(Locale.ROOT))) {
+                headerCells = cells;
+            }
+        }
+
+        if (headerCells == null || headerCells.size() < 3) {
+            logger.warn("Farside parseHistory failed at step 'header lookup': no usable header row found");
+            return List.of();
+        }
+
+        List<String> tickers = new ArrayList<>();
+        for (int i = 1; i < headerCells.size() - 1; i++) {
+            tickers.add(headerCells.get(i).text().trim());
+        }
+        if (tickers.isEmpty()) {
+            logger.warn("Farside parseHistory failed at step 'header lookup': no issuer column detected");
+            return List.of();
+        }
+        if (dataRows.isEmpty()) {
+            logger.warn("Farside parseHistory failed at step 'data rows': no row parsed as a date "
+                    + "('DD Mon YYYY')");
+            return List.of();
+        }
+
+        List<EtfFlowResponse> history = new ArrayList<>();
+        for (RowData rowData : dataRows) {
+            if (rowData.byIssuer().isEmpty()) {
+                continue; // jour non publié (férié/marché fermé) : voir javadoc de la méthode.
+            }
+            Map<String, Double> byIssuerNamed = new LinkedHashMap<>();
+            for (Map.Entry<Integer, Double> entry : rowData.byIssuer().entrySet()) {
+                int idx = entry.getKey();
+                if (idx < tickers.size()) {
+                    byIssuerNamed.put(tickers.get(idx), entry.getValue());
+                }
+            }
+            history.add(EtfFlowResponse.builder()
+                    .valid(true)
+                    .date(rowData.date())
+                    .byIssuer(byIssuerNamed)
+                    .total(rowData.total())
+                    .build());
+        }
+        return history;
     }
 
     private record RowData(LocalDate date, Map<Integer, Double> byIssuer, Double total) {}

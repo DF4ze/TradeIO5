@@ -14,6 +14,7 @@ import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -177,5 +178,88 @@ class FarsideEtfFlowClientTest {
         EtfFlowResponse response = client.fetch(credential, EtfFlowAsset.ETH);
 
         assertFalse(response.isValid());
+    }
+
+    // --- parseHistory()/fetchHistory() : addendum backfill Farside, 2026-07-17 ---
+    // Même fixture que parse() (docs/etude-cache-etf-flow-historisation.md) : 12 lignes de donnée,
+    // dont 1 non publiée ("08 Jul 2026", tout à "-") qui doit être exclue du résultat.
+
+    @Test
+    @DisplayName("parseHistory() extrait toutes les lignes publiées, exclut la ligne du jour non publiée")
+    void parseHistory_fullFixture_extractsAllPublishedRows() {
+        List<EtfFlowResponse> history = FarsideEtfFlowClient.parseHistory(loadFixture("farside-btc.html"));
+
+        assertEquals(11, history.size(), "12 lignes de donnée dans la fixture, moins la ligne '08 Jul 2026' non publiée");
+        assertTrue(history.stream().noneMatch(r -> r.getDate().equals(LocalDate.of(2026, 7, 8))));
+
+        EtfFlowResponse first = history.get(0);
+        assertEquals(LocalDate.of(2026, 6, 22), first.getDate());
+        assertEquals(-68.3, first.getTotal(), 0.001);
+        assertEquals(-172.0, first.getByIssuer().get("IBIT"), 0.001);
+
+        EtfFlowResponse last = history.get(history.size() - 1);
+        assertEquals(LocalDate.of(2026, 7, 7), last.getDate());
+        assertEquals(21.5, last.getTotal(), 0.001);
+    }
+
+    @Test
+    @DisplayName("parseHistory() ignore les lignes Fee/Total/Average/Maximum/Minimum")
+    void parseHistory_ignoresSummaryRows() {
+        List<EtfFlowResponse> history = FarsideEtfFlowClient.parseHistory(loadFixture("farside-btc.html"));
+
+        // Si la ligne "Total" (cumul depuis le lancement) avait été mal interprétée comme une ligne
+        // de donnée, elle apparaîtrait avec IBIT=60258 et une date invalide/absente.
+        assertTrue(history.stream().allMatch(r -> Math.abs(r.getByIssuer().getOrDefault("IBIT", 0.0)) < 1000));
+    }
+
+    @Test
+    @DisplayName("parseHistory() retombe sur liste vide si l'en-tête a disparu de la page")
+    void parseHistory_returnsEmptyList_whenHeaderRowMissing() {
+        List<EtfFlowResponse> history = FarsideEtfFlowClient.parseHistory(loadFixture("farside-btc-broken-no-header.html"));
+
+        assertTrue(history.isEmpty());
+    }
+
+    @Test
+    @DisplayName("parseHistory() retombe sur liste vide sur un HTML vide/sans tableau, sans exception")
+    void parseHistory_returnsEmptyList_whenNoTable() {
+        List<EtfFlowResponse> history = FarsideEtfFlowClient.parseHistory("<html><body><p>no table here</p></body></html>");
+
+        assertTrue(history.isEmpty());
+    }
+
+    @Test
+    @DisplayName("fetchHistory() tape la page 'all data' (pas la page live) et mappe toutes les lignes")
+    void fetchHistory_mapsAllRows_fromAllDataPage() throws IOException {
+        String html = loadFixture("farside-btc.html");
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext(EtfFlowAsset.BTC.getHistoryPath(), exchange -> {
+            byte[] body = html.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "text/html; charset=UTF-8");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+
+        FarsideEtfFlowClient client = new FarsideEtfFlowClient();
+        ApiCredentialDTO credential = new ApiCredentialDTO(
+                WebProviderCode.FARSIDE, "", "", "http://127.0.0.1:" + server.getAddress().getPort());
+
+        List<EtfFlowResponse> history = client.fetchHistory(credential, EtfFlowAsset.BTC);
+
+        assertEquals(11, history.size());
+    }
+
+    @Test
+    @DisplayName("fetchHistory() retombe sur liste vide quand l'hôte est injoignable (pas d'exception)")
+    void fetchHistory_returnsEmptyList_whenHostUnreachable() {
+        FarsideEtfFlowClient client = new FarsideEtfFlowClient();
+        ApiCredentialDTO credential = new ApiCredentialDTO(
+                WebProviderCode.FARSIDE, "", "", "http://127.0.0.1:1");
+
+        List<EtfFlowResponse> history = client.fetchHistory(credential, EtfFlowAsset.BTC);
+
+        assertTrue(history.isEmpty());
     }
 }

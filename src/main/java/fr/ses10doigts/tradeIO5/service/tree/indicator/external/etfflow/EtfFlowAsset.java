@@ -10,13 +10,20 @@ import lombok.Getter;
 @Getter
 public enum EtfFlowAsset {
 
-    BTC("/btc/"),
-    ETH("/eth/");
+    BTC("/btc/", "/bitcoin-etf-flow-all-data/"),
+    ETH("/eth/", "/ethereum-etf-flow-all-data/");
 
     private final String path;
 
-    EtfFlowAsset(String path) {
+    /** Page "all data" de Farside (docs/etude-cache-etf-flow-historisation.md, addendum backfill
+     *  Farside) : même structure de tableau que {@link #path}, mais remonte à janvier 2024
+     *  (lancement des ETF BTC) au lieu de ne montrer que les ~2 dernières semaines. Utilisée
+     *  uniquement par {@code FarsideEtfFlowClient#fetchHistory}, jamais par le {@code fetch()} live. */
+    private final String historyPath;
+
+    EtfFlowAsset(String path, String historyPath) {
         this.path = path;
+        this.historyPath = historyPath;
     }
 
     /** Résout un nom d'actif (paramètre {@code IndicatorParameters.getString("asset")}) vers

@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -207,5 +208,89 @@ class SosoValueEtfFlowClientTest {
         EtfFlowResponse response = client.fetch(credential, EtfFlowAsset.ETH);
 
         assertFalse(response.isValid());
+    }
+
+    // ---- fetchHistory / parseHistory (backfill, docs/etude-cache-etf-flow-historisation.md) ----
+
+    @Test
+    @DisplayName("parseHistory() extrait toutes les lignes de 'data', pas seulement la première")
+    void parseHistory_validBody_extractsAllRows() {
+        List<EtfFlowResponse> history = SosoValueEtfFlowClient.parseHistory(VALID_BODY, EtfFlowAsset.BTC);
+
+        assertEquals(2, history.size());
+        assertEquals(LocalDate.of(2026, 7, 15), history.get(0).getDate());
+        assertEquals(-55066297.0, history.get(0).getTotal(), 0.001);
+        assertEquals(LocalDate.of(2026, 7, 14), history.get(1).getDate());
+        assertEquals(91269283.0, history.get(1).getTotal(), 0.001);
+    }
+
+    @Test
+    @DisplayName("parseHistory() ignore une ligne individuellement malformée sans invalider tout le lot")
+    void parseHistory_oneMalformedRow_skipsItButKeepsOthers() {
+        String body = """
+                {
+                    "code": 0,
+                    "message": "success",
+                    "data": [
+                        {"date": "2026-07-15", "total_net_inflow": -100.0},
+                        {"date": "not-a-date", "total_net_inflow": 50.0},
+                        {"total_net_inflow": 25.0},
+                        {"date": "2026-07-13", "total_net_inflow": 75.0}
+                    ]
+                }
+                """;
+
+        List<EtfFlowResponse> history = SosoValueEtfFlowClient.parseHistory(body, EtfFlowAsset.BTC);
+
+        assertEquals(2, history.size());
+        assertEquals(LocalDate.of(2026, 7, 15), history.get(0).getDate());
+        assertEquals(LocalDate.of(2026, 7, 13), history.get(1).getDate());
+    }
+
+    @Test
+    @DisplayName("parseHistory() retombe sur une liste vide sur enveloppe invalide, sans exception")
+    void parseHistory_invalidEnvelope_returnsEmptyList() {
+        assertTrue(SosoValueEtfFlowClient.parseHistory(null, EtfFlowAsset.BTC).isEmpty());
+        assertTrue(SosoValueEtfFlowClient.parseHistory("not json", EtfFlowAsset.BTC).isEmpty());
+        assertTrue(SosoValueEtfFlowClient.parseHistory("[{\"date\": \"2026-07-15\"}]", EtfFlowAsset.BTC).isEmpty());
+        assertTrue(SosoValueEtfFlowClient.parseHistory(
+                "{\"code\": 400101, \"message\": \"Invalid API Key\", \"data\": null}", EtfFlowAsset.BTC).isEmpty());
+    }
+
+    @Test
+    @DisplayName("fetchHistory() transmet le limit demandé et mappe toutes les lignes retournées")
+    void fetchHistory_mapsAllRows_withRequestedLimit() throws IOException {
+        String[] seenLimit = new String[1];
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/etfs/summary-history", exchange -> {
+            seenLimit[0] = exchange.getRequestURI().getQuery();
+            byte[] body = VALID_BODY.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json; charset=UTF-8");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+
+        SosoValueEtfFlowClient client = new SosoValueEtfFlowClient();
+        ApiCredentialDTO credential = new ApiCredentialDTO(
+                WebProviderCode.SOSOVALUE, "test-api-key", "", "http://127.0.0.1:" + server.getAddress().getPort());
+
+        List<EtfFlowResponse> history = client.fetchHistory(credential, EtfFlowAsset.BTC, 300);
+
+        assertEquals(2, history.size());
+        assertTrue(seenLimit[0].contains("limit=300"));
+    }
+
+    @Test
+    @DisplayName("fetchHistory() retombe sur une liste vide quand l'hôte est injoignable (pas d'exception)")
+    void fetchHistory_returnsEmptyList_whenHostUnreachable() {
+        SosoValueEtfFlowClient client = new SosoValueEtfFlowClient();
+        ApiCredentialDTO credential = new ApiCredentialDTO(
+                WebProviderCode.SOSOVALUE, "test-api-key", "", "http://127.0.0.1:1");
+
+        List<EtfFlowResponse> history = client.fetchHistory(credential, EtfFlowAsset.ETH, 300);
+
+        assertTrue(history.isEmpty());
     }
 }

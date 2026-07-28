@@ -19,14 +19,12 @@
   .zone-box { position:absolute; pointer-events:none; box-sizing:border-box; z-index: 5;
               background: rgba(150,150,165,0.035); }
   .regime-band { position:absolute; top:0; bottom:0; pointer-events:none; z-index: 1; }
-  .touch-marker { position:absolute; width:7px; height:7px; margin-left:-3.5px; margin-top:-3.5px;
-                   border-radius:50%; background:#ff5252; box-shadow:0 0 3px rgba(255,82,82,0.9);
-                   pointer-events:none; z-index: 6; }
   #debug { position:absolute; bottom:4px; left:4px; font-size:10px; color:#555; z-index:10; }
-  #zones-summary { position:absolute; top:8px; right:8px; font-size:11px; color:#e8eaed; line-height:1.7;
-                    background:rgba(19,23,34,0.94); padding:8px 11px; border-radius:4px; z-index: 9;
-                    border:1px solid #2a2e39; min-width:190px; }
-  #zones-summary .zs-title { font-weight:600; margin-bottom:4px; color:#d1d4dc; }
+  #zones-summary { position:absolute; font-size:11px; color:#e8eaed; line-height:1.7; pointer-events:none;
+                    background:rgba(19,23,34,0.97); padding:7px 10px; border-radius:4px; z-index: 1000;
+                    border:1px solid #454a58; min-width:170px; box-shadow:0 2px 8px rgba(0,0,0,0.5);
+                    display:none; }
+  #zones-summary .zs-title { font-weight:600; margin-bottom:3px; color:#d1d4dc; white-space:nowrap; }
   #zones-summary .zs-row { display:flex; justify-content:space-between; gap:14px; }
   #zones-summary .zs-row span:last-child { color:#d1d4dc; }
 </style>
@@ -34,10 +32,9 @@
 <body>
 <div id="header">
   <h1>BTC/USDT — D1 — Zones support/resistance (technique "consolidation", POC v2)</h1>
-  <p>Zones detectees sur historique reel complet (2017-08-17 -&gt; 2026-07-09, 109 zones D1 dedupliquees, non regroupees). Nouveau schema visuel (2026-07-10) suite au retest sur bench elargi : ni la duree de formation, ni le volume, ni la densite de chevauchement ne predisent la fiabilite d'une zone dans le sens attendu -&gt; l'opacite des rectangles est donc UNIFORME (juste pour la lisibilite quand plusieurs zones se superposent), elle ne code plus une "force". Le seul signal robuste trouve est l'effet de 1ere touche (plus faible que les suivantes) -&gt; marque par un point rouge. Le regime de marche (ADX 14) explique mieux la reussite de la technique qu'aucune metrique par zone -&gt; bandeau de fond.</p>
+  <p>Zones detectees sur historique reel complet (2017-08-17 -&gt; 2026-07-09, 109 zones D1 dedupliquees, non regroupees). Nouveau schema visuel (2026-07-10) suite au retest sur bench elargi : ni la duree de formation, ni le volume, ni la densite de chevauchement ne predisent la fiabilite d'une zone dans le sens attendu -&gt; l'opacite des rectangles est donc UNIFORME (juste pour la lisibilite quand plusieurs zones se superposent), elle ne code plus une "force". Le regime de marche (ADX 14) explique mieux la reussite de la technique qu'aucune metrique par zone -&gt; bandeau de fond.</p>
   <div class="legend">
     <span><i class="swatch-grey"></i> Zone consolidation (opacite uniforme, projetee depuis sa detection)</span>
-    <span><i class="swatch-dot"></i> 1ere touche post-formation (reaction moyenne -0.58 ATR dans nos tests, plus faible que les suivantes)</span>
     <span><i class="swatch-trend"></i> Regime tendance (ADX&gt;=25)</span>
     <span><i class="swatch-range"></i> Regime range (ADX&lt;20)</span>
   </div>
@@ -184,9 +181,18 @@ function computeRegimeSegments(candles, adx) {
   return segments;
 }
 
+// Declaree avant buildZoneEls() : buildZoneEls appelle hideHoverTooltip() des le premier chargement
+// (const/let ne sont pas hoistees comme les function declarations -- les declarer plus bas
+// levait une ReferenceError qui cassait tout le reste du script au chargement de la page).
+const hoverTooltipEl = document.getElementById('zones-summary');
+
+function hideHoverTooltip() {
+  hoverTooltipEl.style.display = 'none';
+}
+
 let zoneEls = [];
 function buildZoneEls(zones) {
-  zoneEls.forEach(({ box, marker }) => { box.remove(); if (marker) marker.remove(); });
+  zoneEls.forEach(({ box }) => box.remove());
   zoneEls = zones.map(z => {
     const box = document.createElement('div');
     box.className = 'zone-box';
@@ -194,47 +200,61 @@ function buildZoneEls(zones) {
       `touches ${z.n_touches} | reaction moy. ${z.mean_reaction >= 0 ? '+' : ''}${z.mean_reaction.toFixed(2)} ATR | ` +
       `detectee le ${z.anchor_date}`;
     overlayContainer.appendChild(box);
-
-    let marker = null;
-    if (z.first_touch) {
-      marker = document.createElement('div');
-      marker.className = 'touch-marker';
-      marker.title = `1ere touche (${z.first_touch.date}) : ${z.first_touch.reaction >= 0 ? '+' : ''}${z.first_touch.reaction.toFixed(2)} ATR`;
-      overlayContainer.appendChild(marker);
-    }
-    return { zone: z, box, marker };
+    return { zone: z, box };
   });
-  updateZonesSummary(zones);
+  hideHoverTooltip();
 }
 buildZoneEls(DATA.zones);
 
-// Un seul panneau agrege (au lieu d'une vignette par bande, qui devenait illisible des que
-// plusieurs zones se superposaient) : compte, periode couverte, touches totales, reaction
-// moyenne ponderee par le nombre de touches, duree moyenne de formation.
-function updateZonesSummary(zones) {
-  const summaryEl = document.getElementById('zones-summary');
-  if (!zones || zones.length === 0) {
-    summaryEl.innerHTML = '<div class="zs-title">Zones consolidation</div><div class="zs-row"><span>Aucune zone detectee</span></div>';
+// Une seule vignette (au lieu d'une par bande, illisible des que plusieurs zones se
+// superposent) : affichee au survol, comptabilise le nombre de zones sous le curseur.
+// Positionnee horizontalement a la date de detection de la plus ancienne des zones survolees
+// (repere visuel : "d'ou part" le paquet de zones empilees) ; si cette date n'est plus dans la
+// portion visible du graphique (utilisateur zoome/scrolle plus loin), la vignette reste collee
+// au bord gauche plutot que de sortir de l'ecran.
+function showHoverTooltip(hoveredZones, cursorY) {
+  const oldest = hoveredZones.reduce((a, b) => (a.anchor_date <= b.anchor_date ? a : b));
+  const timeScale = chart.timeScale();
+  let xPos = timeScale.timeToCoordinate(oldest.anchor_date);
+  if (xPos === null || xPos === undefined || xPos < 0) {
+    xPos = 6;
+  }
+  const containerHeight = overlayContainer.clientHeight;
+  const yPos = Math.min(Math.max(cursorY, 4), containerHeight - 60);
+
+  hoverTooltipEl.innerHTML = `
+    <div class="zs-title">${hoveredZones.length} zone${hoveredZones.length > 1 ? 's' : ''} sous le curseur</div>
+    <div class="zs-row"><span>Depuis</span><span>${oldest.anchor_date}</span></div>
+  `;
+  hoverTooltipEl.style.left = xPos + 'px';
+  hoverTooltipEl.style.top = yPos + 'px';
+  hoverTooltipEl.style.right = 'auto';
+  hoverTooltipEl.style.display = 'block';
+}
+
+chart.subscribeCrosshairMove(param => {
+  if (!param || !param.point) {
+    hideHoverTooltip();
     return;
   }
-  const dates = zones.map(z => z.anchor_date).sort();
-  const oldest = dates[0];
-  const newest = dates[dates.length - 1];
-  const totalTouches = zones.reduce((s, z) => s + z.n_touches, 0);
-  const weightedReaction = totalTouches > 0
-    ? zones.reduce((s, z) => s + z.mean_reaction * z.n_touches, 0) / totalTouches
-    : 0;
-  const avgDuration = zones.reduce((s, z) => s + z.duration_days, 0) / zones.length;
+  const { x, y } = param.point;
+  const hoveredZones = zoneEls
+    .filter(({ box }) => {
+      if (box.style.display === 'none') return false;
+      const left = parseFloat(box.style.left) || 0;
+      if (x < left) return false;
+      const top = parseFloat(box.style.top);
+      const bottom = top + parseFloat(box.style.height);
+      return y >= top && y <= bottom;
+    })
+    .map(({ zone }) => zone);
 
-  summaryEl.innerHTML = `
-    <div class="zs-title">Zones consolidation</div>
-    <div class="zs-row"><span>Nombre de bandes</span><span>${zones.length}</span></div>
-    <div class="zs-row"><span>Periode couverte</span><span>${oldest} &rarr; ${newest}</span></div>
-    <div class="zs-row"><span>Touches totales</span><span>${totalTouches}</span></div>
-    <div class="zs-row"><span>Reaction moy. (pond.)</span><span>${weightedReaction >= 0 ? '+' : ''}${weightedReaction.toFixed(2)} ATR</span></div>
-    <div class="zs-row"><span>Duree moy. formation</span><span>${avgDuration.toFixed(1)} j</span></div>
-  `;
-}
+  if (hoveredZones.length === 0) {
+    hideHoverTooltip();
+  } else {
+    showHoverTooltip(hoveredZones, y);
+  }
+});
 
 function repositionAll() {
   const timeScale = chart.timeScale();
@@ -250,14 +270,13 @@ function repositionAll() {
     el.style.width = Math.max(xRight - xLeft, 1) + 'px';
   });
 
-  zoneEls.forEach(({ zone, box, marker }) => {
+  zoneEls.forEach(({ zone, box }) => {
     let xLeft = timeScale.timeToCoordinate(zone.anchor_date);
     if (xLeft === null || xLeft === undefined || xLeft < 0) xLeft = 0;
     const yTop = candleSeries.priceToCoordinate(zone.band_high);
     const yBottom = candleSeries.priceToCoordinate(zone.band_low);
     if (yTop === null || yTop === undefined || yBottom === null || yBottom === undefined) {
       box.style.display = 'none';
-      if (marker) marker.style.display = 'none';
       return;
     }
     visibleCount++;
@@ -266,18 +285,6 @@ function repositionAll() {
     box.style.top = yTop + 'px';
     box.style.width = Math.max(containerWidth - xLeft, 0) + 'px';
     box.style.height = Math.max(yBottom - yTop, 2) + 'px';
-
-    if (marker) {
-      const mx = timeScale.timeToCoordinate(zone.first_touch.date);
-      const my = candleSeries.priceToCoordinate(zone.first_touch.price);
-      if (mx === null || my === null) {
-        marker.style.display = 'none';
-      } else {
-        marker.style.display = 'block';
-        marker.style.left = mx + 'px';
-        marker.style.top = my + 'px';
-      }
-    }
   });
   debugEl.textContent = `${visibleCount}/${zoneEls.length} zones positionnees`;
 }

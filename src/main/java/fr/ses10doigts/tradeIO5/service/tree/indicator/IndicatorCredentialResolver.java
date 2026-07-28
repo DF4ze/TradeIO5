@@ -57,6 +57,26 @@ public class IndicatorCredentialResolver {
             return null;
         }
 
+        ApiCredentialDTO credential = resolveWebProvider(provider);
+        if (credential == null) {
+            log.warn("Aucune credential '{}' trouvée pour l'utilisateur '{}' : indicateur {} sera invalid.",
+                    provider, SYSTEM_USERNAME, type);
+        }
+        return credential;
+    }
+
+    /**
+     * Résolution directe par provider, sans passer par le mapping {@link IndicatorType} de
+     * {@link #resolve}. Ajouté pour {@code EtfFlowBackfillService}
+     * (docs/etude-cache-etf-flow-historisation.md, addendum backfill Farside) : le backfill a
+     * besoin à la fois de SOSOVALUE (même routing que {@code ETF_FLOW} en fetch() live) et de
+     * FARSIDE (source complémentaire pour l'historique profond, jan. 2024 -> ~1 mois avant
+     * aujourd'hui) — ce dernier n'étant plus jamais résolu via {@link #resolve} depuis la bascule
+     * du 2026-07-16 ({@code ETF_FLOW} ne route désormais que vers SOSOVALUE en live). La credential
+     * FARSIDE elle-même n'a jamais été supprimée en base (page publique, {@code apiKey} vide) —
+     * seul le routing de {@link #resolve} a changé.
+     */
+    public ApiCredentialDTO resolveWebProvider(WebProviderCode provider) {
         return userRepository.findByUsername(SYSTEM_USERNAME)
                 .flatMap(sysUser -> apiCredentialRepository
                         .findByUserAndEnabledTrueAndWebProvider_CodeAndWebProvider_EnabledTrue(sysUser, provider))
@@ -66,10 +86,6 @@ public class IndicatorCredentialResolver {
                         cred.getSecretKey(),
                         cred.getWebProvider().getApiBaseUrl()
                 ))
-                .orElseGet(() -> {
-                    log.warn("Aucune credential '{}' trouvée pour l'utilisateur '{}' : indicateur {} sera invalid.",
-                            provider, SYSTEM_USERNAME, type);
-                    return null;
-                });
+                .orElse(null);
     }
 }

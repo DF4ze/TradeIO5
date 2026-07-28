@@ -92,6 +92,22 @@ public class CachingEtfFlowClient implements EtfFlowProvider {
         return response;
     }
 
+    /**
+     * Upsert public, réutilisé par {@code EtfFlowBackfillRunner} (docs/etude-cache-etf-flow-historisation.md,
+     * addendum backfill) pour écrire un historique complet récupéré en une fois via
+     * {@code SosoValueEtfFlowClient#fetchHistory}. Même sémantique que {@link #fetch}/{@link #refresh} :
+     * {@code fetchedAt} vaut "maintenant" (moment où la donnée est apprise, pas la date de la donnée
+     * elle-même — une ligne backfillée datée d'il y a 6 mois a bien un {@code fetchedAt} d'aujourd'hui),
+     * même tolérance aux écritures concurrentes. Réponse invalide/incomplète silencieusement ignorée
+     * (pas d'exception) plutôt que de faire échouer tout un lot de backfill pour une ligne.
+     */
+    public void upsert(EtfFlowAsset asset, EtfFlowResponse response) {
+        if (response == null || !response.isValid() || response.getDate() == null || response.getTotal() == null) {
+            return;
+        }
+        persist(asset, response);
+    }
+
     private boolean isFetchedToday(EtfFlowSnapshotEntity snapshot) {
         ZoneId zone = ZoneId.systemDefault();
         LocalDate today = LocalDate.ofInstant(clock.now(), zone);
