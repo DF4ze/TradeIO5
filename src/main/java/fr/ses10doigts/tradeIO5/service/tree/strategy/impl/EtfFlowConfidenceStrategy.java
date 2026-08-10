@@ -70,6 +70,31 @@ import java.util.Set;
  * assumée par rapport à {@code OrderFlowStrategy} : les cas "cohérent" et "neutre" sont fusionnés
  * (même {@code score=0.0}, seul le {@code reason} diffère) — {@code computeConfidenceModulationFactor}
  * ne bonifie jamais un score positif, calculer une magnitude positive n'aurait aucun effet observable.
+ * <p>
+ * <b>Donnée toujours en retard d'un jour (J-1) — recadrage explicite de Clem, 2026-08-10.</b> La
+ * valeur ETF_FLOW lue ici via {@link IndicatorEngine} n'est <b>jamais</b> celle du jour courant :
+ * SoSoValue publie post-clôture US, {@link EtfFlowIndicator} expose cette réalité via
+ * {@code ageInDays}/{@code dateEpochDay} (cf. javadoc de cette classe, "Fraîcheur de la donnée",
+ * 2026-07-18) mais cette Strategy ne consomme aujourd'hui que {@code total}, sans lire ni exposer
+ * cet âge. Concrètement : au moment où {@link #evaluate} tourne, {@code total} décrit le flux net
+ * ETF de <b>la veille</b>, jamais celui du jour en cours — à garder explicitement en tête dans toute
+ * lecture de {@code reason}/{@code score} (humaine ou automatisée), le nommage {@code total}/
+ * {@code priceChangePct} ne le rend pas visible sans cette note.
+ * <p>
+ * <b>Rôle recadré : validateur d'entrée/sortie à échelle de quantité, pas chercheur d'edge —
+ * recadrage explicite de Clem, 2026-08-10.</b> La calibration empirique
+ * (`docs/calibration/calibration-etf-flow.md`) a testé une hypothèse plus ambitieuse que le rôle
+ * réel de cette Strategy : "la divergence flux/prix prédit-elle une non-continuation du prix" (un
+ * edge directionnel autonome) — verdict négatif sur BTC et ETH (aucun horizon significatif de façon
+ * robuste, cf. doc de calibration). Ce verdict ne remet <b>pas</b> en cause l'usage réel de cet
+ * indicateur : {@link StrategyType#CONFIDENCE_MODULATOR} n'a jamais eu vocation à prédire un
+ * mouvement, seulement à répondre à une question plus simple et déjà correctement implémentée par
+ * {@link #computeSignal} — "de l'argent institutionnel rentre-t-il ou sort-il, et avec quelle
+ * ampleur (magnitude scale via {@code magnitudeScaleFactor}), au regard du mouvement de prix
+ * récent" — utilisée uniquement pour moduler (atténuer) une confidence déjà établie par ailleurs,
+ * jamais pour générer un signal propre. Verdict retenu par Clem : <b>utilisable tel quel</b>
+ * (source de données correcte depuis le 2026-08-10, cf. {@code EtfFlowBackfillService}), le
+ * périmètre était simplement mal cadré dans la calibration, pas le mécanisme lui-même.
  */
 @Component
 public class EtfFlowConfidenceStrategy extends AbstractStrategy {

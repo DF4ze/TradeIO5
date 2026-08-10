@@ -14,7 +14,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -41,6 +43,19 @@ import java.util.Map;
  * </ul>
  * Chaque source est indépendamment optionnelle : si une seule credential est résolue, le backfill
  * se poursuit avec celle-là seule plutôt que d'échouer entièrement.
+ * <p>
+ * <b>Bug d'unité corrigé le 2026-08-10</b> (repéré le 2026-07-17, cf. {@code
+ * docs/suivi/etat-des-lieux-indicateurs-strategies-opinions.md}) : Farside exprime ses flux en
+ * millions USD ({@code 655.3} = 655,3 M$) tandis que SoSoValue renvoie du USD brut ({@code
+ * -55066297.0}, cf. javadoc {@link SosoValueEtfFlowClient}). Les deux sources écrivaient
+ * auparavant dans la même colonne {@code etf_flow_snapshot.total_net_inflow} sans conversion,
+ * mélangeant les échelles selon la source qui avait "eu le dernier mot" sur une date donnée.
+ * Corrigé ici : toute ligne Farside est convertie en USD brut ({@link #toRawUsd}) avant
+ * d'atteindre {@link CachingEtfFlowClient#upsert} — SoSoValue n'a besoin d'aucune conversion,
+ * déjà en USD brut. <b>Les lignes historiques déjà persistées avant ce correctif restent à
+ * l'ancienne échelle</b> tant que {@code POST /api/admin/etf-flow/backfill} n'est pas rejoué (il
+ * réécrit les lignes Farside avec la conversion correcte, upsert idempotent par {@code (asset,
+ * date)}) — à faire une fois ce correctif déployé.
  * <p>
  * <b>Déclenchement manuel uniquement</b> (via {@code EtfFlowAdminController}), jamais automatique
  * au démarrage — même principe que {@link fr.ses10doigts.tradeIO5.configuration.initializer.TransactionSyncInitializer}
@@ -99,7 +114,8 @@ public class EtfFlowBackfillService {
 
         if (farsideCredential != null) {
             try {
-                upserted += upsertHistory(asset, farsideEtfFlowClient.fetchHistory(farsideCredential, asset), "FARSIDE");
+                List<EtfFlowResponse> farsideHistoryRawUsd = toRawUsd(farsideEtfFlowClient.fetchHistory(farsideCredential, asset));
+                upserted += upsertHistory(asset, farsideHistoryRawUsd, "FARSIDE");
             } catch (Exception e) {
                 logger.error("EtfFlowBackfillService: échec Farside pour {}", asset, e);
             }
@@ -118,6 +134,38 @@ public class EtfFlowBackfillService {
                         + "en base désormais.",
                 upserted, asset, repository.countByAsset(asset));
         return upserted;
+    }
+
+    /** Farside publie ses flux en millions USD ({@code 655.3} = 655,3 M$) — cf. javadoc de classe
+     *  et {@link SosoValueEtfFlowClient} pour le détail du désaccord d'unité entre les deux sources.
+     *  Convertit chaque ligne en USD brut (même échelle que SoSoValue) avant persistance, sans
+     *  muter les objets d'origine (immutabilité par reconstruction via {@code builder()}). */
+    private static List<EtfFlowResponse> toRawUsd(List<EtfFlowResponse> farsideHistoryMillionsUsd) {
+        List<EtfFlowResponse> converted = new ArrayList<>(farsideHistoryMillionsUsd.size());
+        for (EtfFlowResponse row : farsideHistoryMillionsUsd) {
+            converted.add(EtfFlowResponse.builder()
+                    .valid(row.isValid())
+                    .date(row.getDate())
+                    .total(toRawUsd(row.getTotal()))
+                    .byIssuer(toRawUsd(row.getByIssuer()))
+                    .build());
+        }
+        return converted;
+    }
+
+    private static Double toRawUsd(Double millionsUsd) {
+        return millionsUsd == null ? null : millionsUsd * 1_000_000d;
+    }
+
+    private static Map<String, Double> toRawUsd(Map<String, Double> byIssuerMillionsUsd) {
+        if (byIssuerMillionsUsd == null || byIssuerMillionsUsd.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Double> converted = new LinkedHashMap<>();
+        for (Map.Entry<String, Double> entry : byIssuerMillionsUsd.entrySet()) {
+            converted.put(entry.getKey(), toRawUsd(entry.getValue()));
+        }
+        return converted;
     }
 
     private int upsertHistory(EtfFlowAsset asset, List<EtfFlowResponse> history, String sourceLabel) {

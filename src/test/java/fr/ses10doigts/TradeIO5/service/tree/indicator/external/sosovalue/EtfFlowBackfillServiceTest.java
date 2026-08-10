@@ -11,6 +11,7 @@ import fr.ses10doigts.tradeIO5.service.tree.indicator.external.etfflow.FarsideEt
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -32,7 +34,9 @@ import static org.mockito.Mockito.when;
  * - aucune credential (ni SOSOVALUE ni FARSIDE) => backfill ignoré, aucun appel ;
  * - une seule source disponible => backfill se poursuit avec celle-là seule ;
  * - les deux sources disponibles => Farside puis SoSoValue, upsert pour chaque ligne valide, BTC et ETH ;
- * - isolation par asset ET par source (échec sur l'un n'empêche pas les autres).
+ * - isolation par asset ET par source (échec sur l'un n'empêche pas les autres) ;
+ * - conversion d'unité Farside (millions USD) -> USD brut avant upsert (bug corrigé le 2026-08-10,
+ *   cf. javadoc {@link EtfFlowBackfillService}) ; SoSoValue n'a besoin d'aucune conversion.
  */
 @DisplayName("EtfFlowBackfillService")
 class EtfFlowBackfillServiceTest {
@@ -95,11 +99,12 @@ class EtfFlowBackfillServiceTest {
     }
 
     @Test
-    @DisplayName("credential FARSIDE présente, SOSOVALUE absente => seul Farside est appelé")
+    @DisplayName("credential FARSIDE présente, SOSOVALUE absente => seul Farside est appelé, converti en USD brut avant upsert")
     void backfillAll_onlyFarsideCredential_callsOnlyFarside() {
         when(credentialResolver.resolve(IndicatorType.ETF_FLOW)).thenReturn(null);
         when(credentialResolver.resolveWebProvider(WebProviderCode.FARSIDE)).thenReturn(FARSIDE_CREDENTIAL);
 
+        // 655.3 = 655,3 M$ côté Farside (millions USD) -> doit être persisté en 655_300_000.0 (USD brut).
         EtfFlowResponse row = EtfFlowResponse.builder().valid(true).date(LocalDate.of(2024, 1, 11)).total(655.3).byIssuer(Map.of()).build();
         when(farsideEtfFlowClient.fetchHistory(FARSIDE_CREDENTIAL, EtfFlowAsset.BTC)).thenReturn(List.of(row));
         when(farsideEtfFlowClient.fetchHistory(FARSIDE_CREDENTIAL, EtfFlowAsset.ETH)).thenReturn(List.of());
@@ -109,16 +114,23 @@ class EtfFlowBackfillServiceTest {
         assertEquals(1, result.get(EtfFlowAsset.BTC));
         assertEquals(0, result.get(EtfFlowAsset.ETH));
         verify(sosoValueEtfFlowClient, never()).fetchHistory(any(), any(), anyInt());
-        verify(cachingEtfFlowClient).upsert(EtfFlowAsset.BTC, row);
+
+        ArgumentCaptor<EtfFlowResponse> captor = ArgumentCaptor.forClass(EtfFlowResponse.class);
+        verify(cachingEtfFlowClient).upsert(eq(EtfFlowAsset.BTC), captor.capture());
+        EtfFlowResponse upserted = captor.getValue();
+        assertEquals(row.getDate(), upserted.getDate());
+        assertEquals(655_300_000.0, upserted.getTotal(), 0.001);
     }
 
     @Test
-    @DisplayName("les deux credentials présentes => Farside puis SoSoValue, upsert pour chaque ligne valide")
+    @DisplayName("les deux credentials présentes => Farside puis SoSoValue, Farside converti en USD brut, SoSoValue inchangé")
     void backfillAll_bothCredentials_callsBothSourcesForEachAsset() {
         when(credentialResolver.resolve(IndicatorType.ETF_FLOW)).thenReturn(SOSOVALUE_CREDENTIAL);
         when(credentialResolver.resolveWebProvider(WebProviderCode.FARSIDE)).thenReturn(FARSIDE_CREDENTIAL);
 
+        // 655.3 M$ côté Farside -> attendu 655_300_000.0 USD brut après conversion.
         EtfFlowResponse farsideRow = EtfFlowResponse.builder().valid(true).date(LocalDate.of(2024, 1, 11)).total(655.3).byIssuer(Map.of()).build();
+        // SoSoValue est déjà en USD brut : aucune conversion, doit rester la même référence/valeur.
         EtfFlowResponse sosoValueRow = EtfFlowResponse.builder().valid(true).date(LocalDate.of(2026, 7, 15)).total(1.0).byIssuer(Map.of()).build();
         // Ligne sans date/total : doit être ignorée (jamais upsertée), pas de crash.
         EtfFlowResponse incomplete = EtfFlowResponse.builder().valid(true).date(null).total(null).byIssuer(Map.of()).build();
@@ -134,9 +146,17 @@ class EtfFlowBackfillServiceTest {
 
         assertEquals(2, result.get(EtfFlowAsset.BTC));
         assertEquals(0, result.get(EtfFlowAsset.ETH));
-        verify(cachingEtfFlowClient).upsert(EtfFlowAsset.BTC, farsideRow);
+
+        ArgumentCaptor<EtfFlowResponse> captor = ArgumentCaptor.forClass(EtfFlowResponse.class);
+        verify(cachingEtfFlowClient, times(2)).upsert(eq(EtfFlowAsset.BTC), captor.capture());
+        List<EtfFlowResponse> upsertedRows = captor.getAllValues();
+
+        EtfFlowResponse convertedFarside = upsertedRows.stream()
+                .filter(r -> r.getDate().equals(farsideRow.getDate())).findFirst().orElseThrow();
+        assertEquals(655_300_000.0, convertedFarside.getTotal(), 0.001);
+
         verify(cachingEtfFlowClient).upsert(EtfFlowAsset.BTC, sosoValueRow);
-        verify(cachingEtfFlowClient, never()).upsert(EtfFlowAsset.BTC, incomplete);
+        // "incomplete" (date/total null) jamais upsertée : seules 2 lignes valides au total (Farside + SoSoValue).
         verify(cachingEtfFlowClient, times(2)).upsert(any(), any());
     }
 

@@ -48,12 +48,18 @@ import java.util.Map;
  * rester compatible avec {@code EtfFlowIndicator.compute}) pour ce client. À réévaluer si un
  * besoin par émetteur apparaît un jour (impact : ~22-26 appels par cycle au lieu de 2, cf. étude).
  * <p>
- * <b>Unité différente de Farside — point d'attention pour le futur {@code CONFIDENCE_MODULATOR}.</b>
- * Farside exprimait les flux en millions USD ("US$m", {@code 54.8} = 54,8 M$). SoSoValue renvoie
- * {@code total_net_inflow} en USD brut ({@code -55066297.0} = -55,07 M$). Ce client ne fait
- * <b>aucune conversion</b> : {@link EtfFlowResponse#getTotal()} expose la valeur brute telle que
- * renvoyée par l'API. Tout seuil futur sur ETF_FLOW devra être calibré en USD brut, pas en
- * "millions" comme l'aurait suggéré l'historique Farside.
+ * <b>Unité différente de Farside — bug corrigé le 2026-08-10.</b> Farside exprime les flux en
+ * millions USD ("US$m", {@code 54.8} = 54,8 M$). SoSoValue renvoie {@code total_net_inflow} en
+ * USD brut ({@code -55066297.0} = -55,07 M$). Ce client ne fait <b>aucune conversion</b> :
+ * {@link EtfFlowResponse#getTotal()} expose la valeur brute telle que renvoyée par l'API — c'est
+ * la source de vérité pour l'échelle "USD brut" du système. La conversion Farside -> USD brut est
+ * appliquée côté appelant, dans {@code EtfFlowBackfillService#toRawUsd} (seul point du code qui
+ * consomme encore Farside), avant toute écriture en base — cf. javadoc de cette classe pour le
+ * détail du bug (mélange d'échelles dans {@code etf_flow_snapshot}, repéré 2026-07-17) et la
+ * procédure de correction des lignes historiques déjà persistées à l'ancienne échelle.
+ * {@code EtfFlowConfidenceStrategy} (le seul consommateur de seuils sur ETF_FLOW) ne lit jamais
+ * Farside directement, uniquement {@link #fetch} (SoSoValue, USD brut) via le cache — non
+ * affecté par ce bug historique, cf. docs/etudes/etude-branchement-etf-flow-confidence-modulator.md.
  * <p>
  * Mêmes garde-fous que les autres clients externes du projet ({@code CoinalyzeClient},
  * {@code FarsideEtfFlowClient}) : jamais d'exception qui remonte, toujours un
