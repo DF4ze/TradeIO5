@@ -1,7 +1,11 @@
 package fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata;
 
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.exception.MarketDataProviderException;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.exception.ProviderUnavailableException;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.exception.SymbolNotFoundException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -14,7 +18,24 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("MarketDataApiClient - Kraken")
-class KrakenMarketDataApiClientTest {
+class KrakenMarketDataApiClientTest extends AbstractMarketDataApiClientContractTest {
+
+    @Override
+    protected MarketDataSource expectedSource() {
+        return MarketDataSource.KRAKEN;
+    }
+
+    @Override
+    protected MarketDataProviderException triggerSymbolNotFound() {
+        return assertThrows(SymbolNotFoundException.class,
+                () -> KrakenMarketDataApiClient.mapOhlcResponse(ERROR_RESPONSE, "XBTUSD", TimeFrame.H1));
+    }
+
+    @Override
+    protected MarketDataProviderException triggerProviderUnavailable() {
+        return assertThrows(ProviderUnavailableException.class,
+                () -> KrakenMarketDataApiClient.mapOhlcResponse(TRANSIENT_ERROR_RESPONSE, "XBTUSD", TimeFrame.H1));
+    }
 
     // Payload d'exemple issu de la doc Kraken GET /0/public/OHLC
     private static final String SAMPLE_RESPONSE = """
@@ -32,6 +53,13 @@ class KrakenMarketDataApiClientTest {
     private static final String ERROR_RESPONSE = """
             {
               "error": ["EQuery:Unknown asset pair"],
+              "result": {}
+            }
+            """;
+
+    private static final String TRANSIENT_ERROR_RESPONSE = """
+            {
+              "error": ["EService:Unavailable"],
               "result": {}
             }
             """;
@@ -54,10 +82,20 @@ class KrakenMarketDataApiClientTest {
     }
 
     @Test
-    void mapOhlcResponse_throwsOnKrakenError() {
-        Exception ex = assertThrows(IllegalStateException.class,
+    void mapOhlcResponse_throwsSymbolNotFoundOnUnknownPair() {
+        SymbolNotFoundException ex = assertThrows(SymbolNotFoundException.class,
                 () -> KrakenMarketDataApiClient.mapOhlcResponse(ERROR_RESPONSE, "XBTUSD", TimeFrame.H1));
         assertTrue(ex.getMessage().contains("Kraken API error"));
+        assertEquals(MarketDataSource.KRAKEN, ex.getSource());
+        assertEquals("XBTUSD", ex.getSymbol());
+    }
+
+    @Test
+    void mapOhlcResponse_throwsProviderUnavailableOnOtherErrorPrefix() {
+        ProviderUnavailableException ex = assertThrows(ProviderUnavailableException.class,
+                () -> KrakenMarketDataApiClient.mapOhlcResponse(TRANSIENT_ERROR_RESPONSE, "XBTUSD", TimeFrame.H1));
+        assertTrue(ex.getMessage().contains("Kraken API error"));
+        assertEquals(MarketDataSource.KRAKEN, ex.getSource());
     }
 
     @Test

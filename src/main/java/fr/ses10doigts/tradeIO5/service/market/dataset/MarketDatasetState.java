@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Getter
 @Setter
-class MarketDatasetState {
+public class MarketDatasetState {
 
     private final String pair;
     private final Bucket bucket;

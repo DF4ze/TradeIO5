@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
-class MarketDatasetCache {
+public class MarketDatasetCache {
 
     // Clé = flux natif (symbole + TimeFrame + source + providerParam), PAS la fenêtre
     // demandée : endTime et lookBack varient à chaque appel (ex: Instant.now() à chaque

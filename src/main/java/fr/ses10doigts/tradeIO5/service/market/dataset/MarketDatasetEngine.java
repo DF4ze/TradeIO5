@@ -74,11 +74,6 @@ public class MarketDatasetEngine {
         Objects.requireNonNull(request.source(),
                 "source obligatoire ici ; utiliser getDatasetForAsset(symbol, ...) pour la résolution automatique");
 
-        int requiredCount = request.lookBack();
-        if( requiredCount == 0 ){
-            requiredCount = DEFAULT_LIMIT;
-        }
-
         if( request.endTime() == null )
             throw new IllegalArgumentException("endTime cannot be null");
 

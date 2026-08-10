@@ -213,6 +213,67 @@ class CachingMarketDataApiClientTest {
         assertEquals(t4, gaps.get(1).until());
     }
 
+    @Test
+    @DisplayName("expectedCandleCount : valeur brute de gapSize quand le trou ne touche pas la borne haute")
+    void expectedCandleCount_returnsRawGapSize_whenGapDoesNotTouchUpperBound() {
+        Instant untilGrid = T0.plusSeconds(7200); // borne haute demandée, hors du trou testé
+        CachingMarketDataApiClient.Range gap = new CachingMarketDataApiClient.Range(T0, T0.plusSeconds(3600));
+
+        int expected = CachingMarketDataApiClient.expectedCandleCount(gap, TimeFrame.H1, untilGrid, T0.plusSeconds(999_999));
+
+        assertEquals(2, expected); // gapSize brut, aucun ajustement
+    }
+
+    @Test
+    @DisplayName("expectedCandleCount : gapSize - 1 quand le trou touche la borne haute et que la dernière bougie n'est pas close")
+    void expectedCandleCount_returnsGapSizeMinusOne_whenGapTouchesUpperBoundAndCandleNotClosed() {
+        Instant untilGrid = T0;
+        CachingMarketDataApiClient.Range gap = new CachingMarketDataApiClient.Range(T0, untilGrid);
+        Instant now = T0; // bougie [T0, T0+1h) pas encore close à "now"
+
+        int expected = CachingMarketDataApiClient.expectedCandleCount(gap, TimeFrame.H1, untilGrid, now);
+
+        assertEquals(0, expected); // gapSize(1) - 1
+    }
+
+    @Test
+    @DisplayName("expectedCandleCount : aucun ajustement quand le trou touche la borne haute mais que la dernière bougie est déjà close")
+    void expectedCandleCount_returnsRawGapSize_whenGapTouchesUpperBoundButCandleIsClosed() {
+        Instant untilGrid = T0;
+        CachingMarketDataApiClient.Range gap = new CachingMarketDataApiClient.Range(T0, untilGrid);
+        Instant now = T0.plusSeconds(3600); // close pile à now => déjà fermée
+
+        int expected = CachingMarketDataApiClient.expectedCandleCount(gap, TimeFrame.H1, untilGrid, now);
+
+        assertEquals(1, expected); // gapSize brut
+    }
+
+    @Test
+    @DisplayName("Mismatch bougies attendues/reçues sur un trou qui ne touche pas la borne haute : pas de régression fonctionnelle")
+    void getCandles_gapWithFewerCandlesThanExpected_stillMergesAndReturnsWhatWasFetched() {
+        Instant since = T0;
+        Instant middle = T0.plusSeconds(3600);
+        Instant gapEnd = T0.plusSeconds(7200);
+        Instant until = T0.plusSeconds(10800); // borne haute demandée, hors du trou testé
+
+        when(repository.findBySourceAndPairAndTimeFrameAndTimestampBetweenOrderByTimestampAsc(
+                eq(MarketDataSource.BINANCE), eq(SYMBOL), eq(TimeFrame.H1), eq(since), eq(until)))
+                .thenReturn(List.of(entity(since), entity(until))); // trou [middle, gapEnd] : 2 bougies attendues
+
+        // Le délégué ne renvoie qu'une seule bougie sur ce trou de 2 attendues (mismatch provider).
+        when(delegate.getCandles(SYMBOL, TimeFrame.H1, middle, gapEnd, 2))
+                .thenReturn(List.of(candle(middle)));
+
+        List<MarketData> result = client.getCandles(SYMBOL, TimeFrame.H1, since, until, 0);
+
+        // Comportement fonctionnel inchangé : les bougies reçues sont quand même fusionnées/retournées,
+        // sans exception ni changement de comportement au-delà du warn (non asserté ici).
+        assertEquals(3, result.size());
+        assertEquals(List.of(since, middle, until),
+                result.stream().map(MarketData::getTimestamp).toList());
+        verify(delegate, times(1)).getCandles(SYMBOL, TimeFrame.H1, middle, gapEnd, 2);
+    }
+
     private static CandleEntity entity(Instant timestamp) {
         return CandleEntity.builder()
                 .source(MarketDataSource.BINANCE)

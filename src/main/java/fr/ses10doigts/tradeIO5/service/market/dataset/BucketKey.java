@@ -14,7 +14,7 @@ import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
  * utilisée pour retrouver/partager l'état ({@link MarketDatasetState}) et le {@link Bucket}
  * associés à ce flux.
  */
-record BucketKey(
+public record BucketKey(
         String symbol,
         TimeFrame timeFrame,
         MarketDataSource source,

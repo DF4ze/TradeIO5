@@ -17,7 +17,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Component
-class MarketDatasetManager {
+public class MarketDatasetManager {
 
     private static final Logger log = LoggerFactory.getLogger(MarketDatasetManager.class);
 

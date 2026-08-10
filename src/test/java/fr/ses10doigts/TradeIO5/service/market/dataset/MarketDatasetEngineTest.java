@@ -3,18 +3,23 @@ package fr.ses10doigts.tradeIO5.service.market.dataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
+import fr.ses10doigts.tradeIO5.model.entity.currency.AssetProvider;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
+import fr.ses10doigts.tradeIO5.repository.AssetProviderRepository;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.MarketDataApiClient;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.exception.ProviderUnavailableException;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.exception.SymbolNotFoundException;
 import fr.ses10doigts.tradeIO5.service.market.dataset.time.TimeFrameConverter;
 import fr.ses10doigts.tradeIO5.service.market.provider.MarketDataProvider;
 import fr.ses10doigts.tradeIO5.service.market.provider.MarketDataProviderRegistry;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -22,9 +27,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 @DisplayName("Market Dataset - *Engine")
@@ -45,7 +53,18 @@ class MarketDatasetEngineTest {
     @Mock
     MarketDatasetState state;
 
-    @InjectMocks
+    @Mock
+    MarketDataApiClient binanceClient;
+
+    @Mock
+    MarketDataApiClient krakenClient;
+
+    @Mock
+    MarketDataApiClient okxClient;
+
+    @Mock
+    AssetProviderRepository assetProviderRepository;
+
     MarketDatasetEngine engine;
 
     MarketDatasetRequest request;
@@ -58,6 +77,10 @@ class MarketDatasetEngineTest {
 
     @BeforeEach
     void setup() {
+        engine = new MarketDatasetEngine(
+                cache, manager, providerRegistry, new TimeFrameConverter(),
+                binanceClient, krakenClient, okxClient, assetProviderRepository);
+
         request = new MarketDatasetRequest(
                 "BTCUSDT",
                 TimeFrame.H1,
@@ -80,6 +103,22 @@ class MarketDatasetEngineTest {
         );
 
         assertThrows(IllegalArgumentException.class,
+                () -> engine.getDataset(invalid));
+    }
+
+    @Test
+    @DisplayName("getDataset(request) avec source == null lève NullPointerException (contrat 7a)")
+    void shouldThrowNullPointerExceptionWhenSourceIsNull() {
+        MarketDatasetRequest invalid = new MarketDatasetRequest(
+                "BTCUSDT",
+                TimeFrame.H1,
+                100,
+                now,
+                null,
+                null
+        );
+
+        assertThrows(NullPointerException.class,
                 () -> engine.getDataset(invalid));
     }
 
@@ -190,7 +229,8 @@ class MarketDatasetEngineTest {
         // pour prouver que le comportement réel de mise en cache est correct.
         MarketDatasetCache realCache = new MarketDatasetCache();
         MarketDatasetEngine localEngine = new MarketDatasetEngine(
-                realCache, manager, providerRegistry, new TimeFrameConverter());
+                realCache, manager, providerRegistry, new TimeFrameConverter(),
+                binanceClient, krakenClient, okxClient, assetProviderRepository);
 
         when(providerRegistry.getProvider(any(), any())).thenReturn(provider);
         when(provider.loadSince(any())).thenReturn(
@@ -215,5 +255,149 @@ class MarketDatasetEngineTest {
         assertSame(mergedStates.get(0), mergedStates.get(1),
                 "Les deux requêtes (même symbol/timeFrame/source/providerParam) doivent partager "
                         + "le même MarketDatasetState/Bucket malgré un endTime/lookBack différent");
+    }
+
+    /**
+     * Cf. docs/etude-fallback-multi-provider-marketdata.md §3 (étape 7d). On isole la logique
+     * d'orchestration (boucle de fallback, filtrage horizon) de la logique cache/gap de
+     * {@link MarketDatasetEngine#getDataset(MarketDatasetRequest)} — déjà couverte par les tests
+     * ci-dessus — via un spy qui stub directement {@code getDataset(...)}.
+     */
+    @Nested
+    @DisplayName("getDatasetForAsset")
+    class GetDatasetForAsset {
+
+        MarketDatasetEngine spyEngine;
+
+        @BeforeEach
+        void setupSpy() {
+            spyEngine = spy(engine);
+        }
+
+        private AssetProvider candidate(MarketDataSource source, String providerSymbol, int priority, Integer maxHorizonDays) {
+            return AssetProvider.builder()
+                    .id((long) priority + (source.ordinal() * 100L))
+                    .source(source)
+                    .providerSymbol(providerSymbol)
+                    .priority(priority)
+                    .maxHorizonDays(maxHorizonDays)
+                    .build(); // enabled = true par défaut (@Builder.Default)
+        }
+
+        @Test
+        @DisplayName("Candidat favori répond correctement → aucun appel au candidat suivant")
+        void favoriteRespondsCorrectly_noFallback() {
+            AssetProvider binance = candidate(MarketDataSource.BINANCE, "BTCUSDT", 0, null);
+            AssetProvider kraken = candidate(MarketDataSource.KRAKEN, "XXBTZUSD", 1, 25);
+            when(assetProviderRepository.findByAsset_SymbolOrderByPriorityAsc("BTC"))
+                    .thenReturn(List.of(binance, kraken));
+
+            MarketDataset expected = mock(MarketDataset.class);
+            doReturn(expected).when(spyEngine).getDataset(any());
+
+            MarketDataset result = spyEngine.getDatasetForAsset("BTC", TimeFrame.H1, 100, now);
+
+            assertSame(expected, result);
+            verify(spyEngine, times(1)).getDataset(any());
+            verify(spyEngine).getDataset(argThat(r ->
+                    r.symbol().equals("BTCUSDT") && r.source() == MarketDataSource.BINANCE));
+        }
+
+        @Test
+        @DisplayName("Candidat favori lève ProviderUnavailableException → bascule sur le candidat priorité 1")
+        void favoriteThrowsProviderUnavailable_fallsBackToNextCandidate() {
+            AssetProvider binance = candidate(MarketDataSource.BINANCE, "BTCUSDT", 0, null);
+            AssetProvider kraken = candidate(MarketDataSource.KRAKEN, "XXBTZUSD", 1, 25);
+            when(assetProviderRepository.findByAsset_SymbolOrderByPriorityAsc("BTC"))
+                    .thenReturn(List.of(binance, kraken));
+
+            MarketDataset expected = mock(MarketDataset.class);
+            doThrow(new ProviderUnavailableException(MarketDataSource.BINANCE, "BTCUSDT", "boom", null))
+                    .doReturn(expected)
+                    .when(spyEngine).getDataset(any());
+
+            MarketDataset result = spyEngine.getDatasetForAsset("BTC", TimeFrame.H1, 100, now);
+
+            assertSame(expected, result);
+            ArgumentCaptor<MarketDatasetRequest> captor = ArgumentCaptor.forClass(MarketDatasetRequest.class);
+            verify(spyEngine, times(2)).getDataset(captor.capture());
+            assertEquals(MarketDataSource.BINANCE, captor.getAllValues().get(0).source());
+            assertEquals(MarketDataSource.KRAKEN, captor.getAllValues().get(1).source());
+        }
+
+        @Test
+        @DisplayName("Candidat favori lève SymbolNotFoundException → même bascule")
+        void favoriteThrowsSymbolNotFound_fallsBackToNextCandidate() {
+            AssetProvider binance = candidate(MarketDataSource.BINANCE, "BTCUSDT", 0, null);
+            AssetProvider kraken = candidate(MarketDataSource.KRAKEN, "XXBTZUSD", 1, 25);
+            when(assetProviderRepository.findByAsset_SymbolOrderByPriorityAsc("BTC"))
+                    .thenReturn(List.of(binance, kraken));
+
+            MarketDataset expected = mock(MarketDataset.class);
+            doThrow(new SymbolNotFoundException(MarketDataSource.BINANCE, "BTCUSDT", "unknown symbol"))
+                    .doReturn(expected)
+                    .when(spyEngine).getDataset(any());
+
+            MarketDataset result = spyEngine.getDatasetForAsset("BTC", TimeFrame.H1, 100, now);
+
+            assertSame(expected, result);
+            ArgumentCaptor<MarketDatasetRequest> captor = ArgumentCaptor.forClass(MarketDatasetRequest.class);
+            verify(spyEngine, times(2)).getDataset(captor.capture());
+            assertEquals(MarketDataSource.KRAKEN, captor.getAllValues().get(1).source());
+        }
+
+        @Test
+        @DisplayName("Tous les candidats échouent → NoProviderAvailableException portant la dernière erreur rencontrée")
+        void allCandidatesFail_throwsNoProviderAvailableExceptionWithLastError() {
+            AssetProvider binance = candidate(MarketDataSource.BINANCE, "BTCUSDT", 0, null);
+            AssetProvider kraken = candidate(MarketDataSource.KRAKEN, "XXBTZUSD", 1, 25);
+            when(assetProviderRepository.findByAsset_SymbolOrderByPriorityAsc("BTC"))
+                    .thenReturn(List.of(binance, kraken));
+
+            ProviderUnavailableException binanceError =
+                    new ProviderUnavailableException(MarketDataSource.BINANCE, "BTCUSDT", "binance down", null);
+            SymbolNotFoundException krakenError =
+                    new SymbolNotFoundException(MarketDataSource.KRAKEN, "XXBTZUSD", "kraken unknown pair");
+            doThrow(binanceError).doThrow(krakenError).when(spyEngine).getDataset(any());
+
+            NoProviderAvailableException thrown = assertThrows(NoProviderAvailableException.class,
+                    () -> spyEngine.getDatasetForAsset("BTC", TimeFrame.H1, 100, now));
+
+            assertSame(krakenError, thrown.getLastError());
+            verify(spyEngine, times(2)).getDataset(any());
+        }
+
+        @Test
+        @DisplayName("Aucune ligne asset_provider pour le symbole → NoProviderAvailableException immédiate, aucun appel réseau")
+        void noAssetProviderRows_throwsImmediately_noCallAtAll() {
+            when(assetProviderRepository.findByAsset_SymbolOrderByPriorityAsc("UNKNOWN"))
+                    .thenReturn(List.of());
+
+            NoProviderAvailableException thrown = assertThrows(NoProviderAvailableException.class,
+                    () -> spyEngine.getDatasetForAsset("UNKNOWN", TimeFrame.H1, 100, now));
+
+            assertNull(thrown.getLastError());
+            verify(spyEngine, never()).getDataset(any());
+            verifyNoInteractions(cache, manager, providerRegistry);
+        }
+
+        @Test
+        @DisplayName("Horizon demandé > maxHorizonDays du favori → favori écarté sans être appelé, bascule directe")
+        void horizonExceedsFavoriteMaxHorizon_skipsFavoriteWithoutCallingIt() {
+            // Kraken favori (priority 0) mais limité à 30 jours ; requête de 90 jours en D1.
+            AssetProvider kraken = candidate(MarketDataSource.KRAKEN, "XXBTZUSD", 0, 30);
+            AssetProvider binance = candidate(MarketDataSource.BINANCE, "BTCUSDT", 1, null);
+            when(assetProviderRepository.findByAsset_SymbolOrderByPriorityAsc("BTC"))
+                    .thenReturn(List.of(kraken, binance));
+
+            MarketDataset expected = mock(MarketDataset.class);
+            doReturn(expected).when(spyEngine).getDataset(any());
+
+            MarketDataset result = spyEngine.getDatasetForAsset("BTC", TimeFrame.D1, 90, now);
+
+            assertSame(expected, result);
+            verify(spyEngine, times(1)).getDataset(any());
+            verify(spyEngine).getDataset(argThat(r -> r.source() == MarketDataSource.BINANCE));
+        }
     }
 }

@@ -5,7 +5,6 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorResult;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorSnapshot;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
-import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.MarketDataApiClient;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
@@ -24,6 +23,8 @@ import java.time.Instant;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -58,7 +59,6 @@ class TreeAnalysisFacadeGetIndicatorDatasetTest {
         when(credentialResolver.resolve(any())).thenReturn(CREDENTIAL);
 
         DomainClock clock = new FixedDomainClock(Instant.parse("2026-07-16T12:00:00Z"));
-        MarketDataApiClient binanceClient = mock(MarketDataApiClient.class);
 
         facade = new TreeAnalysisFacade(
                 marketDatasetEngine,
@@ -68,7 +68,6 @@ class TreeAnalysisFacadeGetIndicatorDatasetTest {
                 mock(MarketOpinionRegistry.class),
                 mock(EventBus.class),
                 clock,
-                binanceClient,
                 credentialResolver
         );
 
@@ -91,23 +90,26 @@ class TreeAnalysisFacadeGetIndicatorDatasetTest {
         facade.getIndicator(SYMBOL, TimeFrame.D1, IndicatorType.ETF_FLOW, Map.of(), Map.of("asset", "BTC"));
 
         verify(marketDatasetEngine, never()).getDataset(any());
+        verify(marketDatasetEngine, never()).getDatasetForAsset(any(), any(), anyInt(), any());
     }
 
     @Test
-    @DisplayName("getRequiredData() != 0 : MarketDatasetEngine.getDataset toujours appelé (ex: RSI)")
+    @DisplayName("getRequiredData() != 0 : MarketDatasetEngine.getDatasetForAsset toujours appelé (ex: RSI) — "
+            + "point d'entrée réel résolu via asset_provider, cf. étape 8a")
     void getIndicator_nonZeroRequiredData_stillFetchesDataset() {
         Indicator candleBasedIndicator = mock(Indicator.class);
         when(candleBasedIndicator.getType()).thenReturn(IndicatorType.RSI);
         when(candleBasedIndicator.getRequiredData(any())).thenReturn(14);
         when(indicatorRegistry.contains(IndicatorType.RSI)).thenReturn(true);
         when(indicatorRegistry.get(IndicatorType.RSI)).thenReturn(candleBasedIndicator);
-        when(marketDatasetEngine.getDataset(any())).thenReturn(
+        when(marketDatasetEngine.getDatasetForAsset(any(), any(), anyInt(), any())).thenReturn(
                 fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset.builder()
                         .pair(SYMBOL).timeFrame(TimeFrame.H1).marketDatas(java.util.List.of()).build()
         );
 
         facade.getIndicator(SYMBOL, TimeFrame.H1, IndicatorType.RSI, Map.of("period", 14.0), Map.of());
 
-        verify(marketDatasetEngine).getDataset(any());
+        verify(marketDatasetEngine).getDatasetForAsset(eq(SYMBOL), eq(TimeFrame.H1), anyInt(), any());
+        verify(marketDatasetEngine, never()).getDataset(any());
     }
 }
