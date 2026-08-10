@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.exception.MarketDataProviderException;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.exception.ProviderUnavailableException;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.exception.SymbolNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -81,22 +84,37 @@ public class KrakenMarketDataApiClient implements MarketDataApiClient {
                 candles = candles.subList(candles.size() - limit, candles.size());
             }
             return candles;
+        } catch (MarketDataProviderException e) {
+            logger.warn("Failed to fetch Kraken OHLC for {} ({}) : {}", symbol, interval, e.getMessage());
+            throw e;
         } catch (Exception e) {
             logger.warn("Failed to fetch Kraken OHLC for {} ({}) : {}", symbol, interval, e.getMessage());
+            throw new ProviderUnavailableException(MarketDataSource.KRAKEN, symbol, e.getMessage(), e);
         }
-        return List.of();
     }
 
     /**
      * Mappe le JSON {@code result.<pair>} (tableaux [time, open, high, low, close, vwap, volume, count])
      * vers une liste de {@link MarketData}. Isolée de l'appel réseau pour être testable en unitaire.
+     * <p>
+     * Le champ {@code error} du JSON porte le signal d'erreur Kraken. Un préfixe {@code EQuery:}
+     * (ex: {@code "EQuery:Unknown asset pair"}) signale une erreur de requête permanente (paire
+     * invalide) → {@link SymbolNotFoundException}. Tout autre préfixe ({@code EAPI:},
+     * {@code EService:}, {@code EGeneral:}, etc.) est traité comme transitoire →
+     * {@link ProviderUnavailableException}.
      */
     static List<MarketData> mapOhlcResponse(String body, String symbol, TimeFrame timeFrame) throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         JsonNode response = mapper.readTree(body);
 
         if (response.has("error") && !response.get("error").isEmpty()) {
-            throw new IllegalStateException("Kraken API error: " + response.get("error"));
+            JsonNode errors = response.get("error");
+            String message = "Kraken API error: " + errors;
+            String firstError = errors.get(0).asText();
+            if (firstError.startsWith("EQuery:")) {
+                throw new SymbolNotFoundException(MarketDataSource.KRAKEN, symbol, message);
+            }
+            throw new ProviderUnavailableException(MarketDataSource.KRAKEN, symbol, message, null);
         }
 
         JsonNode result = response.get("result");

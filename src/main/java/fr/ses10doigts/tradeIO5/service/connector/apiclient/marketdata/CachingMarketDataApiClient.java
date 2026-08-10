@@ -95,6 +95,13 @@ public class CachingMarketDataApiClient implements MarketDataApiClient {
             int gapLimit = gapSize(gap, timeFrame);
             log.info("Appel réseau {} : fetch {} {} de {} à {} (limit={})", source, symbol, timeFrame, gap.since(), gap.until(), gapLimit);
             List<MarketData> fetched = delegate.getCandles(symbol, timeFrame, gap.since(), gap.until(), gapLimit);
+
+            int expected = expectedCandleCount(gap, timeFrame, untilGrid, clock.now());
+            if (fetched.size() < expected) {
+                log.warn("Mismatch bougies attendues/reçues pour {} {} source={} trou=[{} .. {}] : attendu={}, reçu={}.",
+                        symbol, timeFrame, source, gap.since(), gap.until(), expected, fetched.size());
+            }
+
             persistClosedOnly(fetched, timeFrame);
             merged.addAll(fetched);
         }
@@ -196,6 +203,23 @@ public class CachingMarketDataApiClient implements MarketDataApiClient {
         long stepSeconds = stepSeconds(timeFrame);
         long spanSeconds = Duration.between(gap.since(), gap.until()).getSeconds();
         return (int) (spanSeconds / stepSeconds) + 1;
+    }
+
+    /**
+     * Nombre de bougies attendues sur {@code gap}, ajusté du cas légitime où le trou touche la
+     * borne haute demandée ({@code untilGrid}) alors que cette dernière bougie n'est pas encore
+     * close : elle n'est par construction jamais renvoyée en cache/persistée (cf. {@link #isClosed}),
+     * donc n'attendre qu'une bougie de moins évite un faux positif de mismatch (étude section 4 /
+     * étape 4 du prompt fallback). Ne cherche pas à distinguer un jeune listing d'une vraie anomalie
+     * provider : c'est un simple écart quantitatif attendu vs reçu, laissé à l'appréciation humaine
+     * en lisant les logs.
+     */
+    static int expectedCandleCount(Range gap, TimeFrame timeFrame, Instant untilGrid, Instant now) {
+        int expected = gapSize(gap, timeFrame);
+        if (gap.until().equals(untilGrid) && timeFrame.addTo(untilGrid).isAfter(now)) {
+            expected -= 1;
+        }
+        return expected;
     }
 
     /**

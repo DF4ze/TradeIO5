@@ -21,9 +21,9 @@ import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.strategy.StrategyType;
-import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.MarketDataApiClient;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
+import fr.ses10doigts.tradeIO5.service.market.dataset.NoProviderAvailableException;
 import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.Indicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorCredentialResolver;
@@ -35,7 +35,6 @@ import fr.ses10doigts.tradeIO5.service.tree.strategy.Strategy;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.StrategyRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -44,7 +43,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Façade d'orchestration Indicator → Strategy → Opinion.
@@ -62,18 +63,16 @@ import java.util.function.Consumer;
  *     MarketOpinionRegistry).</li>
  * </ol>
  * <p>
- * Chaque méthode publique à 4 paramètres (celle utilisée par les tools MCP) utilise
- * {@link MarketDataSource#BINANCE} comme source réelle de marché, avec {@code endTime}
- * recalculé à {@link DomainClock#now()} à chaque appel (jamais une valeur figée). Les
- * surcharges avec {@link MarketDataSource} explicite existent pour permettre aux tests
- * d'utiliser {@link MarketDataSource#MEMORY} (comme le reste de la base de tests) sans
- * dépendre du réseau.
- * <p>
- * Le client Binance injecté est la version décorée par
- * {@link fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.CachingMarketDataApiClient}
- * (bean {@code cachingBinanceMarketDataApiClient}, cf. {@link fr.ses10doigts.tradeIO5.configuration.MarketDataCachingConfig}) :
- * les candles closes déjà récupérées sont lues en base plutôt que re-fetchées au réseau, de
- * façon transparente pour cette façade (cf. docs/etude-cache-db-candles-h1.md).
+ * Chaque méthode publique à 4 paramètres (celle utilisée par les tools MCP) résout désormais son
+ * provider de marché via {@link MarketDatasetEngine#getDatasetForAsset} — c'est-à-dire via la
+ * table {@code asset_provider} (candidats ordonnés par {@code priority}, avec bascule automatique
+ * en cas d'erreur d'un provider, cf. docs/etude-fallback-multi-provider-marketdata.md §3 étapes 7-8)
+ * — au lieu de {@link MarketDataSource#BINANCE} codé en dur comme auparavant. {@code endTime} est
+ * recalculé à {@link DomainClock#now()} à chaque appel (jamais une valeur figée). Les surcharges
+ * avec {@link MarketDataSource} explicite existent pour permettre aux tests d'utiliser
+ * {@link MarketDataSource#MEMORY} (comme le reste de la base de tests) sans dépendre du réseau —
+ * elles ne changent pas de comportement et continuent d'appeler
+ * {@link MarketDatasetEngine#getDataset(MarketDatasetRequest)} directement.
  */
 @Service
 public class TreeAnalysisFacade {
@@ -87,7 +86,6 @@ public class TreeAnalysisFacade {
     private final MarketOpinionRegistry marketOpinionRegistry;
     private final EventBus eventBus;
     private final DomainClock clock;
-    private final MarketDataApiClient binanceMarketDataApiClient;
     private final IndicatorCredentialResolver credentialResolver;
 
     public TreeAnalysisFacade(
@@ -98,7 +96,6 @@ public class TreeAnalysisFacade {
             MarketOpinionRegistry marketOpinionRegistry,
             EventBus eventBus,
             DomainClock clock,
-            @Qualifier("cachingBinanceMarketDataApiClient") MarketDataApiClient binanceMarketDataApiClient,
             IndicatorCredentialResolver credentialResolver
     ) {
         this.marketDatasetEngine = marketDatasetEngine;
@@ -108,7 +105,6 @@ public class TreeAnalysisFacade {
         this.marketOpinionRegistry = marketOpinionRegistry;
         this.eventBus = eventBus;
         this.clock = clock;
-        this.binanceMarketDataApiClient = binanceMarketDataApiClient;
         this.credentialResolver = credentialResolver;
     }
 
@@ -116,7 +112,7 @@ public class TreeAnalysisFacade {
     // a. Indicator
     // =====================================================================================
 
-    /** Point d'entrée réel (utilisé par le tool MCP {@code get_indicator}) : source = Binance. */
+    /** Point d'entrée réel (utilisé par le tool MCP {@code get_indicator}) : résolution via {@code asset_provider}. */
     public IndicatorSnapshot getIndicator(
             String symbol, TimeFrame timeFrame, IndicatorType type, Map<String, Double> numericParams
     ) {
@@ -130,14 +126,14 @@ public class TreeAnalysisFacade {
      * numérique, donc {@code ETF_FLOW} retombait toujours sur le défaut de l'indicateur (BTC,
      * cf. {@code EtfFlowAsset.fromParameter}) quel que soit le {@code symbol} demandé (BTCUSDT vs
      * ETHUSDT n'influence jamais {@code EtfFlowIndicator}, qui lit exclusivement le paramètre
-     * {@code "asset"} — pas le symbole).
+     * {@code "asset"} — pas le symbole). Point d'entrée réel : résolution via {@code asset_provider}.
      */
     public IndicatorSnapshot getIndicator(
             String symbol, TimeFrame timeFrame, IndicatorType type, Map<String, Double> numericParams,
             Map<String, String> stringParams
     ) {
-        return getIndicator(symbol, timeFrame, type, numericParams, stringParams,
-                MarketDataSource.BINANCE, binanceMarketDataApiClient);
+        return getIndicatorCommon(symbol, timeFrame, type, numericParams, stringParams,
+                now -> fetchDatasetForAsset(symbol, timeFrame, MarketDatasetEngine.DEFAULT_LIMIT, now));
     }
 
     /** Surcharge à source explicite (tests avec {@link MarketDataSource#MEMORY}, etc). */
@@ -152,6 +148,20 @@ public class TreeAnalysisFacade {
     public IndicatorSnapshot getIndicator(
             String symbol, TimeFrame timeFrame, IndicatorType type, Map<String, Double> numericParams,
             Map<String, String> stringParams, MarketDataSource source, Object providerParam
+    ) {
+        return getIndicatorCommon(symbol, timeFrame, type, numericParams, stringParams,
+                now -> fetchDataset(symbol, timeFrame, MarketDatasetEngine.DEFAULT_LIMIT, now, source, providerParam));
+    }
+
+    /**
+     * Corps commun aux 2 variantes de {@code getIndicator} ci-dessus : seule diffère la façon dont
+     * le {@link MarketDataset} est obtenu (résolution automatique {@code asset_provider} vs source
+     * explicite), fournie via {@code datasetFetcher} pour éviter de dupliquer la logique métier
+     * (résolution de l'indicateur, construction des {@code IndicatorParameters}/{@code IndicatorContext}).
+     */
+    private IndicatorSnapshot getIndicatorCommon(
+            String symbol, TimeFrame timeFrame, IndicatorType type, Map<String, Double> numericParams,
+            Map<String, String> stringParams, Function<Instant, MarketDataset> datasetFetcher
     ) {
         requireSymbol(symbol);
         requireTimeFrame(timeFrame);
@@ -178,14 +188,14 @@ public class TreeAnalysisFacade {
         // (500 D1, jusqu'à ~9000+ H1 équivalent) pour ces types, y compris un vrai appel réseau
         // Binance si le cache DB était incomplet — repéré par Clem le 2026-07-16 en observant les
         // logs d'un simple get_indicator ETF_FLOW (cf. docs/etude-cache-etf-flow-historisation.md
-        // pour le détail de la trace). fetchDataset(...) n'est donc plus appelé que pour les
-        // indicateurs qui déclarent réellement en avoir besoin.
+        // pour le détail de la trace). fetchDataset(...)/fetchDatasetForAsset(...) ne sont donc
+        // appelés que pour les indicateurs qui déclarent réellement en avoir besoin.
         int requiredData = indicator.getRequiredData(parameters);
         Instant now = clock.now();
 
         MarketDataset dataset = requiredData == 0
                 ? emptyDataset(symbol, timeFrame)
-                : fetchDataset(symbol, timeFrame, MarketDatasetEngine.DEFAULT_LIMIT, now, source, providerParam);
+                : datasetFetcher.apply(now);
 
         IndicatorContext context = new IndicatorContext(symbol, timeFrame, dataset, Map.of(), clock);
 
@@ -196,17 +206,31 @@ public class TreeAnalysisFacade {
     // b. Strategy
     // =====================================================================================
 
-    /** Point d'entrée réel (utilisé par le tool MCP {@code evaluate_strategy}) : source = Binance. */
+    /** Point d'entrée réel (utilisé par le tool MCP {@code evaluate_strategy}) : résolution via {@code asset_provider}. */
     public StrategySignal evaluateStrategy(
             String symbol, TimeFrame timeFrame, StrategyType strategyType, StrategyParameters params
     ) {
-        return evaluateStrategy(symbol, timeFrame, strategyType, params, MarketDataSource.BINANCE, binanceMarketDataApiClient);
+        return evaluateStrategyCommon(symbol, timeFrame, strategyType, params,
+                (requiredCandles, now) -> buildMarketContextForAsset(symbol, requiredCandles, now));
     }
 
     /** Surcharge à source explicite (tests avec {@link MarketDataSource#MEMORY}, etc). */
     public StrategySignal evaluateStrategy(
             String symbol, TimeFrame timeFrame, StrategyType strategyType, StrategyParameters params,
             MarketDataSource source, Object providerParam
+    ) {
+        return evaluateStrategyCommon(symbol, timeFrame, strategyType, params,
+                (requiredCandles, now) -> buildMarketContext(symbol, requiredCandles, source, providerParam, now));
+    }
+
+    /**
+     * Corps commun aux 2 variantes de {@code evaluateStrategy} ci-dessus : seule diffère la façon
+     * dont le {@link MarketContext} est construit (résolution automatique {@code asset_provider}
+     * vs source explicite), fournie via {@code marketContextResolver}.
+     */
+    private StrategySignal evaluateStrategyCommon(
+            String symbol, TimeFrame timeFrame, StrategyType strategyType, StrategyParameters params,
+            BiFunction<Map<TimeFrame, Integer>, Instant, MarketContext> marketContextResolver
     ) {
         requireSymbol(symbol);
         requireTimeFrame(timeFrame);
@@ -223,7 +247,7 @@ public class TreeAnalysisFacade {
         Map<TimeFrame, Integer> requiredCandles = new HashMap<>(strategy.getRequiredCandles(params));
         requiredCandles.merge(timeFrame, MarketDatasetEngine.DEFAULT_LIMIT, Math::max);
 
-        MarketContext marketContext = buildMarketContext(symbol, requiredCandles, source, providerParam, now);
+        MarketContext marketContext = marketContextResolver.apply(requiredCandles, now);
 
         return strategy.evaluate(marketContext, params);
     }
@@ -232,15 +256,28 @@ public class TreeAnalysisFacade {
     // c. Opinion
     // =====================================================================================
 
-    /** Point d'entrée réel (utilisé par le tool MCP {@code get_opinion}) : source = Binance. */
+    /** Point d'entrée réel (utilisé par le tool MCP {@code get_opinion}) : résolution via {@code asset_provider}. */
     public OpinionSignal getOpinion(String symbol, OpinionScope scope, MarketOpinionParameters params) {
-        return getOpinion(symbol, scope, params, MarketDataSource.BINANCE, binanceMarketDataApiClient);
+        return getOpinionCommon(symbol, scope, params,
+                (requiredCandles, now) -> buildMarketContextForAsset(symbol, requiredCandles, now));
     }
 
     /** Surcharge à source explicite (tests avec {@link MarketDataSource#MEMORY}, etc). */
     public OpinionSignal getOpinion(
             String symbol, OpinionScope scope, MarketOpinionParameters params,
             MarketDataSource source, Object providerParam
+    ) {
+        return getOpinionCommon(symbol, scope, params,
+                (requiredCandles, now) -> buildMarketContext(symbol, requiredCandles, source, providerParam, now));
+    }
+
+    /**
+     * Corps commun aux 2 variantes de {@code getOpinion} ci-dessus : seule diffère la façon dont le
+     * {@link MarketContext} est construit, fournie via {@code marketContextResolver}.
+     */
+    private OpinionSignal getOpinionCommon(
+            String symbol, OpinionScope scope, MarketOpinionParameters params,
+            BiFunction<Map<TimeFrame, Integer>, Instant, MarketContext> marketContextResolver
     ) {
         requireSymbol(symbol);
         MarketOpinion opinion = resolveOpinion(scope);
@@ -252,7 +289,7 @@ public class TreeAnalysisFacade {
         Instant now = clock.now();
 
         Map<TimeFrame, Integer> requiredCandles = opinion.getRequiredCandles(params);
-        MarketContext marketContext = buildMarketContext(symbol, requiredCandles, source, providerParam, now);
+        MarketContext marketContext = marketContextResolver.apply(requiredCandles, now);
 
         OpinionContext opinionContext = new OpinionContext(
                 WalletSnapshot.builder().build(),
@@ -336,6 +373,29 @@ public class TreeAnalysisFacade {
         return new MarketContext(symbol, lastPrice, clock, series, new HashMap<>());
     }
 
+    /**
+     * Miroir de {@link #buildMarketContext} mais résolvant chaque {@link MarketDataset} via
+     * {@link #fetchDatasetForAsset} (asset_provider) plutôt qu'une source explicite. Cf.
+     * docs/etude-fallback-multi-provider-marketdata.md §3 (étape 8a).
+     */
+    private MarketContext buildMarketContextForAsset(
+            String symbol, Map<TimeFrame, Integer> requiredCandles, Instant now
+    ) {
+        Map<TimeFrame, Integer> timeFrames = requiredCandles.isEmpty()
+                ? Map.of(TimeFrame.H1, MarketDatasetEngine.DEFAULT_LIMIT)
+                : requiredCandles;
+
+        Map<TimeFrame, MarketDataset> series = new HashMap<>();
+        for (TimeFrame timeFrame : timeFrames.keySet()) {
+            MarketDataset dataset = fetchDatasetForAsset(symbol, timeFrame, MarketDatasetEngine.DEFAULT_LIMIT, now);
+            series.put(timeFrame, dataset);
+        }
+
+        BigDecimal lastPrice = extractLastPrice(series);
+
+        return new MarketContext(symbol, lastPrice, clock, series, new HashMap<>());
+    }
+
     private MarketDataset fetchDataset(
             String symbol, TimeFrame timeFrame, int lookBack, Instant now, MarketDataSource source, Object providerParam
     ) {
@@ -351,8 +411,27 @@ public class TreeAnalysisFacade {
     }
 
     /**
+     * Miroir de {@link #fetchDataset} mais délégant à
+     * {@link MarketDatasetEngine#getDatasetForAsset} (résolution automatique via
+     * {@code asset_provider}, cf. docs/etude-fallback-multi-provider-marketdata.md §3 étape 8a).
+     * Catche en plus {@link NoProviderAvailableException} (aucun provider configuré/éligible, ou
+     * tous les candidats ont échoué), avec le même traitement (wrap en {@link TreeAnalysisException}).
+     */
+    private MarketDataset fetchDatasetForAsset(String symbol, TimeFrame timeFrame, int lookBack, Instant now) {
+        try {
+            return marketDatasetEngine.getDatasetForAsset(symbol, timeFrame, lookBack, now);
+        } catch (NoProviderAvailableException e) {
+            throw new TreeAnalysisException("Unable to resolve a market data provider for " + symbol + ": " + e.getMessage(), e);
+        } catch (IllegalStateException e) {
+            throw new TreeAnalysisException("Unable to load market data for " + symbol + ": " + e.getMessage(), e);
+        } catch (IllegalArgumentException e) {
+            throw new TreeAnalysisException("Invalid market dataset request for " + symbol + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * Dataset vide utilisé pour {@code getIndicator(...)} quand {@code Indicator.getRequiredData(...)
-     * == 0} — évite tout appel à {@link MarketDatasetEngine}/Binance pour un indicateur qui ne lit
+     * == 0} — évite tout appel à {@link MarketDatasetEngine}/provider pour un indicateur qui ne lit
      * jamais {@code IndicatorContext.marketDataset()} (cf. commentaire d'appel). {@code isComplete}
      * à {@code true} : l'absence de candles n'est pas une donnée manquante ici, juste hors sujet.
      */

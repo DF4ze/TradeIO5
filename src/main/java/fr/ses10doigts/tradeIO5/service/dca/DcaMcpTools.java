@@ -7,6 +7,7 @@ import fr.ses10doigts.tradeIO5.model.dto.dca.DcaOccurrence;
 import fr.ses10doigts.tradeIO5.model.dto.dca.DcaResult;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
+import fr.ses10doigts.tradeIO5.service.market.AssetSymbolValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.annotation.Tool;
@@ -39,10 +40,12 @@ public class DcaMcpTools {
     private static final Logger logger = LoggerFactory.getLogger(DcaMcpTools.class);
 
     private final DcaCalculatorService dcaCalculatorService;
+    private final AssetSymbolValidator assetSymbolValidator;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public DcaMcpTools(DcaCalculatorService dcaCalculatorService) {
+    public DcaMcpTools(DcaCalculatorService dcaCalculatorService, AssetSymbolValidator assetSymbolValidator) {
         this.dcaCalculatorService = dcaCalculatorService;
+        this.assetSymbolValidator = assetSymbolValidator;
     }
 
     private String toJson(Map<String, Object> map) {
@@ -91,16 +94,21 @@ public class DcaMcpTools {
                     + "et échouent explicitement au-delà)."
     )
     public String calculateDca(
-            @ToolParam(description = "Symbole du marché, ex: BTCUSDT") String symbol,
+            @ToolParam(description = "Symbole nu de l'actif, ex: BTC, ETH (PAS la paire d'un exchange comme "
+                    + "BTCUSDT, XXBTZUSD ou BTC-USDT — la paire native de la source choisie est résolue "
+                    + "automatiquement via la table asset_provider)") String symbol,
             @ToolParam(description = "Date de la première échéance d'achat, format ISO yyyy-MM-dd") String startDate,
             @ToolParam(description = "Date de la dernière échéance possible, format ISO yyyy-MM-dd (bornée à aujourd'hui si future)") String endDate,
             @ToolParam(description = "Fréquence des achats : D1, W1, W2, M1, M2, M3, M6, Y1, Y3") TimeFrame frequency,
             @ToolParam(description = "Heure d'achat en UTC, entier entre 0 et 23") int purchaseHourUtc,
             @ToolParam(description = "Montant investi à chaque échéance (devise de cotation du symbole, ex: USDT)") double amount,
             @ToolParam(description = "Frais en pourcentage appliqués à chaque achat (0-100), défaut 0", required = false) Double feePercent,
-            @ToolParam(description = "Source des prix historiques : BINANCE (recommandé, défaut), KRAKEN, OKX", required = false) MarketDataSource source
+            @ToolParam(description = "Source des prix historiques : BINANCE (recommandé, défaut), KRAKEN, OKX ; "
+                    + "si omis, résolue automatiquement via le favori asset_provider de l'actif (repli BINANCE si "
+                    + "l'actif n'est pas encore migré)", required = false) MarketDataSource source
     ) {
         return toJsonOrError("calculate_dca", () -> {
+            assetSymbolValidator.requireKnownAsset(symbol);
             LocalDate start = parseDate(startDate, "startDate");
             LocalDate end = parseDate(endDate, "endDate");
 

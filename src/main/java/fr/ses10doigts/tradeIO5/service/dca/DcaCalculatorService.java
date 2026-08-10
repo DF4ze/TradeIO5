@@ -4,8 +4,10 @@ import fr.ses10doigts.tradeIO5.exceptions.DcaException;
 import fr.ses10doigts.tradeIO5.model.dto.dca.DcaOccurrence;
 import fr.ses10doigts.tradeIO5.model.dto.dca.DcaResult;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
+import fr.ses10doigts.tradeIO5.model.entity.currency.AssetProvider;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
+import fr.ses10doigts.tradeIO5.repository.AssetProviderRepository;
 import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.MarketDataApiClient;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -20,6 +22,8 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeMap;
 
 /**
@@ -48,18 +52,21 @@ public class DcaCalculatorService {
 
     private final Map<MarketDataSource, MarketDataApiClient> clientsBySource;
     private final DomainClock clock;
+    private final AssetProviderRepository assetProviderRepository;
 
     public DcaCalculatorService(
             @Qualifier("cachingBinanceMarketDataApiClient") MarketDataApiClient binanceClient,
             @Qualifier("cachingKrakenMarketDataApiClient") MarketDataApiClient krakenClient,
             @Qualifier("cachingOkxMarketDataApiClient") MarketDataApiClient okxClient,
-            DomainClock clock
+            DomainClock clock,
+            AssetProviderRepository assetProviderRepository
     ) {
         this.clientsBySource = new EnumMap<>(MarketDataSource.class);
         this.clientsBySource.put(MarketDataSource.BINANCE, binanceClient);
         this.clientsBySource.put(MarketDataSource.KRAKEN, krakenClient);
         this.clientsBySource.put(MarketDataSource.OKX, okxClient);
         this.clock = clock;
+        this.assetProviderRepository = assetProviderRepository;
     }
 
     public DcaResult calculate(
@@ -73,8 +80,18 @@ public class DcaCalculatorService {
             MarketDataSource source
     ) {
         validate(symbol, startDate, endDate, frequency, purchaseHourUtc, amount, feePercent);
-        MarketDataSource effectiveSource = source != null ? source : MarketDataSource.BINANCE;
+        MarketDataSource effectiveSource = resolveEffectiveSource(source, symbol);
         MarketDataApiClient client = resolveClient(effectiveSource);
+        // Une seule ligne asset_provider (symbol, effectiveSource) sert à la fois à traduire le
+        // symbole nu en paire native de l'exchange et à connaître son max_horizon_days — un seul
+        // appel repository, réutilisé pour les deux (cf. resolveProviderSymbol/resolveMaxHorizonDays).
+        Optional<AssetProvider> assetProvider = assetProviderRepository.findByAsset_SymbolAndSource(symbol, effectiveSource);
+        // Le client exchange ne comprend pas le symbole nu de l'Asset (ex: "BTC") : il attend sa
+        // paire native (ex: "BTCUSDT" chez Binance, "XXBTZUSD" chez Kraken, "BTC-USDT" chez OKX).
+        // Repli sur le symbole tel quel si l'asset n'est pas encore migré dans asset_provider —
+        // comportement historique pour ne pas casser un DCA qui fonctionnait hier (même logique
+        // de repli que resolveEffectiveSource/resolveMaxHorizonDays, cf. étape 8b).
+        String providerSymbol = resolveProviderSymbol(symbol, assetProvider);
         BigDecimal effectiveFeePercent = feePercent != null ? feePercent : BigDecimal.ZERO;
 
         Instant firstOccurrence = startDate.atTime(purchaseHourUtc, 0).atZone(TimeFrame.DEFAULT_ZONE).toInstant();
@@ -89,26 +106,30 @@ public class DcaCalculatorService {
                     + "la date de fin effective (" + effectiveEnd + ").");
         }
 
-        Instant firstHour = floorToHour(schedule.get(0));
-        Instant lastHour = floorToHour(schedule.get(schedule.size() - 1));
+        Instant firstHour = floorToHour(schedule.getFirst());
+        Instant lastHour = floorToHour(schedule.getLast());
 
         long horizonDays = Duration.between(firstHour, lastHour).toDays();
-        if (effectiveSource != MarketDataSource.BINANCE && horizonDays > NON_BINANCE_MAX_HORIZON_DAYS) {
-            throw new DcaException("La source " + effectiveSource + " ne fournit fiablement que "
-                    + "les ~" + NON_BINANCE_MAX_HORIZON_DAYS + " derniers jours de bougies H1 : "
-                    + "cette simulation couvre " + horizonDays + " jour(s). Utilisez BINANCE "
-                    + "(recommandé par défaut) pour un DCA de cet horizon.");
+        if (effectiveSource != MarketDataSource.BINANCE) {
+            long maxHorizonDays = resolveMaxHorizonDays(assetProvider);
+            if (horizonDays > maxHorizonDays) {
+                throw new DcaException("La source " + effectiveSource + " ne fournit fiablement que "
+                        + "les ~" + maxHorizonDays + " derniers jours de bougies H1 : "
+                        + "cette simulation couvre " + horizonDays + " jour(s). Utilisez BINANCE "
+                        + "(recommandé par défaut) pour un DCA de cet horizon.");
+            }
         }
 
-        TreeMap<Instant, MarketData> candlesByHour = fetchCandleRange(client, symbol, firstHour, lastHour);
+        TreeMap<Instant, MarketData> candlesByHour = fetchCandleRange(client, providerSymbol, firstHour, lastHour);
         if (candlesByHour.isEmpty()) {
-            throw new DcaException("Aucune bougie H1 disponible pour " + symbol + " (" + effectiveSource
-                    + ") entre " + firstHour + " et " + lastHour + ".");
+            throw new DcaException("Aucune bougie H1 disponible pour " + symbol + " (" + providerSymbol
+                    + " chez " + effectiveSource + ") entre " + firstHour + " et " + lastHour + ".");
         }
 
-        BigDecimal currentPrice = fetchCurrentPrice(client, symbol, now);
+        BigDecimal currentPrice = fetchCurrentPrice(client, providerSymbol, now);
         if (currentPrice == null) {
-            throw new DcaException("Impossible de résoudre le prix courant de " + symbol + " (" + effectiveSource + ") pour calculer le PnL.");
+            throw new DcaException("Impossible de résoudre le prix courant de " + symbol + " (" + providerSymbol
+                    + " chez " + effectiveSource + ") pour calculer le PnL.");
         }
 
         List<DcaOccurrence> occurrences = new ArrayList<>(schedule.size());
@@ -163,8 +184,8 @@ public class DcaCalculatorService {
                 .source(effectiveSource)
                 .frequency(frequency)
                 .purchaseHourUtc(purchaseHourUtc)
-                .firstOccurrence(schedule.get(0))
-                .lastOccurrence(schedule.get(schedule.size() - 1))
+                .firstOccurrence(schedule.getFirst())
+                .lastOccurrence(schedule.getLast())
                 .occurrenceCount(schedule.size())
                 .missingCount(missingCount)
                 .totalInvested(totalInvested)
@@ -205,6 +226,50 @@ public class DcaCalculatorService {
         if (feePercent != null && (feePercent.signum() < 0 || feePercent.compareTo(BigDecimal.valueOf(100)) >= 0)) {
             throw new DcaException("feePercent doit être compris entre 0 (inclus) et 100 (exclu), reçu : " + feePercent);
         }
+    }
+
+    /**
+     * Résout la source effective quand {@code source} n'est pas fourni explicitement : premier
+     * candidat {@code enabled} de {@code asset_provider} par priorité pour cet asset. Si aucune
+     * ligne n'existe pour ce symbole (asset pas encore migré côté {@code AssetInitializer}, cf.
+     * docs/etude-fallback-multi-provider-marketdata.md §3 étape 6), on conserve {@code BINANCE}
+     * comme repli plutôt que de faire échouer un DCA qui fonctionnait hier. Cf. étape 8b.
+     */
+    private MarketDataSource resolveEffectiveSource(MarketDataSource source, String symbol) {
+        if (source != null) {
+            return source;
+        }
+        return assetProviderRepository.findByAsset_SymbolOrderByPriorityAsc(symbol).stream()
+                .filter(AssetProvider::isEnabled)
+                .findFirst()
+                .map(AssetProvider::getSource)
+                .orElse(MarketDataSource.BINANCE);
+    }
+
+    /**
+     * Traduit le symbole nu de l'Asset (ex: {@code "BTC"}) en paire native de
+     * {@code effectiveSource} (ex: {@code "BTCUSDT"} chez Binance) via la ligne
+     * {@code asset_provider} déjà résolue par l'appelant. Repli sur {@code symbol} tel quel si
+     * l'asset n'est pas encore migré dans {@code asset_provider} — comportement historique
+     * (le client recevait jusqu'ici directement le symbole passé par l'appelant), pour ne pas
+     * faire échouer un DCA qui fonctionnait hier. Cf. étape 8b.
+     */
+    private static String resolveProviderSymbol(String symbol, Optional<AssetProvider> assetProvider) {
+        return assetProvider.map(AssetProvider::getProviderSymbol).orElse(symbol);
+    }
+
+    /**
+     * Résout la limite d'historique (jours) depuis la même ligne {@code asset_provider} si son
+     * {@code maxHorizonDays} est non nul ; sinon conserve l'ancien comportement — repli sur
+     * {@link #NON_BINANCE_MAX_HORIZON_DAYS} — plutôt que de désactiver silencieusement le
+     * garde-fou tant qu'{@code asset_provider} n'est pas exhaustif. N'est appelée que pour
+     * {@code effectiveSource != BINANCE}.
+     */
+    private static long resolveMaxHorizonDays(Optional<AssetProvider> assetProvider) {
+        return assetProvider.map(AssetProvider::getMaxHorizonDays)
+                .filter(Objects::nonNull)
+                .map(Integer::longValue)
+                .orElse(NON_BINANCE_MAX_HORIZON_DAYS);
     }
 
     private MarketDataApiClient resolveClient(MarketDataSource source) {
@@ -260,7 +325,7 @@ public class DcaCalculatorService {
         if (candles.isEmpty()) {
             return null;
         }
-        return candles.get(candles.size() - 1).getClose();
+        return candles.getLast().getClose();
     }
 
     /** Aligne un instant sur la grille H1 (multiples de 3600s depuis epoch), cf. CachingMarketDataApiClient#floorToGrid. */

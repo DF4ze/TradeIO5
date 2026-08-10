@@ -6,6 +6,9 @@ import com.binance.connector.client.impl.SpotClientImpl;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.exception.MarketDataProviderException;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.exception.ProviderUnavailableException;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.exception.SymbolNotFoundException;
 import org.json.JSONArray;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +37,9 @@ public class BinanceMarketDataApiClient implements MarketDataApiClient {
 
     // Seul TimeFrame ingéré nativement par Bucket aujourd'hui (cf. Bucket.BASE_TIME_FRAME)
     private static final Map<TimeFrame, String> NATIVE_INTERVALS = Map.of(TimeFrame.H1, "1h");
+
+    // Binance Spot API error codes, doc publique "Error Codes" : -1121 = "Invalid symbol."
+    private static final int ERROR_CODE_INVALID_SYMBOL = -1121;
 
     private final SpotClientImpl client;
 
@@ -69,10 +75,29 @@ public class BinanceMarketDataApiClient implements MarketDataApiClient {
             return mapKlinesResponse(response, symbol, timeFrame);
         } catch (BinanceClientException | BinanceConnectorException e) {
             logger.warn("Failed to fetch Binance klines for {} ({}) : {}", symbol, interval, e.getMessage());
+            throw mapError(symbol, e);
         } catch (Exception e) {
             logger.warn("Unexpected error while fetching Binance klines for {} ({}) : {}", symbol, interval, e.getMessage());
+            throw mapError(symbol, e);
         }
-        return List.of();
+    }
+
+    /**
+     * Traduit une erreur Binance (levée par le SDK avant tout mapping JSON, cf. {@link #getCandles})
+     * vers la hiérarchie {@link MarketDataProviderException}. Isolée pour être testable sans appel
+     * réseau réel, comme {@link #mapKlinesResponse}.
+     * <p>
+     * {@link BinanceClientException#getErrorCode()} porte le code d'erreur Binance ; {@code -1121}
+     * ("Invalid symbol.", doc publique Binance Spot API "Error Codes") est le seul cas permanent
+     * distingué ici. Toute autre {@link BinanceClientException}, ainsi que
+     * {@link BinanceConnectorException} (erreurs réseau/connexion) ou toute autre {@link Exception}
+     * inattendue, sont considérées transitoires.
+     */
+    static MarketDataProviderException mapError(String symbol, Exception e) {
+        if (e instanceof BinanceClientException bce && bce.getErrorCode() == ERROR_CODE_INVALID_SYMBOL) {
+            return new SymbolNotFoundException(MarketDataSource.BINANCE, symbol, bce.getMessage());
+        }
+        return new ProviderUnavailableException(MarketDataSource.BINANCE, symbol, e.getMessage(), e);
     }
 
     /**

@@ -13,6 +13,7 @@ import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.strategy.StrategyType;
+import fr.ses10doigts.tradeIO5.service.market.AssetSymbolValidator;
 import fr.ses10doigts.tradeIO5.service.tree.api.mcp.dto.IndicatorSpec;
 import fr.ses10doigts.tradeIO5.service.tree.api.mcp.dto.StrategySpec;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.Strategy;
@@ -55,11 +56,15 @@ public class TreeAnalysisMcpTools {
 
     private final TreeAnalysisFacade treeAnalysisFacade;
     private final StrategyRegistry strategyRegistry;
+    private final AssetSymbolValidator assetSymbolValidator;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public TreeAnalysisMcpTools(TreeAnalysisFacade treeAnalysisFacade, StrategyRegistry strategyRegistry) {
+    public TreeAnalysisMcpTools(
+            TreeAnalysisFacade treeAnalysisFacade, StrategyRegistry strategyRegistry, AssetSymbolValidator assetSymbolValidator
+    ) {
         this.treeAnalysisFacade = treeAnalysisFacade;
         this.strategyRegistry = strategyRegistry;
+        this.assetSymbolValidator = assetSymbolValidator;
     }
 
     private String toJson(Map<String, Object> map) {
@@ -115,7 +120,9 @@ public class TreeAnalysisMcpTools {
                     + "bornes théoriques et si le calcul est valide (ex: credential manquante ou historique trop court)."
     )
     public String getIndicator(
-            @ToolParam(description = "Symbole du marché, ex: BTCUSDT") String symbol,
+            @ToolParam(description = "Symbole nu de l'actif, ex: BTC, ETH (PAS la paire d'un exchange comme "
+                    + "BTCUSDT, XXBTZUSD ou BTC-USDT — le provider et sa paire native sont résolus automatiquement "
+                    + "via la table asset_provider)") String symbol,
             @ToolParam(description = "Timeframe des candles: Y1, Y3, M1, M2, M3, M6, W1, W2, D1, H1, H4, H12, MIN1, MIN5") TimeFrame timeFrame,
             @ToolParam(description = "Type d'indicateur: SMA, EMA, RSI, MACD, FEAR_GREED, RAINBOW, ADX, ATR, BOLLINGER, "
                     + "OBV, STABLECOIN_MARKET_CAP, OPEN_INTEREST, FUNDING_RATE, LIQUIDATIONS, ORDER_BOOK, DXY, SP500, "
@@ -124,6 +131,7 @@ public class TreeAnalysisMcpTools {
             @ToolParam(description = "Paramètres texte de l'indicateur (ex: {\"asset\": \"ETH\"} pour ETF_FLOW)", required = false) Map<String, String> stringParams
     ) {
         return toJsonOrError("get_indicator", () -> {
+            assetSymbolValidator.requireKnownAsset(symbol);
             IndicatorSnapshot snapshot = treeAnalysisFacade.getIndicator(
                     symbol, timeFrame, type, numericParams, stringParams != null ? stringParams : Map.of());
             return indicatorResponse(symbol, timeFrame, snapshot);
@@ -146,7 +154,9 @@ public class TreeAnalysisMcpTools {
                     + "fournis dans 'indicators'. Retourne un score (-1 à 1), une confiance, et le type de signal."
     )
     public String evaluateStrategy(
-            @ToolParam(description = "Symbole du marché, ex: BTCUSDT") String symbol,
+            @ToolParam(description = "Symbole nu de l'actif, ex: BTC, ETH (PAS la paire d'un exchange comme "
+                    + "BTCUSDT, XXBTZUSD ou BTC-USDT — le provider et sa paire native sont résolus automatiquement "
+                    + "via la table asset_provider)") String symbol,
             @ToolParam(description = "Timeframe de référence pour cette évaluation") TimeFrame timeFrame,
             @ToolParam(description = "Type de stratégie: DIRECTIONAL, CONFIDENCE_MODULATOR") StrategyType strategyType,
             @ToolParam(description = "Indicateurs requis par la stratégie (type, timeframe, paramètres numériques)") List<IndicatorSpec> indicators,
@@ -155,6 +165,7 @@ public class TreeAnalysisMcpTools {
             @ToolParam(description = "Paramètres booléens propres à la stratégie", required = false) Map<String, Boolean> booleanParams
     ) {
         return toJsonOrError("evaluate_strategy", () -> {
+            assetSymbolValidator.requireKnownAsset(symbol);
             StrategySpec spec = new StrategySpec(strategyType, indicators, numericParams, stringParams, booleanParams);
             StrategyParameters params = toStrategyParameters(spec);
 
@@ -173,11 +184,15 @@ public class TreeAnalysisMcpTools {
                     + "score et les sources ayant contribué."
     )
     public String getOpinion(
-            @ToolParam(description = "Symbole du marché, ex: BTCUSDT") String symbol,
+            @ToolParam(description = "Symbole nu de l'actif, ex: BTC, ETH (PAS la paire d'un exchange comme "
+                    + "BTCUSDT, XXBTZUSD ou BTC-USDT — le provider et sa paire native sont résolus automatiquement "
+                    + "via la table asset_provider). Ignoré pour les scopes GLOBAL/MACRO (sentiment de marché "
+                    + "global, pas rattaché à un actif) mais reste requis (non-blanc) par le contrat de la façade.") String symbol,
             @ToolParam(description = "Périmètre de l'opinion: LOCAL, GLOBAL, MACRO, EXTERNAL") OpinionScope scope,
             @ToolParam(description = "Stratégies à évaluer (scope LOCAL uniquement ; ignoré pour GLOBAL/MACRO/EXTERNAL, peut être vide dans ce cas)") List<StrategySpec> strategies
     ) {
         return toJsonOrError("get_opinion", () -> {
+            assetSymbolValidator.requireKnownAsset(symbol);
             MarketOpinionParameters params = toMarketOpinionParameters(strategies);
             OpinionSignal signal = treeAnalysisFacade.getOpinion(symbol, scope, params);
             return opinionResponse(signal);
