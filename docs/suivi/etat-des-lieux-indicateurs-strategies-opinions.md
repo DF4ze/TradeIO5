@@ -118,13 +118,16 @@ GitGardian correspondante a été acquittée par Clem.
   (dédoublonnage entre les deux sources, y compris le bug de correspondance de titres corrigé
   aujourd'hui). Finnhub bloqué par la clé manquante (ForexFactory fonctionne déjà sans clé).
   **Explicitement pas branché** dans `DecisionEngine`/`Scenario` — le code le dit noir sur blanc
-  ("décision explicitement reportée"). Reste à faire : décider où vit une "fenêtre de risque
-  événementiel" dans le pipeline actuel (avant un FOMC/NFP, réduire l'exposition ou suspendre les
-  décisions ?) — c'est un choix d'architecture, pas juste du câblage. **Vérifié le 2026-08-10** :
-  `MacroEventCalendarService` n'est référencé par aucun tool MCP (`TreeAnalysisMcpTools`/
-  `TreeAnalysisFacade`/`DcaMcpTools`) — pas de régression depuis, toujours uniquement accessible en
-  Java direct/tests, aucun point d'entrée `get_indicator`/`evaluate_strategy`/`get_opinion` ne le
-  couvre.
+  ("décision explicitement reportée"), et cette décision reste inchangée. Reste à faire : décider où
+  vit une "fenêtre de risque événementiel" dans le pipeline actuel (avant un FOMC/NFP, réduire
+  l'exposition ou suspendre les décisions ?) — c'est un choix d'architecture, pas juste du câblage.
+  **Branché le 2026-08-10 côté MCP** (`MacroCalendarMcpTools`, patron `DcaMcpTools`, cf.
+  `docs/suivi/point-avancement-2026-08-10.md`) : `get_macro_calendar` (liste des événements sur une
+  fenêtre de dates, filtre `minImpact` optionnel) et `check_macro_risk_window` (booléen
+  fenêtre-de-risque autour de maintenant) sont désormais des tools MCP invocables, enregistrés dans
+  `McpServerConfig`. 458 tests, 0 échec. Ne couvre que la lecture à la demande — aucun point d'entrée
+  ne le déclenche automatiquement (le chantier scheduler reste hors scope, §6.2 point 7 du point
+  d'avancement).
 
 - **MovementQualificationStrategy** (OI + Funding + OBV, §12) — codée et testée (le bug de message
   "cascade" corrigé le 2026-07-09). Nécessite Coinalyze (§1, déjà fournie et vérifiée fonctionnelle).

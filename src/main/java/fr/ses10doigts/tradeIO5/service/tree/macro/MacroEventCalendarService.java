@@ -153,7 +153,8 @@ public class MacroEventCalendarService {
                 .collect(Collectors.toSet());
     }
 
-    private static int impactRank(MacroEventImpact impact) {
+    /** Package-private (pas {@code private}) : réutilisé tel quel par {@link MacroCalendarMcpTools}. */
+    static int impactRank(MacroEventImpact impact) {
         return switch (impact) {
             case HOLIDAY -> 0;
             case LOW -> 1;

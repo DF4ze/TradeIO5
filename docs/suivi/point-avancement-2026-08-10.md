@@ -40,15 +40,39 @@ ce dernier qui est scanné en premier — de [[tradeio5_rejection_zone_calibrati
   donnée **J-1** (jamais le jour courant — maintenant explicite dans le javadoc). Décision :
   **utilisable telle quelle**, source de données désormais fiable (§1).
 
-## 3. Calendrier macro — pas connecté au MCP
+## 3. Calendrier macro — connecté au MCP (mis à jour le 2026-08-10, plus tard dans la journée)
 
-Vérifié dans le code (`TreeAnalysisMcpTools`, `TreeAnalysisFacade`, `DcaMcpTools`) : aucune
-référence à `MacroEventCalendarService`. Le calendrier macro (Finnhub + ForexFactory, dédoublonné)
-reste accessible uniquement en Java direct/tests, aucun tool MCP (`get_indicator`/
-`evaluate_strategy`/`get_opinion`) ne l'expose. Toujours vrai depuis l'état des lieux du
-2026-07-09 : "décision explicitement reportée" dans le code. Reste un choix d'architecture non
-tranché (fenêtre de risque événementiel avant FOMC/NFP), pas juste du câblage — cf. §4.4 pour le
-relier au plan d'action.
+Constat initial de ce point d'avancement (vérifié dans le code — `TreeAnalysisMcpTools`,
+`TreeAnalysisFacade`, `DcaMcpTools` : aucune référence à `MacroEventCalendarService`) désormais
+traité : nouveau `MacroCalendarMcpTools` (package `service.tree.macro`, même patron que
+`DcaMcpTools` — retour `String` JSON sérialisé à la main, jamais de `Map` directe, exceptions
+capturées via `toJsonOrError`), enregistré dans `McpServerConfig`
+(`macroCalendarToolCallbackProvider`). Deux tools :
+
+- `get_macro_calendar(fromDate, toDate, minImpact?)` — liste les événements macro sur une fenêtre
+  de dates (`toDate` inclusif jusqu'à 23:59:59.999 UTC), filtrable par impact minimal
+  (`MacroEventCalendarService.impactRank`, rendu package-private pour être réutilisé sans
+  dupliquer le mapping HOLIDAY/LOW/MEDIUM/HIGH).
+- `check_macro_risk_window(windowHours, minImpact)` — expose `isWithinRiskWindow` déjà existant et
+  testé côté service, utile pour un futur gating avant une annonce à fort impact. Codé (coût
+  marginal jugé faible, cf. prompt d'implémentation) plutôt que reporté ; injecte `DomainClock`
+  (jamais `Instant.now()` en dur, même règle que le reste du projet).
+
+Nouvelle exception dédiée `MacroCalendarException` (parsing de dates invalides), séparée de
+`DcaException` — domaines sans rapport malgré le patron de validation identique.
+
+`MacroCalendarMcpToolsTest` (8 tests, service et clock mockés) couvre : liste complète sans filtre,
+filtrage `minImpact`, inclusivité du dernier jour de la plage (capture d'argument sur la borne
+`to`), erreurs de parsing `fromDate`/`toDate` → JSON `error:true` sans exception qui remonte,
+liste vide sans credential résolue (pas une erreur), et `check_macro_risk_window` (booléen reflété
+dans les deux sens, conversion d'heures fractionnaires en `Duration` précis via capture d'argument).
+458 tests au total, 0 échec, exécutés via `test:tradeio-5` sur la Gateway.
+
+**Toujours pas branché** dans `DecisionEngine`/`Scenario` — décision volontairement inchangée (le
+javadoc de `MacroEventCalendarService` continue de le documenter explicitement). Ce lot ouvre
+uniquement la lecture à la demande via MCP ; le choix d'architecture pour une "fenêtre de risque
+événementiel" automatique reste posé, cf. §6.2 point 6 ci-dessous (dépend du plan décision→ordre,
+pas prioritaire avant que celui-ci soit plus mature).
 
 ## 4. GitGardian — ack résolu
 
