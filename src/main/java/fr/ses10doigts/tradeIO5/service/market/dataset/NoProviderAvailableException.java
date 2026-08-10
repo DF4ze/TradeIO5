@@ -8,7 +8,7 @@ import lombok.Getter;
  * provider n'a pu fournir de dataset pour un asset — par opposition à
  * {@link MarketDataProviderException} (et ses sous-classes), qui sont des exceptions "par
  * provider" levées par un {@code MarketDataApiClient} individuel. Cf.
- * docs/etude-fallback-multi-provider-marketdata.md §3 (étape 7).
+ * docs/etudes/etude-fallback-multi-provider-marketdata.md §3 (étape 7).
  * <p>
  * Deux cas distincts, distingués dans le message (pas par un type dédié) :
  * <ul>

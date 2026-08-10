@@ -31,7 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Cf. docs/etude-cache-etf-flow-historisation.md. Vérifie le coeur du décorateur cache-aside :
+ * Cf. docs/etudes/etude-cache-etf-flow-historisation.md. Vérifie le coeur du décorateur cache-aside :
  * - fetch() ne rappelle jamais le réseau si déjà rafraîchi aujourd'hui (gate sur fetchedAt) ;
  * - fetch() rappelle le réseau dès que le dernier snapshot connu date d'un jour antérieur ;
  * - refresh() bypasse toujours le gate (usage EtfFlowHistorizationJob) ;

@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Décorateur cache-aside devant {@link SosoValueEtfFlowClient} (docs/etude-cache-etf-flow-historisation.md) :
+ * Décorateur cache-aside devant {@link SosoValueEtfFlowClient} (docs/etudes/etude-cache-etf-flow-historisation.md) :
  * ETF_FLOW ne change qu'une fois par jour (publication post-clôture US), rappeler l'API à chaque
  * {@code evaluate()} est donc inutile — au plus 1 appel réseau par asset et par jour côté
  * {@link #fetch}. Même patron cache-aside que
@@ -93,7 +93,7 @@ public class CachingEtfFlowClient implements EtfFlowProvider {
     }
 
     /**
-     * Upsert public, réutilisé par {@code EtfFlowBackfillRunner} (docs/etude-cache-etf-flow-historisation.md,
+     * Upsert public, réutilisé par {@code EtfFlowBackfillRunner} (docs/etudes/etude-cache-etf-flow-historisation.md,
      * addendum backfill) pour écrire un historique complet récupéré en une fois via
      * {@code SosoValueEtfFlowClient#fetchHistory}. Même sémantique que {@link #fetch}/{@link #refresh} :
      * {@code fetchedAt} vaut "maintenant" (moment où la donnée est apprise, pas la date de la donnée

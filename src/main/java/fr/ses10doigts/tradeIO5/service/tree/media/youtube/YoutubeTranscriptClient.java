@@ -33,7 +33,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * Client transcript générique pour une vidéo YouTube (docs/etude-veille-media-youtube.md §4, Lot 1).
+ * Client transcript générique pour une vidéo YouTube (docs/etudes/etude-veille-media-youtube.md §4, Lot 1).
  * <p>
  * <b>Historique</b> : une 1ʳᵉ version scrapait {@code var ytInitialPlayerResponse = {...};} depuis
  * le HTML de {@code /watch} (comptage d'accolades). Invalidé par un test manuel réseau réel le

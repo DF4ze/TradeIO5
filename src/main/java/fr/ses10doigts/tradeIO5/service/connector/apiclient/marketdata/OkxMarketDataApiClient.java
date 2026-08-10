@@ -29,7 +29,7 @@ import java.util.function.Function;
  * endpoints privés (balances, ordres) qui nécessiteraient un {@code ApiCredential}.
  * <p>
  * OKX est le seul des 3 providers dont la limite d'historique est un choix d'implémentation
- * réparable, pas une contrainte d'exchange (cf. docs/etude-fallback-multi-provider-marketdata.md
+ * réparable, pas une contrainte d'exchange (cf. docs/etudes/etude-fallback-multi-provider-marketdata.md
  * §1) : {@code /market/candles} (endpoint "récent") est plafonné empiriquement à 300 bougies
  * quel que soit {@code limit} demandé (vérifié le 2026-08-10 : {@code limit=301} renvoie le même
  * nombre de bougies que {@code limit=300}) — au-delà, cette classe route en interne vers

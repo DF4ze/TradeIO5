@@ -25,7 +25,7 @@ import java.util.Map;
 /**
  * Tool MCP exposant une simulation DCA (Dollar-Cost Averaging) : prix moyen d'achat pondéré,
  * total investi, PnL à date, pour un calendrier d'achats à montant fixe et fréquence régulière.
- * Cf. docs/etude-dca-tool-mcp.md.
+ * Cf. docs/etudes/etude-dca-tool-mcp.md.
  * <p>
  * Même patron que {@link fr.ses10doigts.tradeIO5.service.tree.api.mcp.TreeAnalysisMcpTools} :
  * le tool renvoie une {@code String} JSON (jamais une {@code Map} directement) — avec

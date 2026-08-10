@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
 Exporte l'historique ETF_FLOW (table `etf_flow_snapshot`, remplie par le backfill du 2026-07-17,
-cf. docs/etude-cache-etf-flow-historisation.md) vers un CSV par asset, pour
+cf. docs/etudes/etude-cache-etf-flow-historisation.md) vers un CSV par asset, pour
 tools/calibration/etf_flow_calibration.py.
 
 Contrairement aux calibrations précédentes (REJECTION_ZONE, MOVEMENT_QUALIFICATION), les données
 ETF_FLOW sont déjà en base : pas besoin de retaper SoSoValue/Farside, juste d'exporter la table
 MySQL locale (`tradeio5`, localhost:3306) -- doit tourner sur une machine avec accès réseau/DB
-normal (pas le bac à sable Cowork, cf. docs/prompt-calibration-etf-flow.md, en-tête).
+normal (pas le bac à sable Cowork, cf. docs/calibration/prompt-calibration-etf-flow.md, en-tête).
 
 Colonnes exportées : date,total_net_inflow (triées par date croissante) -- format attendu par
 etf_flow_calibration.py (load_etf_flow_series).

@@ -36,7 +36,7 @@ public class MarketDatasetEngine {
     private final TimeFrameConverter timeFrameConverter;
     private final AssetProviderRepository assetProviderRepository;
 
-    // Cf. docs/etude-fallback-multi-provider-marketdata.md §3 (étape 7c) : même patron que
+    // Cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §3 (étape 7c) : même patron que
     // DcaCalculatorService (constructeur + 3 @Qualifier), utilisé par getDatasetForAsset pour
     // résoudre le MarketDataApiClient (providerParam) correspondant au candidat asset_provider en cours.
     private final Map<MarketDataSource, MarketDataApiClient> webClientsBySource;
@@ -66,7 +66,7 @@ public class MarketDatasetEngine {
 
     /**
      * Retourne un MarketDataset drivé par la Request. Contrat existant inchangé : {@code source}
-     * est obligatoire ici (cf. docs/etude-fallback-multi-provider-marketdata.md §3 étape 7a) —
+     * est obligatoire ici (cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §3 étape 7a) —
      * utiliser {@link #getDatasetForAsset(String, TimeFrame, int, Instant)} pour la résolution
      * automatique du provider via {@code asset_provider}.
      */
@@ -111,7 +111,7 @@ public class MarketDatasetEngine {
      * bascule sur le candidat suivant si {@link SymbolNotFoundException} ou
      * {@link ProviderUnavailableException} est levée — sans dupliquer la logique cache/gap de
      * {@link #getDataset(MarketDatasetRequest)}, à qui chaque tentative est déléguée. Cf.
-     * docs/etude-fallback-multi-provider-marketdata.md §3 (étape 7d).
+     * docs/etudes/etude-fallback-multi-provider-marketdata.md §3 (étape 7d).
      */
     public MarketDataset getDatasetForAsset(String symbol, TimeFrame timeFrame, int lookBack, Instant endTime) {
         List<AssetProvider> candidates = assetProviderRepository.findByAsset_SymbolOrderByPriorityAsc(symbol)

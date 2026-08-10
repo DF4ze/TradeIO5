@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Calibration des seuils "haut/faible" pour le flux ETF quotidien (|total_net_inflow|, USD brut après
-correction du bug d'unité, cf. docs/calibration-etf-flow.md) -- BTC et ETH séparément, jamais
+correction du bug d'unité, cf. docs/calibration/calibration-etf-flow.md) -- BTC et ETH séparément, jamais
 fusionnés (même règle que la calibration principale).
 
 Remplace l'approche "seuil rond devinné" (DEFAULT_FLOW_SIGNIFICANCE_THRESHOLD_USD=50_000_000, doc

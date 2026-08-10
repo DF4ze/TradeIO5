@@ -16,7 +16,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Config d'une chaîne/source suivie par la veille média (docs/etude-veille-media-youtube.md §3).
+ * Config d'une chaîne/source suivie par la veille média (docs/etudes/etude-veille-media-youtube.md §3).
  * Ajouter une nouvelle chaîne = une nouvelle ligne, aucun code à toucher (Lot 4).
  */
 @Entity

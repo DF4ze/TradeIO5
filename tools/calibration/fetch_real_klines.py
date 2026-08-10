@@ -4,7 +4,7 @@ Récupère un historique H1 réel depuis l'API publique Binance (klines, pas d'a
 nécessaire) et l'écrit au format CSV attendu par rejection_zone_calibration.py
 (timestamp,open,high,low,close,volume).
 
-Complément à docs/calibration-rejection-zone.md : la première exécution du protocole avait tourné
+Complément à docs/calibration/calibration-rejection-zone.md : la première exécution du protocole avait tourné
 sur des données synthétiques faute d'accès réseau sortant vers un exchange depuis l'environnement
 de build. Ce script est prévu pour être exécuté depuis une machine avec un accès réseau normal
 (pas l'environnement de build) — voir le run réel documenté dans le même fichier.

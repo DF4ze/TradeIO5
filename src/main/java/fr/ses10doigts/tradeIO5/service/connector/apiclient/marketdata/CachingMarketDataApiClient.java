@@ -20,7 +20,7 @@ import java.util.TreeSet;
 /**
  * Décorateur transparent devant un {@link MarketDataApiClient} réel (Binance/Kraken/OKX) :
  * persiste en base les bougies déjà récupérées et ne rappelle le réseau que pour les plages
- * (trous) encore manquantes. Cf. docs/etude-cache-db-candles-h1.md.
+ * (trous) encore manquantes. Cf. docs/etudes/etude-cache-db-candles-h1.md.
  * <p>
  * Chaque instance est dédiée à UN exchange (le délégué injecté au constructeur) — pas de
  * multiplexage interne. Voir {@link fr.ses10doigts.tradeIO5.configuration.MarketDataCachingConfig}

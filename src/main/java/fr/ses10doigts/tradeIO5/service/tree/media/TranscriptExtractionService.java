@@ -18,7 +18,7 @@ import java.util.List;
 
 /**
  * Orchestrateur des 2 passes du pipeline de veille média
- * (docs/prompt-implementation-veille-media-full.md, Lot 2) : consomme les
+ * (docs/prompts/prompt-implementation-veille-media-full.md, Lot 2) : consomme les
  * {@code VideoContentEntity} en statut {@code PENDING}, applique la passe 1 (classification), puis
  * la passe 2 (extraction) uniquement si pertinent, et persiste les {@code MediaClaimEntity}.
  * <p>

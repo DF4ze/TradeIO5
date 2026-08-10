@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Passe 2 du pipeline de veille média (docs/etude-veille-media-youtube.md §2, Lot 2 item B) :
+ * Passe 2 du pipeline de veille média (docs/etudes/etude-veille-media-youtube.md §2, Lot 2 item B) :
  * extraction de claims structurés à partir du transcript complet (pas de troncature ici,
  * contrairement à {@link TranscriptClassificationService}) — uniquement déclenchée pour les
  * vidéos jugées pertinentes par la passe 1.
@@ -48,7 +48,7 @@ public class TranscriptClaimExtractionService {
     static String buildPrompt(String title, String fullTranscript) {
         // Valeurs autorisées pour sentiment/horizon précisées explicitement (nom exact, casse
         // incluse) pour éviter tout écart qui casserait le valueOf(...) à la persistance
-        // (docs/prompt-implementation-veille-media-full.md, Lot 2 item B).
+        // (docs/prompts/prompt-implementation-veille-media-full.md, Lot 2 item B).
         return """
                 Tu es un assistant qui extrait des affirmations de marché structurées à partir du \
                 transcript complet d'une vidéo d'analyse crypto/macro.

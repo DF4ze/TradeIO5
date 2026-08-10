@@ -19,7 +19,7 @@ import java.util.Optional;
 
 /**
  * Seed des {@link Asset} et de leur table de jointure {@link AssetProvider} (fallback
- * multi-provider, cf. docs/etude-fallback-multi-provider-marketdata.md §3 étape 6).
+ * multi-provider, cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §3 étape 6).
  * <p>
  * Upsert idempotent, rejouable à chaque démarrage (remplace l'ancien seed one-shot
  * {@code if (assetRepository.count() == 0)}) :
@@ -56,13 +56,13 @@ public class AssetInitializer implements CommandLineRunner {
      * Kraken/OKX ne renvoient en pratique que les ~25 derniers jours de bougies H1
      * (cf. {@code DcaCalculatorService.NON_BINANCE_MAX_HORIZON_DAYS}) — valeur reprise ici pour
      * Kraken tant que cette constante existe. OKX est {@code null} (illimité) : le routing
-     * {@code /market/history-candles} de l'étape 2 (docs/prompt-implementation-fallback-etapes-0-3.md)
+     * {@code /market/history-candles} de l'étape 2 (docs/prompts/prompt-implementation-fallback-etapes-0-3.md)
      * est mergé (cf. tableau §3 de l'étude, étape 2 = ✅ Fait), donc plus de limite bornée côté OKX.
      */
     private static final Integer KRAKEN_MAX_HORIZON_DAYS = 25;
 
     // 7 assets déjà présents en prod + PAXG (jamais seedé jusqu'ici malgré une utilisation prod
-    // déjà existante, cf. docs/etude-fallback-multi-provider-marketdata.md §1). Decimals PAXG
+    // déjà existante, cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §1). Decimals PAXG
     // vérifié (pas supposé) : PAXG est un ERC-20 à 18 décimales, cf. contrat
     // 0x45804880De22913dAFE09f4980848ECE6EcbAf78 (`decimals = 18`, Etherscan/GitHub paxosglobal/paxos-gold-contract).
     private static final List<AssetSeed> ASSET_SEEDS = List.of(

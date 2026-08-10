@@ -15,7 +15,7 @@ public enum EtfFlowAsset {
 
     private final String path;
 
-    /** Page "all data" de Farside (docs/etude-cache-etf-flow-historisation.md, addendum backfill
+    /** Page "all data" de Farside (docs/etudes/etude-cache-etf-flow-historisation.md, addendum backfill
      *  Farside) : même structure de tableau que {@link #path}, mais remonte à janvier 2024
      *  (lancement des ETF BTC) au lieu de ne montrer que les ~2 dernières semaines. Utilisée
      *  uniquement par {@code FarsideEtfFlowClient#fetchHistory}, jamais par le {@code fetch()} live. */

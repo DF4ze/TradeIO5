@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Enveloppe chaque {@link MarketDataApiClient} exchange (Binance/Kraken/OKX) dans un
- * {@link CachingMarketDataApiClient} — cf. docs/etude-cache-db-candles-h1.md section 3.
+ * {@link CachingMarketDataApiClient} — cf. docs/etudes/etude-cache-db-candles-h1.md section 3.
  * <p>
  * Beans nommés explicitement ("cachingXxxMarketDataApiClient") plutôt que {@code @Primary} :
  * les 3 clients bruts (déjà {@code @Component}) et les 3 versions cachées implémentent toutes

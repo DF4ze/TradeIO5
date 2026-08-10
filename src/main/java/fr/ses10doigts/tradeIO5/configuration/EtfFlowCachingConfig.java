@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Primary;
 
 /**
  * Enveloppe {@link SosoValueEtfFlowClient} dans un {@link CachingEtfFlowClient}
- * (docs/etude-cache-etf-flow-historisation.md) — même patron que {@link MarketDataCachingConfig}
+ * (docs/etudes/etude-cache-etf-flow-historisation.md) — même patron que {@link MarketDataCachingConfig}
  * pour les candles.
  * <p>
  * Type de retour des {@code @Bean} volontairement concret (pas les interfaces) : ces beans doivent
@@ -33,7 +33,7 @@ import org.springframework.context.annotation.Primary;
  * qui court-circuiterait tout le cache).
  * <p>
  * <b>{@code FarsideEtfFlowClient} réintroduit comme bean le 2026-07-17</b> (addendum backfill
- * Farside, docs/etude-cache-etf-flow-historisation.md) : un 3e candidat {@link EtfFlowProvider}
+ * Farside, docs/etudes/etude-cache-etf-flow-historisation.md) : un 3e candidat {@link EtfFlowProvider}
  * dans le contexte, mais sans casser {@code @Primary} ci-dessus (une seule annotation
  * {@code @Primary} suffit à lever l'ambiguïté quel que soit le nombre de candidats). Uniquement
  * injecté dans {@code EtfFlowBackfillService}, jamais dans {@code EtfFlowIndicator}.

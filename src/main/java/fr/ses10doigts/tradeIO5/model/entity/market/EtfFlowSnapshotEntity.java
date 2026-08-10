@@ -21,7 +21,7 @@ import java.time.LocalDate;
 
 /**
  * Historisation du flux ETF quotidien (BTC/ETH, SoSoValue), une ligne par {@code (asset, date)} —
- * cf. docs/etude-cache-etf-flow-historisation.md. Demande explicite de Clem (2026-07-16) : au-delà
+ * cf. docs/etudes/etude-cache-etf-flow-historisation.md. Demande explicite de Clem (2026-07-16) : au-delà
  * du cache de commodité (éviter un appel réseau par évaluation), constituer une vraie série
  * temporelle exploitable plus tard pour des indicateurs de tendance sur le flux ETF.
  * <p>

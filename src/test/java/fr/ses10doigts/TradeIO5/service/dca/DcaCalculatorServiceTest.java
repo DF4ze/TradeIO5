@@ -36,7 +36,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Cf. docs/etude-fallback-multi-provider-marketdata.md §3 (étape 8b) : {@code DcaCalculatorService}
+ * Cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §3 (étape 8b) : {@code DcaCalculatorService}
  * ne bypass pas la boucle de fallback complète de {@code MarketDatasetEngine} (bypass volontaire
  * documenté dans sa javadoc), mais résout {@code effectiveSource}/{@code maxHorizonDays}/
  * {@code providerSymbol} via {@code asset_provider} — y compris la traduction du symbole nu de

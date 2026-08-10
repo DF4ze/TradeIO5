@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 
 /**
- * Une vidéo ingérée depuis une {@link ContentSourceEntity} (docs/etude-veille-media-youtube.md §3).
+ * Une vidéo ingérée depuis une {@link ContentSourceEntity} (docs/etudes/etude-veille-media-youtube.md §3).
  */
 @Entity
 @Data
@@ -51,7 +51,7 @@ public class VideoContentEntity {
      * {@code fr.ses10doigts.tradeIO5.service.tree.media.youtube.TranscriptSegment} — {text,
      * startSeconds, durationSeconds}), pas du texte brut concaténé : le Lot 2 (passe 1,
      * classification) a besoin de tronquer par fenêtre temporelle (segments dont
-     * {@code startSeconds < 120}, docs/etude-veille-media-youtube.md §2/§6) exactement comme
+     * {@code startSeconds < 120}, docs/etudes/etude-veille-media-youtube.md §2/§6) exactement comme
      * {@code tools/media_watch/probe_transcript.py --excerpt-seconds}, ce qui suppose de conserver
      * les timestamps par segment plutôt qu'un simple texte joint. Le texte complet (passe 2) se
      * reconstruit en joignant le texte de tous les segments.

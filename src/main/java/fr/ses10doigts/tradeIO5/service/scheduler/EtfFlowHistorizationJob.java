@@ -13,7 +13,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Rafraîchissement quotidien délibéré d'ETF_FLOW (BTC + ETH), docs/etude-cache-etf-flow-historisation.md.
+ * Rafraîchissement quotidien délibéré d'ETF_FLOW (BTC + ETH), docs/etudes/etude-cache-etf-flow-historisation.md.
  * Garantit une ligne {@code etf_flow_snapshot} par asset et par jour même les jours où personne
  * n'évalue {@code ETF_FLOW}/{@code CONFIDENCE_MODULATOR} — objectif explicite de Clem (2026-07-16) :
  * une historisation continue en vue de futurs indicateurs de tendance sur le flux ETF, pas

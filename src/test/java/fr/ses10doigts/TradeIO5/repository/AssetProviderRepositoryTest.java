@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * Premier test {@code @DataJpaTest} du projet : configuration Spring Boot Test standard + H2
  * (déjà en dépendance de test) suffit, aucune configuration supplémentaire nécessaire.
- * Cf. docs/etude-fallback-multi-provider-marketdata.md §3 (étape 5).
+ * Cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §3 (étape 5).
  */
 @DataJpaTest
 @DisplayName("AssetProviderRepository")

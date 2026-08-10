@@ -21,7 +21,7 @@ import lombok.NoArgsConstructor;
 /**
  * Table de jointure (asset, exchange) : pour chaque {@link Asset}, porte l'appellation propre à
  * chaque exchange candidat pour le fallback multi-provider, son ordre de préférence et la limite
- * d'historique connue. Cf. docs/etude-fallback-multi-provider-marketdata.md §3 (étape 5).
+ * d'historique connue. Cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §3 (étape 5).
  * <p>
  * Ne porte aucune logique métier à ce stade : ni seeding (cf. {@code AssetInitializer}, étape 6),
  * ni branchement dans le moteur de fallback (cf. {@code MarketDatasetEngine}, étape 7).

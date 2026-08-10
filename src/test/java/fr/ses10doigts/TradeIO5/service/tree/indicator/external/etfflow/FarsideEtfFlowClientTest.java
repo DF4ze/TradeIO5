@@ -181,7 +181,7 @@ class FarsideEtfFlowClientTest {
     }
 
     // --- parseHistory()/fetchHistory() : addendum backfill Farside, 2026-07-17 ---
-    // Même fixture que parse() (docs/etude-cache-etf-flow-historisation.md) : 12 lignes de donnée,
+    // Même fixture que parse() (docs/etudes/etude-cache-etf-flow-historisation.md) : 12 lignes de donnée,
     // dont 1 non publiée ("08 Jul 2026", tout à "-") qui doit être exclue du résultat.
 
     @Test

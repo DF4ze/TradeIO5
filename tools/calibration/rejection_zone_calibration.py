@@ -15,7 +15,7 @@ le projet, puis exécute le protocole de validation en 3 étapes défini par le 
   3. Sensibilité aux paramètres : variation de k1/k2/p/clusterDistance et stabilité du taux de
      réaction.
 
-IMPORTANT (cf. docs/calibration-rejection-zone.md pour le détail) : l'environnement d'exécution de
+IMPORTANT (cf. docs/calibration/calibration-rejection-zone.md pour le détail) : l'environnement d'exécution de
 cette implémentation n'a pas d'accès réseau vers Binance/un exchange (accès sortant restreint à une
 allowlist qui ne couvre pas api.binance.com). Faute de pouvoir télécharger un historique BTC/USDT H1
 réel depuis ce script, l'exécution ci-dessous tourne sur une série synthétique generée par
@@ -260,7 +260,7 @@ def reaction_rate_per_level(levels, candles, start_index, touch_tolerance, hold_
     tel quel pour l'agrégation en aval (cf. `run_statistical_test`).
     <p>
     **Fenêtre de "tenue" normalisée en durée calendaire, pas en nombre de bougies** (cf.
-    docs/calibration-rejection-zone.md, run du 2026-07-09) : un nombre fixe de bougies ("tient sur
+    docs/calibration/calibration-rejection-zone.md, run du 2026-07-09) : un nombre fixe de bougies ("tient sur
     les 5 prochaines") ne veut pas dire la même chose selon le TF (5h en H1, 5 jours en D1, plus
     d'un mois en W1) — comparer des taux de réaction obtenus avec des fenêtres temporelles aussi
     différentes n'est pas une comparaison honnête entre TF. Si `hold_days` est fourni ET que les
@@ -318,7 +318,7 @@ def _aggregate(per_level, weighted=False):
 
 
 def run_statistical_test(candles, zones, rng, min_strength=None, hold_days=None):
-    """Test statistique en 3 lectures (cf. docs/calibration-rejection-zone.md, run du 2026-07-09) :
+    """Test statistique en 3 lectures (cf. docs/calibration/calibration-rejection-zone.md, run du 2026-07-09) :
     taux "brut" (toutes zones à égalité), **pondéré par `strength`**, et **filtré** (uniquement les
     zones au-dessus d'un seuil de force, médiane du run par défaut) — comparaison, pas substitution.
     <p>

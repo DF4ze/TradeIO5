@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 /**
  * Non-régression : maintenant que OpenAIService#ask exige un LlmTier explicite (plus de modèle
  * par défaut implicite), OpenAIAdvisor doit demander le niveau MEDIUM (choix explicite validé,
- * cf. docs/prompt-implementation-llm-model-tiers.md).
+ * cf. docs/prompts/prompt-implementation-llm-model-tiers.md).
  */
 @DisplayName("OpenAIAdvisor - niveau LLM demandé")
 class OpenAIAdvisorTierTest {

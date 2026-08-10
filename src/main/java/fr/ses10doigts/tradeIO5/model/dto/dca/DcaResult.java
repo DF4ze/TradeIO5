@@ -10,7 +10,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Résultat complet d'une simulation DCA (cf. docs/etude-dca-tool-mcp.md section 5 pour les
+ * Résultat complet d'une simulation DCA (cf. docs/etudes/etude-dca-tool-mcp.md section 5 pour les
  * formules et section 6 pour le patron d'implémentation).
  * <p>
  * {@code avgPrice} est une moyenne pondérée par les montants investis

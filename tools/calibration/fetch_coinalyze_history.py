@@ -5,7 +5,7 @@ Récupère l'historique Open Interest + Funding Rate réel depuis l'API Coinalyz
 dynamiquement le code de marché Coinalyze comme le fait CoinalyzeSymbolResolver.java
 (GET /exchanges puis GET /future-markets, filtre exchange "Binance" + symbolOnExchange) —
 le suffixe exact (ex. "BTCUSDT_PERP.A") n'est jamais codé en dur ici, cf.
-docs/prompt-calibration-movement-qualification.md.
+docs/calibration/prompt-calibration-movement-qualification.md.
 
 Complément à movement_qualification_calibration.py : ce script ne fetch que les 2 séries
 externes (OI, funding). L'OHLCV (pour priceChangePct + OBV local) est récupéré séparément
@@ -22,7 +22,7 @@ Endpoints Coinalyze utilisés :
                                       HTTP direct. Si cet endpoint n'existe pas / renvoie une
                                       erreur claire, le script l'affiche et s'arrête sur cette
                                       série plutôt que de deviner un contournement -- à documenter
-                                      tel quel dans docs/calibration-movement-qualification.md.
+                                      tel quel dans docs/calibration/calibration-movement-qualification.md.
 
 Rate limit Coinalyze : 40 appels/minute par clé (cf. javadoc CoinalyzeClient.java, non géré côté
 client Java aujourd'hui) -- ce script pagine en fenêtres calendaires fixes et espace les appels
@@ -245,7 +245,7 @@ def main():
                   f"{datetime.fromtimestamp(funding_points[-1]['t'], tz=timezone.utc).date()}")
     except RuntimeError as e:
         print(f"  [ERREUR] /funding-rate-history indisponible: {e}", file=sys.stderr)
-        print("  -> A documenter tel quel dans docs/calibration-movement-qualification.md, "
+        print("  -> A documenter tel quel dans docs/calibration/calibration-movement-qualification.md, "
               "pas de contournement forcé.", file=sys.stderr)
         sys.exit(1)
 

@@ -22,7 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Cf. docs/etude-cache-etf-flow-historisation.md. Vérifie :
+ * Cf. docs/etudes/etude-cache-etf-flow-historisation.md. Vérifie :
  * - aucune credential SOSOVALUE résolue => exécution ignorée proprement, aucun appel refresh() ;
  * - credential présente => refresh() appelé pour chaque EtfFlowAsset (BTC et ETH) ;
  * - isolation par asset : un échec sur l'un n'empêche pas la tentative sur l'autre.

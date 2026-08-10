@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Backfill historique ETF_FLOW à la demande (docs/etude-cache-etf-flow-historisation.md, addendum
+ * Backfill historique ETF_FLOW à la demande (docs/etudes/etude-cache-etf-flow-historisation.md, addendum
  * backfill) : demande explicite de Clem le 2026-07-16 ("je voudrais pouvoir cacher en DB la
  * totalité des data que contient sosovalue") après avoir constaté que le cache-aside quotidien
  * ({@link CachingEtfFlowClient#fetch}) ne construit l'historique qu'à raison d'une ligne par jour —

@@ -14,7 +14,7 @@ import java.util.List;
  * {@code tools/calibration/band_zone_test.py::technique_consolidation},
  * {@code tools/calibration/duration_vs_touches_analysis.py::dedup_zones}, et
  * {@code tools/calibration/export_zones_v2.py} (boucle de calcul des métriques par zone). C'est la
- * SEULE des 6 techniques testées lors de la calibration (cf. docs/calibration-rejection-zone.md)
+ * SEULE des 6 techniques testées lors de la calibration (cf. docs/calibration/calibration-rejection-zone.md)
  * qui montre un pattern statistique net et interprétable (significative en range, s'effondre en
  * tendance baissière forte) — d'où le choix de la porter en Java plutôt que
  * {@code RejectionZoneIndicator} (technique "rejection", wick-based, testée mais pas concluante).
@@ -22,7 +22,7 @@ import java.util.List;
  * Ce détecteur reste un utilitaire de calcul pur (aucune dépendance Spring, aucun état) : il est
  * volontairement séparé du pipeline {@code Indicator}/{@code Strategy}/{@code Opinion} de l'app —
  * le verdict de calibration ("aucun edge robuste en walk-forward, ne pas brancher en prod",
- * cf. docs/calibration-rejection-zone.md) reste valable pour toute utilisation comme signal de
+ * cf. docs/calibration/calibration-rejection-zone.md) reste valable pour toute utilisation comme signal de
  * trading automatisé. Cette classe sert uniquement l'usage de visualisation/diagnostic manuel
  * (zone_view_v2.html via {@code CalibrationController}).
  */

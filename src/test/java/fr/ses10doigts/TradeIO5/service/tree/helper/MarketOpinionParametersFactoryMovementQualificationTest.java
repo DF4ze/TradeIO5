@@ -23,7 +23,7 @@ import static org.mockito.Mockito.mock;
 
 /**
  * Vérifie le "branchement" de {@link MovementQualificationStrategy} ajouté le 2026-07-09 (audit
- * docs/etat-des-lieux-indicateurs-strategies-opinions.md §3) : jusqu'ici cette Strategy n'était
+ * docs/suivi/etat-des-lieux-indicateurs-strategies-opinions.md §3) : jusqu'ici cette Strategy n'était
  * utilisable qu'en construisant les {@code StrategyParameters} à la main via {@code evaluate_strategy}
  * (MCP) — elle a maintenant une fabrique réutilisable équivalente à
  * {@code buildLocalOpinionParamWithTrendConfirmation}.

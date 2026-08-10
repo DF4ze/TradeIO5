@@ -26,6 +26,6 @@ public interface EtfFlowSnapshotRepository extends JpaRepository<EtfFlowSnapshot
     List<EtfFlowSnapshotEntity> findByAssetOrderByDateAsc(EtfFlowAsset asset);
 
     /** Utilisé par {@code EtfFlowBackfillRunner} pour décider si un backfill est nécessaire (peu de
-     *  lignes en base) — cf. docs/etude-cache-etf-flow-historisation.md, addendum backfill. */
+     *  lignes en base) — cf. docs/etudes/etude-cache-etf-flow-historisation.md, addendum backfill. */
     long countByAsset(EtfFlowAsset asset);
 }

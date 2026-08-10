@@ -62,7 +62,7 @@ public class OpenAIService {
      * mais désérialise vers {@code responseType} au lieu de {@link LlmAdvice} — nécessaire pour
      * les sites d'appel dont le schéma JSON de réponse n'a rien à voir avec BUY/SELL/HOLD (ex.
      * classification/extraction de la veille média, cf.
-     * docs/prompt-implementation-veille-media-full.md, Lot 2 item 0). Contrairement à
+     * docs/prompts/prompt-implementation-veille-media-full.md, Lot 2 item 0). Contrairement à
      * {@link #ask(String, LlmTier, String)}, ne retourne jamais de valeur "invalide" en silence :
      * lève {@link LlmResponseParsingException} sur réponse vide ou JSON non désérialisable, à
      * l'appelant de décider quoi en faire (pas de notion de "invalid()" générique hors contexte

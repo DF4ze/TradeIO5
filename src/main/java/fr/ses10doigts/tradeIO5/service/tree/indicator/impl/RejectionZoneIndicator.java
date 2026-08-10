@@ -43,7 +43,7 @@ import java.util.Map;
  * directionnel réel (d'où la condition sur la position de clôture).
  * <p>
  * <b>Important</b> — cette formule est un point de départ à calibrer, pas une formule figée : voir
- * {@code docs/calibration-rejection-zone.md} pour le protocole de validation empirique
+ * {@code docs/calibration/calibration-rejection-zone.md} pour le protocole de validation empirique
  * (calibration visuelle, taux de réaction statistique, sensibilité aux paramètres) et les valeurs
  * de {@code k1}/{@code k2}/{@code p}/{@code clusterDistance} retenues avant tout branchement dans
  * une {@code Strategy}/{@code Opinion}.
@@ -61,7 +61,7 @@ public class RejectionZoneIndicator implements Indicator, DependentIndicator {
     public static final String P_ATR_PERIOD = "atrPeriod";
 
     // Point de départ à calibrer (cf. javadoc de classe) : valeurs indicatives, à valider par le
-    // protocole de docs/calibration-rejection-zone.md avant tout branchement en aval.
+    // protocole de docs/calibration/calibration-rejection-zone.md avant tout branchement en aval.
     public static final double DEFAULT_K1 = 1.5;
     public static final double DEFAULT_K2 = 0.5;
     public static final double DEFAULT_P = 0.66;

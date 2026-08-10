@@ -27,7 +27,7 @@ import java.util.Optional;
  * Premier job planifié du projet (package {@code service/scheduler/} vide jusqu'ici) — poll
  * périodique de chaque {@link ContentSourceEntity} active pour découvrir de nouvelles vidéos,
  * récupérer leur transcript, et les écrire en statut {@code PENDING}
- * (docs/etude-veille-media-youtube.md §4, Lot 1 ; docs/prompt-implementation-veille-media-full.md,
+ * (docs/etudes/etude-veille-media-youtube.md §4, Lot 1 ; docs/prompts/prompt-implementation-veille-media-full.md,
  * Lot 1b). {@code @EnableScheduling} déjà présent sur {@code TradeIO5} (classe principale).
  * <p>
  * Cadence par défaut : 4×/jour (9h30, 15h30, 21h30, 3h30, heure locale de la JVM — confirmé

@@ -21,7 +21,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * Bougie persistée en cache (cf. docs/etude-cache-db-candles-h1.md).
+ * Bougie persistée en cache (cf. docs/etudes/etude-cache-db-candles-h1.md).
  * <p>
  * Suffixe {@code Entity} pour éviter la collision avec le DTO
  * {@link fr.ses10doigts.tradeIO5.model.dto.market.MarketData} déjà existant (même convention que

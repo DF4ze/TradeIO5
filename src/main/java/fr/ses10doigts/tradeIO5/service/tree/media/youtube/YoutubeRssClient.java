@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Client RSS générique pour une chaîne YouTube (docs/etude-veille-media-youtube.md §4, Lot 1).
+ * Client RSS générique pour une chaîne YouTube (docs/etudes/etude-veille-media-youtube.md §4, Lot 1).
  * Endpoint public sans authentification, même patron que {@code ForexFactoryCalendarClient} :
  * dégradation gracieuse sur erreur ({@code List.of()}), jamais d'exception qui remonte.
  * <p>

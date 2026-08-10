@@ -43,7 +43,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Cf. docs/etude-fallback-multi-provider-marketdata.md §3 (étape 8a) : les 3 points d'entrée
+ * Cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §3 (étape 8a) : les 3 points d'entrée
  * réels (utilisés par les tools MCP) doivent désormais résoudre le dataset via
  * {@link MarketDatasetEngine#getDatasetForAsset} (asset_provider) et non plus via
  * {@link MarketDatasetEngine#getDataset} avec {@code MarketDataSource.BINANCE} codé en dur.

@@ -229,7 +229,7 @@ public class StrategyParametersFactory {
     /**
      * Valeurs par défaut alignées sur {@code EtfFlowConfidenceStrategy.DEFAULT_*} (mêmes réserves
      * que {@link MovementQualificationParam}/{@link OrderFlowParam} : point de départ, pas mesuré
-     * empiriquement — cf. docs/etude-branchement-etf-flow-confidence-modulator.md §9.2).
+     * empiriquement — cf. docs/etudes/etude-branchement-etf-flow-confidence-modulator.md §9.2).
      */
     @AllArgsConstructor
     public static class EtfFlowConfidenceParam {

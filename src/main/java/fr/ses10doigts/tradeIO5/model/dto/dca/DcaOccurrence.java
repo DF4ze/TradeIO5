@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * Une échéance d'achat du calendrier DCA (cf. docs/etude-dca-tool-mcp.md section 3) et son
+ * Une échéance d'achat du calendrier DCA (cf. docs/etudes/etude-dca-tool-mcp.md section 3) et son
  * résultat : soit le prix a été résolu (bougie H1 trouvée à cet instant) et {@code missing} est
  * {@code false}, soit aucune bougie n'a été trouvée ({@code missing = true}) et {@code price}/
  * {@code quantity}/{@code fee} restent {@code null} — cette échéance est alors exclue des sommes

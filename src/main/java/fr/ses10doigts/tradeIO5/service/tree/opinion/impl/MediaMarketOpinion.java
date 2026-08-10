@@ -27,7 +27,7 @@ import java.util.Set;
  * Opinion {@code EXTERNAL} qui lit un store (au lieu d'appeler un LLM en live) : consomme les
  * {@link MediaClaimEntity} déjà extraits par le pipeline de veille média (Lot 2) et les agrège en
  * un {@link OpinionSignal} pondéré par décroissance temporelle
- * (docs/etude-veille-media-youtube.md §1/§5, docs/prompt-implementation-veille-media-full.md Lot 3).
+ * (docs/etudes/etude-veille-media-youtube.md §1/§5, docs/prompts/prompt-implementation-veille-media-full.md Lot 3).
  * <p>
  * Implémente {@link MarketOpinion} directement plutôt que d'étendre {@code AbstractMarketOpinion}
  * — même raisonnement qu'{@link ExternalMarketOpinion} : pas de {@code Strategy} à agréger via
@@ -38,7 +38,7 @@ public class MediaMarketOpinion implements MarketOpinion {
     private final Logger logger = LoggerFactory.getLogger(MediaMarketOpinion.class);
 
     /**
-     * Demi-vies de décroissance par horizon (docs/etude-veille-media-youtube.md §5) — valeurs de
+     * Demi-vies de décroissance par horizon (docs/etudes/etude-veille-media-youtube.md §5) — valeurs de
      * départ explicitement marquées "à calibrer" dans l'étude, extraites en constantes nommées
      * pour être faciles à ajuster plutôt que dispersées en littéraux.
      */
@@ -48,7 +48,7 @@ public class MediaMarketOpinion implements MarketOpinion {
 
     /**
      * Constante de normalisation pour la confidence saturante ({@code min(1, Σpoids / K)}) —
-     * valeur de départ documentée comme telle (docs/etude-veille-media-youtube.md §5), à calibrer.
+     * valeur de départ documentée comme telle (docs/etudes/etude-veille-media-youtube.md §5), à calibrer.
      */
     static final double CONFIDENCE_NORMALIZATION_K = 2.0;
 
@@ -142,7 +142,7 @@ public class MediaMarketOpinion implements MarketOpinion {
 
     /**
      * {@code poids = confidence × credibilityWeight(source) × 0.5^(âge / demi_vie(horizon))}
-     * (docs/etude-veille-media-youtube.md §5). Package-private + statique-friendly pour être
+     * (docs/etudes/etude-veille-media-youtube.md §5). Package-private + statique-friendly pour être
      * testable isolément.
      */
     static double computeWeight(MediaClaimEntity claim, Instant now) {

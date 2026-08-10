@@ -258,7 +258,7 @@ class MarketDatasetEngineTest {
     }
 
     /**
-     * Cf. docs/etude-fallback-multi-provider-marketdata.md §3 (étape 7d). On isole la logique
+     * Cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §3 (étape 7d). On isole la logique
      * d'orchestration (boucle de fallback, filtrage horizon) de la logique cache/gap de
      * {@link MarketDatasetEngine#getDataset(MarketDatasetRequest)} — déjà couverte par les tests
      * ci-dessus — via un spy qui stub directement {@code getDataset(...)}.

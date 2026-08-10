@@ -26,7 +26,7 @@ import java.util.Map;
  * deux actifs.
  * <p>
  * Source : {@code SosoValueEtfFlowClient} (API REST officielle) depuis le 2026-07-16, remplace le
- * scraping HTML Farside d'origine (cf. docs/etude-sourcing-etf-flow-alternative-farside.md).
+ * scraping HTML Farside d'origine (cf. docs/etudes/etude-sourcing-etf-flow-alternative-farside.md).
  * {@code values} expose {@code "total"} (flux net du jour toutes émetteurs confondus, en USD brut
  * — voir avertissement d'unité dans {@code SosoValueEtfFlowClient}) plus, le cas échéant, le détail
  * par émetteur directement dans la map ({@code "IBIT"}, {@code "FBTC"}, ...) : avec le client

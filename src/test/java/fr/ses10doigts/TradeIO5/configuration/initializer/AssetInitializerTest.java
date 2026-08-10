@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Cf. docs/etude-fallback-multi-provider-marketdata.md §3 (étape 6) : l'upsert doit être
+ * Cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §3 (étape 6) : l'upsert doit être
  * rejouable sans dupliquer ni écraser un réglage opérationnel (`enabled`), mais doit resynchroniser
  * les champs déclaratifs (`priority`, `providerSymbol`, `maxHorizonDays`).
  */

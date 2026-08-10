@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Rappel important porté par le prompt d'implémentation (Lot 3, item J) : ces tests valident que
  * le <b>code</b> respecte la formule définie ; ils ne valident pas que la formule elle-même a une
  * quelconque valeur prédictive — c'est l'objet du protocole séparé documenté dans
- * {@code docs/calibration-rejection-zone.md}.
+ * {@code docs/calibration/calibration-rejection-zone.md}.
  */
 @DisplayName("Indicator - RejectionZone")
 class RejectionZoneIndicatorTest {

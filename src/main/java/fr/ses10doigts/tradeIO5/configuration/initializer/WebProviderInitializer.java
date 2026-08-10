@@ -116,7 +116,7 @@ public class WebProviderInitializer implements CommandLineRunner {
                 WebProvider.builder()
                         .code(WebProviderCode.SOSOVALUE)
                         .name("SoSoValue")
-                        // ETF_FLOW (docs/etude-sourcing-etf-flow-alternative-farside.md) : remplace FARSIDE
+                        // ETF_FLOW (docs/etudes/etude-sourcing-etf-flow-alternative-farside.md) : remplace FARSIDE
                         // (scraping HTML) par une API REST officielle documentée. Auth par header
                         // x-soso-api-key (pas de query param), cf. SosoValueEtfFlowClient.
                         .apiBaseUrl("https://openapi.sosovalue.com/openapi/v1")

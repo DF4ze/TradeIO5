@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Outil de calibration/validation pour EtfFlowConfidenceStrategy (flux ETF institutionnel vs
-mouvement de prix, timeframe D1), cf. docs/prompt-calibration-etf-flow.md pour le protocole complet
-et docs/calibration-rejection-zone.md / docs/calibration-movement-qualification.md pour la
+mouvement de prix, timeframe D1), cf. docs/calibration/prompt-calibration-etf-flow.md pour le protocole complet
+et docs/calibration/calibration-rejection-zone.md / docs/calibration/calibration-movement-qualification.md pour la
 méthodologie de référence (même patron : auto-test fidèle, test statistique vs groupe de contrôle,
 grille de sensibilité, verdict explicite -- ici appliqué séparément à BTC et à ETH, jamais fusionné,
 demande explicite de Clem).

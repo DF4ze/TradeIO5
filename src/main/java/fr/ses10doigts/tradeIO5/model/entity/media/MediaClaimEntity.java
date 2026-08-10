@@ -18,7 +18,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Une affirmation de marché extraite d'une {@link VideoContentEntity} (docs/etude-veille-media-youtube.md §3).
+ * Une affirmation de marché extraite d'une {@link VideoContentEntity} (docs/etudes/etude-veille-media-youtube.md §3).
  * {@code sentiment} réutilise {@link SignalType} (BULLISH/BEARISH/NEUTRAL) plutôt qu'un nouvel enum.
  */
 @Entity

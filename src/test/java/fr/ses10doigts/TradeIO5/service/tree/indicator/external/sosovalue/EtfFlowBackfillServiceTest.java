@@ -27,7 +27,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Cf. docs/etude-cache-etf-flow-historisation.md, addendum backfill (+ addendum Farside 2026-07-17).
+ * Cf. docs/etudes/etude-cache-etf-flow-historisation.md, addendum backfill (+ addendum Farside 2026-07-17).
  * Vérifie :
  * - aucune credential (ni SOSOVALUE ni FARSIDE) => backfill ignoré, aucun appel ;
  * - une seule source disponible => backfill se poursuit avec celle-là seule ;

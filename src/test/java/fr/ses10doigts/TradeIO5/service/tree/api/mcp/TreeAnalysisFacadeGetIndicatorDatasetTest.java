@@ -31,7 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Cf. docs/etude-cache-etf-flow-historisation.md, correctif repéré par Clem le 2026-07-16 en
+ * Cf. docs/etudes/etude-cache-etf-flow-historisation.md, correctif repéré par Clem le 2026-07-16 en
  * observant les logs d'un simple {@code get_indicator ETF_FLOW} : {@code TreeAnalysisFacade#getIndicator}
  * appelait systématiquement {@link MarketDatasetEngine#getDataset} (jusqu'à 500 D1, potentiellement
  * un vrai appel réseau Binance si le cache DB était incomplet), même pour les indicateurs qui

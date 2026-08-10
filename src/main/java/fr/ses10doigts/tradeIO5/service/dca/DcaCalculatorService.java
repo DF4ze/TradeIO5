@@ -28,7 +28,7 @@ import java.util.TreeMap;
 
 /**
  * Calcule une simulation DCA (Dollar-Cost Averaging) : prix moyen pondéré, total investi, PnL,
- * pour un calendrier d'achats généré à fréquence fixe. Cf. docs/etude-dca-tool-mcp.md.
+ * pour un calendrier d'achats généré à fréquence fixe. Cf. docs/etudes/etude-dca-tool-mcp.md.
  * <p>
  * Bypass volontaire de {@code MarketDatasetEngine}/{@code Bucket} (cache glissant ancré sur
  * "maintenant", inadapté à des points historiques épars sur plusieurs mois/années — cf. étude
@@ -232,7 +232,7 @@ public class DcaCalculatorService {
      * Résout la source effective quand {@code source} n'est pas fourni explicitement : premier
      * candidat {@code enabled} de {@code asset_provider} par priorité pour cet asset. Si aucune
      * ligne n'existe pour ce symbole (asset pas encore migré côté {@code AssetInitializer}, cf.
-     * docs/etude-fallback-multi-provider-marketdata.md §3 étape 6), on conserve {@code BINANCE}
+     * docs/etudes/etude-fallback-multi-provider-marketdata.md §3 étape 6), on conserve {@code BINANCE}
      * comme repli plutôt que de faire échouer un DCA qui fonctionnait hier. Cf. étape 8b.
      */
     private MarketDataSource resolveEffectiveSource(MarketDataSource source, String symbol) {

@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Seed initial des {@link ContentSourceEntity} suivies par la veille média
- * (docs/etude-veille-media-youtube.md — Cryptolyze en point de départ).
+ * (docs/etudes/etude-veille-media-youtube.md — Cryptolyze en point de départ).
  * <p>
  * <b>Ajouter une nouvelle chaîne (Lot 4, observabilité/ops)</b> : aucun code métier à toucher
  * (le job d'ingestion et le pipeline LLM lisent {@code ContentSourceRepository.findByActiveTrue()}

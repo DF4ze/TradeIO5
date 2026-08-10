@@ -2,10 +2,10 @@
 """
 Récupère le transcript brut d'une vidéo YouTube (via youtube-transcript-api) et/ou la liste des
 dernières vidéos d'une chaîne (via son flux RSS), pour inspecter le format réel retourné avant de
-câbler l'extraction en Java (docs/etude-veille-media-youtube.md, §6 "validation technique de
+câbler l'extraction en Java (docs/etudes/etude-veille-media-youtube.md, §6 "validation technique de
 l'extraction transcript FR").
 
-Complément à docs/etude-veille-media-youtube.md : le premier essai depuis l'environnement de build
+Complément à docs/etudes/etude-veille-media-youtube.md : le premier essai depuis l'environnement de build
 a échoué (accès réseau sortant vers youtube.com bloqué depuis ce sandbox — même souci que
 tools/calibration/fetch_real_klines.py pour l'API Binance). Ce script est prévu pour être exécuté
 depuis une machine avec un accès réseau normal.
@@ -68,7 +68,7 @@ def summarize(transcript, excerpt_seconds=180):
     last = transcript[-1]
 
     # Extrait basé sur le temps couvert (pas un nombre de caractères fixe) : on veut simuler
-    # exactement ce que la passe 1 (classification, docs/etude-veille-media-youtube.md §6) enverrait
+    # exactement ce que la passe 1 (classification, docs/etudes/etude-veille-media-youtube.md §6) enverrait
     # au LLM le moins cher pour juger du thème global, donc "les X premières minutes réellement
     # parlées" est plus représentatif qu'un simple full_text[:N] qui peut couper en plein milieu
     # d'un mot ou, à l'inverse, être trop court si les segments sont denses.

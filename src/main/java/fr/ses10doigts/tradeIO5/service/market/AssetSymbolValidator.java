@@ -12,7 +12,7 @@ import java.util.List;
  * jamais par la paire native d'un exchange (ex: {@code "BTCUSDT"}, {@code "XXBTZUSD"},
  * {@code "BTC-USDT"}) — c'est la table {@code asset_provider} qui porte la traduction vers
  * chaque exchange, cf. {@code AssetInitializer} / {@code MarketDatasetEngine#getDatasetForAsset}
- * / docs/etude-fallback-multi-provider-marketdata.md.
+ * / docs/etudes/etude-fallback-multi-provider-marketdata.md.
  * <p>
  * Volontairement PAS branché dans {@code TreeAnalysisFacade} ou {@code DcaCalculatorService}
  * eux-mêmes : ces services doivent rester appelables avec des symboles arbitraires en test

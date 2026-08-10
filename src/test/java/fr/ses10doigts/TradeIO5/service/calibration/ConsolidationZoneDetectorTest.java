@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code tools/calibration/band_zone_test.py::technique_consolidation} /
  * {@code duration_vs_touches_analysis.py::dedup_zones}, déjà validé statistiquement côté Python ;
  * ces tests valident uniquement que le portage Java respecte la même logique, pas que la technique
- * a une valeur prédictive — cf. docs/calibration-rejection-zone.md pour ce second point).
+ * a une valeur prédictive — cf. docs/calibration/calibration-rejection-zone.md pour ce second point).
  */
 class ConsolidationZoneDetectorTest {
 

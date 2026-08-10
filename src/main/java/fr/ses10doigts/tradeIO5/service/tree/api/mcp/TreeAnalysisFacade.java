@@ -66,7 +66,7 @@ import java.util.function.Function;
  * Chaque méthode publique à 4 paramètres (celle utilisée par les tools MCP) résout désormais son
  * provider de marché via {@link MarketDatasetEngine#getDatasetForAsset} — c'est-à-dire via la
  * table {@code asset_provider} (candidats ordonnés par {@code priority}, avec bascule automatique
- * en cas d'erreur d'un provider, cf. docs/etude-fallback-multi-provider-marketdata.md §3 étapes 7-8)
+ * en cas d'erreur d'un provider, cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §3 étapes 7-8)
  * — au lieu de {@link MarketDataSource#BINANCE} codé en dur comme auparavant. {@code endTime} est
  * recalculé à {@link DomainClock#now()} à chaque appel (jamais une valeur figée). Les surcharges
  * avec {@link MarketDataSource} explicite existent pour permettre aux tests d'utiliser
@@ -121,7 +121,7 @@ public class TreeAnalysisFacade {
 
     /**
      * Surcharge avec paramètres texte (ex: {@code "asset"="ETH"} pour {@code ETF_FLOW}) — cf.
-     * docs/etude-sourcing-etf-flow-alternative-farside.md, point signalé par Clem le 2026-07-16 :
+     * docs/etudes/etude-sourcing-etf-flow-alternative-farside.md, point signalé par Clem le 2026-07-16 :
      * sans cette surcharge, {@code get_indicator} ne pouvait transmettre aucun paramètre non
      * numérique, donc {@code ETF_FLOW} retombait toujours sur le défaut de l'indicateur (BTC,
      * cf. {@code EtfFlowAsset.fromParameter}) quel que soit le {@code symbol} demandé (BTCUSDT vs
@@ -187,7 +187,7 @@ public class TreeAnalysisFacade {
         // Avant ce correctif, get_indicator déclenchait quand même un MarketDatasetEngine.getDataset
         // (500 D1, jusqu'à ~9000+ H1 équivalent) pour ces types, y compris un vrai appel réseau
         // Binance si le cache DB était incomplet — repéré par Clem le 2026-07-16 en observant les
-        // logs d'un simple get_indicator ETF_FLOW (cf. docs/etude-cache-etf-flow-historisation.md
+        // logs d'un simple get_indicator ETF_FLOW (cf. docs/etudes/etude-cache-etf-flow-historisation.md
         // pour le détail de la trace). fetchDataset(...)/fetchDatasetForAsset(...) ne sont donc
         // appelés que pour les indicateurs qui déclarent réellement en avoir besoin.
         int requiredData = indicator.getRequiredData(parameters);
@@ -376,7 +376,7 @@ public class TreeAnalysisFacade {
     /**
      * Miroir de {@link #buildMarketContext} mais résolvant chaque {@link MarketDataset} via
      * {@link #fetchDatasetForAsset} (asset_provider) plutôt qu'une source explicite. Cf.
-     * docs/etude-fallback-multi-provider-marketdata.md §3 (étape 8a).
+     * docs/etudes/etude-fallback-multi-provider-marketdata.md §3 (étape 8a).
      */
     private MarketContext buildMarketContextForAsset(
             String symbol, Map<TimeFrame, Integer> requiredCandles, Instant now
@@ -413,7 +413,7 @@ public class TreeAnalysisFacade {
     /**
      * Miroir de {@link #fetchDataset} mais délégant à
      * {@link MarketDatasetEngine#getDatasetForAsset} (résolution automatique via
-     * {@code asset_provider}, cf. docs/etude-fallback-multi-provider-marketdata.md §3 étape 8a).
+     * {@code asset_provider}, cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §3 étape 8a).
      * Catche en plus {@link NoProviderAvailableException} (aucun provider configuré/éligible, ou
      * tous les candidats ont échoué), avec le même traitement (wrap en {@link TreeAnalysisException}).
      */

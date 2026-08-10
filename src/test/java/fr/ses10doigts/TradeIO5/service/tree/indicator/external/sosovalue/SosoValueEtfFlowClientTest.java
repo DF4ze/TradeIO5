@@ -210,7 +210,7 @@ class SosoValueEtfFlowClientTest {
         assertFalse(response.isValid());
     }
 
-    // ---- fetchHistory / parseHistory (backfill, docs/etude-cache-etf-flow-historisation.md) ----
+    // ---- fetchHistory / parseHistory (backfill, docs/etudes/etude-cache-etf-flow-historisation.md) ----
 
     @Test
     @DisplayName("parseHistory() extrait toutes les lignes de 'data', pas seulement la première")

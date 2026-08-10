@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Outil de calibration/validation pour MovementQualificationStrategy (OI + Funding Rate + OBV),
-cf. docs/prompt-calibration-movement-qualification.md et docs/calibration-rejection-zone.md pour
+cf. docs/calibration/prompt-calibration-movement-qualification.md et docs/calibration/calibration-rejection-zone.md pour
 le protocole de référence (même méthodologie, adaptée à une strategy multi-indicateurs plutôt qu'à
 un indicateur de niveaux de prix).
 

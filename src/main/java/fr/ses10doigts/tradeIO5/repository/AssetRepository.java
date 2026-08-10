@@ -8,7 +8,7 @@ import java.util.Optional;
 
 public interface AssetRepository extends JpaRepository<Asset, Long> {
 
-    // Cf. docs/etude-fallback-multi-provider-marketdata.md §3 (étape 6) : upsert idempotent par
+    // Cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §3 (étape 6) : upsert idempotent par
     // symbole dans AssetInitializer.
     Optional<Asset> findBySymbol(String symbol);
 }

@@ -18,7 +18,7 @@ import java.util.List;
  * bougies D1/W1 à partir d'un export H1 réel (fetch_real_klines.py) en réutilisant {@link Bucket}
  * (la même classe de production qui fait ce resampling pour l'app elle-même) plutôt que de
  * réimplémenter l'agrégation OHLCV en Python — demande explicite de Clem le 2026-07-09, cf.
- * docs/calibration-rejection-zone.md.
+ * docs/calibration/calibration-rejection-zone.md.
  * <p>
  * Lancement (single-file source launch, Java 21+) :
  * {@code java --class-path target/classes tools/calibration/BucketResample.java <h1.csv> <outDir>}

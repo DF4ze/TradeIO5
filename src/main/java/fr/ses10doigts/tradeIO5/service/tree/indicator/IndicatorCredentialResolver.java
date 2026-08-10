@@ -49,7 +49,7 @@ public class IndicatorCredentialResolver {
             // YahooFinanceQuoteProvider.
             case SP500, NASDAQ -> WebProviderCode.YAHOO_FINANCE;
             // ETF_FLOW : bascule FARSIDE (scraping HTML) -> SOSOVALUE (API REST officielle) le
-            // 2026-07-16, cf. docs/etude-sourcing-etf-flow-alternative-farside.md.
+            // 2026-07-16, cf. docs/etudes/etude-sourcing-etf-flow-alternative-farside.md.
             case ETF_FLOW -> WebProviderCode.SOSOVALUE;
             default -> null;
         };
@@ -68,7 +68,7 @@ public class IndicatorCredentialResolver {
     /**
      * Résolution directe par provider, sans passer par le mapping {@link IndicatorType} de
      * {@link #resolve}. Ajouté pour {@code EtfFlowBackfillService}
-     * (docs/etude-cache-etf-flow-historisation.md, addendum backfill Farside) : le backfill a
+     * (docs/etudes/etude-cache-etf-flow-historisation.md, addendum backfill Farside) : le backfill a
      * besoin à la fois de SOSOVALUE (même routing que {@code ETF_FLOW} en fetch() live) et de
      * FARSIDE (source complémentaire pour l'historique profond, jan. 2024 -> ~1 mois avant
      * aujourd'hui) — ce dernier n'étant plus jamais résolu via {@link #resolve} depuis la bascule

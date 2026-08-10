@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Passe 1 du pipeline de veille média (docs/etude-veille-media-youtube.md §2, Lot 2 item A) :
+ * Passe 1 du pipeline de veille média (docs/etudes/etude-veille-media-youtube.md §2, Lot 2 item A) :
  * classification légère (titre + extrait tronqué du transcript) pour filtrer le contenu
  * hors-sujet avant la passe 2, coûteuse, qui ne s'exécute que sur le sous-ensemble pertinent.
  * <p>
@@ -29,7 +29,7 @@ public class TranscriptClassificationService {
 
     /**
      * Fenêtre (en secondes de transcript) envoyée en passe 1. Initialement 120s (aligné sur
-     * {@code tools/media_watch/probe_transcript.py --excerpt-seconds}, docs/etude-veille-media-youtube.md
+     * {@code tools/media_watch/probe_transcript.py --excerpt-seconds}, docs/etudes/etude-veille-media-youtube.md
      * §6). Élargie à 300s le 2026-07-12 suite à un faux positif observé en test réel : une vidéo
      * Cryptolyze majoritairement historique ("BNB : la crypto que rien n'arrête" — histoire de CZ/
      * Binance/BNB) ouvre sur un hook volontairement orienté marché (divergence de prix, écoute

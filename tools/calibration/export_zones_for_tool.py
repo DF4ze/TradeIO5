@@ -2,7 +2,7 @@
 """
 Prepare les donnees pour le POC page web (zone editor) : OHLCV multi-TF + zones candidates
 initiales, generees avec la technique 'consolidation' de Clem (la plus solide de la calibration,
-cf. docs/calibration-rejection-zone.md, section "Bandes plutot que niveaux ponctuels").
+cf. docs/calibration/calibration-rejection-zone.md, section "Bandes plutot que niveaux ponctuels").
 
 Deux categories, conformement a la convention visuelle de Clem :
   - "historical" (zone grise, rectangle) : consolidation detectee sur D1 avec tout l'historique

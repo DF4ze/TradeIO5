@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Flux ETF institutionnel comme modulateur de confidence (docs/etude-branchement-etf-flow-confidence-modulator.md,
+ * Flux ETF institutionnel comme modulateur de confidence (docs/etudes/etude-branchement-etf-flow-confidence-modulator.md,
  * 5 décisions validées avec Clem le 2026-07-16). Compare le flux net ETF du jour (SoSoValue, USD
  * brut) au mouvement de prix récent : un flux qui confirme le mouvement (ou un flux/mouvement non
  * significatif) n'atténue jamais ; un flux qui le contredit (rally sans soutien institutionnel, ou

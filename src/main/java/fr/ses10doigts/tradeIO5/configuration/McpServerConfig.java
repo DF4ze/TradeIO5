@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Configuration;
  * méthode annotée {@code @Tool} devient un tool appelable.
  * <ul>
  *     <li>{@link TreeAnalysisMcpTools} : get_indicator, evaluate_strategy, get_opinion</li>
- *     <li>{@link DcaMcpTools} : calculate_dca (cf. docs/etude-dca-tool-mcp.md)</li>
+ *     <li>{@link DcaMcpTools} : calculate_dca (cf. docs/etudes/etude-dca-tool-mcp.md)</li>
  * </ul>
  */
 @Configuration

@@ -10,11 +10,11 @@ import java.util.Optional;
 
 public interface AssetProviderRepository extends JpaRepository<AssetProvider, Long> {
 
-    // Cf. docs/etude-fallback-multi-provider-marketdata.md §3 (étape 7) : liste ordonnée de
+    // Cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §3 (étape 7) : liste ordonnée de
     // candidats provider pour un asset, du plus prioritaire au moins prioritaire.
     List<AssetProvider> findByAsset_SymbolOrderByPriorityAsc(String symbol);
 
-    // Cf. docs/etude-fallback-multi-provider-marketdata.md §3 (étape 6) : lookup ciblé utilisé
+    // Cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §3 (étape 6) : lookup ciblé utilisé
     // par l'upsert idempotent d'AssetInitializer pour savoir si la ligne (asset, source) existe déjà.
     Optional<AssetProvider> findByAsset_SymbolAndSource(String symbol, MarketDataSource source);
 }

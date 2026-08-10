@@ -32,13 +32,13 @@ import java.util.regex.Pattern;
  * <p>
  * <b>Retiré du wiring Spring le 2026-07-16</b> (annotation {@code @Component} supprimée) : remplacé
  * par {@code SosoValueEtfFlowClient} (API REST officielle documentée) suite à
- * docs/etude-sourcing-etf-flow-alternative-farside.md. Classe et tests conservés tels quels comme
+ * docs/etudes/etude-sourcing-etf-flow-alternative-farside.md. Classe et tests conservés tels quels comme
  * référence/repli possible, mais {@code IndicatorCredentialResolver} ne résout plus jamais
  * {@code WebProviderCode.FARSIDE} pour {@code ETF_FLOW} — cette implémentation n'est donc plus
  * injectée nulle part en pratique pour le {@link #fetch} live.
  * <p>
  * <b>Réactivé ponctuellement le 2026-07-17</b> pour {@link #fetchHistory}/{@link #parseHistory}
- * (docs/etude-cache-etf-flow-historisation.md, addendum backfill Farside) : SoSoValue plafonne à
+ * (docs/etudes/etude-cache-etf-flow-historisation.md, addendum backfill Farside) : SoSoValue plafonne à
  * ~1 mois d'historique par appel (constat empirique du même jour), alors que la page "all data" de
  * Farside ({@link EtfFlowAsset#getHistoryPath()}) remonte jusqu'au lancement des ETF BTC (11 jan.
  * 2024) sur une seule page HTML, avec la même structure de tableau que la page live
