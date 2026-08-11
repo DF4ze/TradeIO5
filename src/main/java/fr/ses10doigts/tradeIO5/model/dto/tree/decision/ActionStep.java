@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 public record ActionStep(
         String stepId,
         ExecutionAction executionAction,
-        BigDecimal quantity
+        BigDecimal quantity,
+        Long walletId // nullable : pas encore résolu tant que le Sizing (étude §4/§7) n'existe pas
 ) {
 }

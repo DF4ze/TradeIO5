@@ -120,14 +120,15 @@ public class DecisionEngine {
                 UUID.randomUUID().toString(),
                 candidate.symbol(),
                 candidate.owner(),
-                DecisionType.EXIT,
+                candidate.type(),
                 clock.now()
         );
 
         ActionStep step = new ActionStep(
                 UUID.randomUUID().toString(),
                 candidate.action(),
-                candidate.quantity()
+                candidate.quantity(),
+                candidate.walletId() // circule depuis le candidate ; toujours null tant que rien ne le résout (§5/§4)
         );
 
         return new Decision(
@@ -139,16 +140,18 @@ public class DecisionEngine {
 
     private DecisionCandidate mapToCandidate(ScenarioEvent event) {
         ActionIntent intent = ((IntentCause)event.getCause()).intent();
+        ExecutionAction action = mapAction(intent);
         return new DecisionCandidate(
                 event.getSymbol().orElseThrow(() ->
                         new IllegalStateException("Decision requires a symbol")),
-                DecisionType.EXIT, // TODO
-                mapAction(intent),
+                mapDecisionType(action),
+                action,
                 intent.confidence(),
                 intent.quantity(),
                 intent.reason(),
                 event.getOwner(),
-                clock.now()
+                clock.now(),
+                null // pas encore de wallet cible résolu (§5/§4, hors scope de ce lot)
         );
     }
 
@@ -157,6 +160,21 @@ public class DecisionEngine {
             case BUY  -> ExecutionAction.BUY;
             case SELL -> ExecutionAction.SELL;
             default -> ExecutionAction.NO_OP;
+        };
+    }
+
+    /**
+     * ⚠️ Mapping minimal (Palier 1, 2026-08), pas la version finale de l'algorithmie décisionnelle.
+     * REBALANCE/STOP sont volontairement hors scope ici : les distinguer d'un simple ENTER/EXIT
+     * demanderait de connaître l'état du portefeuille (position déjà ouverte ou non), qui
+     * n'existe pas encore dans ce contexte (cf. étude §12 point 7, futur composant Sizing). Ce
+     * mapping est à revisiter dès que ce contexte de portefeuille existera.
+     */
+    static DecisionType mapDecisionType(ExecutionAction action) {
+        return switch (action) {
+            case BUY -> DecisionType.ENTER;
+            case SELL, EXIT -> DecisionType.EXIT;
+            case NO_OP -> DecisionType.EXIT; // ne devrait pas être atteint en pratique (proposeIntent n'émet jamais d'intent pour un signal NEUTRAL/HOLD) ; valeur de repli neutre, pas une vraie sémantique
         };
     }
 

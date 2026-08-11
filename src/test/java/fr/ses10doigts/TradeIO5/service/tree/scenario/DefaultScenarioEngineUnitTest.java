@@ -2,12 +2,14 @@ package fr.ses10doigts.tradeIO5.service.tree.scenario;
 
 import fr.ses10doigts.tradeIO5.model.dto.event.ScenarioEvent;
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ActionIntent;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioDefinition;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioKey;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioEventType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioStatus;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import fr.ses10doigts.tradeIO5.model.dto.event.PersistableEvent;
@@ -247,5 +249,86 @@ class DefaultScenarioEngineUnitTest {
         );
     }
 
+    // ---------- Dédup des ActionIntent (étape 2, palier 1) ----------
+
+    @Test
+    void collectActionIntents_proposesOnceThenSuppressesRepeatWithinSameEpisode() {
+        ScenarioKey key = new ScenarioKey(owner, ScenarioType.TREND_UP, Optional.of("BTC"), OpinionScope.LOCAL);
+        engine.scenarios.put(key, existingScenario);
+
+        bringToValidatedAndStable(existingScenario);
+
+        List<ActionIntent> first = engine.collectActionIntents(owner, clock.now());
+        List<ActionIntent> second = engine.collectActionIntents(owner, clock.now());
+
+        assertEquals(1, first.size());
+        assertTrue(second.isEmpty());
+    }
+
+    @Test
+    void collectActionIntents_newEpisodeAfterLeavingValidatedAllowsNewIntent() {
+        ScenarioKey key = new ScenarioKey(owner, ScenarioType.TREND_UP, Optional.of("BTC"), OpinionScope.LOCAL);
+        engine.scenarios.put(key, existingScenario);
+
+        bringToValidatedAndStable(existingScenario);
+        List<ActionIntent> firstEpisode = engine.collectActionIntents(owner, clock.now());
+        assertEquals(1, firstEpisode.size());
+
+        // Sortie de VALIDATED/stable (même patron de manipulation directe de l'état que
+        // DefaultMarketScenarioTest.testInvalidation) : reset de la mémoire de dédup.
+        existingScenario.getState().setStatus(ScenarioStatus.CONFIRMING);
+        existingScenario.getState().setStable(false);
+        List<ActionIntent> whileNotValidated = engine.collectActionIntents(owner, clock.now());
+        assertTrue(whileNotValidated.isEmpty());
+
+        // Revalidation : nouvel épisode, un nouvel intent doit pouvoir être proposé.
+        existingScenario.getState().setStatus(ScenarioStatus.VALIDATED);
+        existingScenario.getState().setStable(true);
+        List<ActionIntent> secondEpisode = engine.collectActionIntents(owner, clock.now());
+        assertEquals(1, secondEpisode.size());
+    }
+
+    @Test
+    void cleanup_purgesProposedScenarioIdMemory() {
+        ScenarioKey key = new ScenarioKey(owner, ScenarioType.TREND_UP, Optional.of("BTC"), OpinionScope.LOCAL);
+        engine.scenarios.put(key, existingScenario);
+
+        bringToValidatedAndStable(existingScenario);
+        List<ActionIntent> first = engine.collectActionIntents(owner, clock.now());
+        assertEquals(1, first.size());
+
+        // Le scénario devient inactif (INVALIDATED) puis est retiré par cleanup(...).
+        existingScenario.getState().setStatus(ScenarioStatus.INVALIDATED);
+        engine.cleanup(Duration.ofDays(1), clock.now());
+        assertTrue(engine.scenarios.isEmpty());
+
+        // Réinsertion d'un scénario avec le même id : si l'id n'avait pas été purgé de la
+        // mémoire de dédup au cleanup, aucun intent ne serait reproposé malgré ce nouvel épisode.
+        engine.scenarios.put(key, existingScenario);
+        existingScenario.getState().setStatus(ScenarioStatus.VALIDATED);
+        existingScenario.getState().setStable(true);
+        existingScenario.getState().setConfidence(1.0);
+
+        List<ActionIntent> afterCleanupAndReinsertion = engine.collectActionIntents(owner, clock.now());
+        assertEquals(1, afterCleanupAndReinsertion.size());
+    }
+
+    private void bringToValidatedAndStable(MarketScenario scenario) {
+        OpinionSignal bullish = new OpinionSignal(
+                "OpinionId-bullish",
+                Optional.of("BTC"),
+                SignalType.BULLISH,
+                SignalType.BULLISH,
+                0.95,
+                0.95,
+                OpinionScope.LOCAL,
+                Set.of(),
+                "reason",
+                clock.now()
+        );
+        for (int i = 0; i < 4; i++) {
+            scenario.observe(bullish, context);
+        }
+    }
 
 }

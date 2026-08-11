@@ -15,5 +15,6 @@ public record DecisionCandidate(
         BigDecimal quantity,
         String reason,
         ScenarioOwner owner,
-        Instant createdAt
+        Instant createdAt,
+        Long walletId // nullable : personne ne sait encore choisir le bon wallet (§5/§4, hors scope)
 ) {}

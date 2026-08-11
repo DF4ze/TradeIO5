@@ -84,9 +84,9 @@ code source depuis le 2026-07-09 (cf. `docs/suivi/etat-des-lieux-indicateurs-str
 
 | # | Fichier:ligne | Sujet | Sévérité | Décision |
 |---|---|---|---|---|
-| 1 | `DefaultMarketScenario.java:170` | `new BigDecimal(0.0)` — la quantité d'un `ActionIntent` proposé n'est **jamais** calculée, toujours zéro | **Critique** | Bloquant direct pour §6 (sizing) — voir plan d'action |
-| 2 | `DefaultScenarioEngine.java:136` | Aucune dédup avant de proposer un nouvel `ActionIntent` — risque de flooder d'intents déjà proposées | **Critique** | Bloquant direct pour §6 (idempotence avant ordre réel) |
-| 3 | `DecisionEngine.java:123,145` | `DecisionType` toujours codé en dur à `EXIT`, quel que soit `ExecutionAction` (BUY/SELL/NO_OP) — alors que l'enum a `ENTER`/`EXIT`/`REBALANCE`/`STOP` | **Critique** | Bloquant direct pour §6 (le type de décision doit refléter l'action réelle) |
+| 1 | `DefaultMarketScenario.java:170` | `new BigDecimal(0.0)` — la quantité d'un `ActionIntent` proposé n'est **jamais** calculée, toujours zéro | **Critique** | **Résolu (2026-08-11, Palier 1)** : remplacé par `PLACEHOLDER_QUANTITY` (`BigDecimal.ONE`), explicitement documenté comme placeholder — le vrai calcul de sizing reste à faire (§6.2 pt 4) |
+| 2 | `DefaultScenarioEngine.java:136` | Aucune dédup avant de proposer un nouvel `ActionIntent` — risque de flooder d'intents déjà proposées | **Critique** | **Résolu (2026-08-11, Palier 1)** : dédup par épisode de validation continue (`proposedScenarioIds`), reset à la sortie de `VALIDATED`/stable, purge dans `cleanup(...)` |
+| 3 | `DecisionEngine.java:123,145` | `DecisionType` toujours codé en dur à `EXIT`, quel que soit `ExecutionAction` (BUY/SELL/NO_OP) — alors que l'enum a `ENTER`/`EXIT`/`REBALANCE`/`STOP` | **Critique** | **Résolu (2026-08-11, Palier 1)** : `mapDecisionType(ExecutionAction)` (BUY→ENTER, SELL/EXIT/NO_OP→EXIT), utilisé à la fois dans `mapToCandidate(...)` et `createDecision(...)` (le 2e site écrasait encore silencieusement la valeur avant ce correctif) |
 | 4 | `BinanceApiClient.java:80` | `try { … } catch (Exception e)` générique sur le prix ticker (chemin wallet/balance, distinct du `MarketDataApiClient` déjà typé par la roadmap fallback) | Modéré | Backlog : aligner sur la hiérarchie `MarketDataProviderException` existante |
 | 5 | `KrakenApiClient.java:82` | `RuntimeException` générique sur erreur API Kraken (balance) | Modéré | Backlog : même traitement que #4 |
 | 6 | `ProviderApiService.java:30` | `IllegalArgumentException` générique si provider inconnu pour un wallet | Mineur | Backlog : remplacer par `NotFoundException` (déjà présente dans le projet) |
@@ -101,6 +101,13 @@ code source depuis le 2026-07-09 (cf. `docs/suivi/etat-des-lieux-indicateurs-str
 **3 items critiques (#1-3) sont exactement sur le chemin du chantier "décision → ordre"** que Clem
 priorise maintenant — pas une coïncidence : ce sont les seuls TODO du code qui documentaient déjà
 noir sur blanc ce qui manque pour transformer une `Decision` en ordre réel. Détail au §6.
+
+**Mise à jour 2026-08-11** : les 3 items critiques (#1-3) sont résolus — cf.
+`docs/prompts/prompt-implementation-decision-palier1.md` (Palier 1). Ce lot rend la logique interne
+Scenario/Decision cohérente et testable en isolation ; il ne rend pas la chaîne exécutable en prod
+(`DecisionEngine`/`DefaultScenarioEngine` restent de simples POJO non instanciés hors tests, pas de
+sizing réel, pas de persistance d'état) — cf. étude §2.2 et §12 pt 1. 465 tests OK (458 + 7 nouveaux)
+via `test:tradeio-5` sur la Gateway.
 
 ## 6. Plan d'action — mécanique décision → ordre (scheduler toujours postposé)
 
@@ -142,10 +149,12 @@ exécution.
 
 ### 6.2 Ordre de priorité proposé
 
-1. **Corriger les 3 TODO critiques du §5** (`DecisionType` correct selon l'action, quantité
-   réellement calculée, dédup des intents déjà proposées) — préalable minimal, indépendant du
-   reste, sans lequel même un branchement partiel du portefeuille produirait des décisions
-   incohérentes (toujours `EXIT`, toujours quantité 0, potentiellement dupliquées).
+1. ~~**Corriger les 3 TODO critiques du §5** (`DecisionType` correct selon l'action, quantité
+   réellement calculée, dédup des intents déjà proposées)~~ — **Fait (2026-08-11, Palier 1)**.
+   Préalable minimal, indépendant du reste, sans lequel même un branchement partiel du portefeuille
+   aurait produit des décisions incohérentes (toujours `EXIT`, toujours quantité 0, potentiellement
+   dupliquées). Noter : la quantité reste un placeholder (`BigDecimal.ONE`), pas un vrai sizing —
+   ça reste le point 4 ci-dessous.
 2. **Brancher `WalletSnapshot` sur les vraies données** : nouveau service (ex.
    `WalletSnapshotService`) qui agrège `ProviderApiService#getUserBalance` (déjà existant, déjà
    multi-provider Binance/Kraken) par utilisateur en un `WalletSnapshot` réel — remplace

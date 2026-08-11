@@ -68,8 +68,7 @@ public class KrakenApiClient implements ProviderApiClient, BalanceProvider {
 
     @Override
     public Map<String, BigDecimal> getAllBalances(ApiCredential credential) {
-        return balanceCacheManager.getBalances(credential.getApiKey() + ":" + credential.getWebProvider().getApiBaseUrl(),
-                this, credential);
+        return balanceCacheManager.getBalances(this, credential);
     }
 
 

@@ -10,6 +10,7 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioKey;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioOwner;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioEventType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioStatus;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioFactory;
@@ -40,6 +41,14 @@ public class DefaultScenarioEngine implements ScenarioEngine {
     private final EventBus eventBus;
 
     final Map<ScenarioKey, MarketScenario> scenarios = new ConcurrentHashMap<>();
+
+    // Mémoire des scénarios ayant déjà proposé un intent pour leur épisode de validation
+    // continue en cours. Reset dès que le scénario quitte VALIDATED/stable (cf. collectActionIntents).
+    // ⚠️ Règle "une fois par épisode" volontairement simple (Palier 1, 2026-08) : ne tient pas
+    // compte d'un changement de force du signal au sein d'un même épisode (ex: BUY qui se
+    // renforce fortement pendant qu'il reste VALIDATED ne redéclenche pas d'intent). À revisiter
+    // si l'algorithmie décisionnelle a besoin de cette granularité plus tard.
+    private final Set<String> proposedScenarioIds = ConcurrentHashMap.newKeySet();
 
     public DefaultScenarioEngine(ScenarioOwner owner, DomainClock clock, Set<String> symbols, EventBus eventBus) {
         this.owner = owner;
@@ -133,7 +142,19 @@ public class DefaultScenarioEngine implements ScenarioEngine {
 
             MarketScenario marketScenario = entry.getValue();
 
-            // TODO : Warning... Est-ce que ca ne flooderait pas avec des Intent déjà proposées?
+            if (marketScenario.getState().getStatus() != ScenarioStatus.VALIDATED
+                    || !marketScenario.getState().isStable()) {
+                // Scénario pas (ou plus) dans un épisode de validation continue : reset, libère
+                // un futur nouvel épisode.
+                proposedScenarioIds.remove(marketScenario.getId());
+                continue;
+            }
+
+            if (proposedScenarioIds.contains(marketScenario.getId())) {
+                // Déjà proposé pour cet épisode : ne pas reproposer le même intent en boucle.
+                continue;
+            }
+
             Optional<ActionIntent> proposedIntent = marketScenario.proposeIntent(now);
             if (proposedIntent.isEmpty()) {
                 continue;
@@ -155,6 +176,7 @@ public class DefaultScenarioEngine implements ScenarioEngine {
                     )
             );
 
+            proposedScenarioIds.add(marketScenario.getId());
             intents.add(intent);
         }
 
@@ -169,6 +191,10 @@ public class DefaultScenarioEngine implements ScenarioEngine {
 
         // On retire
         toRemove.forEach(s -> scenarios.remove(keyOf(s)));
+
+        // Purge de la mémoire de dédup : éviter une fuite mémoire silencieuse sur des scénarios
+        // qui n'existent plus.
+        toRemove.forEach(s -> proposedScenarioIds.remove(s.getId()));
 
         // On émet l'événement pour chaque scénario supprimé
         toRemove.forEach(s -> eventBus.publish(

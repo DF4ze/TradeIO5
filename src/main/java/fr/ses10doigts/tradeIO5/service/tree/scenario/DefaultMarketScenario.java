@@ -43,6 +43,19 @@ public class DefaultMarketScenario implements MarketScenario {
     private static final double INVALID_THRESHOLD = 0.0;   // confiance minimale
     private static final Duration EXPIRATION_IDLE = Duration.ofHours(2); // durée max sans update // TODO Parametrize
 
+    /**
+     * ⚠️ PLACEHOLDER (Palier 1, 2026-08) : cette valeur n'a AUCUNE signification métier. Elle
+     * remplace juste l'ancien zéro figé pour que le pipeline (DecisionCandidate, ActionStep)
+     * transporte une quantité non nulle et testable de bout en bout — pas pour produire un ordre
+     * exploitable. Le vrai calcul (curseur de risque × WalletSnapshot × rôle du wallet) reste un
+     * chantier entier, non tranché à ce stade (cf. étude
+     * docs/etudes/etude-mecanique-decision-dca-intelligent.md §4/§7/§12 pt 7). Au passage,
+     * DefaultMarketScenario n'a même pas accès au prix ni au wallet dans son contexte actuel
+     * (ScenarioContext), donc un vrai calcul n'aurait de toute façon pas sa place ici : cette
+     * constante ne doit JAMAIS être utilisée pour un ordre réel tant que ce chantier n'est pas fait.
+     */
+    private static final BigDecimal PLACEHOLDER_QUANTITY = BigDecimal.ONE;
+
     private final ScenarioOwner owner;
     private final Optional<String> symbol;
     private final OpinionScope scope;
@@ -167,7 +180,7 @@ public class DefaultMarketScenario implements MarketScenario {
                 new ActionIntent(
                         action,
                         symbol.get(),
-                        new BigDecimal(0.0), // TODO :  Manage quantity!
+                        PLACEHOLDER_QUANTITY, // Placeholder volontaire, pas une vraie quantité calculée (cf. constante ci-dessus)
                         state.getConfidence(),
                         id,
                         "["+id+"] - Scenario validated and stable",

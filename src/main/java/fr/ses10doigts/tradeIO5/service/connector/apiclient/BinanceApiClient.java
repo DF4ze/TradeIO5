@@ -110,8 +110,7 @@ public class BinanceApiClient implements ProviderApiClient, BalanceProvider {
 			return new HashMap<>();
 		}
 
-		return balanceCacheManager.getBalances(credential.getApiKey() + ":" + credential.getWebProvider().getApiBaseUrl(),
-				this, credential);
+		return balanceCacheManager.getBalances(this, credential);
     }
     
     @Override
@@ -221,7 +220,6 @@ public class BinanceApiClient implements ProviderApiClient, BalanceProvider {
 		BigDecimal fee = rawTrade.containsKey("commission") ? new BigDecimal((String) rawTrade.get("commission"))
 				: BigDecimal.ZERO;
 
-		//@formatter:off
         return TradeDto.builder()
                 .tradeId(id)
                 .asset(asset)
@@ -231,6 +229,5 @@ public class BinanceApiClient implements ProviderApiClient, BalanceProvider {
                 .side(side)
                 .fee(fee)
                 .build();
-        //@formatter:on
 	}
 }

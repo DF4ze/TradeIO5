@@ -96,6 +96,10 @@ class DefaultMarketScenarioTest {
         Optional<ActionIntent> intent = scenario1.proposeIntent(clock.now());
         assertTrue(intent.isPresent());
         assertEquals(MarketIntentAction.BUY, intent.get().action());
+
+        // Étape 3 (palier 1) : la quantité placeholder n'est plus le zéro figé d'origine.
+        // BigDecimal.equals étant sensible au scale, on compare via compareTo.
+        assertEquals(0, java.math.BigDecimal.ONE.compareTo(intent.get().quantity()));
     }
 
     @Test
