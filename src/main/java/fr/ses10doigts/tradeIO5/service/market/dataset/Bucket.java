@@ -22,7 +22,12 @@ public class Bucket {
     private static final Logger logger = LoggerFactory.getLogger(Bucket.class);
 
     private static final TimeFrame BASE_TIME_FRAME = TimeFrame.H1; // TODO : parametrize
-    static final int BASE_MAX_ITEMS = 5000;
+    // ~5-6 ans de H1 (24*365*5 ≈ 43800). Relevé de 5000 (~208j) le 2026-08-13 : ce plafond servait
+    // à la fois de taille de buffer live et de limite par défaut de lookback, et provoquait une
+    // troncature silencieuse de l'historique (et un spam de logs) dès qu'un indicateur/opinion
+    // demandait un lookback important sur un TF plus large que H1 (D1, W1...). Une MarketData H1
+    // étant légère, ce volume par clé (symbole+source) reste négligeable en mémoire.
+    static final int BASE_MAX_ITEMS = 50_000; // TODO : parametrize
 
     private final Deque<MarketData> buffer;
 
@@ -50,7 +55,13 @@ public class Bucket {
 
     /* ================= INGESTION ================= */
 
-    public void append(MarketData data) {
+    /**
+     * @return le nombre d'éléments évincés (les plus anciens) pour respecter maxSize.
+     * Ne logue plus par élément évincé : en régime permanent (buffer déjà plein), une
+     * éviction par append() est le fonctionnement normal d'un ring buffer, pas une anomalie.
+     * L'appelant (ex: MarketDatasetManager.merge) agrège ce compte pour un log groupé.
+     */
+    public int append(MarketData data) {
         if( !data.getTimeFrame().equals(baseTimeFrame) ){
             throw new IllegalArgumentException("Given MarketData TimeFrame differs from Bucket base TimeFrame");
         }
@@ -58,27 +69,29 @@ public class Bucket {
         if (buffer.isEmpty()) {
             buffer.addLast(data);
             invalidateViews();
-            return;
+            return 0;
         }
 
         MarketData last = buffer.peekLast();
         // forward-only strict
         if (!data.getTimestamp().isAfter(last.getTimestamp())) {
             logger.error("Given MarketData before last Bucket data");
-            return;
+            return 0;
         }
 
         buffer.addLast(data);
 
-        if( buffer.size() > maxSize ){
-            logger.warn("Total buffer size is oversize({} for {}), removing last data", buffer.size(), maxSize);
-        }
-
+        int evicted = 0;
         while (buffer.size() > maxSize) {
             buffer.removeFirst();
+            evicted++;
+        }
+        if (evicted > 0) {
+            logger.debug("Evicted {} oldest item(s) to respect maxSize({})", evicted, maxSize);
         }
 
         invalidateViews();
+        return evicted;
     }
 
     /* ================= VIEWS ================= */
@@ -165,8 +178,8 @@ public class Bucket {
         for (Map.Entry<Instant, List<MarketData>> entry : groups.entrySet()) {
             List<MarketData> candles = entry.getValue();
 
-            MarketData first = candles.get(0);
-            MarketData last = candles.get(candles.size() - 1);
+            MarketData first = candles.getFirst();
+            MarketData last = candles.getLast();
 
             BigDecimal high = candles.stream()
                     .map(MarketData::getHigh)
@@ -251,12 +264,6 @@ public class Bucket {
         };
     }
 
-    private boolean isAligned(Instant ts, TimeFrame tf) {
-        return alignTimestamp(ts, tf).equals(ts);
-    }
-
-
-
     private CompletenessLevel computeCompleteness(
             List<MarketData> data,
             TimeFrame tf,
@@ -269,8 +276,8 @@ public class Bucket {
         }
 
         // 1. alignement du premier
-        if (!alignTimestamp(data.get(0).getTimestamp(), tf)
-                .equals(data.get(0).getTimestamp())) {
+        if (!alignTimestamp(data.getFirst().getTimestamp(), tf)
+                .equals(data.getFirst().getTimestamp())) {
             logger.debug("Completeness : First data not align -> INCOMPLETE");
             return CompletenessLevel.INCOMPLETE;
         }else
@@ -288,7 +295,7 @@ public class Bucket {
         }
 
         // 3. dernière période
-        MarketData last = data.get(data.size() - 1);
+        MarketData last = data.getLast();
         Instant lastEnd = tf.addTo(last.getTimestamp());
 
         if (lastEnd.isAfter(now)) {
