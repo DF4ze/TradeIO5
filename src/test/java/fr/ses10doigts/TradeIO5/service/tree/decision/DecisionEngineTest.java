@@ -24,12 +24,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -55,7 +56,7 @@ class DecisionEngineTest {
     void createDecision_usesCandidateTypeInsteadOfHardcodedExit() {
         EventBus eventBus = new EventBus();
         ScenarioEngine scenarioEngine = mock(ScenarioEngine.class);
-        DecisionEngine engine = new DecisionEngine(owner1, clock, eventBus, scenarioEngine);
+        DecisionEngine engine = new DecisionEngine(clock, eventBus, scenarioEngine);
 
         DecisionCandidate candidate = new DecisionCandidate(
                 "BTC/EUR",
@@ -98,7 +99,7 @@ class DecisionEngineTest {
         when(scenarioEngine.getActiveScenarios(any(), any(), any()))
                 .thenReturn(List.of(stubScenario));
 
-        DecisionEngine engine = new DecisionEngine(owner1, clock, eventBus, scenarioEngine);
+        new DecisionEngine(clock, eventBus, scenarioEngine);
 
         AtomicReference<DecisionEvent> captured = new AtomicReference<>();
         eventBus.subscribe(DecisionEvent.class, captured::set);
@@ -121,7 +122,59 @@ class DecisionEngineTest {
 
         eventBus.publish(scenarioEvent);
 
-        assertTrue(captured.get() != null);
+        assertNotNull(captured.get());
         assertEquals(DecisionType.ENTER, captured.get().getDecisionType());
+    }
+
+    // ---------- Palier 3, étape 2 : moteur unique partagé (option B3) ----------
+
+    @Test
+    @DisplayName("Une seule instance de DecisionEngine produit une DecisionEvent par owner, sans mélange")
+    void onScenarioEvent_publishesDecisionEventWithMatchingOwner_forEachOwnerOnSharedInstance() {
+        EventBus eventBus = new EventBus();
+        ScenarioOwner ownerB = ScenarioOwner.user("user2");
+
+        // Pas de scénarios concurrents mockés : isUnanimousAcrossScopes(...) n'est pas l'objet de
+        // ce test (déjà couvert ailleurs), on la neutralise pour se concentrer sur le routage
+        // de l'owner porté par chaque ScenarioEvent.
+        ScenarioEngine scenarioEngine = mock(ScenarioEngine.class);
+        when(scenarioEngine.getActiveScenarios(any(), any(), any())).thenReturn(List.of());
+
+        new DecisionEngine(clock, eventBus, scenarioEngine);
+
+        List<DecisionEvent> captured = new ArrayList<>();
+        eventBus.subscribe(DecisionEvent.class, captured::add);
+
+        ActionIntent intentA = new ActionIntent(
+                MarketIntentAction.BUY, "BTC/EUR", BigDecimal.ONE, 0.95, "scenario-A", "reason", clock.now());
+        ActionIntent intentB = new ActionIntent(
+                MarketIntentAction.BUY, "ETH/EUR", BigDecimal.ONE, 0.95, "scenario-B", "reason", clock.now());
+
+        MarketScenario scenarioA = mock(MarketScenario.class);
+        when(scenarioA.getId()).thenReturn("scenario-A");
+        when(scenarioA.getType()).thenReturn(ScenarioType.TREND_UP);
+        when(scenarioA.getOwner()).thenReturn(owner1);
+        when(scenarioA.getSymbol()).thenReturn(Optional.of("BTC/EUR"));
+        ScenarioState stateA = new ScenarioState(ScenarioType.TREND_UP, clock.now());
+        when(scenarioA.getState()).thenReturn(stateA);
+
+        MarketScenario scenarioB = mock(MarketScenario.class);
+        when(scenarioB.getId()).thenReturn("scenario-B");
+        when(scenarioB.getType()).thenReturn(ScenarioType.TREND_UP);
+        when(scenarioB.getOwner()).thenReturn(ownerB);
+        when(scenarioB.getSymbol()).thenReturn(Optional.of("ETH/EUR"));
+        ScenarioState stateB = new ScenarioState(ScenarioType.TREND_UP, clock.now());
+        when(scenarioB.getState()).thenReturn(stateB);
+
+        eventBus.publish(new ScenarioEvent(
+                scenarioA, ScenarioEventType.ACTION_PROPOSED,
+                new IntentCause("scenario-A", intentA, "reason"), stateA, clock.now()));
+        eventBus.publish(new ScenarioEvent(
+                scenarioB, ScenarioEventType.ACTION_PROPOSED,
+                new IntentCause("scenario-B", intentB, "reason"), stateB, clock.now()));
+
+        assertEquals(2, captured.size());
+        assertEquals(owner1, captured.get(0).getOwner());
+        assertEquals(ownerB, captured.get(1).getOwner());
     }
 }

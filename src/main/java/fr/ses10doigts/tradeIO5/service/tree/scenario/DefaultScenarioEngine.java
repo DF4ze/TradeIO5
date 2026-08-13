@@ -16,6 +16,7 @@ import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.factory.ScenarioFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -31,14 +32,19 @@ import java.util.concurrent.ConcurrentHashMap;
  * 👉 Et c’est tout.
  */
 
+@Service
 public class DefaultScenarioEngine implements ScenarioEngine {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultScenarioEngine.class);
 
-    private final ScenarioOwner owner;
     private final DomainClock clock;
-    private final Set<String> symbols;
     private final EventBus eventBus;
+
+    // Palier 3, étape 1 (option B3, moteur unique partagé) : plus de valeur initiale imposée au
+    // constructeur — addSymbolSurvey(...)/removeSymbolSurvey(...) restent l'unique mécanisme de
+    // mutation. Question "quels actifs suivre" volontairement non tranchée ici (roadmap Palier 3,
+    // étape 6.a).
+    private final Set<String> symbols = ConcurrentHashMap.newKeySet();
 
     final Map<ScenarioKey, MarketScenario> scenarios = new ConcurrentHashMap<>();
 
@@ -50,16 +56,18 @@ public class DefaultScenarioEngine implements ScenarioEngine {
     // si l'algorithmie décisionnelle a besoin de cette granularité plus tard.
     private final Set<String> proposedScenarioIds = ConcurrentHashMap.newKeySet();
 
-    public DefaultScenarioEngine(ScenarioOwner owner, DomainClock clock, Set<String> symbols, EventBus eventBus) {
-        this.owner = owner;
+    public DefaultScenarioEngine(DomainClock clock, EventBus eventBus) {
         this.clock = clock;
-        this.symbols = symbols;
         this.eventBus = eventBus;
-
-        eventBus.subscribe(OpinionEvent.class, this::onOpinionEvent);
+        // Palier 3, étape 1 : plus d'auto-abonnement à OpinionEvent ici — OpinionEvent ne porte
+        // volontairement pas d'owner (lecture de marché non personnalisée, étude §A.3), donc sous
+        // un moteur singleton partagé il n'existe plus de valeur sensée pour un owner implicite à
+        // cet endroit. onOpinionEvent(...) reste disponible comme méthode utilitaire explicite,
+        // prête à être appelée owner par owner par le futur orchestrateur (étape 6).
     }
 
-    public void onOpinionEvent(OpinionEvent event) {
+    @SuppressWarnings("unused") // utilitaire prêt pour le futur orchestrateur owner par owner (étape 6)
+    public void onOpinionEvent(OpinionEvent event, ScenarioOwner owner) {
 
         if( event.getSymbol().isPresent() && !symbols.contains(event.getSymbol().get()) ){
             log.debug("Event received for {} but not on survey list", event.getSymbol().get());
@@ -112,7 +120,9 @@ public class DefaultScenarioEngine implements ScenarioEngine {
         }
 
         // 5. Récupération des scenarios mûrs
-        List<ActionIntent> actionIntents = collectActionIntents(owner, clock.now());
+        // Palier 3, étape 1 : bug corrigé — utiliser l'owner et l'horloge du contexte reçu en
+        // paramètre, jamais un champ d'instance (qui n'existe plus depuis ce lot).
+        List<ActionIntent> actionIntents = collectActionIntents(context.owner(), context.clock().now());
 
         log.debug("Owner {}: {} scenarios actifs, {} Intent(s)",
                 context.owner(),
@@ -210,10 +220,12 @@ public class DefaultScenarioEngine implements ScenarioEngine {
 
     // ---------- Symbols survey Set ----------
 
+    @SuppressWarnings("unused") // futur mécanisme de mutation de la liste de suivi (roadmap Palier 3, étape 6.a)
     public void addSymbolSurvey( String symbol ){
         symbols.add(symbol);
     }
 
+    @SuppressWarnings("unused") // idem addSymbolSurvey
     public void removeSymbolSurvey( String symbol ){
         symbols.remove(symbol);
 

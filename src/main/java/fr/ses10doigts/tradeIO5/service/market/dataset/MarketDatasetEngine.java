@@ -88,7 +88,7 @@ public class MarketDatasetEngine {
 
         if (shouldFetch(state, request, now)) {
             log.debug("Should Fetch");
-            List<MarketData> marketData = fetchDataForBucket(request, state.getBucket().getBaseTimeFrame());
+            List<MarketData> marketData = fetchDataForBucket(request, state.getBucket().getBaseTimeFrame(), state.getBucket().getMaxSize());
             manager.merge(state, marketData, request.endTime());
             cache.put(key, state);
         }else{
@@ -150,11 +150,21 @@ public class MarketDatasetEngine {
                     candidate.getProviderSymbol(), timeFrame, lookBack, endTime,
                     candidate.getSource(), client
             );
+            // Log de diagnostic (incident 2026-08-13) : confirme quel candidat (source/providerSymbol)
+            // est réellement tenté pour cette requête, et le temps total pris par getDataset(...) —
+            // permet de savoir si un candidat en particulier (ex: Binance pour ETHUSDT) est celui qui bloque.
+            long startNanos = System.nanoTime();
+            log.info("getDatasetForAsset({}, {}) : tentative candidat source={} providerSymbol={} priority={}",
+                    symbol, timeFrame, candidate.getSource(), candidate.getProviderSymbol(), candidate.getPriority());
             try {
-                return getDataset(request);
+                MarketDataset result = getDataset(request);
+                log.info("getDatasetForAsset({}, {}) : candidat source={} OK en {} ms",
+                        symbol, timeFrame, candidate.getSource(), (System.nanoTime() - startNanos) / 1_000_000);
+                return result;
             } catch (SymbolNotFoundException | ProviderUnavailableException e) {
-                log.warn("Provider {} indisponible pour {} ({}) : {} — bascule sur le candidat suivant.",
-                        candidate.getSource(), symbol, candidate.getProviderSymbol(), e.getMessage());
+                log.warn("Provider {} indisponible pour {} ({}) après {} ms : {} — bascule sur le candidat suivant.",
+                        candidate.getSource(), symbol, candidate.getProviderSymbol(),
+                        (System.nanoTime() - startNanos) / 1_000_000, e.getMessage());
                 lastError = e;
             }
         }
@@ -162,7 +172,7 @@ public class MarketDatasetEngine {
     }
 
     // can throw IllegalStateException when getProvider didn't find
-    private List<MarketData> fetchDataForBucket(MarketDatasetRequest request, TimeFrame baseTimeFrame) {
+    private List<MarketData> fetchDataForBucket(MarketDatasetRequest request, TimeFrame baseTimeFrame, int bucketMaxSize) {
 
         if (!request.timeFrame().isGreaterOrEqualThan(baseTimeFrame)) {
             throw new IllegalArgumentException("Limit TimeFrame must be >= Base TimeFrame");
@@ -174,6 +184,17 @@ public class MarketDatasetEngine {
         log.debug("Initial Limit : {} in {} TF", limit, request.timeFrame());
         if (request.timeFrame() != baseTimeFrame) {
             limit = convertLimitToBaseTimeFrame(limit, request.timeFrame(), baseTimeFrame, request.endTime());
+        }
+
+        // Garde-fou : la capacité du Bucket (BASE_MAX_ITEMS, cf. Bucket.java) est dimensionnée
+        // pour couvrir tous les lookbacks réalistes. Si une requête la dépasse malgré tout, on ne
+        // veut pas tronquer silencieusement l'historique d'un indicateur (cf. incident du
+        // 2026-08-13) : on prévient bruyamment plutôt que de plafonner en silence.
+        if (limit > bucketMaxSize) {
+            log.warn("Requested lookBack for {} at {} converts to {} {} candle(s), which EXCEEDS the bucket capacity ({}). " +
+                            "The dataset returned will be truncated to the last {} {} candles — indicator/opinion results may be computed on less history than requested. " +
+                            "Consider raising Bucket.BASE_MAX_ITEMS if this becomes a recurring case.",
+                    request.symbol(), request.timeFrame(), limit, baseTimeFrame, bucketMaxSize, bucketMaxSize, baseTimeFrame);
         }
 
         log.debug("Equiv Limit : {} in {} TF", limit, baseTimeFrame);
@@ -193,8 +214,17 @@ public class MarketDatasetEngine {
 
         MarketDataset fetched = null;
         if (provider != null) {
+            // Log de diagnostic (incident 2026-08-13) : point de passage entre l'engine et le
+            // provider concret (réseau/DB). Une durée anormalement longue ou absente ici isole
+            // le blocage côté provider.loadSince (cf. BinanceMarketDataApiClient) plutôt que côté
+            // engine/cache.
+            long startNanos = System.nanoTime();
+            log.info("fetchDataForBucket : appel provider.loadSince démarré pour {} source={} limit={}",
+                    fetchRequest.symbol(), fetchRequest.source(), limit);
             fetched = provider.loadSince( fetchRequest );
-            log.debug("Call to loadSince(request); result size : {}",fetched.getMarketDatas().size());
+            log.info("fetchDataForBucket : provider.loadSince terminé pour {} source={} en {} ms, {} candle(s)",
+                    fetchRequest.symbol(), fetchRequest.source(), (System.nanoTime() - startNanos) / 1_000_000,
+                    fetched.getMarketDatas().size());
 
         }else{
             log.error("Must have thrown an Exception before...!");

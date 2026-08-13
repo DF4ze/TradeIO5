@@ -130,12 +130,24 @@ public class TreeAnalysisMcpTools {
             @ToolParam(description = "Paramètres numériques de l'indicateur (ex: {\"period\": 14})", required = false) Map<String, Double> numericParams,
             @ToolParam(description = "Paramètres texte de l'indicateur (ex: {\"asset\": \"ETH\"} pour ETF_FLOW)", required = false) Map<String, String> stringParams
     ) {
-        return toJsonOrError("get_indicator", () -> {
-            assetSymbolValidator.requireKnownAsset(symbol);
-            IndicatorSnapshot snapshot = treeAnalysisFacade.getIndicator(
-                    symbol, timeFrame, type, numericParams, stringParams != null ? stringParams : Map.of());
-            return indicatorResponse(symbol, timeFrame, snapshot);
-        });
+        // Log de diagnostic (incident 2026-08-13, cf. mémoire projet) : borne haute de la chaîne
+        // MCP -> Facade -> Engine -> Provider. Comparé aux logs plus bas dans la chaîne
+        // (MarketDatasetEngine, BinanceMarketDataApiClient), permet de voir si l'appel MCP
+        // lui-même démarre normalement (donc le blocage est plus bas) ou ne démarre jamais
+        // (donc le blocage est en amont, ex: résolution Spring/MCP).
+        long startNanos = System.nanoTime();
+        logger.info("get_indicator : appel reçu symbol={} timeFrame={} type={}", symbol, timeFrame, type);
+        try {
+            return toJsonOrError("get_indicator", () -> {
+                assetSymbolValidator.requireKnownAsset(symbol);
+                IndicatorSnapshot snapshot = treeAnalysisFacade.getIndicator(
+                        symbol, timeFrame, type, numericParams, stringParams != null ? stringParams : Map.of());
+                return indicatorResponse(symbol, timeFrame, snapshot);
+            });
+        } finally {
+            logger.info("get_indicator : terminé pour symbol={} timeFrame={} type={} en {} ms",
+                    symbol, timeFrame, type, (System.nanoTime() - startNanos) / 1_000_000);
+        }
     }
 
     @Tool(

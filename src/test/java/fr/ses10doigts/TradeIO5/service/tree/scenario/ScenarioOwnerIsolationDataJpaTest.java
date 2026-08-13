@@ -19,7 +19,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -68,9 +67,7 @@ class ScenarioOwnerIsolationDataJpaTest {
         EventBus eventBus = new EventBus();
 
         DefaultScenarioEngine engine = new DefaultScenarioEngine(
-                ownerA,
                 clock,
-                Set.of("BTC"),
                 eventBus
         );
 

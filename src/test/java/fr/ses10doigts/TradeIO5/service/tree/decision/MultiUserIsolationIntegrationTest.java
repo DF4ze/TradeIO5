@@ -34,10 +34,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -131,13 +131,11 @@ class MultiUserIsolationIntegrationTest {
         EventBus eventBus = new EventBus();
 
         DefaultScenarioEngine scenarioEngine = new DefaultScenarioEngine(
-                ownerA,
                 clock,
-                Set.of("BTC"),
                 eventBus
         );
 
-        DecisionEngine decisionEngine = new DecisionEngine(ownerA, clock, eventBus, scenarioEngine);
+        new DecisionEngine(clock, eventBus, scenarioEngine);
 
         AtomicReference<DecisionEvent> capturedDecisionEvent = new AtomicReference<>();
         eventBus.subscribe(DecisionEvent.class, capturedDecisionEvent::set);
@@ -151,7 +149,7 @@ class MultiUserIsolationIntegrationTest {
         }
 
         List<MarketScenario> activeForA = scenarioEngine.getActiveScenarios(ownerA, Duration.ofDays(1), clock.now());
-        assertTrue(activeForA.size() >= 1, "Un scénario doit être actif pour userA");
+        assertFalse(activeForA.isEmpty(), "Un scénario doit être actif pour userA");
 
         // Une Decision a bien été créée pour userA suite à la validation du scénario.
         assertNotNull(capturedDecisionEvent.get(), "Une DecisionEvent doit avoir été émise pour userA");

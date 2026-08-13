@@ -70,14 +70,25 @@ public class BinanceMarketDataApiClient implements MarketDataApiClient {
             params.put("limit", limit);
         }
 
+        // Log de diagnostic (incident 2026-08-13, cf. mémoire projet) : le SpotClientImpl est
+        // construit sans timeout explicite (ni connect ni read) — un appel réseau bloqué côté
+        // Binance ne remonte donc aucune exception, il reste juste pendu ici indéfiniment. Ce
+        // log avant/après avec durée permet de confirmer que c'est bien CE point précis qui ne
+        // rend jamais la main (plutôt qu'un blocage plus haut dans la chaîne MCP -> engine).
+        long startNanos = System.nanoTime();
+        logger.info("Binance klines : appel réseau démarré pour {} {} params={}", symbol, interval, params);
         try {
             String response = client.createMarket().klines(params);
+            logger.info("Binance klines : appel réseau terminé pour {} {} en {} ms", symbol, interval,
+                    (System.nanoTime() - startNanos) / 1_000_000);
             return mapKlinesResponse(response, symbol, timeFrame);
         } catch (BinanceClientException | BinanceConnectorException e) {
-            logger.warn("Failed to fetch Binance klines for {} ({}) : {}", symbol, interval, e.getMessage());
+            logger.warn("Failed to fetch Binance klines for {} ({}) after {} ms : {}", symbol, interval,
+                    (System.nanoTime() - startNanos) / 1_000_000, e.getMessage());
             throw mapError(symbol, e);
         } catch (Exception e) {
-            logger.warn("Unexpected error while fetching Binance klines for {} ({}) : {}", symbol, interval, e.getMessage());
+            logger.warn("Unexpected error while fetching Binance klines for {} ({}) after {} ms : {}", symbol, interval,
+                    (System.nanoTime() - startNanos) / 1_000_000, e.getMessage());
             throw mapError(symbol, e);
         }
     }

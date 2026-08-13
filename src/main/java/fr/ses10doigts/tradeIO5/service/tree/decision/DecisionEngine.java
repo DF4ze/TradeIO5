@@ -8,7 +8,6 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.decision.ActionStep;
 import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionCandidate;
 import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionSnapshot;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ActionIntent;
-import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioOwner;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.MarketIntentAction;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.decision.DecisionEventType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.decision.DecisionType;
@@ -20,6 +19,7 @@ import fr.ses10doigts.tradeIO5.service.tree.scenario.MarketScenario;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.ScenarioEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.List;
@@ -30,6 +30,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+@Service
 public class DecisionEngine {
 
     private static final Logger log = LoggerFactory.getLogger(DecisionEngine.class);
@@ -38,28 +39,29 @@ public class DecisionEngine {
     // pour qu'un scénario soit considéré "actif" lors de l'arbitrage inter-scopes ci-dessous.
     private static final Duration MAX_SCENARIO_AGE = Duration.ofHours(2);
 
-    private final ScenarioOwner owner;
     private final DomainClock clock;
     //private final Set<String> symbols;
     private final EventBus eventBus;
     private final ScenarioEngine scenarioEngine;
     private final Map<String, Decision> activeDecisions;
 
-    public DecisionEngine(ScenarioOwner owner, DomainClock clock, EventBus eventBus, ScenarioEngine scenarioEngine) {
-        this.owner = owner;
+    public DecisionEngine(DomainClock clock, EventBus eventBus, ScenarioEngine scenarioEngine) {
         this.clock = clock;
        // this.symbols = symbols;
         this.eventBus = eventBus;
         this.scenarioEngine = scenarioEngine;
-        activeDecisions = new ConcurrentHashMap();
+        activeDecisions = new ConcurrentHashMap<>();
 
         eventBus.subscribe(ScenarioEvent.class, this::onScenarioEvent);
     }
 
     private void onScenarioEvent(ScenarioEvent event) {
 
-        if( !owner.isVisible(event.getOwner()) ||                                       // Que pour notre owner
-                event.getScenarioEventType() != ScenarioEventType.ACTION_PROPOSED ||    // Que les scenarios terminés
+        // Palier 3, étape 1 (option B3) : ScenarioEvent porte déjà l'owner du scénario d'origine
+        // (event.getOwner()) — l'auto-abonnement reste valide sous singleton, plus de filtre par
+        // owner.isVisible(...) ici (cette instance doit désormais traiter les events de tous les
+        // owners, tout le point de B3).
+        if( event.getScenarioEventType() != ScenarioEventType.ACTION_PROPOSED ||    // Que les scenarios terminés
                 event.getSymbol().isEmpty()                                             // En sécurité : pas de Globaux
         ) return;
 
@@ -93,13 +95,23 @@ public class DecisionEngine {
     }
 
     /**
+     * Consultation d'une Decision active par id (ex: suivi côté executor/API à venir).
+     * Rend {@link #activeDecisions} réellement interrogée, pas seulement alimentée.
+     */
+    public Optional<Decision> getActiveDecision(String decisionId) {
+        return Optional.ofNullable(activeDecisions.get(decisionId));
+    }
+
+    /**
      * Unanimité entre tous les scénarios actifs du même symbole, tous scopes confondus
      * (LOCAL, EXTERNAL, ...). 0 ou 1 action distincte proposée = unanimité (y compris le cas
      * où un seul scope a un scénario actif pour ce symbole, cas normal aujourd'hui).
      */
     private boolean isUnanimousAcrossScopes(ScenarioEvent event) {
+        // Palier 3, étape 1 : scoper la requête à l'owner de l'événement traité, jamais à un
+        // champ d'instance (qui n'existe plus depuis ce lot).
         List<MarketScenario> sameSymbolScenarios = scenarioEngine
-                .getActiveScenarios(owner, MAX_SCENARIO_AGE, clock.now())
+                .getActiveScenarios(event.getOwner(), MAX_SCENARIO_AGE, clock.now())
                 .stream()
                 .filter(s -> s.getSymbol().equals(event.getSymbol()))
                 .toList();

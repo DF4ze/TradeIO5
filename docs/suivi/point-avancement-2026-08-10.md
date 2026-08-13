@@ -183,6 +183,13 @@ exécution.
    fois #1-5 solides, pour éviter de brancher un déclenchement automatique sur une mécanique de
    sizing/exécution encore incomplète.
 
+   **Addendum (2026-08-12)** : la conception de ce scheduler a en fait redémarré, comme conséquence
+   directe du chantier branchement/persistance (le moteur unique partagé retenu a structurellement
+   besoin de quelque chose qui lui fournisse l'owner à chaque appel) — cf.
+   `docs/etudes/etude-branchement-persistance-decision-engine.md` §E point 6, sous la forme d'un
+   orchestrateur User×Wallet×Asset. Son activation réelle en prod (vs sa simple conception) reste une
+   décision distincte, probablement encore à trancher avant le prompt d'implémentation Palier 3.
+
 ### 6.3 Question ouverte à trancher avec Clem avant de coder le sizing
 
 `RiskProfile` a 3 paliers (`LOW`/`MEDIUM`/`HIGH`) mais aucune formule n'existe encore pour les

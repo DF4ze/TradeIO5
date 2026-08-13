@@ -100,6 +100,7 @@ public class MarketDatasetManager {
         int count = 0;
         Instant current;
         boolean isOutOfRange = false;
+        int totalEvicted = 0;
         for (MarketData data : incoming) {
             current = data.getTimestamp();
             if (previous != null) {
@@ -123,8 +124,14 @@ public class MarketDatasetManager {
                 }
             }
 
-            state.getBucket().append(data);
+            totalEvicted += state.getBucket().append(data);
             previous = data;
+        }
+
+        if (totalEvicted > 0) {
+            log.warn("Bucket capacity reached (maxSize={}): {} oldest H1 candle(s) evicted while merging {} incoming candle(s). " +
+                            "Consider capping the request's lookBack to what the base-timeframe buffer can hold.",
+                    state.getBucket().getMaxSize(), totalEvicted, incoming.size());
         }
 
         state.setLastUpdate(providedNow);

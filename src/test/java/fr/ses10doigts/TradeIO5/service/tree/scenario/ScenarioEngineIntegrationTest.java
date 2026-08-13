@@ -50,9 +50,7 @@ class ScenarioEngineIntegrationTest {
         InMemoryEventStore eventStore = new InMemoryEventStore(eventBus);
         eventStore.init();
         engine = new DefaultScenarioEngine(
-                owner,
                 clock,
-                Set.of("BTC"),
                 eventBus
         );
     }

@@ -532,12 +532,22 @@ Vérifié en code (pas supposé) le 2026-08-10. Classé par sévérité.
 2. **Aucune persistance de l'état vivant — un redémarrage efface tout.** `DefaultScenarioEngine`
    stocke ses scénarios dans un simple `ConcurrentHashMap` en mémoire JVM ; `DecisionEngine` fait
    pareil pour `activeDecisions`. Aucun `ScenarioRepository`, aucune rehydratation au démarrage.
-   Point notable : `JpaEventStore` existe et persiste bien les événements (l'audit trail est là),
-   mais rien ne relit ces événements pour reconstruire l'état — la brique de fond pour corriger ça
-   existe déjà, il manque juste l'étape de rejeu. Pour un DCA censé "vivre en permanence sur
-   plusieurs jours/semaines" (§7.3), c'est structurellement incompatible en l'état : un simple
-   redéploiement (fréquent) reviendrait à réinitialiser silencieusement toutes les intentions
-   d'accumulation en cours.
+   **Précision du 2026-08-11** : `JpaEventStore` est en fait déjà un `@Component` Spring actif
+   (`@PostConstruct` s'abonne à `PersistableEvent` sur l'`EventBus`) — le côté écriture fonctionne
+   donc réellement en prod dès qu'un `OpinionEvent`/`ScenarioEvent` est publié sur le bus partagé.
+   Mais deux trous confirmés en le relisant : (a) rien n'appelle `loadByType`/`loadByTargetId` au
+   démarrage pour reconstruire `scenarios`/`activeDecisions` — la lecture-rejeu manque entièrement ;
+   (b) `JpaEventStore.toDomain()` ne sait désérialiser que `SCENARIO`/`OPINION`
+   (`switch (entity.getType())`) — **`DecisionEvent` (qui implémente pourtant bien
+   `PersistableEvent`, `EventType.DECISION`) ferait lever une `IllegalArgumentException` s'il fallait
+   le relire**, alors qu'il serait sauvegardé sans erreur à l'écriture (`append` ne filtre pas par
+   type). Bug confirmé, pas supposé. Pour un DCA censé "vivre en permanence sur plusieurs
+   jours/semaines" (§7.3), l'absence de rejeu reste structurellement incompatible en l'état : un
+   redéploiement réinitialiserait silencieusement toutes les intentions d'accumulation en cours.
+   **Analyse dédiée (2026-08-11)** : `docs/etudes/etude-branchement-persistance-decision-engine.md`
+   — reconfirme ces deux points en code, pose les options de branchement et de persistance avec
+   leurs tradeoffs, et les questions fermées pour Clem avant de rédiger le prompt d'implémentation
+   Palier 3.
 3. ~~Bug concret de cache cross-utilisateur dans `BalanceCacheManager`~~ — **correction du
    2026-08-11** : affirmation initiale fausse, faite en lisant `BalanceCacheManager` isolément sans
    vérifier ses appelants. En réalité `BinanceApiClient`/`KrakenApiClient` passent déjà

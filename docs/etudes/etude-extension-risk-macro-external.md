@@ -118,6 +118,18 @@ Deux implications directes pour la suite :
 1. **Ne pas construire `ExternalMarketOpinion` en supposant que `ScenarioEngine` gérera la comparaison avec `LOCAL` automatiquement.** Si `ExternalMarketOpinion` publie un `OpinionEvent` scope `EXTERNAL` avec un symbole, il atterrira dans le même pipeline `DefaultScenarioEngine.onOpinionEvent` que toute autre opinion par-symbole, et sera silencieusement absorbé ou ignoré selon l'ordre d'arrivée — un comportement invisible et non testé pour ce cas précis (aucun test actuel ne couvre deux scénarios par-symbole de scopes différents entrant en collision, seulement `testEnrichFromRefused` avec deux `owner` différents sur le même type/symbole).
 2. **`ScenarioKey`/`enrichFrom` devraient être étendus avant, ou en même temps, que le branchement d'`OpenAIAdvisor`** — pas après. Deux pistes possibles à évaluer au moment de l'implémentation (pas tranchées ici, hors périmètre d'une étude) : (a) inclure `OpinionScope` dans `ScenarioKey` pour que `LOCAL` et `EXTERNAL` sur le même symbole/type produisent des scénarios distincts et coexistants, avec un mécanisme de consultation croisée explicite (pas `enrichFrom`, qui resterait pour son usage global→local) ; (b) garder une seule entrée par `(owner, type, symbol)` mais assouplir le garde-fou d'`enrichFrom` pour accepter aussi la fusion entre deux scénarios par-symbole de scopes différents, en exposant explicitement l'accord/désaccord (ex : un champ `agreement`/`conflictingSources` sur `ScenarioState`) plutôt que de le laisser aboutir silencieusement à `NEUTRAL` comme c'est le cas aujourd'hui pour le seul cas déjà géré (global→local).
 
+**Mise à jour (2026-08-12, vérifié en code, tour d'horizon documentaire du chantier branchement/
+persistance)** : la piste (a) du point 2 ci-dessus a bien été implémentée depuis — `ScenarioKey`
+(`model/dto/tree/scenario/ScenarioKey.java`) porte désormais un champ `scope`, avec un javadoc qui
+référence explicitement cette étude. Les collisions `LOCAL`/`EXTERNAL` sur un même symbole/type ne se
+recouvrent donc plus silencieusement dans la map vivante de `DefaultScenarioEngine`. Point restant,
+découvert en creusant la persistance de l'état (cf.
+`docs/etudes/etude-branchement-persistance-decision-engine.md`) : **`ScenarioEvent`** (l'événement
+persisté dans `JpaEventStore`) **ne porte lui-même aucun champ `scope`** — contrairement à
+`ScenarioKey`. Un rejeu depuis le journal d'événements ne pourrait donc pas reconstruire une
+`ScenarioKey` fidèle sans cette info manquante. À traiter avec les autres extensions de modèle déjà
+actées pour la persistance (cf. document ci-dessus, §C et §E).
+
 ## 6. Recommandation d'ordre d'implémentation
 
 L'ordre proposé tient compte du fait que l'investigation du `ScenarioEngine` change la réponse à "où vit la comparaison LOCAL vs EXTERNAL" — elle doit donc être actée avant de décider comment brancher `OpenAIAdvisor`, pas après.

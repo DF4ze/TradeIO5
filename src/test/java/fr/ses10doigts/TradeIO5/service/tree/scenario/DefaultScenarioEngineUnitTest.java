@@ -78,9 +78,7 @@ class DefaultScenarioEngineUnitTest {
         existingScenario = new DefaultMarketScenario( def, eventBus );
 
         engine = new DefaultScenarioEngine(
-                owner,
                 clock,
-                Set.of("BTC"),
                 eventBus
         );
 
@@ -137,7 +135,7 @@ class DefaultScenarioEngineUnitTest {
 
         assertEquals(1, active.size());
 
-        MarketScenario scenario = active.get(0);
+        MarketScenario scenario = active.getFirst();
         assertEquals(owner, scenario.getOwner());
 
         // 🔥 vérification événementielle
