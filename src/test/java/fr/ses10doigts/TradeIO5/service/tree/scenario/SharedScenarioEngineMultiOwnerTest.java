@@ -153,4 +153,32 @@ class SharedScenarioEngineMultiOwnerTest {
         assertTrue(visibleForB.contains(systemScenario),
                 "Un scénario SystemOwner doit être visible pour ownerB sous le moteur partagé");
     }
+
+    @Test
+    @DisplayName("getAllActiveScenarios renvoie les scénarios de tous les owners, contrairement à getActiveScenarios(owner, ...)")
+    void getAllActiveScenarios_returnsScenariosForEveryOwner() {
+        ScenarioDefinition defA = new ScenarioDefinition(
+                ScenarioType.TREND_UP, ownerA, Optional.of("BTC"), OpinionScope.LOCAL, clock.now()
+        );
+        MarketScenario scenarioA = new DefaultMarketScenario(defA, eventBus);
+        ScenarioKey keyA = new ScenarioKey(ownerA, ScenarioType.TREND_UP, Optional.of("BTC"), OpinionScope.LOCAL);
+        engine.scenarios.put(keyA, scenarioA);
+
+        ScenarioDefinition defB = new ScenarioDefinition(
+                ScenarioType.TREND_UP, ownerB, Optional.of("ETH"), OpinionScope.LOCAL, clock.now()
+        );
+        MarketScenario scenarioB = new DefaultMarketScenario(defB, eventBus);
+        ScenarioKey keyB = new ScenarioKey(ownerB, ScenarioType.TREND_UP, Optional.of("ETH"), OpinionScope.LOCAL);
+        engine.scenarios.put(keyB, scenarioB);
+
+        List<MarketScenario> allActive = engine.getAllActiveScenarios(Duration.ofDays(1), clock.now());
+
+        assertTrue(allActive.contains(scenarioA), "getAllActiveScenarios doit renvoyer le scénario de ownerA");
+        assertTrue(allActive.contains(scenarioB), "getAllActiveScenarios doit renvoyer le scénario de ownerB");
+
+        // Contraste explicite : getActiveScenarios(owner, ...) reste filtré par owner.
+        List<MarketScenario> onlyA = engine.getActiveScenarios(ownerA, Duration.ofDays(1), clock.now());
+        assertTrue(onlyA.contains(scenarioA));
+        assertFalse(onlyA.contains(scenarioB), "getActiveScenarios(ownerA, ...) ne doit pas renvoyer le scénario de ownerB");
+    }
 }

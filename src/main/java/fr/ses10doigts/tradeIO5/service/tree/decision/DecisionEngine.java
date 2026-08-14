@@ -10,11 +10,13 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionSnapshot;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ActionIntent;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.MarketIntentAction;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.decision.DecisionEventType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.decision.DecisionStatus;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.decision.DecisionType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.decision.ExecutionAction;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioEventType;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
+import fr.ses10doigts.tradeIO5.service.tree.scenario.DefaultMarketScenario;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.MarketScenario;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.ScenarioEngine;
 import org.slf4j.Logger;
@@ -35,9 +37,11 @@ public class DecisionEngine {
 
     private static final Logger log = LoggerFactory.getLogger(DecisionEngine.class);
 
-    // Doit rester cohérent avec DefaultMarketScenario.EXPIRATION_IDLE (2h) : durée max
-    // pour qu'un scénario soit considéré "actif" lors de l'arbitrage inter-scopes ci-dessous.
-    private static final Duration MAX_SCENARIO_AGE = Duration.ofHours(2);
+    // Mutualisé (Palier 3, étape 4, retour Clem du 2026-08-13) : référence directe à
+    // DefaultMarketScenario.EXPIRATION_IDLE au lieu d'une copie locale — évite le bug silencieux
+    // "modifié à un endroit, pas à l'autre". Durée max pour qu'un scénario soit considéré "actif"
+    // lors de l'arbitrage inter-scopes ci-dessous.
+    private static final Duration MAX_SCENARIO_AGE = DefaultMarketScenario.EXPIRATION_IDLE;
 
     private final DomainClock clock;
     //private final Set<String> symbols;
@@ -86,7 +90,8 @@ public class DecisionEngine {
                 DecisionEventType.DECISION_CREATED,
                 new DecisionCreatedCause(
                         decision.getId(),
-                        "On Scenario Event"
+                        "On Scenario Event",
+                        decision.getSteps()
                 ),
                 clock.now()
         ));
@@ -100,6 +105,30 @@ public class DecisionEngine {
      */
     public Optional<Decision> getActiveDecision(String decisionId) {
         return Optional.ofNullable(activeDecisions.get(decisionId));
+    }
+
+    /**
+     * Toutes les Decision actives, tous owners confondus (photo quotidienne, étape 4 Palier 3).
+     * "Actif" = statut CREATED, seul statut non-terminal réellement atteint aujourd'hui (EXECUTED/
+     * ABORTED sont terminaux ; OBSERVING/CLOSED/EXPIRED existent dans DecisionStatus mais ne sont
+     * produits par aucun chemin de code actuel — à revisiter si ça change).
+     */
+    public List<Decision> getAllActiveDecisions() {
+        return activeDecisions.values().stream()
+                .filter(d -> d.getStatus() == DecisionStatus.CREATED)
+                .toList();
+    }
+
+    /**
+     * Restauration au (re)démarrage (Palier 3, étape 4) : réinjecte des décisions déjà reconstruites
+     * (photo + rejeu séquentiel via {@link Decision#apply}, cf. {@code DecisionScenarioRestoreRunner})
+     * directement dans {@link #activeDecisions}. Clé de la map = {@code
+     * decision.getSnapshot().decisionId()}, PAS {@code decision.getId()} — même convention que {@link
+     * #onScenarioEvent}, à ne pas confondre (cf. décision actée en tête du prompt d'implémentation de
+     * cette étape).
+     */
+    public void restoreDecisions(List<Decision> decisions) {
+        decisions.forEach(d -> activeDecisions.put(d.getSnapshot().decisionId(), d));
     }
 
     /**
@@ -145,8 +174,7 @@ public class DecisionEngine {
 
         return new Decision(
                 snapshot,
-                List.of(step),
-                eventBus
+                List.of(step)
         );
     }
 

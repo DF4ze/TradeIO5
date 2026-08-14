@@ -12,15 +12,18 @@ import fr.ses10doigts.tradeIO5.model.enumerate.tree.decision.ExecutionAction;
 import fr.ses10doigts.tradeIO5.model.dto.event.decision.ActionStepExecutedCause;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
-import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DecisionTest {
 
@@ -53,10 +56,8 @@ class DecisionTest {
             Instant.now()
     );
 
-    EventBus eventBus = new EventBus();
-
-    Decision decision2 = new Decision(snapshot, steps2, eventBus);
-    Decision decision3 = new Decision(snapshot, steps3, eventBus);
+    Decision decision2 = new Decision(snapshot, steps2);
+    Decision decision3 = new Decision(snapshot, steps3);
 
 
 
@@ -120,5 +121,62 @@ class DecisionTest {
         System.out.println(decision3.getStatus()); // EXECUTED
         assertEquals(DecisionStatus.EXECUTED, decision3.getStatus());
 
+    }
+
+    /**
+     * Palier 3, étape 4 (point 6 du prompt d'implémentation) : régression du bug où
+     * {@code generateDecisionId()} était appelé en tout premier dans le constructeur, avant que
+     * {@code type}/{@code createdAt} soient assignés — l'id produit était toujours de la forme
+     * {@code "null-null-<8 chars>"}. Écrit pour prouver que l'id contient désormais bien le type et
+     * la date de {@link DecisionSnapshot#createdAt()}.
+     */
+    @Test
+    void constructor_generatesIdWithTypeAndCreatedAt_notNullPlaceholders() {
+        Instant createdAt = Instant.parse("2026-08-13T10:00:00Z");
+        DecisionSnapshot snapshotWithKnownDate = new DecisionSnapshot(
+                UUID.randomUUID().toString(),
+                "BTC/EUR",
+                owner1,
+                DecisionType.ENTER,
+                createdAt
+        );
+
+        Decision decision = new Decision(snapshotWithKnownDate, steps2);
+
+        assertFalse(decision.getId().contains("null"));
+        assertTrue(decision.getId().startsWith("ENTER-" + createdAt));
+    }
+
+    /**
+     * Palier 3, étape 4 : constructeur de reconstruction — l'id fourni n'est jamais régénéré, et
+     * l'état restauré (status, executedStepIds) reste cohérent pour un apply(...) ultérieur.
+     */
+    @Test
+    void reconstructionConstructor_preservesProvidedId_andRestoredState() {
+        String providedId = "ENTER-2026-08-13T10:00:00Z-abcdef12";
+        Instant lastUpdatedAt = Instant.parse("2026-08-13T11:00:00Z");
+
+        Decision reconstructed = new Decision(
+                providedId,
+                snapshot,
+                steps3,
+                DecisionStatus.EXECUTED,
+                new HashSet<>(Set.of(step1.stepId(), step3.stepId())),
+                lastUpdatedAt
+        );
+
+        assertEquals(providedId, reconstructed.getId(), "L'id fourni ne doit jamais être régénéré");
+        assertEquals(DecisionStatus.EXECUTED, reconstructed.getStatus());
+
+        // step2 (NO_OP) n'a jamais besoin d'être marqué exécuté (filtré par isAllActionStepsExecuted).
+        // Un second ACTION_STEP_EXECUTED redondant sur step1 doit laisser l'état cohérent : toujours
+        // EXECUTED, pas de régression vers CREATED.
+        reconstructed.apply(new DecisionEvent(
+                reconstructed,
+                DecisionEventType.ACTION_STEP_EXECUTED,
+                new ActionStepExecutedCause(step1.stepId(), step1.executionAction(), step1.quantity()),
+                lastUpdatedAt
+        ));
+        assertEquals(DecisionStatus.EXECUTED, reconstructed.getStatus());
     }
 }

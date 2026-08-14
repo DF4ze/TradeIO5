@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.controller;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -127,6 +128,11 @@ public class AuthController {
 
 	    UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
+	    userRepository.findById(userDetails.getId()).ifPresent(u -> {
+		u.setLastLogin(Instant.now());
+		userRepository.save(u);
+	    });
+
 	    Cookie jwtCookie = jwtUtils.generateJwtCookie(userDetails);
 
 	    response.addCookie(jwtCookie);
@@ -141,8 +147,7 @@ public class AuthController {
 	    return mav;
 	}
 
-	ModelAndView mav = new ModelAndView("redirect:/");
-	return mav;
+	return new ModelAndView("redirect:/");
     }
 
     //    @PostMapping("/signup")
@@ -245,7 +250,7 @@ public class AuthController {
 	// Create new user's account
 	Set<Role> roles = signUpRequest.getRoles();
 	User user = new User(null, signUpRequest.getUsername(), signUpRequest.getEmail(),
-			encoder.encode(signUpRequest.getPassword()), roles, true);
+			encoder.encode(signUpRequest.getPassword()), roles, true, null); // lastLogin = null à l'inscription
 
 	userRepository.save(user);
 
@@ -269,9 +274,8 @@ public class AuthController {
     public ModelAndView logoutUserForm(HttpServletResponse response) {
 	response.addCookie(jwtUtils.getCleanJwtCookie());
 
-	ModelAndView mav = new ModelAndView("redirect:/");
 	// mav.addObject("loggued", false);
-	return mav;
+	return new ModelAndView("redirect:/");
 
 	//	ResponseCookie cookie = jwtUtils.getCleanJwtCookie();
 	//	return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, cookie.toString())
@@ -293,7 +297,7 @@ public class AuthController {
 
 	}
 
-	ModelAndView mav = null;
+	ModelAndView mav;
 	String requestURL = req.getRequestURL().toString();
 	if (requestURL.contains("signupForm")) {
 	    mav = new ModelAndView("redirect:/register");

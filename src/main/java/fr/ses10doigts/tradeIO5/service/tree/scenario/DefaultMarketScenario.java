@@ -41,7 +41,18 @@ public class DefaultMarketScenario implements MarketScenario {
     private static final double NEUTRAL_DELTA = -0.1;      // voisin / léger changement
 
     private static final double INVALID_THRESHOLD = 0.0;   // confiance minimale
-    private static final Duration EXPIRATION_IDLE = Duration.ofHours(2); // durée max sans update // TODO Parametrize
+
+    /**
+     * Durée max sans update avant qu'un scénario soit considéré expiré/inactif. // TODO Parametrize
+     * <p>
+     * Rendu {@code public} (Palier 3, étape 4, suite au retour de Clem du 2026-08-13) : c'était
+     * auparavant dupliqué en dur dans {@link fr.ses10doigts.tradeIO5.service.tree.decision.DecisionEngine}
+     * et {@link fr.ses10doigts.tradeIO5.service.tree.decision.DecisionScenarioSnapshotService} (3
+     * copies de "2h" au total, dont 2 sans lien de compilation entre elles) — risque explicite de bug
+     * silencieux si une seule copie était modifiée un jour. Cette constante est désormais l'unique
+     * source de vérité ; les deux autres classes la référencent au lieu de la redéfinir.
+     */
+    public static final Duration EXPIRATION_IDLE = Duration.ofHours(2);
 
     /**
      * ⚠️ PLACEHOLDER (Palier 1, 2026-08) : cette valeur n'a AUCUNE signification métier. Elle
@@ -57,7 +68,7 @@ public class DefaultMarketScenario implements MarketScenario {
     private static final BigDecimal PLACEHOLDER_QUANTITY = BigDecimal.ONE;
 
     private final ScenarioOwner owner;
-    private final Optional<String> symbol;
+    private final String symbol; // nullable (scénario global) ; exposé en Optional<String> via getSymbol(), pas en champ
     private final OpinionScope scope;
     private final String id;
     private ScenarioState state;
@@ -68,14 +79,29 @@ public class DefaultMarketScenario implements MarketScenario {
             EventBus eventBus
     ) {
         this.owner = definition.owner();
-        this.symbol = definition.symbol();
+        this.symbol = definition.symbol().orElse(null);
         this.scope = definition.scope();
         this.state = new ScenarioState(definition.type(), definition.createdAt());
         this.id = generateScenarioId();
         this.eventBus = eventBus;
     }
 
-
+    /**
+     * Reconstruction depuis un état déjà persisté (Palier 3, étape 3 — préparation de l'étape 4).
+     * Contrairement au constructeur principal, ne génère ni nouvel {@code id} ni nouvel état initial :
+     * réinjecte tels quels ceux fournis, pour que l'objet reconstruit conserve son identité d'origine
+     * ({@code loadByTargetId}, déduplication {@code proposedScenarioIds}) et son historique de dates.
+     * N'appelle PAS {@link #DefaultMarketScenario(ScenarioDefinition, EventBus)} : ce dernier générerait
+     * un nouvel id et un nouvel état, exactement ce qu'on veut éviter ici.
+     */
+    public DefaultMarketScenario(String id, ScenarioState state, ScenarioDefinition definition, EventBus eventBus) {
+        this.id = id;
+        this.state = state;
+        this.owner = definition.owner();
+        this.symbol = definition.symbol().orElse(null);
+        this.scope = definition.scope();
+        this.eventBus = eventBus;
+    }
 
 
     @Override
@@ -144,7 +170,7 @@ public class DefaultMarketScenario implements MarketScenario {
     @Override
     public Optional<ActionIntent> proposeIntent(Instant now) {
 
-        if( symbol.isEmpty() ){
+        if( symbol == null ){
             logger.debug("Global scenario : no ActionIntent");
             return Optional.empty();
         }
@@ -179,7 +205,7 @@ public class DefaultMarketScenario implements MarketScenario {
         return Optional.of(
                 new ActionIntent(
                         action,
-                        symbol.get(),
+                        symbol,
                         PLACEHOLDER_QUANTITY, // Placeholder volontaire, pas une vraie quantité calculée (cf. constante ci-dessus)
                         state.getConfidence(),
                         id,
@@ -260,7 +286,7 @@ public class DefaultMarketScenario implements MarketScenario {
             ));
 
         }else {
-            double delta = 0;
+            double delta;
             if (state.getSignal() == opinion.weightedSignal()) {
                 logger.debug("Mutation ++");
                 delta = REINFORCE_DELTA;
@@ -272,7 +298,7 @@ public class DefaultMarketScenario implements MarketScenario {
                 delta = NEUTRAL_DELTA;
             }
 
-            state.setConfidence(Math.min(1, Math.max(0, state.getConfidence() + delta)));
+            state.setConfidence(Math.clamp(state.getConfidence() + delta, 0, 1));
             state.setSignal(adjustSignal(
                     state.getSignal(), state.getConfidence(),
                     opinion.weightedSignal(), opinion.confidence()
@@ -406,7 +432,7 @@ public class DefaultMarketScenario implements MarketScenario {
 
     @Override
     public Optional<String> getSymbol(){
-        return symbol;
+        return Optional.ofNullable(symbol);
     }
 
     @Override

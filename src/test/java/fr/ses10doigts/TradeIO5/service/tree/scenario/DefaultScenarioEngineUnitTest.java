@@ -149,6 +149,16 @@ class DefaultScenarioEngineUnitTest {
                         e.getScenarioEventType() == ScenarioEventType.SCENARIO_CREATED
                 )
         );
+
+        // Palier 3, étape 3 : le ScenarioEvent doit porter le scope du scénario d'origine (ici
+        // OpinionScope.LOCAL, porté par `mor` dans setUp()).
+        ScenarioEvent createdEvent = events.stream()
+                .filter(e -> e instanceof ScenarioEvent)
+                .map(e -> (ScenarioEvent) e)
+                .filter(e -> e.getScenarioEventType() == ScenarioEventType.SCENARIO_CREATED)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(OpinionScope.LOCAL, createdEvent.getScope());
     }
 
     @Test
@@ -245,6 +255,41 @@ class DefaultScenarioEngineUnitTest {
                                 || e.getScenarioEventType() == ScenarioEventType.SCENARIO_INVALIDATED
                 )
         );
+    }
+
+    // ---------- Palier 3, étape 3 : ScenarioEvent porte le scope ----------
+
+    @Test
+    @DisplayName("ScenarioEvent publié depuis un scénario EXTERNAL porte bien OpinionScope.EXTERNAL (pas figé sur LOCAL)")
+    void scenarioEvent_carriesExternalScope() {
+        ScenarioDefinition externalDef = new ScenarioDefinition(
+                ScenarioType.TREND_UP,
+                owner,
+                Optional.of("BTC"),
+                OpinionScope.EXTERNAL,
+                clock.now()
+        );
+        MarketScenario externalScenario = new DefaultMarketScenario(externalDef, eventBus);
+
+        ScenarioKey key = new ScenarioKey(owner, ScenarioType.TREND_UP, Optional.of("BTC"), OpinionScope.EXTERNAL);
+        engine.scenarios.put(key, externalScenario);
+
+        // cleanup(...) est la façon la plus simple de déclencher isolément la publication d'un
+        // ScenarioEvent (même patron que shouldCleanupInactiveScenarioAndEmitEvent) : le scénario
+        // vient d'être créé sur l'horloge fixée à 2024-01-01, donc largement expiré face à
+        // Instant.now() réel.
+        engine.cleanup(Duration.ofDays(1), Instant.now());
+
+        List<PersistableEvent> events = eventStore.loadByTargetId(externalScenario.getId());
+        assertFalse(events.isEmpty());
+
+        ScenarioEvent scopedEvent = events.stream()
+                .filter(e -> e instanceof ScenarioEvent)
+                .map(e -> (ScenarioEvent) e)
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(OpinionScope.EXTERNAL, scopedEvent.getScope());
     }
 
     // ---------- Dédup des ActionIntent (étape 2, palier 1) ----------

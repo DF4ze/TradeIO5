@@ -525,3 +525,60 @@ postposée comme l'était le scheduler jusqu'ici.
 
 **Les points 1 à 6 ci-dessus lèvent l'essentiel des questions fermées du §D — le prompt
 d'implémentation Palier 3 peut être rédigé sur cette base.**
+
+---
+
+## F. Dette technique découverte à l'étape 4 (2026-08-13), non corrigée
+
+Deux points, tracés ici pour mémoire mais **volontairement laissés tels quels** (décision explicite
+de Clem le 2026-08-13 : "on laisse comme ça pour l'instant"). À reprendre si un futur besoin en
+dépend directement — ne pas corriger "en passant" à l'occasion d'un autre lot sans en reparler.
+
+### F.1 — La table `events` fonctionne en upsert, pas en append-only
+
+`ScenarioEvent.id`/`DecisionEvent.id` sont calculés comme `"[Xxx]"+targetId` — une fonction du
+**seul id de l'objet ciblé** (`scenarioId`/`decisionId`), identique pour tous les événements
+successifs d'un même scénario ou d'une même décision. `EventEntity.id` (la clé primaire JPA de la
+table `events`) reçoit directement cette valeur (`JpaEventStore.append()` :
+`entity.setId(event.getId()); repository.save(entity)`), et `save()` sur une clé déjà existante
+déclenche un `UPDATE`, pas un `INSERT`.
+
+**Conséquence concrète** : pour un scénario/une décision qui change plusieurs fois d'état (ex.
+`EMERGING → CONFIRMED → CLOSED`, 3 `ScenarioEvent` publiés sur le bus), seule la **dernière** ligne
+survit dans `events` — les événements intermédiaires sont réellement écrasés en base, pas juste
+"non lus". Le nom "event store" suggère un append-only classique (event sourcing) ; ce n'est pas le
+cas aujourd'hui.
+
+**Pourquoi ça n'a rien cassé jusqu'ici** : tout ce qui lit `events` aujourd'hui (photo/rejeu de
+l'étape 4) ne s'intéresse qu'au **dernier état connu** par cible, qui reste correct malgré
+l'écrasement. Le problème n'apparaîtrait que si un futur besoin exigeait l'historique complet des
+transitions intermédiaires (audit fin, rejeu pas-à-pas, debug d'une séquence d'événements) —
+actuellement, ce besoin n'existe pas.
+
+**Si un jour ça doit être corrigé** : l'id de chaque `PersistableEvent` devrait devenir unique par
+occurrence (ex. `targetId + "-" + timestamp` en cas de collision, ou `UUID.randomUUID()`), pas juste
+par cible. Impact à évaluer avant de s'y engager : les lignes déjà persistées utilisent l'ancien
+schéma d'id, une migration ou une période de cohabitation des deux formats serait probablement
+nécessaire.
+
+### F.2 — `DecisionSnapshot.decisionId()` est irrécupérable pour une décision jamais photographiée
+
+Deux identifiants distincts existent pour une même `Decision` : `Decision.id` (porté par chaque
+`DecisionEvent.decisionId`, donc toujours récupérable depuis le log d'événements) et
+`DecisionSnapshot.decisionId()` (un second UUID, purement interne — utilisé comme clé de
+`DecisionEngine.activeDecisions` — jamais transporté par aucun `DecisionEvent`). Si une décision
+n'a jamais été photographiée avant un redémarrage, cette seconde valeur n'a été écrite nulle part
+de récupérable : ni régénération déterministe ni heuristique ne peut retrouver la valeur d'origine,
+elle n'a simplement jamais quitté la mémoire du processus précédent.
+
+Confirmé sans impact aujourd'hui : cette valeur n'est lue nulle part ailleurs que comme clé
+d'insertion dans `activeDecisions` — `DecisionEngine.getActiveDecision(String)` (le seul point qui
+la consulterait) n'a aucun appelant actuel dans le code. `DecisionScenarioRestoreRunner` régénère
+donc une valeur de remplacement — rendue déterministe (dérivée de `Decision.id` via
+`UUID.nameUUIDFromBytes`, cf. javadoc de `decisionFromEvents`) pour rester stable entre
+redémarrages successifs sans photo intermédiaire, plutôt qu'aléatoire à chaque fois — mais ce n'est
+qu'un correctif de stabilité, pas une récupération de la vraie valeur d'origine.
+
+**Si un jour ça doit être corrigé** : porter `DecisionSnapshot.decisionId()` sur `DecisionEvent`
+(nouveau champ) rendrait cette valeur réellement récupérable pour toute décision, photographiée ou
+non — seule façon de fermer ce point pour de bon plutôt que de le contourner.

@@ -2,7 +2,10 @@ package fr.ses10doigts.tradeIO5.service.tree.decision;
 
 import fr.ses10doigts.tradeIO5.model.dto.event.DecisionEvent;
 import fr.ses10doigts.tradeIO5.model.dto.event.ScenarioEvent;
+import fr.ses10doigts.tradeIO5.model.dto.event.decision.ActionStepExecutedCause;
+import fr.ses10doigts.tradeIO5.model.dto.event.decision.DecisionCreatedCause;
 import fr.ses10doigts.tradeIO5.model.dto.event.scenario.IntentCause;
+import fr.ses10doigts.tradeIO5.model.dto.tree.decision.ActionStep;
 import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionCandidate;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ActionIntent;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioOwner;
@@ -10,6 +13,7 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioState;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.MarketIntentAction;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioEventType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.decision.DecisionEventType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.decision.DecisionType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.decision.ExecutionAction;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
@@ -31,6 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -124,6 +129,22 @@ class DecisionEngineTest {
 
         assertNotNull(captured.get());
         assertEquals(DecisionType.ENTER, captured.get().getDecisionType());
+
+        // Palier 3, étape 3 : la DecisionCreatedCause doit porter les ActionStep réels de la Decision
+        // créée (pas juste "non vide") — couvre le risque d'un mauvais mapping. NB : on vérifie le
+        // contenu du (seul) step attendu plutôt que de rejouer engine.createDecision(...)/passer par
+        // DecisionEngine.getActiveDecision(...) : Decision.getId() est actuellement construit à partir
+        // de champs pas encore assignés à cet instant (bug préexistant, hors scope de ce lot — Decision
+        // n'a pas encore de vraie identité stable), donc décisionId ne peut pas servir de clé fiable ici.
+        DecisionCreatedCause cause = (DecisionCreatedCause) captured.get().getCause();
+        List<ActionStep> actualSteps = cause.actionSteps();
+
+        assertEquals(1, actualSteps.size());
+        ActionStep step = actualSteps.getFirst();
+        assertNotNull(step.stepId());
+        assertEquals(ExecutionAction.BUY, step.executionAction());
+        assertEquals(0, BigDecimal.ONE.compareTo(step.quantity()));
+        assertNull(step.walletId());
     }
 
     // ---------- Palier 3, étape 2 : moteur unique partagé (option B3) ----------
@@ -176,5 +197,67 @@ class DecisionEngineTest {
         assertEquals(2, captured.size());
         assertEquals(owner1, captured.get(0).getOwner());
         assertEquals(ownerB, captured.get(1).getOwner());
+    }
+
+    // ---------- Palier 3, étape 4 : getAllActiveDecisions ----------
+
+    @Test
+    @DisplayName("getAllActiveDecisions ne renvoie que les décisions CREATED, tous owners confondus")
+    void getAllActiveDecisions_returnsOnlyCreatedStatus_acrossAllOwners() {
+        EventBus eventBus = new EventBus();
+        ScenarioOwner ownerB = ScenarioOwner.user("user2");
+
+        ScenarioEngine scenarioEngine = mock(ScenarioEngine.class);
+        when(scenarioEngine.getActiveScenarios(any(), any(), any())).thenReturn(List.of());
+
+        DecisionEngine engine = new DecisionEngine(clock, eventBus, scenarioEngine);
+
+        ActionIntent intentA = new ActionIntent(
+                MarketIntentAction.BUY, "BTC/EUR", BigDecimal.ONE, 0.95, "scenario-A", "reason", clock.now());
+        ActionIntent intentB = new ActionIntent(
+                MarketIntentAction.BUY, "ETH/EUR", BigDecimal.ONE, 0.95, "scenario-B", "reason", clock.now());
+
+        MarketScenario scenarioA = mock(MarketScenario.class);
+        when(scenarioA.getId()).thenReturn("scenario-A");
+        when(scenarioA.getType()).thenReturn(ScenarioType.TREND_UP);
+        when(scenarioA.getOwner()).thenReturn(owner1);
+        when(scenarioA.getSymbol()).thenReturn(Optional.of("BTC/EUR"));
+        ScenarioState stateA = new ScenarioState(ScenarioType.TREND_UP, clock.now());
+        when(scenarioA.getState()).thenReturn(stateA);
+
+        MarketScenario scenarioB = mock(MarketScenario.class);
+        when(scenarioB.getId()).thenReturn("scenario-B");
+        when(scenarioB.getType()).thenReturn(ScenarioType.TREND_UP);
+        when(scenarioB.getOwner()).thenReturn(ownerB);
+        when(scenarioB.getSymbol()).thenReturn(Optional.of("ETH/EUR"));
+        ScenarioState stateB = new ScenarioState(ScenarioType.TREND_UP, clock.now());
+        when(scenarioB.getState()).thenReturn(stateB);
+
+        eventBus.publish(new ScenarioEvent(
+                scenarioA, ScenarioEventType.ACTION_PROPOSED,
+                new IntentCause("scenario-A", intentA, "reason"), stateA, clock.now()));
+        eventBus.publish(new ScenarioEvent(
+                scenarioB, ScenarioEventType.ACTION_PROPOSED,
+                new IntentCause("scenario-B", intentB, "reason"), stateB, clock.now()));
+
+        List<Decision> beforeTransition = engine.getAllActiveDecisions();
+        assertEquals(2, beforeTransition.size(), "Les deux décisions viennent d'être créées (status CREATED)");
+
+        // Fait passer la décision de ownerB en EXECUTED en rejouant son unique ActionStep.
+        Decision decisionB = beforeTransition.stream()
+                .filter(d -> d.getOwner().equals(ownerB))
+                .findFirst()
+                .orElseThrow();
+        ActionStep stepB = decisionB.getSteps().getFirst();
+        decisionB.apply(new DecisionEvent(
+                decisionB,
+                DecisionEventType.ACTION_STEP_EXECUTED,
+                new ActionStepExecutedCause(stepB.stepId(), stepB.executionAction(), stepB.quantity()),
+                clock.now()
+        ));
+
+        List<Decision> afterTransition = engine.getAllActiveDecisions();
+        assertEquals(1, afterTransition.size(), "Seule la décision restée CREATED (ownerA) doit être renvoyée");
+        assertEquals(owner1, afterTransition.getFirst().getOwner());
     }
 }

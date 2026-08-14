@@ -1,10 +1,36 @@
 package fr.ses10doigts.tradeIO5.model.dto.tree.scenario;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+
 import java.util.Optional;
 
+/**
+ * Palier 3, étape 4 (correctif découvert en préparant cette étape, hors périmètre initial du
+ * prompt mais bloquant pour lui) : {@code @JsonTypeInfo}/{@code @JsonSubTypes} ajoutés ici — sans
+ * eux, Jackson ne peut pas désérialiser un champ typé {@code ScenarioOwner} (interface scellée,
+ * aucune info de type dans le JSON par défaut), ce qui cassait silencieusement (catch+log, jamais
+ * remonté) TOUTE désérialisation de {@code ScenarioEvent}/{@code DecisionEvent} via {@code
+ * JpaEventStore.toDomain()} — pas seulement le cas DECISION ajouté par ce lot. Découvert en écrivant
+ * {@code JpaEventStoreTest} (régression demandée par le prompt), signalé en détail dans le rapport
+ * final.
+ */
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "@type")
+@JsonSubTypes({
+        @JsonSubTypes.Type(value = ScenarioOwner.SystemOwner.class, name = "SYSTEM"),
+        @JsonSubTypes.Type(value = ScenarioOwner.UserOwner.class, name = "USER")
+})
 public sealed interface ScenarioOwner
         permits ScenarioOwner.SystemOwner, ScenarioOwner.UserOwner {
 
+    /**
+     * {@code @JsonIgnore} (Palier 3, étape 4, même correctif que le reste de cette classe) :
+     * sans lui, Jackson introspecte ce getter en plus des composants du record (ex. {@code userId}
+     * pour {@link UserOwner}) et sérialise une propriété {@code "id"} en trop, que la
+     * désérialisation par constructeur canonique rejette ensuite ("Unrecognized field").
+     */
+    @JsonIgnore
     String getId();
 
     static ScenarioOwner fromString( String userId ){
@@ -38,11 +64,7 @@ public sealed interface ScenarioOwner
         public String getId() {
             return "SYSTEM";
         }
-
-        @Override
-        public Optional<Long> asUserId() {
-            return Optional.empty();
-        }
+        // asUserId() : pas d'override, la valeur par défaut de l'interface (Optional.empty()) convient déjà.
     }
     record UserOwner(String userId) implements ScenarioOwner {
         @Override

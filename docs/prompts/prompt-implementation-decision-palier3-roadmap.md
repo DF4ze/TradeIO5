@@ -23,6 +23,34 @@ rejeu. Le nouveau champ `ScenarioEvent.scope` introduit par l'étape 3 est nulla
 lignes déjà persistées dans `scenario_events` — cette compatibilité historique reste également à
 traiter, si besoin, à l'étape 4.
 
+**Note de suivi (2026-08-13, suite)**, décisions prises avec Clem avant rédaction du prompt de
+l'étape 4 (`docs/prompts/prompt-implementation-decision-palier3-etape4.md`) :
+- Deux tables de snapshot dédiées (`scenario_snapshots`, `decision_snapshots`), pas de table générique.
+- Nouvelles méthodes "toutes les données actives, tous owners" sur `ScenarioEngine`/`DecisionEngine`
+  (choix de méthode laissé à l'appréciation de l'implémenteur par Clem).
+- Job de photo quotidienne désactivé par défaut + endpoint REST admin pour déclenchement manuel (patron
+  `EtfFlowAdminController`) — pas d'activation automatique en prod dans ce lot.
+- Rejeu delta au redémarrage : couvre mutations **et** créations d'entités apparues après la dernière
+  photo (requête globale par date, pas ciblée par `targetId` connu).
+- **Découverte en préparant ce prompt** : `Decision.id` (utilisé comme `targetId` des `DecisionEvent`
+  persistés) et `DecisionSnapshot.decisionId()` sont deux identifiants distincts — une reconstruction
+  de `Decision` doit préserver `Decision.id`, pas seulement `snapshot.decisionId()`. Un constructeur de
+  reconstruction est ajouté à `Decision` (même patron que `DefaultMarketScenario`, étape 3).
+- **Bug préexistant découvert au même moment, sans rapport avec la persistance** :
+  `Decision.generateDecisionId()` est appelé avant que `type`/`createdAt` soient assignés dans le
+  constructeur existant, produisant systématiquement un id `"null-null-<8 chars>"` en prod — corrigé
+  dans l'étape 4 (réordonnancement des assignations), les id déjà persistés ne sont pas rétroactivement
+  corrigés.
+
+**Note de suivi (2026-08-13, suite)**, décisions prises avec Clem avant rédaction du prompt de
+l'étape 5 (`docs/prompts/prompt-implementation-decision-palier3-etape5.md`) : double hook pour le champ
+`User.lastLogin` — `AuthController.authenticateUserForm` (login explicite) **et** `AuthTokenFilter`
+(chaque requête authentifiée revalidant le cookie JWT, throttlé à 15 min par défaut pour éviter une
+écriture en base à chaque requête). Un seul hook (login explicite seulement) aurait sous-estimé
+l'activité réelle, un utilisateur pouvant rester connecté des jours via cookie sans repasser par
+`signinForm`. Aucune logique d'exploitation du signal (requête "inactif depuis X", archivage) n'est
+ajoutée dans ce lot — réservée à l'étape 6.
+
 ## Périmètre de ce palier
 
 Rattachement du moteur de décision à l'application qui tourne, orchestration multi-utilisateur
@@ -37,9 +65,9 @@ Ce palier prépare le terrain pour eux, ne les construit pas.
 |---|---|---|---|---|
 | 1 | Branchement — moteur unique partagé (option B3) | ✅ Fait (2026-08-12) | — | `etude-branchement-persistance-decision-engine.md` §B, option B3 + §E pt 1 |
 | 2 | Compléments au branchement — alignement fin sur le partage owner-en-paramètre | ⬜ À faire | 1 | `etude-branchement-persistance-decision-engine.md` §B, option B3, addendum 2026-08-12 |
-| 3 | Extensions de modèle pour la persistance | ⬜ À faire | 1 (recommandé, pas strictement bloquant) | `etude-branchement-persistance-decision-engine.md` §C ("Ce qui a été vérifié en creusant") + §E pt 4 |
-| 4 | Persistance — photo quotidienne + rejeu delta + restauration + fix `JpaEventStore.toDomain()` (switch cas `DECISION`, reporté depuis l'étape 3 le 2026-08-13) | ⬜ À faire, bloqué par 1 et 3 | 1, 3 | `etude-branchement-persistance-decision-engine.md` §C (C1/C2/C4) + §E pt 3 |
-| 5 | Détection de connexion utilisateur | ⬜ À faire | — (indépendant, peut démarrer n'importe quand) | `etude-branchement-persistance-decision-engine.md` §E pt 5 (mention) |
+| 3 | Extensions de modèle pour la persistance | ✅ Fait (2026-08-13) | 1 (recommandé, pas strictement bloquant) | `etude-branchement-persistance-decision-engine.md` §C ("Ce qui a été vérifié en creusant") + §E pt 4 |
+| 4 | Persistance — photo quotidienne + rejeu delta + restauration + fix `JpaEventStore.toDomain()` (switch cas `DECISION`, reporté depuis l'étape 3 le 2026-08-13) | ✅ Fait (2026-08-13) | 1, 3 | `etude-branchement-persistance-decision-engine.md` §C (C1/C2/C4) + §E pt 3 |
+| 5 | Détection de connexion utilisateur | ✅ Fait (2026-08-13) | — (indépendant, peut démarrer n'importe quand) | `etude-branchement-persistance-decision-engine.md` §E pt 5 (mention) |
 | 6 | Archivage sur inactivité prolongée | ⬜ À faire, bloqué par 4 et 5 | 4, 5 | `etude-branchement-persistance-decision-engine.md` §E pt 5 |
 | 7 | Orchestrateur — calcul Opinion + propagation User×Wallet×Asset + verrou anti-doublon | ⬜ À faire, bloqué par 1 et 2 ; s'appuie sur 4 et 5 | 1, 2 (dur — appelle directement la méthode que l'étape 2 introduit), 4 et 5 (recommandé) | `etude-branchement-persistance-decision-engine.md` §E pt 6 + point d'avancement 2026-08-10 §6.2 pt 7 (addendum) |
 | 8 | Calendrier macro dans le cycle de l'orchestrateur (optionnel, en fin de palier) | ⬜ À faire, bloqué par 7 | 7 | point d'avancement 2026-08-10 §3 et §6.2 pt 6 (addendum) |
@@ -83,8 +111,8 @@ juste avant de lancer l'étape concernée :
 - **Étape 2** : faut-il conserver la publication d'un `OpinionEvent` sur le bus uniquement à des fins
   d'audit/persistance (sans rôle de déclenchement), ou l'abandonner entièrement puisque plus personne
   ne l'écoute pour agir ?
-- **Étape 4** : granularité exacte de la table de snapshot (une table par type `Scenario`/`Decision`,
-  ou une table générique comme `EventEntity` avec un `type` ? à trancher au moment d'écrire le prompt).
+- **Étape 4** : ✅ tranché le 2026-08-13 (cf. note de suivi ci-dessus) — deux tables dédiées, rejeu
+  delta mutations+créations, cron désactivé par défaut + endpoint admin.
 - **Étape 6** : valeur exacte du délai d'archivage (2 mois proposé par Clem comme point de départ).
 - **Étape 7** : (a) l'itération se fait-elle sur les 3 actifs fixes du périmètre DCA (BTC/ETH/PAXG)
   pour tout utilisateur actif, ou sur une liste dérivée autrement ? Le tour d'horizon du 2026-08-12 a

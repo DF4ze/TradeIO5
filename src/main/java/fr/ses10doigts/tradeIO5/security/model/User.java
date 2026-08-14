@@ -1,4 +1,5 @@
 package fr.ses10doigts.tradeIO5.security.model;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -54,4 +55,12 @@ public class User {
     private Set<Role> roles = new HashSet<>();
 
 	private boolean enabled;
+
+    /**
+     * Dernière connexion détectée (Palier 3, étape 5) — mise à jour à la fois au login explicite
+     * (AuthController#authenticateUserForm) et, avec throttle, à chaque requête authentifiée revalidée
+     * par AuthTokenFilter. Nullable : un utilisateur jamais connecté depuis l'ajout de ce champ (ou
+     * créé avant) a cette valeur à null, pas une date arbitraire.
+     */
+    private Instant lastLogin;
 }

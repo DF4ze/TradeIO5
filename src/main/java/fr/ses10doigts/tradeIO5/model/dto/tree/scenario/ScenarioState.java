@@ -1,5 +1,7 @@
 package fr.ses10doigts.tradeIO5.model.dto.tree.scenario;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioStatus;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
@@ -9,8 +11,14 @@ import lombok.Data;
 import java.time.Duration;
 import java.time.Instant;
 
+/**
+ * Palier 3, étape 4 : {@code onConstructor_ = @JsonCreator} ajouté sur le constructeur 7-arg généré
+ * par Lombok — sans lui, Jackson ne peut pas choisir entre les 3 constructeurs visibles ici (celui-ci
+ * plus les 2 constructeurs métier ci-dessous), aucun n'étant annoté ("no Creators ... exist"). Même
+ * découverte/correctif que {@code ScenarioOwner} (bug préexistant, pas introduit par ce lot).
+ */
 @Data
-@AllArgsConstructor
+@AllArgsConstructor(onConstructor_ = @JsonCreator)
 public class ScenarioState{
 
     private ScenarioType scenarioType;      // scenario: le scénario actif (TRENDING_UP, RANGE, CRASH, …)
@@ -62,6 +70,12 @@ public class ScenarioState{
         return false;
     }
 
+    /**
+     * {@code @JsonIgnore} (Palier 3, étape 4, même correctif que {@code ScenarioOwner.getId()}) :
+     * sans lui, Jackson sérialise une propriété {@code "active"} en trop (dérivée de cette méthode),
+     * que la désérialisation par constructeur canonique rejette ensuite ("Unrecognized field").
+     */
+    @JsonIgnore
     public boolean isActive(){
         return status.isActive();
     }

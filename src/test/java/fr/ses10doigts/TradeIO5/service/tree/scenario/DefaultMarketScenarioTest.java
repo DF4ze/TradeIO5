@@ -4,6 +4,7 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ActionIntent;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioDefinition;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioState;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.MarketIntentAction;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioStatus;
@@ -142,6 +143,51 @@ class DefaultMarketScenarioTest {
         scenario1.observe(opResult(SignalType.BULLISH, 0.5), context(clock, owner1));
 
         assertEquals(ScenarioStatus.EXPIRED, scenario1.getState().getStatus());
+    }
+
+    // ---------- Palier 3, étape 3 : constructeur de reconstruction ----------
+
+    @Test
+    @DisplayName("Le constructeur de reconstruction préserve l'id et le ScenarioState d'origine, sans réécrire les timestamps")
+    void reconstructionConstructor_preservesIdAndState() {
+        Instant createdAt = Instant.parse("2026-01-20T10:00:00Z");
+        Instant lastUpdated = Instant.parse("2026-01-25T15:30:00Z");
+
+        ScenarioState originalState = new ScenarioState(
+                ScenarioType.TREND_UP,
+                ScenarioStatus.VALIDATED,
+                SignalType.BULLISH,
+                0.87,
+                true,
+                lastUpdated,
+                createdAt
+        );
+
+        ScenarioDefinition definition = new ScenarioDefinition(
+                ScenarioType.TREND_UP,
+                owner1,
+                Optional.of("BTCUSD"),
+                OpinionScope.LOCAL,
+                createdAt
+        );
+
+        String knownId = "RECONSTRUCTED-ID-123";
+        EventBus eventBus = new EventBus();
+
+        DefaultMarketScenario reconstructed = new DefaultMarketScenario(knownId, originalState, definition, eventBus);
+
+        // id : celui fourni, pas un nouveau généré par generateScenarioId().
+        assertEquals(knownId, reconstructed.getId());
+
+        // state : @Data génère equals()/hashCode() sur les champs, comparaison directe valide.
+        assertEquals(originalState, reconstructed.getState());
+
+        // Ni createdAt ni lastUpdated ne doivent être réécrits à "maintenant" — couvre spécifiquement
+        // la différence avec le constructeur de copie ScenarioState(ScenarioState, Instant now).
+        assertEquals(createdAt, reconstructed.getState().getCreatedAt());
+        assertEquals(lastUpdated, reconstructed.getState().getLastUpdated());
+        assertNotEquals(clock.now(), reconstructed.getState().getCreatedAt());
+        assertNotEquals(clock.now(), reconstructed.getState().getLastUpdated());
     }
 
     @Test

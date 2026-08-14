@@ -1,6 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.tree.event.engine;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import fr.ses10doigts.tradeIO5.model.dto.event.DecisionEvent;
 import fr.ses10doigts.tradeIO5.model.dto.event.OpinionEvent;
 import fr.ses10doigts.tradeIO5.model.dto.event.ScenarioEvent;
 import fr.ses10doigts.tradeIO5.model.entity.tree.EventEntity;
@@ -76,7 +77,7 @@ public class JpaEventStore implements EventStore {
             return switch (entity.getType()) {
                 case SCENARIO -> objectMapper.readValue(entity.getPayload(), ScenarioEvent.class);
                 case OPINION -> objectMapper.readValue(entity.getPayload(), OpinionEvent.class);
-                default -> throw new IllegalArgumentException("Unknown event type: " + entity.getType());
+                case DECISION -> objectMapper.readValue(entity.getPayload(), DecisionEvent.class);
             };
         } catch (Exception e) {
             log.error("Failed to deserialize event {}: {}", entity.getId(), e.getMessage(), e);

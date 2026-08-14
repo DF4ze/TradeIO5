@@ -142,6 +142,13 @@ public class DefaultScenarioEngine implements ScenarioEngine {
     }
 
     @Override
+    public List<MarketScenario> getAllActiveScenarios(Duration maxAge, Instant now) {
+        return scenarios.values().stream()
+                .filter(s -> s.isActive(now, maxAge))
+                .toList();
+    }
+
+    @Override
     public List<ActionIntent> collectActionIntents(ScenarioOwner owner, Instant now) {
         List<ActionIntent> intents = new ArrayList<>();
 
@@ -216,6 +223,11 @@ public class DefaultScenarioEngine implements ScenarioEngine {
                         now
                 )
         ));
+    }
+
+    @Override
+    public void restoreScenarios(List<MarketScenario> scenarios) {
+        scenarios.forEach(s -> this.scenarios.put(keyOf(s), s));
     }
 
     // ---------- Symbols survey Set ----------

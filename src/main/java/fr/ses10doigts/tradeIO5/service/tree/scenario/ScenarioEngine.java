@@ -26,6 +26,14 @@ public interface ScenarioEngine {
     List<MarketScenario> getActiveScenarios(ScenarioOwner owner, Duration maxAge, Instant now);
 
     /**
+     * Tous les scénarios actifs, tous owners confondus (Palier 3, étape 4 — photo quotidienne).
+     * Symétrique à {@link #getActiveScenarios(ScenarioOwner, Duration, Instant)} mais sans filtre
+     * owner : le filtrage par owner est une opération de lecture, pas une propriété structurelle
+     * de la donnée (choix documenté dans le prompt d'implémentation de cette étape).
+     */
+    List<MarketScenario> getAllActiveScenarios(Duration maxAge, Instant now);
+
+    /**
      * Scénarios prêts à proposer une intention d’action
      */
     List<ActionIntent> collectActionIntents(ScenarioOwner owner, Instant now);
@@ -34,4 +42,12 @@ public interface ScenarioEngine {
      * Nettoyage explicite (expiration, purge)
      */
     void cleanup(Duration maxAge, Instant now);
+
+    /**
+     * Restauration au (re)démarrage (Palier 3, étape 4) : réinjecte des scénarios déjà reconstruits
+     * (photo + rejeu delta, cf. {@code DecisionScenarioRestoreRunner}) directement dans la map
+     * interne, sans passer par {@link #onMarketOpinion}. Écrase silencieusement toute entrée
+     * existante à la même clé (cas normal : appelé une seule fois au démarrage, avant tout trafic).
+     */
+    void restoreScenarios(List<MarketScenario> scenarios);
 }

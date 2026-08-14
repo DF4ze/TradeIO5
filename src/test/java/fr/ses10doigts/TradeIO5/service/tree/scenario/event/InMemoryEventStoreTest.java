@@ -2,6 +2,7 @@ package fr.ses10doigts.tradeIO5.service.tree.scenario.event;
 
 import fr.ses10doigts.tradeIO5.model.dto.event.ScenarioEvent;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioState;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioEventType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.scenario.ScenarioType;
 import fr.ses10doigts.tradeIO5.model.dto.event.PersistableEvent;
@@ -40,6 +41,7 @@ class InMemoryEventStoreTest {
                 ScenarioType.TREND_UP,
                 ScenarioOwner.user("user1"),
                 Optional.of("BTCUSD"),
+                OpinionScope.LOCAL,
                 ScenarioEventType.SCENARIO_CREATED,
                 new EngineCause(scenarioId, "EventTest", "Initial test cause"),
                 null,
@@ -51,7 +53,7 @@ class InMemoryEventStoreTest {
 
         List<PersistableEvent> events = eventStore.loadByTargetId(scenarioId);
         assertEquals(1, events.size(), "Un événement devrait être stocké");
-        assertEquals(event, events.get(0), "L'événement stocké doit être identique à celui ajouté");
+        assertEquals(event, events.getFirst(), "L'événement stocké doit être identique à celui ajouté");
     }
 
     @Test
@@ -64,6 +66,7 @@ class InMemoryEventStoreTest {
                 ScenarioType.TREND_UP,
                 ScenarioOwner.user("user1"),
                 Optional.empty(),
+                OpinionScope.LOCAL,
                 ScenarioEventType.SCENARIO_CREATED,
                 new EngineCause(scenarioId, "EventTest", "Initial test cause"),
                 null,
@@ -76,6 +79,7 @@ class InMemoryEventStoreTest {
                 ScenarioType.TREND_UP,
                 ScenarioOwner.user("user1"),
                 Optional.empty(),
+                OpinionScope.LOCAL,
                 ScenarioEventType.STATE_MUTATED,
                 new EngineCause(scenarioId, "EventTest", "Initial test cause"),
                 e1.getAfter(),
@@ -88,8 +92,8 @@ class InMemoryEventStoreTest {
 
         List<PersistableEvent> events = eventStore.loadByTargetId(scenarioId);
         assertEquals(2, events.size(), "Deux événements devraient être stockés");
-        assertEquals(e1.getId(), events.get(0).getId());
-        assertEquals(e2.getId(), events.get(1).getId());
+        assertEquals(e1.getId(), events.getFirst().getId());
+        assertEquals(e2.getId(), events.getLast().getId());
     }
 
     @Test

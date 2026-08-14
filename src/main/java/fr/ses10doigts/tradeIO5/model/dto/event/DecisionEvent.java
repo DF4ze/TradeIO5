@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.model.dto.event;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import fr.ses10doigts.tradeIO5.model.dto.event.decision.DecisionEventCause;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioOwner;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.EventType;
@@ -11,8 +12,14 @@ import lombok.RequiredArgsConstructor;
 
 import java.time.Instant;
 
+/**
+ * Palier 3, étape 4 : {@code onConstructor_ = @JsonCreator} ajouté sur le constructeur généré par
+ * Lombok — sans lui, Jackson refuse de désérialiser (2 constructeurs visibles ici, celui-ci et le
+ * constructeur métier {@code DecisionEvent(Decision, ...)} juste en dessous, aucun n'étant annoté :
+ * "no Creators ... exist"). Même découverte/correctif que {@code ScenarioOwner}, cf. sa javadoc.
+ */
 @Getter
-@RequiredArgsConstructor
+@RequiredArgsConstructor(onConstructor_ = @JsonCreator)
 public class DecisionEvent implements PersistableEvent {
 
     // --- identité ---

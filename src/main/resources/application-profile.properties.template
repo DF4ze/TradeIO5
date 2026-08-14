@@ -63,3 +63,10 @@ tradeio.sosovalue.apiKey=yourKey
 # docs/etudes/etude-cache-etf-flow-historisation.md. Valeur par defaut (7h00 heure locale JVM) utilisee si
 # absent, decommenter uniquement pour un autre creneau.
 #tradeio.etf-flow.historization-cron=0 0 7 * * *
+
+# Optionnel : cron de la photo quotidienne scenarios/decisions (Palier 3, etape 4), cf.
+# DecisionScenarioSnapshotJob / docs/etudes/etude-branchement-persistance-decision-engine.md.
+# Desactive par defaut ("-", cf. Scheduled.CRON_DISABLED) tant que l'orchestrateur (etape 7) n'existe
+# pas : declenchement manuel via POST /api/admin/decision/snapshot en attendant. Decommenter pour
+# activer un creneau reel.
+#tradeio.decision.snapshot-cron=0 0 6 * * *
