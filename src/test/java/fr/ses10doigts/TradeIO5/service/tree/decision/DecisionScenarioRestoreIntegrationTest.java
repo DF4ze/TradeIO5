@@ -296,14 +296,22 @@ class DecisionScenarioRestoreIntegrationTest {
         assertTrue(restoredScenarioEngine.getActiveScenarios(ownerB, Duration.ofHours(2), clock.now()).isEmpty(),
                 "restoreOwner(ownerA) ne doit rien restaurer pour ownerB");
 
-        assertTrue(restoredDecisionEngine.getAllActiveDecisions().stream().anyMatch(d -> d.getOwner().equals(ownerA)),
-                "La décision de ownerA doit être restaurée");
-        assertTrue(restoredDecisionEngine.getAllActiveDecisions().stream().noneMatch(d -> d.getOwner().equals(ownerB)),
-                "restoreOwner(ownerA) ne doit restaurer aucune décision de ownerB");
-
-        Decision restoredA = restoredDecisionEngine.getActiveDecision(decisionA.getSnapshot().decisionId()).orElseThrow();
+        // decisionA a été exécutée (status EXECUTED) après la photo : getAllActiveDecisions() la
+        // filtrerait à tort puisqu'elle ne renvoie que les décisions CREATED (cf.
+        // DecisionEngine#getAllActiveDecisions) — vérification de présence/owner via
+        // getActiveDecision(snapshot.decisionId()), même patron que
+        // decision_executedAfterSnapshot_restoresExecutedStatus ci-dessus. Bug initial de ce test
+        // (2026-08-14) : la première version utilisait getAllActiveDecisions().anyMatch(...), qui
+        // échoue toujours ici puisque decisionA n'est plus CREATED après restauration — corrigé
+        // suite à l'échec réel remonté par Clem (`test:tradeio-5`, 535 tests, 1 échec).
+        Decision restoredA = restoredDecisionEngine.getActiveDecision(decisionA.getSnapshot().decisionId())
+                .orElseThrow(() -> new AssertionError("La décision de ownerA doit être restaurée"));
+        assertEquals(ownerA, restoredA.getOwner());
         assertEquals(DecisionStatus.EXECUTED, restoredA.getStatus(),
                 "La mutation post-photo de ownerA (exécution) doit être reflétée après restauration owner-scopée");
+
+        assertTrue(restoredDecisionEngine.getActiveDecision(decisionB.getSnapshot().decisionId()).isEmpty(),
+                "restoreOwner(ownerA) ne doit restaurer aucune décision de ownerB");
     }
 
     @Test

@@ -62,6 +62,12 @@ ci-dessous), donc rien à rédiger sur ce point. Avec 1 et 2 désormais faites, 
 est débloquée sur sa dépendance dure — reste à trancher les points (a)/(b)/(c) listés plus bas avant
 d'en rédiger le prompt détaillé.
 
+**Correction (2026-08-14, suite)** : l'étape 6 a en fait aussi été mergée (menée dans la même session
+que l'étape 2, confirmé en code — `User.archivedAt`, `UserArchivalService`/`Job`, `evictOwner` sur les
+deux moteurs) ; le tableau ne l'indiquait pas encore, corrigé ici après vérification directe du code
+(pas supposé sur la base du tableau seul, qui datait). Points (a)/(b)/(c) de l'étape 7 tranchés le
+2026-08-14 (cf. tableau ci-dessous).
+
 ## Périmètre de ce palier
 
 Rattachement du moteur de décision à l'application qui tourne, orchestration multi-utilisateur
@@ -79,7 +85,7 @@ Ce palier prépare le terrain pour eux, ne les construit pas.
 | 3 | Extensions de modèle pour la persistance | ✅ Fait (2026-08-13) | 1 (recommandé, pas strictement bloquant) | `etude-branchement-persistance-decision-engine.md` §C ("Ce qui a été vérifié en creusant") + §E pt 4 |
 | 4 | Persistance — photo quotidienne + rejeu delta + restauration + fix `JpaEventStore.toDomain()` (switch cas `DECISION`, reporté depuis l'étape 3 le 2026-08-13) | ✅ Fait (2026-08-13) | 1, 3 | `etude-branchement-persistance-decision-engine.md` §C (C1/C2/C4) + §E pt 3 |
 | 5 | Détection de connexion utilisateur | ✅ Fait (2026-08-13) | — (indépendant, peut démarrer n'importe quand) | `etude-branchement-persistance-decision-engine.md` §E pt 5 (mention) |
-| 6 | Archivage sur inactivité prolongée | ⬜ À faire, bloqué par 4 et 5 | 4, 5 | `etude-branchement-persistance-decision-engine.md` §E pt 5 |
+| 6 | Archivage sur inactivité prolongée | ✅ Fait (2026-08-14) | 4, 5 | `etude-branchement-persistance-decision-engine.md` §E pt 5 |
 | 7 | Orchestrateur — calcul Opinion + propagation User×Wallet×Asset + verrou anti-doublon | ⬜ À faire, bloqué par 1 et 2 ; s'appuie sur 4 et 5 | 1, 2 (dur — appelle directement la méthode que l'étape 2 introduit), 4 et 5 (recommandé) | `etude-branchement-persistance-decision-engine.md` §E pt 6 + point d'avancement 2026-08-10 §6.2 pt 7 (addendum) |
 | 8 | Calendrier macro dans le cycle de l'orchestrateur (optionnel, en fin de palier) | ⬜ À faire, bloqué par 7 | 7 | point d'avancement 2026-08-10 §3 et §6.2 pt 6 (addendum) |
 
