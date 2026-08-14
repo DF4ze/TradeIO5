@@ -11,7 +11,6 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
-import fr.ses10doigts.tradeIO5.model.enumerate.tree.macro.MacroEventImpact;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
 import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
 import fr.ses10doigts.tradeIO5.service.tree.helper.MarketOpinionHelper;
@@ -19,10 +18,8 @@ import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorCredentialResolve
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorEngine;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.external.DxyIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.external.Sp500Indicator;
-import fr.ses10doigts.tradeIO5.service.tree.macro.MacroEventCalendarService;
 import fr.ses10doigts.tradeIO5.service.tree.opinion.MarketOpinion;
 import fr.ses10doigts.tradeIO5.service.tree.opinion.modulator.ConfidenceModulation;
-import fr.ses10doigts.tradeIO5.service.tree.opinion.modulator.MacroRiskWindowModulator;
 import fr.ses10doigts.tradeIO5.service.tree.opinion.modulator.ModulationResult;
 import fr.ses10doigts.tradeIO5.service.tree.opinion.modulator.StalenessModulator;
 import org.slf4j.Logger;
@@ -30,7 +27,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -83,9 +79,6 @@ public class MacroMarketOpinion implements MarketOpinion {
     public static final String P_DXY_DAILY_SCALE = "dxyDailyScale";
     public static final String P_EQUITY_DAILY_SCALE = "equityDailyScale";
     public static final String P_STALE_QUOTE_HOURS = "staleQuoteHours";
-    public static final String P_MACRO_RISK_WINDOW_HOURS = "macroRiskWindowHours";
-    public static final String P_MACRO_RISK_MIN_IMPACT = "macroRiskMinImpact";
-    public static final String P_MACRO_RISK_DAMPENING_FACTOR = "macroRiskDampeningFactor";
 
     // NASDAQ pondéré plus haut que SP500 (beta historiquement plus proche de la crypto), DXY à
     // poids comparable à SP500 (cf. javadoc classe) - somme = 1.0, pas imposée mais cohérente.
@@ -100,26 +93,17 @@ public class MacroMarketOpinion implements MarketOpinion {
     // Au-delà de cette ancienneté (dernière transaction), une quote SP500/NASDAQ est jugée figée
     // (week-end/marché fermé) et voit sa confidence atténuée (étude §2.3).
     private static final double DEFAULT_STALE_QUOTE_HOURS = 18.0;
-    // Fenêtre de part et d'autre d'un événement macro à fort impact pendant laquelle la confidence
-    // est atténuée (Palier 3, étape 8) — valeur de départ proposée, pas mesurée empiriquement.
-    private static final double DEFAULT_MACRO_RISK_WINDOW_HOURS = 2.0;
-    private static final MacroEventImpact DEFAULT_MACRO_RISK_MIN_IMPACT = MacroEventImpact.HIGH;
-    private static final double DEFAULT_MACRO_RISK_DAMPENING_FACTOR = 0.5;
     private static final TimeFrame DEFAULT_TIME_FRAME = TimeFrame.H1;
 
     private final IndicatorEngine indicatorEngine;
     private final IndicatorCredentialResolver credentialResolver;
-    private final MacroEventCalendarService calendarService;
 
     @Autowired
     private EventBus eventBus;
 
-    public MacroMarketOpinion(
-            IndicatorEngine indicatorEngine, IndicatorCredentialResolver credentialResolver,
-            MacroEventCalendarService calendarService) {
+    public MacroMarketOpinion(IndicatorEngine indicatorEngine, IndicatorCredentialResolver credentialResolver) {
         this.indicatorEngine = indicatorEngine;
         this.credentialResolver = credentialResolver;
-        this.calendarService = calendarService;
     }
 
     @Override
@@ -143,11 +127,6 @@ public class MacroMarketOpinion implements MarketOpinion {
         double dxyScale = get(parameters, P_DXY_DAILY_SCALE, DEFAULT_DXY_DAILY_SCALE);
         double equityScale = get(parameters, P_EQUITY_DAILY_SCALE, DEFAULT_EQUITY_DAILY_SCALE);
         double staleQuoteHours = get(parameters, P_STALE_QUOTE_HOURS, DEFAULT_STALE_QUOTE_HOURS);
-        double macroRiskWindowHours = get(parameters, P_MACRO_RISK_WINDOW_HOURS, DEFAULT_MACRO_RISK_WINDOW_HOURS);
-        MacroEventImpact macroRiskMinImpact = parameters != null
-                ? MacroEventImpact.valueOf(parameters.get(P_MACRO_RISK_MIN_IMPACT, DEFAULT_MACRO_RISK_MIN_IMPACT.name()))
-                : DEFAULT_MACRO_RISK_MIN_IMPACT;
-        double macroRiskDampeningFactor = get(parameters, P_MACRO_RISK_DAMPENING_FACTOR, DEFAULT_MACRO_RISK_DAMPENING_FACTOR);
 
         String symbol = context.marketContext() != null ? context.marketContext().symbol() : null;
         IndicatorContext indicatorContext = new IndicatorContext(symbol, tf, null, Map.of(), context.clock());
@@ -191,16 +170,8 @@ public class MacroMarketOpinion implements MarketOpinion {
         StalenessModulator stalenessModulator = new StalenessModulator(now, staleQuoteHours,
                 new StalenessModulator.StalenessInput("SP500", lastTradeTime(sp500Snapshot)),
                 new StalenessModulator.StalenessInput("NASDAQ", lastTradeTime(nasdaqSnapshot)));
-
-        // Palier 3, étape 8 : atténue la confidence pendant une fenêtre autour d'un événement macro
-        // à fort impact (FOMC/NFP/CPI...), même patron que stalenessModulator ci-dessus. Réutilise
-        // `now` déjà calculé juste au-dessus (jamais Instant.now() en dur).
-        MacroRiskWindowModulator macroRiskWindowModulator = new MacroRiskWindowModulator(
-                calendarService, now, Duration.ofMinutes(Math.round(macroRiskWindowHours * 60)),
-                macroRiskMinImpact, macroRiskDampeningFactor);
-
         List<ModulationResult> modulationResults = ConfidenceModulation.evaluateAll(
-                List.of(stalenessModulator, macroRiskWindowModulator), context, parameters);
+                List.of(stalenessModulator), context, parameters);
         double stalenessFactor = ConfidenceModulation.combinedFactor(modulationResults);
         double confidence = confidenceSignal.confidence * stalenessFactor;
 

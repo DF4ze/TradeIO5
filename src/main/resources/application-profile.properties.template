@@ -76,3 +76,9 @@ tradeio.sosovalue.apiKey=yourKey
 # Desactive par defaut ("-", cf. Scheduled.CRON_DISABLED) : declenchement manuel via POST
 # /api/admin/decision/archive en attendant. Decommenter pour activer un creneau reel.
 #tradeio.decision.archival-cron=0 0 6 * * *
+
+# Optionnel : cron du cycle d'orchestration Opinion -> Scenario -> Decision (Palier 3, etape 7), cf.
+# DecisionOrchestratorJob / docs/etudes/etude-branchement-persistance-decision-engine.md §E pt 6.
+# Desactive par defaut ("-", cf. Scheduled.CRON_DISABLED) : declenchement manuel via POST
+# /api/admin/decision/orchestrate en attendant. Decommenter pour activer un creneau reel.
+#tradeio.decision.orchestrator-cron=0 0 * * * *

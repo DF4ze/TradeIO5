@@ -179,17 +179,6 @@ exécution.
 6. **Calendrier macro (§3)** : une fois le pipeline décision→ordre plus mature, trancher où vit la
    "fenêtre de risque événementiel" (suspendre/réduire l'exposition avant FOMC/NFP) — dépend de #5,
    pas prioritaire avant.
-
-   **Mise à jour (2026-08-14, Palier 3, étape 8)** : nouveau `MacroRiskWindowModulator` codé et
-   branché dans `GlobalMarketOpinion`/`MacroMarketOpinion`, cf.
-   `docs/prompts/prompt-implementation-decision-palier3-etape8.md`. Le "dépend de #5" ci-dessus
-   concernait le composant d'exécution réelle d'ordres (toujours hors périmètre du Palier 3, non
-   entamé) — distinction non faite explicitement à l'époque de la rédaction de ce point. Ce qui est
-   livré ici est une modulation de confidence en amont de la Decision (jamais l'exécution elle-même),
-   qui n'a jamais dépendu de #5. **Implémenté depuis une session Cowork (pas de ssh-gateway
-   connecté, cf. [[tradeio5_cowork_session_no_ssh_gateway]]) : code et tests écrits mais NON
-   compilés/exécutés dans cette session** — à valider via `test:tradeio-5` avant de considérer ce
-   point réellement clos.
 7. **Scheduler de génération de décision** : reste explicitement postposé par Clem. À reprendre une
    fois #1-5 solides, pour éviter de brancher un déclenchement automatique sur une mécanique de
    sizing/exécution encore incomplète.

@@ -10,17 +10,14 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
-import fr.ses10doigts.tradeIO5.model.enumerate.tree.macro.MacroEventImpact;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.opinion.OpinionScope;
 import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
 import fr.ses10doigts.tradeIO5.service.tree.helper.MarketOpinionHelper;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorCredentialResolver;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorEngine;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.external.StablecoinMarketCapIndicator;
-import fr.ses10doigts.tradeIO5.service.tree.macro.MacroEventCalendarService;
 import fr.ses10doigts.tradeIO5.service.tree.opinion.MarketOpinion;
 import fr.ses10doigts.tradeIO5.service.tree.opinion.modulator.ConfidenceModulation;
-import fr.ses10doigts.tradeIO5.service.tree.opinion.modulator.MacroRiskWindowModulator;
 import fr.ses10doigts.tradeIO5.service.tree.opinion.modulator.ModulationResult;
 import fr.ses10doigts.tradeIO5.service.tree.opinion.modulator.SentimentShiftModulator;
 import org.slf4j.Logger;
@@ -28,7 +25,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -72,9 +68,6 @@ public class GlobalMarketOpinion implements MarketOpinion {
     public static final String P_DELTA_THRESHOLD = "fearGreedDeltaThreshold";
     public static final String P_STABLECOIN_WEEKLY_SCALE = "stablecoinWeeklyScale";
     public static final String P_STABLECOIN_WEIGHT = "stablecoinWeight";
-    public static final String P_MACRO_RISK_WINDOW_HOURS = "macroRiskWindowHours";
-    public static final String P_MACRO_RISK_MIN_IMPACT = "macroRiskMinImpact";
-    public static final String P_MACRO_RISK_DAMPENING_FACTOR = "macroRiskDampeningFactor";
 
     private static final double DEFAULT_BUY_THRESHOLD = 25.0;   // <= 25 : extreme fear -> contrarian BUY
     private static final double DEFAULT_SELL_THRESHOLD = 75.0;  // >= 75 : extreme greed -> contrarian SELL
@@ -88,26 +81,17 @@ public class GlobalMarketOpinion implements MarketOpinion {
     private static final double DEFAULT_STABLECOIN_WEEKLY_SCALE = 0.03;
     // Poids minoritaire : Fear&Greed reste dominant (1 - ce poids), le stablecoin score est neuf.
     private static final double DEFAULT_STABLECOIN_WEIGHT = 0.4;
-    // Fenêtre de part et d'autre d'un événement macro à fort impact pendant laquelle la confidence
-    // est atténuée (Palier 3, étape 8) — valeur de départ proposée, pas mesurée empiriquement.
-    private static final double DEFAULT_MACRO_RISK_WINDOW_HOURS = 2.0;
-    private static final MacroEventImpact DEFAULT_MACRO_RISK_MIN_IMPACT = MacroEventImpact.HIGH;
-    private static final double DEFAULT_MACRO_RISK_DAMPENING_FACTOR = 0.5;
     private static final TimeFrame DEFAULT_TIME_FRAME = TimeFrame.H1;
 
     private final IndicatorEngine indicatorEngine;
     private final IndicatorCredentialResolver credentialResolver;
-    private final MacroEventCalendarService calendarService;
 
     @Autowired
     private EventBus eventBus;
 
-    public GlobalMarketOpinion(
-            IndicatorEngine indicatorEngine, IndicatorCredentialResolver credentialResolver,
-            MacroEventCalendarService calendarService) {
+    public GlobalMarketOpinion(IndicatorEngine indicatorEngine, IndicatorCredentialResolver credentialResolver) {
         this.indicatorEngine = indicatorEngine;
         this.credentialResolver = credentialResolver;
-        this.calendarService = calendarService;
     }
 
     @Override
@@ -205,24 +189,8 @@ public class GlobalMarketOpinion implements MarketOpinion {
         // ConfidenceModulation (même calcul, même résultat).
         SentimentShiftModulator sentimentShiftModulator = new SentimentShiftModulator(
                 now, yesterday, buyThreshold, sellThreshold, deltaThreshold);
-
-        // Palier 3, étape 8 : atténue la confidence pendant une fenêtre autour d'un événement macro
-        // à fort impact (FOMC/NFP/CPI...), même patron que sentimentShiftModulator ci-dessus (une
-        // instance construite ici avec des valeurs déjà résolues, évaluée une seule fois via la
-        // boucle commune ConfidenceModulation.evaluateAll ci-dessous).
-        double macroRiskWindowHours = parameters != null
-                ? parameters.get(P_MACRO_RISK_WINDOW_HOURS, DEFAULT_MACRO_RISK_WINDOW_HOURS) : DEFAULT_MACRO_RISK_WINDOW_HOURS;
-        MacroEventImpact macroRiskMinImpact = parameters != null
-                ? MacroEventImpact.valueOf(parameters.get(P_MACRO_RISK_MIN_IMPACT, DEFAULT_MACRO_RISK_MIN_IMPACT.name()))
-                : DEFAULT_MACRO_RISK_MIN_IMPACT;
-        double macroRiskDampeningFactor = parameters != null
-                ? parameters.get(P_MACRO_RISK_DAMPENING_FACTOR, DEFAULT_MACRO_RISK_DAMPENING_FACTOR) : DEFAULT_MACRO_RISK_DAMPENING_FACTOR;
-        MacroRiskWindowModulator macroRiskWindowModulator = new MacroRiskWindowModulator(
-                calendarService, context.clock().now(), Duration.ofMinutes(Math.round(macroRiskWindowHours * 60)),
-                macroRiskMinImpact, macroRiskDampeningFactor);
-
         List<ModulationResult> modulationResults = ConfidenceModulation.evaluateAll(
-                List.of(sentimentShiftModulator, macroRiskWindowModulator), context, parameters);
+                List.of(sentimentShiftModulator), context, parameters);
         double dampeningFactor = ConfidenceModulation.combinedFactor(modulationResults);
         double confidence = confidenceSignal.confidence * dampeningFactor;
 

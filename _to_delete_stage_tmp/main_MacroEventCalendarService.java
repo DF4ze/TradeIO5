@@ -23,11 +23,9 @@ import java.util.stream.Collectors;
 /**
  * Agrège les deux sources de calendrier macro (étude "indicateurs-macro-externes" §14 item G) :
  * Finnhub (source principale) et ForexFactory (complément, sans clé). Service en <b>lecture
- * seule</b>. Branché dans le cycle décisionnel depuis le Palier 3, étape 8 : {@link
- * #isWithinRiskWindow} est consommé par {@code MacroRiskWindowModulator}
- * (package {@code service.tree.opinion.modulator}), lui-même utilisé par {@code GlobalMarketOpinion}
- * et {@code MacroMarketOpinion} — jamais directement par {@code DecisionEngine}/{@code Scenario},
- * qui ne connaissent que la confidence déjà modulée en amont.
+ * seule</b> — volontairement <b>non branché</b> dans {@code DecisionEngine}/{@code Scenario} à ce
+ * stade (décision explicitement reportée, cf. prompt d'implémentation, item G, "Décision
+ * explicitement hors scope de ce lot").
  */
 @Service
 public class MacroEventCalendarService {

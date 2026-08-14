@@ -53,4 +53,30 @@ class UserRepositoryTest {
         assertEquals(1, candidates.size());
         assertEquals(oldNotArchived.getId(), candidates.getFirst().getId());
     }
+
+    private User newUser(String username, boolean enabled, Instant archivedAt) {
+        return User.builder()
+                .username(username)
+                .email(username + "@test.com")
+                .password("hash")
+                .roles(new HashSet<>())
+                .enabled(enabled)
+                .lastLogin(NOW)
+                .archivedAt(archivedAt)
+                .build();
+    }
+
+    @Test
+    @DisplayName("findByEnabledTrueAndArchivedAtIsNull (Palier 3, étape 7) ne renvoie que l'utilisateur actif et non archivé")
+    void findByEnabledTrueAndArchivedAtIsNull_returnsOnlyEnabledNotArchivedUser() {
+        User activeNormal = userRepository.save(newUser("activeNormal", true, null));
+        userRepository.save(newUser("disabled", false, null));
+        userRepository.save(newUser("archived", true, NOW.minusSeconds(60)));
+        userRepository.save(newUser("disabledAndArchived", false, NOW.minusSeconds(60)));
+
+        List<User> candidates = userRepository.findByEnabledTrueAndArchivedAtIsNull();
+
+        assertEquals(1, candidates.size());
+        assertEquals(activeNormal.getId(), candidates.getFirst().getId());
+    }
 }

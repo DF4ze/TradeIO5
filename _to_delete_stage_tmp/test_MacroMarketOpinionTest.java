@@ -16,7 +16,6 @@ import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorCredentialResolve
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorEngine;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.external.DxyIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.external.Sp500Indicator;
-import fr.ses10doigts.tradeIO5.service.tree.macro.MacroEventCalendarService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -96,7 +95,6 @@ class MacroMarketOpinionTest {
 
         private IndicatorEngine indicatorEngine;
         private EventBus eventBus;
-        private MacroEventCalendarService calendarService;
         private MacroMarketOpinion opinion;
 
         @BeforeEach
@@ -104,11 +102,8 @@ class MacroMarketOpinionTest {
             indicatorEngine = mock(IndicatorEngine.class);
             IndicatorCredentialResolver credentialResolver = mock(IndicatorCredentialResolver.class);
             eventBus = mock(EventBus.class);
-            // Mockito retourne false par défaut (comportement non stubbé) : hors fenêtre à risque macro,
-            // donc aucune atténuation supplémentaire pour les tests existants qui ne stubbent pas ce mock.
-            calendarService = mock(MacroEventCalendarService.class);
 
-            opinion = new MacroMarketOpinion(indicatorEngine, credentialResolver, calendarService);
+            opinion = new MacroMarketOpinion(indicatorEngine, credentialResolver);
             Field field = MacroMarketOpinion.class.getDeclaredField("eventBus");
             field.setAccessible(true);
             field.set(opinion, eventBus);
@@ -190,38 +185,6 @@ class MacroMarketOpinionTest {
         }
 
         @Test
-        @DisplayName("Palier 3, étape 8 : fenêtre à risque macro active => confidence atténuée (0.5 par défaut) "
-                + "vs même scénario sans fenêtre à risque, signal directionnel inchangé")
-        void decide_dampensConfidence_whenMacroRiskWindowActive() throws Exception {
-            mockIndicator(IndicatorType.DXY, 99.5, 100.0, null);
-            mockIndicator(IndicatorType.SP500, 5700.0, 5600.0, NOW.getEpochSecond());
-            mockIndicator(IndicatorType.NASDAQ, 18400.0, 18200.0, NOW.getEpochSecond());
-            // Référence : calendarService (mock du setUp) retourne false par défaut => pas de fenêtre
-            // à risque active.
-            opinion.decide(context(), MarketOpinionParameters.builder().build());
-            ArgumentCaptor<OpinionEvent> noRiskCaptor = ArgumentCaptor.forClass(OpinionEvent.class);
-            verify(eventBus).publish(noRiskCaptor.capture());
-
-            EventBus riskEventBus = mock(EventBus.class);
-            IndicatorEngine riskEngine = mock(IndicatorEngine.class);
-            MacroEventCalendarService riskCalendarService = mock(MacroEventCalendarService.class);
-            when(riskCalendarService.isWithinRiskWindow(any(), any(), any())).thenReturn(true);
-            mockIndicatorOn(riskEngine, IndicatorType.DXY, 99.5, 100.0, null);
-            mockIndicatorOn(riskEngine, IndicatorType.SP500, 5700.0, 5600.0, NOW.getEpochSecond());
-            mockIndicatorOn(riskEngine, IndicatorType.NASDAQ, 18400.0, 18200.0, NOW.getEpochSecond());
-            MacroMarketOpinion riskOpinion = newOpinion(riskEngine, riskEventBus, riskCalendarService);
-
-            riskOpinion.decide(context(), MarketOpinionParameters.builder().build());
-            ArgumentCaptor<OpinionEvent> riskCaptor = ArgumentCaptor.forClass(OpinionEvent.class);
-            verify(riskEventBus).publish(riskCaptor.capture());
-
-            assertEquals(0.5, riskCaptor.getValue().getConfidence() / noRiskCaptor.getValue().getConfidence(), 1e-9,
-                    "une fenêtre à risque macro active doit atténuer la confidence par le facteur par défaut (0.5)");
-            assertEquals(noRiskCaptor.getValue().getWeightedSignal(), riskCaptor.getValue().getWeightedSignal(),
-                    "le signal directionnel ne doit jamais être modifié par le modulateur de risque macro");
-        }
-
-        @Test
         @DisplayName("Fix 2026-08-14 (Palier 3, étape 7, décision 6) : un symbole non nul dans le contexte "
                 + "n'est jamais reporté sur l'OpinionEvent publié (Opinion MACRO, pas de symbole par construction)")
         void decide_neverPropagatesSymbol_evenWhenContextCarriesOne() {
@@ -243,11 +206,7 @@ class MacroMarketOpinionTest {
         }
 
         private MacroMarketOpinion newOpinion(IndicatorEngine engine, EventBus bus) throws Exception {
-            return newOpinion(engine, bus, mock(MacroEventCalendarService.class));
-        }
-
-        private MacroMarketOpinion newOpinion(IndicatorEngine engine, EventBus bus, MacroEventCalendarService macroCalendarService) throws Exception {
-            MacroMarketOpinion o = new MacroMarketOpinion(engine, mock(IndicatorCredentialResolver.class), macroCalendarService);
+            MacroMarketOpinion o = new MacroMarketOpinion(engine, mock(IndicatorCredentialResolver.class));
             Field field = MacroMarketOpinion.class.getDeclaredField("eventBus");
             field.setAccessible(true);
             field.set(o, bus);

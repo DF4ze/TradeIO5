@@ -22,4 +22,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
 	 * utilisateur déjà retiré de la mémoire active).
 	 */
 	List<User> findByLastLoginBeforeAndArchivedAtIsNull(Instant threshold);
+
+	/**
+	 * "Utilisateur actif" pour l'itération de {@code DecisionOrchestrator} (Palier 3, étape 7,
+	 * décision 9) : {@code enabled=true} et pas archivé. Décision dérivée directement de l'étape 6 —
+	 * itérer sur un owner déjà archivé recréerait immédiatement l'état que l'archivage vient
+	 * d'évincer, contredisant sa raison d'être. Même patron de requête dérivée que
+	 * {@link #findByLastLoginBeforeAndArchivedAtIsNull(Instant)}.
+	 */
+	List<User> findByEnabledTrueAndArchivedAtIsNull();
 }

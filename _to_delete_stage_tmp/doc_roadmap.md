@@ -100,22 +100,6 @@ déjà cité comme extension candidate dans le javadoc de `ConfidenceModulation`
 `DecisionOrchestrator` lui-même. Valeurs de départ (fenêtre 2h, impact minimal `HIGH`, facteur
 d'atténuation 0.5) non calibrées, à réviser.
 
-**Note de suivi (2026-08-14, suite)** : étape 8 implémentée (code + tests écrits) —
-`MacroRiskWindowModulator` branché dans `GlobalMarketOpinion` et `MacroMarketOpinion` (pas
-`LOCAL`/`EXTERNAL`, pas `DecisionOrchestrator`), `MacroEventCalendarService` (javadoc mis à jour, ne
-documente plus "volontairement non branché"). **Non compilé/testé** : implémenté depuis une session
-Cowork (device bridge), qui n'a pas le MCP ssh-gateway connecté (cf.
-[[tradeio5_cowork_session_no_ssh_gateway]]) — aucun moyen d'exécuter `test:tradeio-5` depuis cette
-session. À faire avant de marquer l'étape et le Palier 3 réellement ✅ : lancer la suite de tests
-complète (idéalement depuis une session Claude Code CLI où le gateway est connecté), vérifier
-qu'aucun test existant n'est cassé par le changement de signature des deux constructeurs, et
-confirmer la méthode d'accès aux paramètres utilisée dans chaque classe (voir prompt d'implémentation
-étape 8, point d'attention explicite — `GlobalMarketOpinion` utilise l'idiome ternaire existant,
-`MacroMarketOpinion` sa méthode statique `get(...)`, aucune des deux n'a été harmonisée avec l'autre).
-Une fois validé, le palier sera terminé côté "tout ce qui alimente la décision" ; le composant
-d'exécution réelle d'ordres et le calcul de sizing (étude §12 pt 1, point d'avancement 2026-08-10
-§6.2 pts 2-5) resteront des chantiers séparés, non entamés par ce palier.
-
 ## Périmètre de ce palier
 
 Rattachement du moteur de décision à l'application qui tourne, orchestration multi-utilisateur
@@ -135,7 +119,7 @@ Ce palier prépare le terrain pour eux, ne les construit pas.
 | 5 | Détection de connexion utilisateur | ✅ Fait (2026-08-13) | — (indépendant, peut démarrer n'importe quand) | `etude-branchement-persistance-decision-engine.md` §E pt 5 (mention) |
 | 6 | Archivage sur inactivité prolongée | ✅ Fait (2026-08-14) | 4, 5 | `etude-branchement-persistance-decision-engine.md` §E pt 5 |
 | 7 | Orchestrateur — calcul Opinion + propagation User×Asset + verrou anti-doublon | ✅ Fait (2026-08-14) | 1, 2 (dur — appelle directement la méthode que l'étape 2 introduit), 4 et 5 (recommandé) | `etude-branchement-persistance-decision-engine.md` §E pt 6 + point d'avancement 2026-08-10 §6.2 pt 7 (addendum) |
-| 8 | Calendrier macro dans le cycle de l'orchestrateur (optionnel, en fin de palier) | ✅ Fait (2026-08-14) | 7 | point d'avancement 2026-08-10 §3 et §6.2 pt 6 (addendum) |
+| 8 | Calendrier macro dans le cycle de l'orchestrateur (optionnel, en fin de palier) | ⬜ À faire, bloqué par 7 | 7 | point d'avancement 2026-08-10 §3 et §6.2 pt 6 (addendum) |
 
 **Pourquoi cet ordre précisément** :
 - 1 avant tout le reste : sans le moteur partagé, "persister l'état" et "orchestrer par utilisateur"
@@ -182,7 +166,7 @@ juste avant de lancer l'étape concernée :
   code ; job d'archivage même patron que la photo (désactivé par défaut + endpoint admin) ; marqueur
   explicite `User.archivedAt` ; hook de restauration uniquement sur `signinForm` (le JWT expire à 24h,
   `AuthTokenFilter` ne peut structurellement jamais authentifier un utilisateur inactif depuis 2 mois).
-- **Étape 7** : ✅ tranché le 2026-08-14 — (a) l'itération se fait-elle sur les 3 actifs fixes du périmètre DCA (BTC/ETH/PAXG)
+- **Étape 7** : (a) l'itération se fait-elle sur les 3 actifs fixes du périmètre DCA (BTC/ETH/PAXG)
   pour tout utilisateur actif, ou sur une liste dérivée autrement ? Le tour d'horizon du 2026-08-12 a
   écarté "déduire depuis les soldes de wallet" (exclurait à tort un utilisateur qui veut démarrer un
   DCA sur un actif qu'il ne possède pas encore) — itérer sur les 3 actifs fixes semble le choix le
@@ -190,7 +174,7 @@ juste avant de lancer l'étape concernée :
   (1h proposé par Clem comme point de départ). (c) l'activation réelle de l'orchestrateur (cron actif
   en prod) fait-elle partie du périmètre de cette étape, ou seulement sa conception/son code,
   activation restant elle-même postposée comme l'était le scheduler jusqu'ici ?
-- **Étape 8** : ✅ tranché le 2026-08-14 — à ce moment-là seulement — inclure ou reporter explicitement, ne pas laisser la
+- **Étape 8** : à ce moment-là seulement — inclure ou reporter explicitement, ne pas laisser la
   question retomber dans l'oubli une deuxième fois.
 
 ## Suivi
