@@ -40,12 +40,6 @@ public class DefaultScenarioEngine implements ScenarioEngine {
     private final DomainClock clock;
     private final EventBus eventBus;
 
-    // Palier 3, étape 1 (option B3, moteur unique partagé) : plus de valeur initiale imposée au
-    // constructeur — addSymbolSurvey(...)/removeSymbolSurvey(...) restent l'unique mécanisme de
-    // mutation. Question "quels actifs suivre" volontairement non tranchée ici (roadmap Palier 3,
-    // étape 6.a).
-    private final Set<String> symbols = ConcurrentHashMap.newKeySet();
-
     final Map<ScenarioKey, MarketScenario> scenarios = new ConcurrentHashMap<>();
 
     // Mémoire des scénarios ayant déjà proposé un intent pour leur épisode de validation
@@ -63,18 +57,39 @@ public class DefaultScenarioEngine implements ScenarioEngine {
         // volontairement pas d'owner (lecture de marché non personnalisée, étude §A.3), donc sous
         // un moteur singleton partagé il n'existe plus de valeur sensée pour un owner implicite à
         // cet endroit. onOpinionEvent(...) reste disponible comme méthode utilitaire explicite,
-        // prête à être appelée owner par owner par le futur orchestrateur (étape 6).
+        // prête à être appelée owner par owner par le futur orchestrateur (étape 7).
     }
 
-    @SuppressWarnings("unused") // utilitaire prêt pour le futur orchestrateur owner par owner (étape 6)
+    /**
+     * Point d'entrée explicite pour traiter un {@link OpinionEvent} déjà publié sur le bus, owner
+     * par owner. Non appelé par auto-abonnement depuis l'étape 1 (option B3, moteur unique
+     * partagé) : {@code OpinionEvent} ne porte pas d'owner (lecture de marché non personnalisée,
+     * étude §A.3), donc un moteur partagé ne peut pas savoir "pour qui" réagir via une simple
+     * diffusion sur le bus — c'est à l'appelant de le décider, owner par owner.
+     * <p>
+     * Palier 3, étape 2 — décision actée sur la question laissée ouverte par l'addendum du
+     * 2026-08-12 (étude §B) : la publication d'un {@code OpinionEvent} sur le bus est conservée,
+     * pour deux raisons distinctes à toujours citer ensemble (l'une seule ne suffit pas à elle
+     * seule à la justifier si l'autre disparaissait un jour) :
+     * <ol>
+     *     <li>Audit/persistance (étude §A.6) : {@code JpaEventStore}/{@code InMemoryEventStore}
+     *     s'abonnent inconditionnellement à {@code PersistableEvent} et persistent déjà tout ce
+     *     qui passe sur le bus, {@code OpinionEvent} y compris.</li>
+     *     <li>Unique canal de transmission du résultat : {@code MarketOpinion.decide(...)}
+     *     retourne {@code void} par contrat ("Must emit an event.") — aucune des 5 implémentations
+     *     ne renvoie l'{@code OpinionSignal} calculé autrement qu'en le publiant sur le bus.
+     *     Supprimer la publication reviendrait à supprimer la seule façon d'obtenir le résultat
+     *     d'une Opinion, y compris pour un futur orchestrateur.</li>
+     * </ol>
+     * <p>
+     * Patron attendu pour un futur appelant (ex: orchestrateur, étape 7) : capture synchrone via
+     * {@code eventBus.subscribe(OpinionEvent.class, ...)} suivie d'un
+     * {@link EventBus#unsubscribe}, puis appel à cette méthode par owner concerné — pas une
+     * méthode à inventer, celle-ci existe déjà depuis l'étape 1.
+     */
+    @SuppressWarnings("unused") // utilitaire prêt pour le futur orchestrateur owner par owner (étape 7)
     public void onOpinionEvent(OpinionEvent event, ScenarioOwner owner) {
-
-        if( event.getSymbol().isPresent() && !symbols.contains(event.getSymbol().get()) ){
-            log.debug("Event received for {} but not on survey list", event.getSymbol().get());
-
-        }else if(event.getSymbol().isEmpty()) {
-            log.debug("Global Event received");
-        }
+        log.debug("OpinionEvent reçu pour owner {}, symbole {}", owner, event.getSymbol());
 
         OpinionSignal result = eventToOpinionSignal(event);
         ScenarioContext context = new ScenarioContext(
@@ -230,17 +245,25 @@ public class DefaultScenarioEngine implements ScenarioEngine {
         scenarios.forEach(s -> this.scenarios.put(keyOf(s), s));
     }
 
-    // ---------- Symbols survey Set ----------
-
-    @SuppressWarnings("unused") // futur mécanisme de mutation de la liste de suivi (roadmap Palier 3, étape 6.a)
-    public void addSymbolSurvey( String symbol ){
-        symbols.add(symbol);
+    @Override
+    public void evictOwner(ScenarioOwner owner) {
+        scenarios.keySet().removeIf(key -> key.owner().equals(owner));
     }
 
-    @SuppressWarnings("unused") // idem addSymbolSurvey
-    public void removeSymbolSurvey( String symbol ){
-        symbols.remove(symbol);
+    // ---------- Purge de scénarios par symbole ----------
 
+    /**
+     * Purge tous les scénarios actifs d'un symbole donné et publie un {@code SCENARIO_EXPIRED}
+     * pour chacun. Anciennement {@code removeSymbolSurvey} : renommée (Palier 3, étape 2) parce
+     * que le mécanisme de liste de surveillance ({@code symbols}/{@code addSymbolSurvey}) qui
+     * donnait son nom à cette méthode a été retiré — devenu inerte depuis l'étape 1 (l'auto-
+     * abonnement `OpinionEvent` qu'il servait à filtrer n'existe plus, cf. addendum étude §B du
+     * 2026-08-12). Cette méthode n'a jamais fait autre chose que purger ; seul son nom était mal
+     * aligné sur son propre comportement réel. Aucun appelant externe trouvé au moment du
+     * renommage (recherche effectuée avant de renommer).
+     */
+    @SuppressWarnings("unused") // future purge explicite d'un symbole retiré du périmètre suivi (roadmap Palier 3, étape 7)
+    public void purgeScenariosForSymbol( String symbol ){
         List<MarketScenario> toRemove = scenarios.values().stream()
                 .filter(s -> s.getSymbol().isPresent() && s.getSymbol().get().equals(symbol))
                 .toList();
@@ -252,8 +275,8 @@ public class DefaultScenarioEngine implements ScenarioEngine {
                     ScenarioEventType.SCENARIO_EXPIRED,
                     new EngineCause(
                             toBeDelScenario.getId(),
-                            "Removing all Scenarii from symbol "+ symbol,
-                            "Symbol removed from survey list: "+ symbol
+                            "Removing all scenarios for symbol "+ symbol,
+                            "Symbol purged: "+ symbol
                     ),
                     s.getState(),
                     clock.now()
@@ -302,4 +325,3 @@ public class DefaultScenarioEngine implements ScenarioEngine {
     }
 
 }
-

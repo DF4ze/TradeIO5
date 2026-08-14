@@ -63,4 +63,11 @@ public class User {
      * créé avant) a cette valeur à null, pas une date arbitraire.
      */
     private Instant lastLogin;
+
+    /**
+     * Date d'archivage (Palier 3, étape 6) si cet utilisateur a été retiré de la mémoire active pour
+     * inactivité prolongée (2 mois, cf. ArchivalService). Null tant que jamais archivé, ou après
+     * restauration à la reconnexion.
+     */
+    private Instant archivedAt;
 }

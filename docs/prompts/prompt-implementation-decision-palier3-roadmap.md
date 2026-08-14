@@ -51,6 +51,17 @@ l'activité réelle, un utilisateur pouvant rester connecté des jours via cooki
 `signinForm`. Aucune logique d'exploitation du signal (requête "inactif depuis X", archivage) n'est
 ajoutée dans ce lot — réservée à l'étape 6.
 
+**Note de suivi (2026-08-14)** : étape 2 mergée — nettoyage `DecisionEngine` (retrait des deux lignes
+de code mort), retrait du mécanisme `symbols`/`addSymbolSurvey` de `DefaultScenarioEngine` (devenu
+inerte depuis l'étape 1, aucun appelant externe trouvé), `removeSymbolSurvey` renommée
+`purgeScenariosForSymbol`, et décision documentée sur le maintien de la publication `OpinionEvent`
+(cf. tableau et §B de l'étude). Suite de tests complète passée en vert (confirmé par Clem). L'instruction
+de fin du prompt d'étape 2 demandait de rédiger ensuite le prompt de l'étape 3 — obsolète : les étapes
+3, 4, 5 et 6 ont déjà été implémentées le 2026-08-13 (menées avant que 2 ne le soit, cf. tableau
+ci-dessous), donc rien à rédiger sur ce point. Avec 1 et 2 désormais faites, l'étape 7 (orchestrateur)
+est débloquée sur sa dépendance dure — reste à trancher les points (a)/(b)/(c) listés plus bas avant
+d'en rédiger le prompt détaillé.
+
 ## Périmètre de ce palier
 
 Rattachement du moteur de décision à l'application qui tourne, orchestration multi-utilisateur
@@ -64,7 +75,7 @@ Ce palier prépare le terrain pour eux, ne les construit pas.
 | # | Étape | Statut | Dépend de | Doc de référence |
 |---|---|---|---|---|
 | 1 | Branchement — moteur unique partagé (option B3) | ✅ Fait (2026-08-12) | — | `etude-branchement-persistance-decision-engine.md` §B, option B3 + §E pt 1 |
-| 2 | Compléments au branchement — alignement fin sur le partage owner-en-paramètre | ⬜ À faire | 1 | `etude-branchement-persistance-decision-engine.md` §B, option B3, addendum 2026-08-12 |
+| 2 | Compléments au branchement — alignement fin sur le partage owner-en-paramètre | ✅ Fait (2026-08-14) | 1 | `etude-branchement-persistance-decision-engine.md` §B, option B3, addendum 2026-08-12 |
 | 3 | Extensions de modèle pour la persistance | ✅ Fait (2026-08-13) | 1 (recommandé, pas strictement bloquant) | `etude-branchement-persistance-decision-engine.md` §C ("Ce qui a été vérifié en creusant") + §E pt 4 |
 | 4 | Persistance — photo quotidienne + rejeu delta + restauration + fix `JpaEventStore.toDomain()` (switch cas `DECISION`, reporté depuis l'étape 3 le 2026-08-13) | ✅ Fait (2026-08-13) | 1, 3 | `etude-branchement-persistance-decision-engine.md` §C (C1/C2/C4) + §E pt 3 |
 | 5 | Détection de connexion utilisateur | ✅ Fait (2026-08-13) | — (indépendant, peut démarrer n'importe quand) | `etude-branchement-persistance-decision-engine.md` §E pt 5 (mention) |
@@ -108,12 +119,15 @@ Ce palier prépare le terrain pour eux, ne les construit pas.
 Ne pas improviser ces réponses au moment d'écrire le code — à reconfirmer avec Clem, brièvement,
 juste avant de lancer l'étape concernée :
 
-- **Étape 2** : faut-il conserver la publication d'un `OpinionEvent` sur le bus uniquement à des fins
-  d'audit/persistance (sans rôle de déclenchement), ou l'abandonner entièrement puisque plus personne
-  ne l'écoute pour agir ?
+- **Étape 2** : ✅ tranché le 2026-08-14 (cf. `etude-branchement-persistance-decision-engine.md` §B) —
+  publication conservée (audit/persistance + unique canal de transmission du résultat d'Opinion),
+  documenté en javadoc sur `DefaultScenarioEngine.onOpinionEvent(...)`.
 - **Étape 4** : ✅ tranché le 2026-08-13 (cf. note de suivi ci-dessus) — deux tables dédiées, rejeu
   delta mutations+créations, cron désactivé par défaut + endpoint admin.
-- **Étape 6** : valeur exacte du délai d'archivage (2 mois proposé par Clem comme point de départ).
+- **Étape 6** : ✅ tranché le 2026-08-13 — 2 mois retenu tel quel, taggé `// TODO parametrize` dans le
+  code ; job d'archivage même patron que la photo (désactivé par défaut + endpoint admin) ; marqueur
+  explicite `User.archivedAt` ; hook de restauration uniquement sur `signinForm` (le JWT expire à 24h,
+  `AuthTokenFilter` ne peut structurellement jamais authentifier un utilisateur inactif depuis 2 mois).
 - **Étape 7** : (a) l'itération se fait-elle sur les 3 actifs fixes du périmètre DCA (BTC/ETH/PAXG)
   pour tout utilisateur actif, ou sur une liste dérivée autrement ? Le tour d'horizon du 2026-08-12 a
   écarté "déduire depuis les soldes de wallet" (exclurait à tort un utilisateur qui veut démarrer un

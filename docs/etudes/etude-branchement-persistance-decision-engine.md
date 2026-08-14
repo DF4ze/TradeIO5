@@ -259,9 +259,15 @@ intégrer plutôt que de les considérer acquises rétroactivement) :
   événements d'un autre owner, devient inutile sous B3 : un composant partagé doit réagir à tous les
   owners, il n'y a plus de notion de "pas le mien" à ce niveau (`ScenarioOwner.isVisible` peut rester
   pertinent ailleurs, ex. autorisation côté API — question distincte, pas traitée ici).
-- Reste ouvert : faut-il conserver la publication d'un `OpinionEvent` sur le bus uniquement à des fins
-  d'audit/persistance (sans rôle de déclenchement) ? À trancher au moment d'écrire le prompt détaillé
-  de l'étape 2 ou de l'étape 7 (orchestrateur).
+- **Tranché (Palier 3, étape 2, 2026-08-14)** : la publication d'un `OpinionEvent` sur le bus est
+  **conservée**, pour deux raisons distinctes à toujours citer ensemble (l'une seule ne suffit pas à
+  elle seule à la justifier si l'autre disparaissait un jour) : (1) audit/persistance —
+  `JpaEventStore`/`InMemoryEventStore` la persistent déjà inconditionnellement (§A.6) ; (2) unique
+  canal de transmission du résultat — `MarketOpinion.decide(...)` retourne `void` par contrat ("Must
+  emit an event."), aucune des 5 implémentations ne renvoie l'`OpinionSignal` calculé autrement qu'en
+  le publiant sur le bus, donc supprimer la publication supprimerait la seule façon d'obtenir un
+  résultat d'Opinion, y compris pour l'orchestrateur (étape 7). Documenté également en javadoc sur
+  `DefaultScenarioEngine.onOpinionEvent(...)`.
 
 ### Synthèse comparative
 

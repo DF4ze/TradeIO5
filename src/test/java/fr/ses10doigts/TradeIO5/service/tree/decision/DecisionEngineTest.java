@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -259,5 +260,55 @@ class DecisionEngineTest {
         List<Decision> afterTransition = engine.getAllActiveDecisions();
         assertEquals(1, afterTransition.size(), "Seule la décision restée CREATED (ownerA) doit être renvoyée");
         assertEquals(owner1, afterTransition.getFirst().getOwner());
+    }
+
+    // ---------- Palier 3, étape 6 : évincer un owner de la mémoire active ----------
+
+    @Test
+    @DisplayName("evictOwner(ownerA) retire les décisions de ownerA sans toucher celles de ownerB")
+    void evictOwner_removesOnlyThatOwnersDecisions() {
+        EventBus eventBus = new EventBus();
+        ScenarioOwner ownerB = ScenarioOwner.user("user2");
+
+        ScenarioEngine scenarioEngine = mock(ScenarioEngine.class);
+        when(scenarioEngine.getActiveScenarios(any(), any(), any())).thenReturn(List.of());
+
+        DecisionEngine engine = new DecisionEngine(clock, eventBus, scenarioEngine);
+
+        ActionIntent intentA = new ActionIntent(
+                MarketIntentAction.BUY, "BTC/EUR", BigDecimal.ONE, 0.95, "scenario-A", "reason", clock.now());
+        ActionIntent intentB = new ActionIntent(
+                MarketIntentAction.BUY, "ETH/EUR", BigDecimal.ONE, 0.95, "scenario-B", "reason", clock.now());
+
+        MarketScenario scenarioA = mock(MarketScenario.class);
+        when(scenarioA.getId()).thenReturn("scenario-A");
+        when(scenarioA.getType()).thenReturn(ScenarioType.TREND_UP);
+        when(scenarioA.getOwner()).thenReturn(owner1);
+        when(scenarioA.getSymbol()).thenReturn(Optional.of("BTC/EUR"));
+        ScenarioState stateA = new ScenarioState(ScenarioType.TREND_UP, clock.now());
+        when(scenarioA.getState()).thenReturn(stateA);
+
+        MarketScenario scenarioB = mock(MarketScenario.class);
+        when(scenarioB.getId()).thenReturn("scenario-B");
+        when(scenarioB.getType()).thenReturn(ScenarioType.TREND_UP);
+        when(scenarioB.getOwner()).thenReturn(ownerB);
+        when(scenarioB.getSymbol()).thenReturn(Optional.of("ETH/EUR"));
+        ScenarioState stateB = new ScenarioState(ScenarioType.TREND_UP, clock.now());
+        when(scenarioB.getState()).thenReturn(stateB);
+
+        eventBus.publish(new ScenarioEvent(
+                scenarioA, ScenarioEventType.ACTION_PROPOSED,
+                new IntentCause("scenario-A", intentA, "reason"), stateA, clock.now()));
+        eventBus.publish(new ScenarioEvent(
+                scenarioB, ScenarioEventType.ACTION_PROPOSED,
+                new IntentCause("scenario-B", intentB, "reason"), stateB, clock.now()));
+
+        assertEquals(2, engine.getAllActiveDecisions().size(), "Sanity check : deux décisions CREATED avant éviction");
+
+        engine.evictOwner(owner1);
+
+        List<Decision> remaining = engine.getAllActiveDecisions();
+        assertEquals(1, remaining.size(), "Seule la décision de ownerB doit rester après evictOwner(owner1)");
+        assertTrue(remaining.stream().allMatch(d -> d.getOwner().equals(ownerB)));
     }
 }

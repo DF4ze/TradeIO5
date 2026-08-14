@@ -181,4 +181,32 @@ class SharedScenarioEngineMultiOwnerTest {
         assertTrue(onlyA.contains(scenarioA));
         assertFalse(onlyA.contains(scenarioB), "getActiveScenarios(ownerA, ...) ne doit pas renvoyer le scénario de ownerB");
     }
+
+    // ---------- Palier 3, étape 6 : évincer un owner de la mémoire active ----------
+
+    @Test
+    @DisplayName("evictOwner(ownerA) retire les scénarios de ownerA sans toucher ceux de ownerB")
+    void evictOwner_removesOnlyThatOwnersScenarios() {
+        ScenarioDefinition defA = new ScenarioDefinition(
+                ScenarioType.TREND_UP, ownerA, Optional.of("BTC"), OpinionScope.LOCAL, clock.now()
+        );
+        MarketScenario scenarioA = new DefaultMarketScenario(defA, eventBus);
+        ScenarioKey keyA = new ScenarioKey(ownerA, ScenarioType.TREND_UP, Optional.of("BTC"), OpinionScope.LOCAL);
+        engine.scenarios.put(keyA, scenarioA);
+
+        ScenarioDefinition defB = new ScenarioDefinition(
+                ScenarioType.TREND_UP, ownerB, Optional.of("ETH"), OpinionScope.LOCAL, clock.now()
+        );
+        MarketScenario scenarioB = new DefaultMarketScenario(defB, eventBus);
+        ScenarioKey keyB = new ScenarioKey(ownerB, ScenarioType.TREND_UP, Optional.of("ETH"), OpinionScope.LOCAL);
+        engine.scenarios.put(keyB, scenarioB);
+
+        engine.evictOwner(ownerA);
+
+        assertTrue(engine.getActiveScenarios(ownerA, Duration.ofDays(1), clock.now()).isEmpty(),
+                "Les scénarios de ownerA doivent avoir disparu après evictOwner(ownerA)");
+        assertTrue(engine.getActiveScenarios(ownerB, Duration.ofDays(1), clock.now())
+                        .stream().anyMatch(s -> s.getId().equals(scenarioB.getId())),
+                "Les scénarios de ownerB ne doivent pas être affectés par evictOwner(ownerA)");
+    }
 }

@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.ModelAndView;
 
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioOwner;
 import fr.ses10doigts.tradeIO5.security.jwt.JwtUtils;
 import fr.ses10doigts.tradeIO5.security.model.Role;
 import fr.ses10doigts.tradeIO5.security.model.User;
@@ -33,6 +34,7 @@ import fr.ses10doigts.tradeIO5.security.model.payload.request.SignupRequest;
 import fr.ses10doigts.tradeIO5.security.repository.RoleRepository;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.security.service.impl.UserDetailsImpl;
+import fr.ses10doigts.tradeIO5.service.tree.decision.DecisionScenarioRestoreService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -56,6 +58,9 @@ public class AuthController {
 
     @Autowired
     JwtUtils jwtUtils;
+
+    @Autowired
+    DecisionScenarioRestoreService restoreService;
 
     private static final Logger	logger = LoggerFactory.getLogger(AuthController.class);
 
@@ -130,6 +135,13 @@ public class AuthController {
 
 	    userRepository.findById(userDetails.getId()).ifPresent(u -> {
 		u.setLastLogin(Instant.now());
+
+		if (u.getArchivedAt() != null) {
+		    restoreService.restoreOwner(ScenarioOwner.of(u));
+		    u.setArchivedAt(null);
+		    logger.info("User '" + u.getUsername() + "' restauré depuis l'archive à la reconnexion");
+		}
+
 		userRepository.save(u);
 	    });
 
@@ -250,7 +262,7 @@ public class AuthController {
 	// Create new user's account
 	Set<Role> roles = signUpRequest.getRoles();
 	User user = new User(null, signUpRequest.getUsername(), signUpRequest.getEmail(),
-			encoder.encode(signUpRequest.getPassword()), roles, true, null); // lastLogin = null à l'inscription
+			encoder.encode(signUpRequest.getPassword()), roles, true, null, null); // lastLogin = null, archivedAt = null à l'inscription
 
 	userRepository.save(user);
 

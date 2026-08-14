@@ -34,6 +34,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -41,9 +42,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * restauration au (re)démarrage. Repositories réels via {@code @DataJpaTest} (patron {@code
  * AssetProviderRepositoryTest}), moteurs réels construits directement (patron {@code
  * MultiUserIsolationIntegrationTest}). Le "redémarrage" est simulé en construisant de NOUVELLES
- * instances de moteur (vides) et un nouveau {@link DecisionScenarioRestoreRunner} pointant sur les
+ * instances de moteur (vides) et un nouveau {@link DecisionScenarioRestoreService} pointant sur les
  * mêmes repositories H2 — exactement ce qu'un vrai redémarrage ferait (nouveau contexte Spring, même
  * base).
+ * <p>
+ * Palier 3, étape 6 : la logique de restauration a été extraite de {@code
+ * DecisionScenarioRestoreRunner} vers {@link DecisionScenarioRestoreService} — seule
+ * l'instanciation/l'appel ci-dessous ({@link #newRestoreService}) a changé, les assertions des tests
+ * historiques ({@code scenario_mutatedAfterSnapshot_...} etc.) restent inchangées. Deux tests dédiés
+ * au filtre owner (introduit par cette même étape) ont été ajoutés en bas de fichier.
  */
 @DataJpaTest
 @DisplayName("Décision/Scénario - restauration au redémarrage")
@@ -87,8 +94,8 @@ class DecisionScenarioRestoreIntegrationTest {
         );
     }
 
-    private DecisionScenarioRestoreRunner newRestoreRunner(DefaultScenarioEngine targetScenarioEngine, DecisionEngine targetDecisionEngine) {
-        return new DecisionScenarioRestoreRunner(
+    private DecisionScenarioRestoreService newRestoreService(DefaultScenarioEngine targetScenarioEngine, DecisionEngine targetDecisionEngine) {
+        return new DecisionScenarioRestoreService(
                 scenarioSnapshotRepository, decisionSnapshotRepository, eventRepository,
                 targetScenarioEngine, targetDecisionEngine,
                 objectMapper, new EventBus() // bus neutre : la restauration n'a pas besoin de republier
@@ -132,7 +139,7 @@ class DecisionScenarioRestoreIntegrationTest {
 
         // "Redémarrage" : nouveau moteur vide + restauration.
         DefaultScenarioEngine restoredEngine = new DefaultScenarioEngine(clock, new EventBus());
-        newRestoreRunner(restoredEngine, new DecisionEngine(clock, new EventBus(), restoredEngine)).run();
+        newRestoreService(restoredEngine, new DecisionEngine(clock, new EventBus(), restoredEngine)).restoreAll();
 
         MarketScenario restored = restoredEngine.getActiveScenarios(owner, Duration.ofHours(2), clock.now())
                 .stream().filter(s -> s.getId().equals(scenarioId)).findFirst().orElseThrow();
@@ -173,7 +180,7 @@ class DecisionScenarioRestoreIntegrationTest {
         // "Redémarrage"
         DefaultScenarioEngine restoredScenarioEngine = new DefaultScenarioEngine(clock, new EventBus());
         DecisionEngine restoredDecisionEngine = new DecisionEngine(clock, new EventBus(), restoredScenarioEngine);
-        newRestoreRunner(restoredScenarioEngine, restoredDecisionEngine).run();
+        newRestoreService(restoredScenarioEngine, restoredDecisionEngine).restoreAll();
 
         Decision restored = restoredDecisionEngine.getActiveDecision(
                         activeDecisions.getFirst().getSnapshot().decisionId())
@@ -203,7 +210,7 @@ class DecisionScenarioRestoreIntegrationTest {
             // n'arrivent jamais à la nanoseconde près) : donne un signal temporel exploitable pour
             // départager le "vrai" scénario conservé par le moteur des objets fantômes créés puis
             // aussitôt jetés par DefaultScenarioEngine.onMarketOpinion à chaque appel où la même
-            // ScenarioKey existe déjà (cf. javadoc DecisionScenarioRestoreRunner#restoreScenarios).
+            // ScenarioKey existe déjà (cf. javadoc DecisionScenarioRestoreService#restoreScenarios).
             clock.advance(Duration.ofSeconds(1));
             scenarioEngine.onMarketOpinion(bullish("SOL"), newContext);
         }
@@ -220,7 +227,7 @@ class DecisionScenarioRestoreIntegrationTest {
         // "Redémarrage"
         DefaultScenarioEngine restoredScenarioEngine = new DefaultScenarioEngine(clock, new EventBus());
         DecisionEngine restoredDecisionEngine = new DecisionEngine(clock, new EventBus(), restoredScenarioEngine);
-        newRestoreRunner(restoredScenarioEngine, restoredDecisionEngine).run();
+        newRestoreService(restoredScenarioEngine, restoredDecisionEngine).restoreAll();
 
         boolean scenarioRestored = restoredScenarioEngine.getActiveScenarios(newOwner, Duration.ofHours(2), clock.now())
                 .stream().anyMatch(s -> s.getId().equals(newScenario.getId()));
@@ -237,9 +244,104 @@ class DecisionScenarioRestoreIntegrationTest {
         DefaultScenarioEngine restoredScenarioEngine = new DefaultScenarioEngine(clock, new EventBus());
         DecisionEngine restoredDecisionEngine = new DecisionEngine(clock, new EventBus(), restoredScenarioEngine);
 
-        assertDoesNotThrow(() -> newRestoreRunner(restoredScenarioEngine, restoredDecisionEngine).run());
+        assertDoesNotThrow(() -> newRestoreService(restoredScenarioEngine, restoredDecisionEngine).restoreAll());
 
         assertTrue(restoredScenarioEngine.getAllActiveScenarios(Duration.ofHours(2), clock.now()).isEmpty());
         assertTrue(restoredDecisionEngine.getAllActiveDecisions().isEmpty());
+    }
+
+    // ---------- Palier 3, étape 6 : restauration owner-scopée ----------
+
+    @Test
+    @DisplayName("restoreOwner(ownerA) ne restaure que les données de A (scénario+décision snapshottés puis mutés), rien de B")
+    void restoreOwner_onlyRestoresFilteredOwnersData_bothSnapshottedAndMutated() {
+        ScenarioOwner ownerA = ScenarioOwner.user("ownerA-filter");
+        ScenarioOwner ownerB = ScenarioOwner.user("ownerB-filter");
+
+        ScenarioContext contextA = new ScenarioContext(ownerA, Optional.of("BTC"), clock, List.of());
+        ScenarioContext contextB = new ScenarioContext(ownerB, Optional.of("ETH"), clock, List.of());
+
+        for (int i = 0; i < 4; i++) {
+            scenarioEngine.onMarketOpinion(bullish("BTC"), contextA);
+        }
+        for (int i = 0; i < 4; i++) {
+            scenarioEngine.onMarketOpinion(bullish("ETH"), contextB);
+        }
+
+        clock.advance(Duration.ofMinutes(30));
+        snapshotService.takeSnapshot(); // photo des deux owners
+
+        // Mutation post-photo pour chacun (exécution de leur décision respective).
+        clock.advance(Duration.ofMinutes(30));
+        Decision decisionA = decisionEngine.getAllActiveDecisions().stream()
+                .filter(d -> d.getOwner().equals(ownerA)).findFirst().orElseThrow();
+        Decision decisionB = decisionEngine.getAllActiveDecisions().stream()
+                .filter(d -> d.getOwner().equals(ownerB)).findFirst().orElseThrow();
+        ActionStep stepA = decisionA.getSteps().getFirst();
+        ActionStep stepB = decisionB.getSteps().getFirst();
+        eventBus.publish(new DecisionEvent(decisionA, DecisionEventType.ACTION_STEP_EXECUTED,
+                new ActionStepExecutedCause(stepA.stepId(), stepA.executionAction(), stepA.quantity()), clock.now()));
+        eventBus.publish(new DecisionEvent(decisionB, DecisionEventType.ACTION_STEP_EXECUTED,
+                new ActionStepExecutedCause(stepB.stepId(), stepB.executionAction(), stepB.quantity()), clock.now()));
+
+        DefaultScenarioEngine restoredScenarioEngine = new DefaultScenarioEngine(clock, new EventBus());
+        DecisionEngine restoredDecisionEngine = new DecisionEngine(clock, new EventBus(), restoredScenarioEngine);
+        RestoreSummary summary = newRestoreService(restoredScenarioEngine, restoredDecisionEngine).restoreOwner(ownerA);
+
+        assertEquals(1, summary.scenarioCount());
+        assertEquals(1, summary.decisionCount());
+
+        assertFalse(restoredScenarioEngine.getActiveScenarios(ownerA, Duration.ofHours(2), clock.now()).isEmpty(),
+                "Le scénario de ownerA doit être restauré");
+        assertTrue(restoredScenarioEngine.getActiveScenarios(ownerB, Duration.ofHours(2), clock.now()).isEmpty(),
+                "restoreOwner(ownerA) ne doit rien restaurer pour ownerB");
+
+        assertTrue(restoredDecisionEngine.getAllActiveDecisions().stream().anyMatch(d -> d.getOwner().equals(ownerA)),
+                "La décision de ownerA doit être restaurée");
+        assertTrue(restoredDecisionEngine.getAllActiveDecisions().stream().noneMatch(d -> d.getOwner().equals(ownerB)),
+                "restoreOwner(ownerA) ne doit restaurer aucune décision de ownerB");
+
+        Decision restoredA = restoredDecisionEngine.getActiveDecision(decisionA.getSnapshot().decisionId()).orElseThrow();
+        assertEquals(DecisionStatus.EXECUTED, restoredA.getStatus(),
+                "La mutation post-photo de ownerA (exécution) doit être reflétée après restauration owner-scopée");
+    }
+
+    @Test
+    @DisplayName("restoreOwner(ownerA) ignore une création entièrement nouvelle de ownerB survenue après la dernière photo de A")
+    void restoreOwner_ignoresOtherOwnersEntirelyNewCreation_afterReferenceSnapshot() {
+        ScenarioOwner ownerA = ScenarioOwner.user("ownerA-newcreation");
+        ScenarioOwner ownerB = ScenarioOwner.user("ownerB-newcreation");
+
+        // Photo de référence, ownerA seul.
+        ScenarioContext contextA = new ScenarioContext(ownerA, Optional.of("BTC"), clock, List.of());
+        scenarioEngine.onMarketOpinion(bullish("BTC"), contextA);
+        clock.advance(Duration.ofMinutes(30));
+        snapshotService.takeSnapshot();
+
+        // Création entièrement nouvelle pour ownerB, jamais snapshottée, survenue après la photo.
+        clock.advance(Duration.ofMinutes(30));
+        ScenarioContext contextB = new ScenarioContext(ownerB, Optional.of("ETH"), clock, List.of());
+        for (int i = 0; i < 4; i++) {
+            clock.advance(Duration.ofSeconds(1));
+            scenarioEngine.onMarketOpinion(bullish("ETH"), contextB);
+        }
+
+        MarketScenario newScenarioB = scenarioEngine.getActiveScenarios(ownerB, Duration.ofHours(2), clock.now()).getFirst();
+        Decision newDecisionB = decisionEngine.getAllActiveDecisions().stream()
+                .filter(d -> d.getOwner().equals(ownerB)).findFirst().orElseThrow();
+
+        DefaultScenarioEngine restoredScenarioEngine = new DefaultScenarioEngine(clock, new EventBus());
+        DecisionEngine restoredDecisionEngine = new DecisionEngine(clock, new EventBus(), restoredScenarioEngine);
+        newRestoreService(restoredScenarioEngine, restoredDecisionEngine).restoreOwner(ownerA);
+
+        boolean scenarioBLeaked = restoredScenarioEngine.getActiveScenarios(ownerB, Duration.ofHours(2), clock.now())
+                .stream().anyMatch(s -> s.getId().equals(newScenarioB.getId()));
+        assertFalse(scenarioBLeaked,
+                "restoreOwner(ownerA) ne doit pas faire apparaître une création entièrement nouvelle de ownerB (filtre appliqué aux événements, pas seulement aux photos)");
+
+        boolean decisionBLeaked = restoredDecisionEngine.getAllActiveDecisions().stream()
+                .anyMatch(d -> d.getId().equals(newDecisionB.getId()));
+        assertFalse(decisionBLeaked,
+                "restoreOwner(ownerA) ne doit pas faire apparaître une décision entièrement nouvelle de ownerB");
     }
 }

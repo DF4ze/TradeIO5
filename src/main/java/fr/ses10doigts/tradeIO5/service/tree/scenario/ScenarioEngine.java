@@ -50,4 +50,11 @@ public interface ScenarioEngine {
      * existante à la même clé (cas normal : appelé une seule fois au démarrage, avant tout trafic).
      */
     void restoreScenarios(List<MarketScenario> scenarios);
+
+    /**
+     * Retire toutes les données d'un owner de la mémoire active (Palier 3, étape 6 — archivage sur
+     * inactivité). Ne persiste rien : appelant responsable d'avoir pris une photo à jour avant
+     * d'évincer (cf. ArchivalService).
+     */
+    void evictOwner(ScenarioOwner owner);
 }

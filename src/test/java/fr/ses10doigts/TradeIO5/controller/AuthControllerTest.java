@@ -18,16 +18,21 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioOwner;
 import fr.ses10doigts.tradeIO5.security.jwt.JwtUtils;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.RoleRepository;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.security.service.impl.UserDetailsImpl;
+import fr.ses10doigts.tradeIO5.service.tree.decision.DecisionScenarioRestoreService;
 import jakarta.servlet.http.Cookie;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -38,8 +43,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * dépendances {@code @Autowired} par champ (package-private, pas d'injection par constructeur dans ce
  * controller) sont fixées directement depuis le test, même package.
  *
- * <p>Périmètre : uniquement le hook 1 de la détection de connexion (Palier 3, étape 5) — mise à jour
- * de {@code lastLogin} après un login réussi via {@code /api/auth/signinForm}.</p>
+ * <p>Périmètre : le hook 1 de la détection de connexion (Palier 3, étape 5) — mise à jour de
+ * {@code lastLogin} après un login réussi via {@code /api/auth/signinForm} — et le hook de
+ * restauration à la reconnexion pour un utilisateur archivé (Palier 3, étape 6).</p>
  */
 @DisplayName("AuthController#authenticateUserForm")
 @ExtendWith(MockitoExtension.class)
@@ -60,6 +66,9 @@ class AuthControllerTest {
     @Mock
     private JwtUtils jwtUtils;
 
+    @Mock
+    private DecisionScenarioRestoreService restoreService;
+
     private MockMvc mockMvc;
 
     private final User user = User.builder().id(1L).username("alice").build();
@@ -72,20 +81,25 @@ class AuthControllerTest {
         controller.roleRepository = roleRepository;
         controller.encoder = encoder;
         controller.jwtUtils = jwtUtils;
+        controller.restoreService = restoreService;
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+    }
+
+    private void mockSuccessfulAuthentication(User loggedInUser) throws Exception {
+        UserDetailsImpl userDetails =
+                new UserDetailsImpl(loggedInUser.getId(), "alice", "alice@test.com", "hash", Collections.emptyList());
+        Authentication authentication =
+                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+
+        when(authenticationManager.authenticate(any())).thenReturn(authentication);
+        when(userRepository.findById(loggedInUser.getId())).thenReturn(Optional.of(loggedInUser));
+        when(jwtUtils.generateJwtCookie(userDetails)).thenReturn(new Cookie("test-cookie", "value"));
     }
 
     @Test
     @DisplayName("login réussi met à jour lastLogin via userRepository.save")
     void authenticateUserForm_updatesLastLoginOnSuccess() throws Exception {
-        UserDetailsImpl userDetails =
-                new UserDetailsImpl(1L, "alice", "alice@test.com", "hash", Collections.emptyList());
-        Authentication authentication =
-                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-
-        when(authenticationManager.authenticate(any())).thenReturn(authentication);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(jwtUtils.generateJwtCookie(userDetails)).thenReturn(new Cookie("test-cookie", "value"));
+        mockSuccessfulAuthentication(user);
 
         mockMvc.perform(post("/api/auth/signinForm")
                         .param("userName", "alice")
@@ -108,6 +122,40 @@ class AuthControllerTest {
                         .param("password", "wrong"))
                 .andExpect(status().is3xxRedirection());
 
-        verify(userRepository, org.mockito.Mockito.never()).save(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    // ---------- Palier 3, étape 6 : restauration à la reconnexion pour un utilisateur archivé ----------
+
+    @Test
+    @DisplayName("login réussi pour un utilisateur archivé restaure ses données et remet archivedAt à null")
+    void authenticateUserForm_restoresArchivedUser_onSuccessfulLogin() throws Exception {
+        User archivedUser = User.builder().id(1L).username("alice").archivedAt(Instant.parse("2026-06-01T00:00:00Z")).build();
+        mockSuccessfulAuthentication(archivedUser);
+
+        mockMvc.perform(post("/api/auth/signinForm")
+                        .param("userName", "alice")
+                        .param("password", "secret"))
+                .andExpect(status().is3xxRedirection());
+
+        verify(restoreService).restoreOwner(eq(ScenarioOwner.of(archivedUser)));
+
+        ArgumentCaptor<User> savedUser = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(savedUser.capture());
+        assertThat(savedUser.getValue().getArchivedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("login réussi pour un utilisateur non archivé n'appelle jamais restoreOwner")
+    void authenticateUserForm_doesNotRestore_whenUserNotArchived() throws Exception {
+        User notArchivedUser = User.builder().id(1L).username("alice").archivedAt(null).build();
+        mockSuccessfulAuthentication(notArchivedUser);
+
+        mockMvc.perform(post("/api/auth/signinForm")
+                        .param("userName", "alice")
+                        .param("password", "secret"))
+                .andExpect(status().is3xxRedirection());
+
+        verifyNoInteractions(restoreService);
     }
 }

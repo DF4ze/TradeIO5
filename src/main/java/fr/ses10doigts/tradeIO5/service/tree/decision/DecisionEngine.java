@@ -8,6 +8,7 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.decision.ActionStep;
 import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionCandidate;
 import fr.ses10doigts.tradeIO5.model.dto.tree.decision.DecisionSnapshot;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ActionIntent;
+import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioOwner;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.MarketIntentAction;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.decision.DecisionEventType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.decision.DecisionStatus;
@@ -44,14 +45,12 @@ public class DecisionEngine {
     private static final Duration MAX_SCENARIO_AGE = DefaultMarketScenario.EXPIRATION_IDLE;
 
     private final DomainClock clock;
-    //private final Set<String> symbols;
     private final EventBus eventBus;
     private final ScenarioEngine scenarioEngine;
     private final Map<String, Decision> activeDecisions;
 
     public DecisionEngine(DomainClock clock, EventBus eventBus, ScenarioEngine scenarioEngine) {
         this.clock = clock;
-       // this.symbols = symbols;
         this.eventBus = eventBus;
         this.scenarioEngine = scenarioEngine;
         activeDecisions = new ConcurrentHashMap<>();
@@ -129,6 +128,13 @@ public class DecisionEngine {
      */
     public void restoreDecisions(List<Decision> decisions) {
         decisions.forEach(d -> activeDecisions.put(d.getSnapshot().decisionId(), d));
+    }
+
+    /**
+     * Symétrique à ScenarioEngine.evictOwner (Palier 3, étape 6).
+     */
+    public void evictOwner(ScenarioOwner owner) {
+        activeDecisions.values().removeIf(d -> d.getOwner().equals(owner));
     }
 
     /**
