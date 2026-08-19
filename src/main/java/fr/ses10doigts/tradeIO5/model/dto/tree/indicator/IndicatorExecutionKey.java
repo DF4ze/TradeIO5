@@ -16,7 +16,26 @@ public record IndicatorExecutionKey(
         return new IndicatorExecutionKey(
                 indicator.getType(),
                 parameters,
-                context
+                indicator.isGlobal() ? globalContext(context) : context
+        );
+    }
+
+    /**
+     * Neutralise {@code symbol} et {@code marketDataset} (qui embarque lui-même le symbole via
+     * {@code MarketDataset.pair}, cf. {@code TreeAnalysisFacade.emptyDataset}) pour un indicateur
+     * {@link Indicator#isGlobal() global} : deux appels différant uniquement par le symbole
+     * interrogé (ex: DXY calculé pour BTC puis pour ETH) doivent partager la même entrée de cache
+     * plutôt que déclencher deux appels réseau identiques — cf. javadoc {@link Indicator#isGlobal()}.
+     * {@code timeframe}/{@code dependencies}/{@code clock} restent inchangés (aucune preuve que ces
+     * indicateurs les ignorent, contrairement à {@code symbol}, vérifié classe par classe).
+     */
+    private static IndicatorContext globalContext(IndicatorContext context) {
+        return new IndicatorContext(
+                null,
+                context.timeframe(),
+                null,
+                context.dependencies(),
+                context.clock()
         );
     }
 }

@@ -43,6 +43,12 @@ public class NasdaqIndicator implements Indicator {
         return IndicatorType.NASDAQ;
     }
 
+    /** NASDAQ est un indice action US global, jamais spécifique à un symbole crypto. Cf. javadoc {@link Indicator#isGlobal()}. */
+    @Override
+    public boolean isGlobal() {
+        return true;
+    }
+
     @Override
     public int getRequiredData(IndicatorParameters parameters) {
         return 0;

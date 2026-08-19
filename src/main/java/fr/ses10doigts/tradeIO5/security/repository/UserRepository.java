@@ -24,6 +24,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
 	List<User> findByLastLoginBeforeAndArchivedAtIsNull(Instant threshold);
 
 	/**
+	 * Variante de {@link #findByLastLoginBeforeAndArchivedAtIsNull(Instant)} qui exclut en plus un
+	 * utilisateur par son username — utilisée par {@code UserArchivalService} pour ne jamais
+	 * archiver le compte technique "System" (consigne de Clem, 2026-08-17), même s'il ne se
+	 * connecte jamais : il est utilisé en interne pour résoudre les credentials des providers
+	 * externes (cf. {@code IndicatorCredentialResolver}, {@code MacroCredentialResolver}, {@code
+	 * MediaCredentialResolver}) et ne doit pas être évincé de la mémoire active.
+	 */
+	List<User> findByLastLoginBeforeAndArchivedAtIsNullAndUsernameNot(Instant threshold, String username);
+
+	/**
 	 * "Utilisateur actif" pour l'itération de {@code DecisionOrchestrator} (Palier 3, étape 7,
 	 * décision 9) : {@code enabled=true} et pas archivé. Décision dérivée directement de l'étape 6 —
 	 * itérer sur un owner déjà archivé recréerait immédiatement l'état que l'archivage vient

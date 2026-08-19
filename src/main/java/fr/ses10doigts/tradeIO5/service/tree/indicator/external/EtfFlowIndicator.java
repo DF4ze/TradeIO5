@@ -73,6 +73,12 @@ public class EtfFlowIndicator implements Indicator {
         return IndicatorType.ETF_FLOW;
     }
 
+    /** ETF_FLOW ne lit jamais context.symbol() (actif résolu via le paramètre stringParams 'asset'). Cf. javadoc {@link Indicator#isGlobal()}. */
+    @Override
+    public boolean isGlobal() {
+        return true;
+    }
+
     @Override
     public int getRequiredData(IndicatorParameters parameters) {
         return 0;

@@ -28,6 +28,12 @@ public class FearAndGreedIndicator implements Indicator {
         return IndicatorType.FEAR_GREED;
     }
 
+    /** Fear &amp; Greed est un indice de sentiment marché global, jamais spécifique à un symbole. Cf. javadoc {@link Indicator#isGlobal()}. */
+    @Override
+    public boolean isGlobal() {
+        return true;
+    }
+
     @Override
     public int getRequiredData(IndicatorParameters parameters) {
         return 0;

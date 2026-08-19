@@ -22,6 +22,12 @@ import java.util.List;
  * dernière connexion remonte à plus de {@link #ARCHIVAL_DELAY}. Ne supprime rien en base : la photo
  * + les événements restent, c'est ce qui permet la restauration à la reconnexion (cf. {@code
  * DecisionScenarioRestoreService#restoreOwner}, hook dans {@code AuthController}).
+ *
+ * <p>Le compte technique "System" (cf. {@code UserInitializer}, rôle {@code ROLE_SYS}) est
+ * explicitement exclu des candidats à l'archivage (consigne de Clem, 2026-08-17) : il n'a jamais de
+ * {@code lastLogin} à jour puisque personne ne s'y connecte, mais il est utilisé en interne pour
+ * résoudre les credentials des providers externes ({@code IndicatorCredentialResolver}, {@code
+ * MacroCredentialResolver}, {@code MediaCredentialResolver}). L'évincer casserait ces résolutions.
  */
 @Service
 @RequiredArgsConstructor
@@ -32,6 +38,9 @@ public class UserArchivalService {
     // TODO parametrize — valeur de départ actée par Clem (2026-08-13), à externaliser en
     // property Spring quand ce palier sera éprouvé en usage réel.
     private static final Duration ARCHIVAL_DELAY = Duration.ofDays(60);
+
+    // Compte technique jamais archivé, cf. javadoc de classe.
+    private static final String SYSTEM_USERNAME = "System";
 
     private final UserRepository userRepository;
     private final DecisionScenarioSnapshotService snapshotService;
@@ -48,7 +57,8 @@ public class UserArchivalService {
         // quel — cf. étape 4 du palier, décision de ne pas dupliquer ce mécanisme).
         snapshotService.takeSnapshot();
 
-        List<User> candidates = userRepository.findByLastLoginBeforeAndArchivedAtIsNull(threshold);
+        List<User> candidates = userRepository
+                .findByLastLoginBeforeAndArchivedAtIsNullAndUsernameNot(threshold, SYSTEM_USERNAME);
         for (User user : candidates) {
             ScenarioOwner owner = ScenarioOwner.of(user);
             scenarioEngine.evictOwner(owner);

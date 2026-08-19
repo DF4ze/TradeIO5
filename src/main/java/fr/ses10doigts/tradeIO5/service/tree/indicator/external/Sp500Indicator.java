@@ -54,6 +54,12 @@ public class Sp500Indicator implements Indicator {
         return IndicatorType.SP500;
     }
 
+    /** SP500 est un indice action US global, jamais spécifique à un symbole crypto. Cf. javadoc {@link Indicator#isGlobal()}. */
+    @Override
+    public boolean isGlobal() {
+        return true;
+    }
+
     @Override
     public int getRequiredData(IndicatorParameters parameters) {
         return 0;

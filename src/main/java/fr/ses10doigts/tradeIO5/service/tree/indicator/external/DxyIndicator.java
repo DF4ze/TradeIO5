@@ -75,6 +75,12 @@ public class DxyIndicator implements Indicator {
         return IndicatorType.DXY;
     }
 
+    /** DXY est une valeur macro globale (formule sur 6 paires forex), jamais spécifique à un symbole. Cf. javadoc {@link Indicator#isGlobal()}. */
+    @Override
+    public boolean isGlobal() {
+        return true;
+    }
+
     @Override
     public int getRequiredData(IndicatorParameters parameters) {
         return 0;

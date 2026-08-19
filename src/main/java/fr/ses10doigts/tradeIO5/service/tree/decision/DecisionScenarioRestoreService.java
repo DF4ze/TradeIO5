@@ -125,6 +125,18 @@ public class DecisionScenarioRestoreService {
                 // lui, une restauration owner-scopée récupérerait par erreur les créations nouvelles
                 // d'autres owners.
                 .filter(e -> ownerFilter.isEmpty() || ownerFilter.get().equals(e.getOwner()))
+                // Garde-fou : une ligne d'event legacy/corrompue peut se désérialiser correctement
+                // mais porter un scenarioId null (ex. schéma JSON antérieur à ce champ) — on l'écarte
+                // avec un log plutôt que de faire planter tout le démarrage (Collectors.groupingBy
+                // refuse une clé null), même philosophie que le filtre Objects::nonNull ci-dessus pour
+                // les échecs de désérialisation.
+                .filter(e -> {
+                    if (e.getScenarioId() == null) {
+                        log.warn("DecisionScenarioRestoreService: ScenarioEvent sans scenarioId ignoré (id={})", e.getId());
+                        return false;
+                    }
+                    return true;
+                })
                 .collect(Collectors.groupingBy(ScenarioEvent::getScenarioId));
 
         List<MarketScenario> restored = new ArrayList<>();
@@ -288,6 +300,16 @@ public class DecisionScenarioRestoreService {
                 // Palier 3, étape 6 : même filtre owner que pour les scénarios, appliqué avant le
                 // regroupement par id.
                 .filter(e -> ownerFilter.isEmpty() || ownerFilter.get().equals(e.getOwner()))
+                // Garde-fou : même raison que pour les ScenarioEvent ci-dessus (cf. commentaire dans
+                // restoreScenarios) — un DecisionEvent legacy/corrompu sans decisionId ne doit pas
+                // faire planter tout le démarrage de l'application.
+                .filter(e -> {
+                    if (e.getDecisionId() == null) {
+                        log.warn("DecisionScenarioRestoreService: DecisionEvent sans decisionId ignoré (id={})", e.getId());
+                        return false;
+                    }
+                    return true;
+                })
                 .sorted(Comparator.comparing(DecisionEvent::getTimestamp))
                 .collect(Collectors.groupingBy(DecisionEvent::getDecisionId));
 

@@ -37,6 +37,12 @@ public class StablecoinMarketCapIndicator implements Indicator {
         return IndicatorType.STABLECOIN_MARKET_CAP;
     }
 
+    /** Capitalisation totale des stablecoins, valeur globale, jamais spécifique à un symbole. Cf. javadoc {@link Indicator#isGlobal()}. */
+    @Override
+    public boolean isGlobal() {
+        return true;
+    }
+
     @Override
     public int getRequiredData(IndicatorParameters parameters) {
         return 0;

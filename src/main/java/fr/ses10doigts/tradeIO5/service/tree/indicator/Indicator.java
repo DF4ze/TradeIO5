@@ -50,6 +50,23 @@ public interface Indicator {
      */
     IndicatorType getType();
 
+    /**
+     * {@code true} si l'indicateur ne dépend jamais du symbole interrogé (valeur macro/marché
+     * globale, ex: DXY, SP500, NASDAQ, FEAR_GREED, STABLECOIN_MARKET_CAP, ETF_FLOW qui lit
+     * uniquement son paramètre {@code asset}) — {@code false} par défaut (comportement historique,
+     * ex: RSI/EMA ou OPEN_INTEREST/FUNDING_RATE/LIQUIDATIONS qui varient bien par actif).
+     * <p>
+     * Utilisé par {@code IndicatorExecutionKey.of(...)} pour neutraliser {@code symbol}/
+     * {@code marketDataset} dans la clé de cache de ces indicateurs : sans ça, deux appels sur des
+     * symboles différents (ex: {@code get_opinion("BTC", MACRO, ...)} puis
+     * {@code get_opinion("ETH", MACRO, ...)}) déclenchaient chacun un appel réseau distinct pour
+     * une même donnée globale — incident 2026-08-17, DXY consommait 2×6=12 crédits Twelve Data/
+     * minute (limite gratuite : 8) alors qu'une seule évaluation en coûte 6.
+     */
+    default boolean isGlobal() {
+        return false;
+    }
+
     int getRequiredData( IndicatorParameters parameters );
 
     /**

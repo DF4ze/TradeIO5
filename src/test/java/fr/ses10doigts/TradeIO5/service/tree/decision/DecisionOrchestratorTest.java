@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.tree.decision;
 
+import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.MarketOpinionParameters;
 import fr.ses10doigts.tradeIO5.model.dto.tree.opinion.OpinionSignal;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.scenario.ScenarioOwner;
@@ -11,13 +12,8 @@ import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import fr.ses10doigts.tradeIO5.service.tree.api.mcp.TreeAnalysisFacade;
 import fr.ses10doigts.tradeIO5.service.tree.event.engine.EventBus;
-import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorCredentialResolver;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.DefaultScenarioEngine;
 import fr.ses10doigts.tradeIO5.service.tree.scenario.ScenarioEngine;
-import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.EtfFlowConfidenceStrategy;
-import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.MovementQualificationStrategy;
-import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.OrderFlowStrategy;
-import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.TrendConfirmationStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -48,23 +44,18 @@ class DecisionOrchestratorTest {
 
     private TreeAnalysisFacade facade;
     private UserRepository userRepository;
-    private IndicatorCredentialResolver credentialResolver;
-    private TrendConfirmationStrategy trendConfirmationStrategy;
-    private MovementQualificationStrategy movementQualificationStrategy;
-    private OrderFlowStrategy orderFlowStrategy;
-    private EtfFlowConfidenceStrategy etfFlowConfidenceStrategy;
+    private DefaultLocalOpinionParamsProvider localOpinionParamsProvider;
 
     @BeforeEach
     void setUp() {
         facade = mock(TreeAnalysisFacade.class);
         userRepository = mock(UserRepository.class);
-        credentialResolver = mock(IndicatorCredentialResolver.class);
-        // Jamais réellement invoquées par DecisionOrchestrator (seulement enveloppées dans un
-        // StrategyKey) : des mocks suffisent, aucune de leurs méthodes n'est exercée par ce lot.
-        trendConfirmationStrategy = mock(TrendConfirmationStrategy.class);
-        movementQualificationStrategy = mock(MovementQualificationStrategy.class);
-        orderFlowStrategy = mock(OrderFlowStrategy.class);
-        etfFlowConfidenceStrategy = mock(EtfFlowConfidenceStrategy.class);
+        // DecisionOrchestrator ne s'intéresse qu'au MarketOpinionParameters retourné (transmis tel
+        // quel à TreeAnalysisFacade.getOpinion, jamais inspecté) : un mock stubé sur un objet neutre
+        // suffit, le contenu réel des 4 strategies est couvert par DefaultLocalOpinionParamsProviderTest
+        // (2026-08-17, extraction de cette responsabilité hors de DecisionOrchestrator).
+        localOpinionParamsProvider = mock(DefaultLocalOpinionParamsProvider.class);
+        when(localOpinionParamsProvider.build()).thenReturn(MarketOpinionParameters.builder().build());
     }
 
     private DecisionOrchestrator newOrchestrator(ScenarioEngine scenarioEngine, OwnerRefreshGuard guard, FixedDomainClock clock) {
@@ -73,11 +64,7 @@ class DecisionOrchestratorTest {
                 scenarioEngine,
                 userRepository,
                 guard,
-                credentialResolver,
-                trendConfirmationStrategy,
-                movementQualificationStrategy,
-                orderFlowStrategy,
-                etfFlowConfidenceStrategy,
+                localOpinionParamsProvider,
                 clock
         );
     }
