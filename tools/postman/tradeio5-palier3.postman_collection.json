@@ -1,0 +1,331 @@
+{
+  "info": {
+    "name": "TradeIO5 — Palier 3 (Decision/Scenario/Orchestrateur)",
+    "description": "Collection de test manuel pour le Palier 3 (branchement, orchestrateur, persistance des Decisions/Scenarios). Voir docs/suivi/plan-test-manuel-palier3.md pour la séquence complète et les explications.\n\nAuth : le compte utilisé doit avoir ROLE_ADMIN (sélectionnable au formulaire d'inscription /register). '0. Auth > Login' pose un cookie JWT que Postman réutilise automatiquement sur les requêtes suivantes (même domaine) — pense à laisser la gestion des cookies activée dans Postman (Settings > General > 'Automatically follow redirects' + cookie jar par défaut).\n\nNon inclus ici : get_macro_calendar / check_macro_risk_window sont des tools MCP, pas des endpoints REST — pas appelables depuis Postman, utiliser un client MCP.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "username", "value": "OKlm", "type": "string" },
+    { "key": "password", "value": "changeme", "type": "string" },
+    { "key": "symbol", "value": "BTC", "type": "string" },
+    { "key": "owner", "value": "1", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "0. Auth",
+      "item": [
+        {
+          "name": "Login (pose le cookie JWT, ROLE_ADMIN requis pour la suite)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "userName", "value": "{{username}}", "type": "text" },
+                { "key": "password", "value": "{{password}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/signinForm",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "signinForm"]
+            },
+            "description": "Réponse = redirection 302 vers '/' si succès (ou vers '/login?error' si échec) — c'est normal, le cookie JWT est déjà posé dans la réponse avant la redirection."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login effectué (redirection, pas d\\'erreur serveur)', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 302]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. Opinion (la racine)",
+      "item": [
+        {
+          "name": "GET Opinion LOCAL (symbol par défaut)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/decision/opinion?symbol={{symbol}}&scope=LOCAL",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "decision", "opinion"],
+              "query": [
+                { "key": "symbol", "value": "{{symbol}}" },
+                { "key": "scope", "value": "LOCAL" }
+              ]
+            },
+            "description": "Utilise les 4 strategies par défaut de l'orchestrateur (TrendConfirmation + MovementQualification + OrderFlow + EtfFlow) via DefaultLocalOpinionParamsProvider."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('symbol renseigné pour LOCAL', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.symbol).to.eql(pm.variables.get('symbol'));",
+                  "    pm.expect(body.scope).to.eql('LOCAL');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Opinion GLOBAL (symbol doit être null en sortie)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/decision/opinion?symbol={{symbol}}&scope=GLOBAL",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "decision", "opinion"],
+              "query": [
+                { "key": "symbol", "value": "{{symbol}}" },
+                { "key": "scope", "value": "GLOBAL" }
+              ]
+            },
+            "description": "symbol est requis en entrée (contrat de la façade) mais toujours ignoré par ce scope. Vérifie le fix du bug de propagation de symbole (étape 7 du palier)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('symbol = null (pas de propagation du symbole d\\'entrée)', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.symbol).to.be.null;",
+                  "    pm.expect(body.scope).to.eql('GLOBAL');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Opinion MACRO (symbol doit être null en sortie)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/decision/opinion?symbol={{symbol}}&scope=MACRO",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "decision", "opinion"],
+              "query": [
+                { "key": "symbol", "value": "{{symbol}}" },
+                { "key": "scope", "value": "MACRO" }
+              ]
+            },
+            "description": "Comparer la confidence retournée ici avant/pendant une fenêtre de risque macro (cf. check_macro_risk_window côté MCP) pour vérifier l'étape 8 (MacroRiskWindowModulator)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('symbol = null', () => {",
+                  "    pm.expect(pm.response.json().symbol).to.be.null;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Opinion EXTERNAL (hors cycle automatique)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/decision/opinion?symbol={{symbol}}&scope=EXTERNAL",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "decision", "opinion"],
+              "query": [
+                { "key": "symbol", "value": "{{symbol}}" },
+                { "key": "scope", "value": "EXTERNAL" }
+              ]
+            },
+            "description": "EXTERNAL fait un appel LLM réel (DecisionAdvisor) — jamais déclenché par l'orchestrateur (hors périmètre étape 7), seulement disponible ici en ad hoc."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Orchestrateur",
+      "item": [
+        {
+          "name": "POST Orchestrate (déclenche un cycle complet)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/decision/orchestrate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "decision", "orchestrate"]
+            },
+            "description": "Calcule 5 signaux (3 LOCAL + GLOBAL + MACRO) et les propage à chaque owner actif (enabled=true, archivedAt=null). Relancer immédiatement une 2e fois pour observer le verrou anti-doublon (usersSkippedLocked)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('5 signaux calculés par cycle', () => {",
+                  "    pm.expect(pm.response.json().signalsComputed).to.eql(5);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Lecture d'état (scenarios / decisions)",
+      "item": [
+        {
+          "name": "GET Scenarios (tous owners)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/decision/scenarios",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "decision", "scenarios"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Scenarios (owner={{owner}})",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/decision/scenarios?owner={{owner}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "decision", "scenarios"],
+              "query": [{ "key": "owner", "value": "{{owner}}" }]
+            }
+          }
+        },
+        {
+          "name": "GET Decisions (tous owners)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/decision/decisions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "decision", "decisions"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Decisions (owner={{owner}})",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/decision/decisions?owner={{owner}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "decision", "decisions"],
+              "query": [{ "key": "owner", "value": "{{owner}}" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Persistance (photo quotidienne)",
+      "item": [
+        {
+          "name": "POST Snapshot",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/decision/snapshot",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "decision", "snapshot"]
+            },
+            "description": "Photographie l'état actif courant (scenario_snapshots / decision_snapshots). À faire avant un redémarrage pour tester le rejeu."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Archivage sur inactivité",
+      "item": [
+        {
+          "name": "POST Archive",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/decision/archive",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "decision", "archive"]
+            },
+            "description": "N'archive que les users avec lastLogin > 60 jours (positionner artificiellement ce champ en DB pour tester sans attendre)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
