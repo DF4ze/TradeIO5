@@ -42,6 +42,9 @@ public class ContentSourceInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) {
         seedIfAbsent("UCuXgThwkFpefb41aKWKqrOw", "Cryptolyze", 1.0);
+        seedIfAbsent("UCd1AdBu2cmlN0P_TxtzN6ew", "Hasheur", 0.5);
+        seedIfAbsent("UCyXku-kSJb9JSACGUS99pdg", "Yrille", 0.6);
+        seedIfAbsent("UC7qnB0XxzOEwWWn9Q6HPmCw", "JournalDuCoin", 0.6);
 
         logger.info("📺 Toutes les ContentSource de veille média sont initialisées.");
     }
