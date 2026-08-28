@@ -45,6 +45,7 @@ public class ContentSourceInitializer implements CommandLineRunner {
         seedIfAbsent("UCd1AdBu2cmlN0P_TxtzN6ew", "Hasheur", 0.5);
         seedIfAbsent("UCyXku-kSJb9JSACGUS99pdg", "Yrille", 0.6);
         seedIfAbsent("UC7qnB0XxzOEwWWn9Q6HPmCw", "JournalDuCoin", 0.6);
+        seedIfAbsent("UC0DITweI6K01RpfrJDMQWFw", "MonsieurTK", 0.5);
 
         logger.info("📺 Toutes les ContentSource de veille média sont initialisées.");
     }
