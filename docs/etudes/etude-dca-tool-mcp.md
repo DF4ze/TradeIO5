@@ -111,3 +111,46 @@ Fichier modifié :
 - `service/connector/apiclient/marketdata/CachingMarketDataApiClient.java` : ajout de logs INFO (`Cache HIT complet` / `Cache PARTIEL` / `Appel réseau ...`) pour rendre observable, sans outillage externe, si un appel réseau a réellement eu lieu ou si la lecture vient entièrement du cache DB.
 
 Non couvert par cette implémentation (hors scope de la demande initiale) : ajustement dynamique du montant selon RSI/Rainbow (cf. `BackLog.ods` item 3.2 "DCA intelligent", distinct de ce tool qui simule un DCA à montant fixe).
+
+## 10. Complément 2026-09-12 — le mécanisme alternatif Bucket/MarketDatasetEngine, et pourquoi on ne s'en sert pas ici
+
+En travaillant sur une variante Rainbow de ce DCA (session Cowork, cf. mémoire projet
+`tradeio5_dca_rainbow_decoupled_architecture_2026-09-12.md`), deux mécanismes distincts existent
+dans le code pour obtenir des données de marché — à ne pas confondre :
+
+**A. Le chemin direct (celui de ce tool, section 4/6 ci-dessus)** : `MarketDataApiClient` brut
+(Binance/Kraken/OKX), qui ne sait QUE fetcher du H1 natif. `DcaCalculatorService` l'utilise
+directement avec sa propre pagination, sans passer par un cache "rolling". Simple, adapté à un
+calcul one-shot sur une période arbitraire (ce que fait un backtest).
+
+**B. Le chemin production (live)** : `MarketDatasetEngine` + `MarketDataProviderRegistry` +
+`Bucket` (`service/market/dataset/`). C'est la chaîne utilisée par `get_indicator`/`evaluate_strategy`/
+`get_opinion` pour alimenter les indicateurs en continu :
+- `MarketDatasetEngine.getDatasetForAsset(symbol, timeFrame, lookBack, endTime)` résout
+  automatiquement le provider via `asset_provider` (ordonné par `priority`, filtré par
+  `maxHorizonDays`), avec **fallback automatique** sur le candidat suivant si
+  `SymbolNotFoundException`/`ProviderUnavailableException` est levée par un provider.
+- En interne, il fetch toujours au `baseTimeFrame` du `Bucket` (H1) puis agrège vers le
+  `TimeFrame` cible demandé (D1, W1...) via `Bucket.view(targetTimeFrame, now)` — **agrégation
+  OHLCV réelle** (open=premier H1, close=dernier H1, high=max, low=min, volume=somme), pas une
+  simple sélection d'une bougie H1 comme le fait ce tool DCA.
+- `Bucket` est plafonné à `BASE_MAX_ITEMS = 50 000` bougies H1 (~5-6 ans) et a une logique
+  `shouldFetch` distinguant source "live" (refetch si la fenêtre a expiré) de source
+  historique/backtest (fetch une seule fois) — pensé pour un usage continu "ancré sur maintenant",
+  pas pour naviguer librement dans le passé.
+
+**C. Précédent déjà établi pour réutiliser B dans un contexte de backtest** :
+`tools/calibration/BucketResample.java` (demande explicite de Clem, 2026-07-09, cf.
+`docs/calibration/calibration-rejection-zone.md`) instancie un `Bucket` directement (sans passer
+par `MarketDatasetEngine`), lui injecte un gros import H1 (CSV), et appelle `.view(TimeFrame.D1, now)`/
+`.view(TimeFrame.W1, now)` pour obtenir du vrai D1/W1 historique — réutilise l'agrégation de
+production sans réimplémenter l'OHLCV, et sans les contraintes "live" de `MarketDatasetEngine`.
+
+**Pourquoi on garde A (ce tool) + `Bucket` nu (comme C), pas B en entier, pour le backtest
+Rainbow** : `MarketDatasetEngine` résout un vrai besoin (choix/fallback de provider pour l'usage
+live), mais ajoute une couche (cache par `BucketKey`, logique live/backtest, `asset_provider`)
+inutile pour un calcul one-shot sur tout l'historique d'un seul actif (BTC) avec une seule source
+(Binance) déjà connue. Le patron retenu : fetch H1 en bloc comme le fait déjà ce tool (section 4),
+puis `new Bucket(TimeFrame.H1, maxSize).append(...)` + `.view(TimeFrame.D1, now)` comme le fait déjà
+`BucketResample.java` — pour obtenir de vraies clôtures journalières (pas juste la bougie H1 d'une
+heure donnée) sans réimplémenter l'agrégation ni passer par la machinerie provider-fallback.

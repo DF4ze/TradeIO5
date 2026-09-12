@@ -1,58 +1,17 @@
-<think>
-
-</think>
-
 # TradeIO5
 
-## 🚀 Description
+Application Spring Boot (Java 21) qui calcule des signaux de décision d'investissement crypto multi-utilisateurs à partir de données de marché, macro et média, et les expose en interface web et en tools MCP pour un agent IA externe.
 
-TradeIO5 est une plateforme d'investissement en crypto-monnaie autonome et multi-utilisateurs. Elle combine des indicateurs de marché avancés (techniques et macroéconomiques) avec un moteur de décision organique pour piloter des stratégies d'investissement automatisées ou assistées par agent IA.
+**Documentation complète et vérifiée sur le code : [`docs/README.md`](docs/README.md).**
 
-Conçu pour gérer la complexité des marchés crypto, il transforme des données brutes en décisions d'investissement pondérées, adaptées au risque toléré de chaque utilisateur.
+## Point important avant de lire quoi que ce soit d'autre
 
----
+TradeIO5 est un moteur de **signal de décision**, pas un système d'exécution d'ordres. Il produit des `Decision`/`ActionStep` en base ; rien dans le code n'appelle un exchange pour passer un ordre réel, et le sizing des positions est un placeholder constant au 2026-09-12. Détail : [`docs/known-gaps/decision-to-order-gap.md`](docs/known-gaps/decision-to-order-gap.md).
 
-## ✨ Fonctionnalités
+## Stack
 
-*   **Indicateurs Techniques :** RSI, MACD, EMA, et gestion des échelles de temps.
-*   **Données Macroéconomiques :** Fear & Greed, Liquidity Providing, DXY, UnRate, etc.
-*   **Veille Média & Sociale :** Intégration X/Twitter, Telegram, Youtube.
-*   **Moteur de Décision Organique :** Scénarios pondérés, analyse de probabilité et gestion de risque.
-*   **Architecture Multi-Utilisateur :** Solution complète pour investissement automatisé ou pilotage IA.
-*   **Gestion de Portefeuille :** Suivi et analyse des actifs investis.
+Spring Boot 3.3.4, Java 21, Spring Data JPA + MySQL, Spring Security (JWT + clé API), Spring AI (serveur MCP), client OpenAI-compatible pour les advisors LLM. Détail complet : [`docs/architecture/01-overview.md`](docs/architecture/01-overview.md).
 
+## Licence
 
----
-
-## 🧱 Architecture
-
-*   **Couche Données :** Récupération et mise en cache des prix et indicateurs.
-*   **Couche Décision :** Moteur organique de prise de décision et gestion de scénarios.
-*   **Couche Utilisateur :** Interface multi-utilisateurs et gestion de portefeuille.
-
----
-
-## 🗺️ Roadmap
-
-*   **Évolutions Logiques :** Intégration de plus de sources de données, optimisation de la latence, interface web dédiée.
-*   **TODO :** Vérifier les tâches dans le code pour les intégrer.
-
----
-
-
-## 📄 Licence
-
-* This project is licensed under the Apache License 2.0 with Commons Clause.
-
-✔ You are allowed to:
-
-* Use the software for personal or internal business use
-* Modify and distribute it
-* Contribute to the project
-
-❌ You are NOT allowed to:
-
-* Sell this software
-* Sell a product or service primarily based on this software
-
-See the LICENSE file for full details.
+Apache License 2.0 with Commons Clause — usage personnel/interne autorisé, modification et contribution autorisées, revente du logiciel ou d'un service principalement basé dessus interdite. Voir le fichier `LICENSE`.
