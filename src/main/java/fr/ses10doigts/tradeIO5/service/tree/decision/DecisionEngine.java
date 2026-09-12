@@ -89,7 +89,7 @@ public class DecisionEngine {
                 DecisionEventType.DECISION_CREATED,
                 new DecisionCreatedCause(
                         decision.getId(),
-                        "On Scenario Event",
+                        candidate.reason(),
                         decision.getSteps()
                 ),
                 clock.now()
@@ -175,7 +175,9 @@ public class DecisionEngine {
                 UUID.randomUUID().toString(),
                 candidate.action(),
                 candidate.quantity(),
-                candidate.walletId() // circule depuis le candidate ; toujours null tant que rien ne le résout (§5/§4)
+                candidate.walletId(), // circule depuis le candidate ; toujours null tant que rien ne le résout (§5/§4)
+                candidate.confidence(),
+                candidate.reason()
         );
 
         return new Decision(

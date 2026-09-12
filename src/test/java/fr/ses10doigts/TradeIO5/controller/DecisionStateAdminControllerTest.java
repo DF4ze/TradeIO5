@@ -126,7 +126,7 @@ class DecisionStateAdminControllerTest {
 
     private Decision decision(ScenarioOwner owner, String symbol) {
         DecisionSnapshot snapshot = new DecisionSnapshot(UUID.randomUUID().toString(), symbol, owner, DecisionType.ENTER, NOW);
-        ActionStep step = new ActionStep(UUID.randomUUID().toString(), ExecutionAction.BUY, java.math.BigDecimal.ONE, null);
+        ActionStep step = new ActionStep(UUID.randomUUID().toString(), ExecutionAction.BUY, java.math.BigDecimal.ONE, null, 0.8, "test-reason");
         return new Decision(snapshot, List.of(step));
     }
 

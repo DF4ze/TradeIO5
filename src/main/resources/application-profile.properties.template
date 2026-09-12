@@ -82,3 +82,11 @@ tradeio.sosovalue.apiKey=yourKey
 # Desactive par defaut ("-", cf. Scheduled.CRON_DISABLED) : declenchement manuel via POST
 # /api/admin/decision/orchestrate en attendant. Decommenter pour activer un creneau reel.
 #tradeio.decision.orchestrator-cron=0 0 * * * *
+
+# Cle API pour l'authentification machine-a-machine (ApiKeyAuthFilter, Palier 3, cf.
+# fr.ses10doigts.tradeIO5.security.apikey.ApiKeyAuthFilter). Un client qui presente cette valeur dans
+# le header X-Api-Key recoit ROLE_API_AGENT (PAS ROLE_ADMIN) : seuls les endpoints de LECTURE
+# GET /api/admin/decision/decisions et /scenarios l'acceptent, pas les endpoints de declenchement
+# (orchestrate/snapshot/archive), qui restent ROLE_ADMIN strict. Vide/absent = filtre desactive.
+# Generer une valeur aleatoire (ex: openssl rand -hex 32), une valeur distincte par environnement.
+#tradeio.security.agent-api-key=

@@ -42,9 +42,9 @@ class DecisionTest {
             null
     );
 
-    ActionStep step1 = new ActionStep("step1", ExecutionAction.BUY, new BigDecimal("0.01"), null);
-    ActionStep step2 = new ActionStep("step2", ExecutionAction.NO_OP, BigDecimal.ZERO, null);
-    ActionStep step3 = new ActionStep("s3", ExecutionAction.SELL, new BigDecimal("0.01"), null);
+    ActionStep step1 = new ActionStep("step1", ExecutionAction.BUY, new BigDecimal("0.01"), null, 0.5, "r1");
+    ActionStep step2 = new ActionStep("step2", ExecutionAction.NO_OP, BigDecimal.ZERO, null, 0.5, "r2");
+    ActionStep step3 = new ActionStep("s3", ExecutionAction.SELL, new BigDecimal("0.01"), null, 0.5, "r3");
     List<ActionStep> steps2 = List.of(step1, step2);
     List<ActionStep> steps3 = List.of(step1, step2, step3);
 

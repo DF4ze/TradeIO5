@@ -22,8 +22,8 @@ class DecisionCreatedCauseTest {
     @Test
     void actionSteps_returnsExactlyTheProvidedList() {
         List<ActionStep> steps = List.of(
-                new ActionStep("step-1", ExecutionAction.BUY, BigDecimal.ONE, null),
-                new ActionStep("step-2", ExecutionAction.SELL, BigDecimal.TEN, 42L)
+                new ActionStep("step-1", ExecutionAction.BUY, BigDecimal.ONE, null, 0.7, "reason-1"),
+                new ActionStep("step-2", ExecutionAction.SELL, BigDecimal.TEN, 42L, 0.9, "reason-2")
         );
 
         DecisionCreatedCause cause = new DecisionCreatedCause("decision-1", "reason", steps);

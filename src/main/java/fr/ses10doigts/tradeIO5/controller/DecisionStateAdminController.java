@@ -28,12 +28,17 @@ import java.util.List;
  * {@code ScenarioEngine.getActiveScenarios}/{@code getAllActiveScenarios} et {@code
  * DecisionEngine.getAllActiveDecisions} existaient déjà (utilisées en interne par la photo
  * quotidienne, cf. étape 4), mais n'étaient exposées par aucun {@code @RestController} ni tool MCP —
- * vérifié par recherche exhaustive avant ce lot. Même préfixe {@code /api/admin/decision}, réservé
- * {@code ROLE_ADMIN}.
+ * vérifié par recherche exhaustive avant ce lot. Même préfixe {@code /api/admin/decision}.
+ * <p>
+ * Autorisation à la méthode, pas à la classe (2026-09-03, Clem) : ROLE_ADMIN (session utilisateur)
+ * OU ROLE_API_AGENT (clé API, cf. {@code
+ * fr.ses10doigts.tradeIO5.security.apikey.ApiKeyAuthFilter}) — ces deux endpoints de LECTURE sont
+ * ceux qu'un agent externe doit pouvoir appeler pour relire les Decision/scenarios générées par le
+ * cron quotidien, sans lui donner accès aux endpoints de déclenchement
+ * (orchestrate/snapshot/archive), qui restent ROLE_ADMIN strict sur leurs propres contrôleurs.
  */
 @RestController
 @RequestMapping("/api/admin/decision")
-@PreAuthorize("hasRole('ADMIN')")
 @RequiredArgsConstructor
 public class DecisionStateAdminController {
 
@@ -45,6 +50,7 @@ public class DecisionStateAdminController {
      * @param owner optionnel — {@code "SYSTEM"} ou l'id utilisateur (cf. {@link ScenarioOwner#fromString}).
      *              Omis = tous owners confondus.
      */
+    @PreAuthorize("hasAnyRole('ADMIN','API_AGENT')")
     @GetMapping("/scenarios")
     public ResponseEntity<List<ScenarioSummaryResponse>> getActiveScenarios(
             @RequestParam(required = false) String owner
@@ -60,6 +66,7 @@ public class DecisionStateAdminController {
      *              contrôleur : {@link DecisionEngine} n'expose aucune variante owner-scopée de {@code
      *              getAllActiveDecisions} (toujours "tous owners confondus" par conception, cf. étape 4).
      */
+    @PreAuthorize("hasAnyRole('ADMIN','API_AGENT')")
     @GetMapping("/decisions")
     public ResponseEntity<List<DecisionSummaryResponse>> getActiveDecisions(
             @RequestParam(required = false) String owner

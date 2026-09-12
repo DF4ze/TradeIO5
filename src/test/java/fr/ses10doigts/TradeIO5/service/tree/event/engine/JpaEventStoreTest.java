@@ -66,7 +66,7 @@ class JpaEventStoreTest {
                 DecisionType.ENTER,
                 createdAt
         );
-        ActionStep step = new ActionStep("step1", ExecutionAction.BUY, BigDecimal.ONE, null);
+        ActionStep step = new ActionStep("step1", ExecutionAction.BUY, BigDecimal.ONE, null, 0.66, "test-reason");
         Decision decision = new Decision(snapshot, List.of(step));
 
         return new DecisionEvent(
