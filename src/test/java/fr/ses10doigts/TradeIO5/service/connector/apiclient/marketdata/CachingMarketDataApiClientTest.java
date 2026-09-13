@@ -16,24 +16,17 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Cf. docs/etudes/etude-cache-db-candles-h1.md. Vérifie le coeur du décorateur :
  * - lecture-avant-réseau (aucun appel délégué si tout est déjà en cache) ;
  * - détection des trous et appel réseau borné à ces trous uniquement ;
  * - non-persistance de la bougie en cours (section 5) ;
- * - tolérance aux violations de contrainte unique en écriture concurrente (section 6).
+ * - tolérance aux violations de contrainte unique en écriture concurrente (section 6) ;
+ * - mémoïsation en mémoire des trous définitivement dans le passé (section 2026-09-13, étude §13).
  */
 @DisplayName("CachingMarketDataApiClient")
 class CachingMarketDataApiClientTest {
@@ -272,6 +265,81 @@ class CachingMarketDataApiClientTest {
         assertEquals(List.of(since, middle, until),
                 result.stream().map(MarketData::getTimestamp).toList());
         verify(delegate, times(1)).getCandles(SYMBOL, TimeFrame.H1, middle, gapEnd, 2);
+    }
+
+    @Test
+    @DisplayName("until dans le futur : untilGrid est plafonné à l'heure courante (nowGrid), aucun trou au-delà")
+    void getCandles_untilInFuture_isCappedToNowGrid() {
+        Instant now = T0.plusSeconds(3600); // 01:00:00Z
+        clock.set(now);
+
+        Instant since = T0; // 00:00:00Z
+        Instant futureUntil = T0.plusSeconds(3600 * 24); // 24h dans le futur
+
+        // Cache contient déjà la bougie T0
+        when(repository.findBySourceAndPairAndTimeFrameAndTimestampBetweenOrderByTimestampAsc(
+                eq(MarketDataSource.BINANCE), eq(SYMBOL), eq(TimeFrame.H1), eq(since), eq(now)))
+                .thenReturn(List.of(entity(since)));
+
+        // Le délégué ne doit être interrogé que pour le trou jusqu'à now (01:00:00), jamais au-delà
+        when(delegate.getCandles(SYMBOL, TimeFrame.H1, now, now, 1))
+                .thenReturn(List.of(candle(now)));
+
+        List<MarketData> result = client.getCandles(SYMBOL, TimeFrame.H1, since, futureUntil, 0);
+
+        assertEquals(2, result.size());
+        verify(repository).findBySourceAndPairAndTimeFrameAndTimestampBetweenOrderByTimestampAsc(
+                eq(MarketDataSource.BINANCE), eq(SYMBOL), eq(TimeFrame.H1), eq(since), eq(now));
+        verify(delegate).getCandles(SYMBOL, TimeFrame.H1, now, now, 1);
+        verify(delegate, never()).getCandles(eq(SYMBOL), eq(TimeFrame.H1), any(), eq(futureUntil), anyInt());
+    }
+
+    @Test
+    @DisplayName("Trou définitivement dans le passé demandé deux fois (deux backtests sur la même fenêtre) : "
+            + "un seul appel réseau, mémoïsé en mémoire")
+    void getCandles_sameHistoricalGapRequestedTwice_networkCalledOnlyOnce() {
+        Instant since = T0;
+        Instant middle = T0.plusSeconds(3600);
+        Instant until = T0.plusSeconds(7200);
+
+        // La base ne contient jamais "middle" (simule un trou définitif côté exchange : rien n'a
+        // pu être persisté au 1er appel puisque le délégué ne renvoie toujours rien dessus).
+        when(repository.findBySourceAndPairAndTimeFrameAndTimestampBetweenOrderByTimestampAsc(
+                eq(MarketDataSource.BINANCE), eq(SYMBOL), eq(TimeFrame.H1), eq(since), eq(until)))
+                .thenReturn(List.of(entity(since), entity(until)));
+
+        when(delegate.getCandles(SYMBOL, TimeFrame.H1, middle, middle, 1))
+                .thenReturn(List.of()); // trou réellement vide chez l'exchange
+
+        List<MarketData> first = client.getCandles(SYMBOL, TimeFrame.H1, since, until, 0);
+        List<MarketData> second = client.getCandles(SYMBOL, TimeFrame.H1, since, until, 0);
+
+        assertEquals(2, first.size());
+        assertEquals(2, second.size());
+        // Sans mémoïsation, le 2e appel retenterait le réseau (rien n'a pu être persisté au 1er tour).
+        verify(delegate, times(1)).getCandles(SYMBOL, TimeFrame.H1, middle, middle, 1);
+    }
+
+    @Test
+    @DisplayName("Trou touchant la bougie en cours (pas encore close) : jamais mémoïsé, réseau rappelé à chaque fois")
+    void getCandles_liveTailGap_isNeverMemoized_networkCalledEachTime() {
+        Instant now = T0.plusSeconds(1800); // 30 min après l'ouverture de la bougie H1 en cours
+        clock.set(now);
+
+        Instant currentOpen = T0; // bougie [T0, T0+1h) : pas encore fermée à "now"
+
+        when(repository.findBySourceAndPairAndTimeFrameAndTimestampBetweenOrderByTimestampAsc(
+                eq(MarketDataSource.BINANCE), eq(SYMBOL), eq(TimeFrame.H1), eq(currentOpen), eq(currentOpen)))
+                .thenReturn(List.of());
+
+        when(delegate.getCandles(SYMBOL, TimeFrame.H1, currentOpen, currentOpen, 1))
+                .thenReturn(List.of(candle(currentOpen)));
+
+        client.getCandles(SYMBOL, TimeFrame.H1, null, now, 1);
+        client.getCandles(SYMBOL, TimeFrame.H1, null, now, 1);
+
+        // Bougie en cours : valeurs susceptibles de changer, jamais servie depuis la mémoïsation.
+        verify(delegate, times(2)).getCandles(SYMBOL, TimeFrame.H1, currentOpen, currentOpen, 1);
     }
 
     private static CandleEntity entity(Instant timestamp) {

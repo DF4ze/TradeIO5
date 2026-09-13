@@ -76,10 +76,10 @@ public class BinanceMarketDataApiClient implements MarketDataApiClient {
         // log avant/après avec durée permet de confirmer que c'est bien CE point précis qui ne
         // rend jamais la main (plutôt qu'un blocage plus haut dans la chaîne MCP -> engine).
         long startNanos = System.nanoTime();
-        logger.info("Binance klines : appel réseau démarré pour {} {} params={}", symbol, interval, params);
+        logger.debug("Binance klines : appel réseau démarré pour {} {} params={}", symbol, interval, params);
         try {
             String response = client.createMarket().klines(params);
-            logger.info("Binance klines : appel réseau terminé pour {} {} en {} ms", symbol, interval,
+            logger.debug("Binance klines : appel réseau terminé pour {} {} en {} ms", symbol, interval,
                     (System.nanoTime() - startNanos) / 1_000_000);
             return mapKlinesResponse(response, symbol, timeFrame);
         } catch (BinanceClientException | BinanceConnectorException e) {

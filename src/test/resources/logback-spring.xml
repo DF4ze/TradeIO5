@@ -42,7 +42,10 @@
     </appender>
 
     <!-- Mon projet : DEBUG -->
-    <logger name="fr.ses10doigts.tradeio5" level="DEBUG"/>
+    <logger name="fr.ses10doigts.tradeIO5" level="DEBUG"/>
+
+    <!-- Bruit HTTP du connecteur Binance (GET klines à chaque appel) : WARN uniquement -->
+    <logger name="com.binance.connector.client.utils.RequestHandler" level="WARN"/>
 
     <!-- ROOT : tout le reste en INFO -->
     <root level="INFO">

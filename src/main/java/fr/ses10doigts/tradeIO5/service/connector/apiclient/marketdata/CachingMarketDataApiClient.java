@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Décorateur transparent devant un {@link MarketDataApiClient} réel (Binance/Kraken/OKX) :
@@ -32,6 +33,21 @@ import java.util.TreeSet;
  * calendaires (M1, W1...). Ces derniers passent directement au délégué, sans cache — sans
  * conséquence aujourd'hui puisqu'aucun {@link MarketDataApiClient} réel ne supporte nativement
  * autre chose que H1 (cf. {@code BinanceMarketDataApiClient#NATIVE_INTERVALS} et équivalents).
+ * <p>
+ * Mémoïsation en mémoire (section 2026-09-13, cf. docs/etudes/etude-dca-tool-mcp.md §13) : un
+ * trou peut exister en base pour une raison définitive (l'exchange n'a réellement aucune bougie
+ * sur cette plage horaire précise) et non transitoire. Sans protection, chaque appel qui retombe
+ * sur ce même trou (base non peuplée puisque rien n'a pu être persisté) redéclenche un appel
+ * réseau — un simple bench qui rejoue les mêmes bornes de dates sur des dizaines/centaines de
+ * combinaisons de paramètres, a fortiori en parallèle, peut alors bombarder l'exchange de
+ * requêtes identiques. {@code gapNetworkCache} retient donc, pour la durée de vie de ce bean
+ * (singleton Spring, cf. {@code MarketDataCachingConfig}), le résultat déjà obtenu pour un trou
+ * identique ({@code source, symbol, timeFrame, since, until}) : un seul appel réseau par trou et
+ * par run, {@link ConcurrentHashMap#computeIfAbsent} garantissant en prime qu'un seul thread
+ * fetch effectivement le réseau si plusieurs threads tombent simultanément sur le même trou.
+ * Exclu du champ de cette mémoïsation : le trou qui touche la borne haute demandée alors que la
+ * dernière bougie n'est pas encore close (la "bougie en cours") — ses valeurs peuvent encore
+ * bouger d'un appel à l'autre, la mémoïser romprait la fraîcheur des données en usage live.
  */
 public class CachingMarketDataApiClient implements MarketDataApiClient {
 
@@ -40,6 +56,7 @@ public class CachingMarketDataApiClient implements MarketDataApiClient {
     private final MarketDataApiClient delegate;
     private final CandleRepository repository;
     private final DomainClock clock;
+    private final ConcurrentHashMap<GapKey, List<MarketData>> gapNetworkCache = new ConcurrentHashMap<>();
 
     public CachingMarketDataApiClient(MarketDataApiClient delegate, CandleRepository repository, DomainClock clock) {
         this.delegate = delegate;
@@ -61,7 +78,11 @@ public class CachingMarketDataApiClient implements MarketDataApiClient {
             return delegate.getCandles(symbol, timeFrame, since, until, limit);
         }
 
-        Instant untilGrid = floorToGrid(until, timeFrame);
+        Instant now = clock.now();
+        Instant maxGrid = floorToGrid(now, timeFrame);
+        Instant untilGridRaw = floorToGrid(until, timeFrame);
+        // Variable finale (non réassignée) : capturable par la lambda de mémoïsation du gap plus bas.
+        final Instant untilGrid = untilGridRaw.isAfter(maxGrid) ? maxGrid : untilGridRaw;
         Instant sinceGrid = resolveSinceGrid(since, untilGrid, timeFrame, limit);
 
         if (sinceGrid == null || sinceGrid.isAfter(untilGrid)) {
@@ -83,26 +104,21 @@ public class CachingMarketDataApiClient implements MarketDataApiClient {
         List<Range> gaps = findGaps(cached, sinceGrid, untilGrid, timeFrame);
 
         if (gaps.isEmpty()) {
-            log.info("Cache HIT complet pour {} {} [{} .. {}] : {} bougie(s) servie(s) depuis la base, aucun appel réseau à {}.",
+            log.debug("Cache HIT complet pour {} {} [{} .. {}] : {} bougie(s) servie(s) depuis la base, aucun appel réseau à {}.",
                     symbol, timeFrame, sinceGrid, untilGrid, cached.size(), source);
         } else {
-            log.info("Cache PARTIEL pour {} {} [{} .. {}] : {} bougie(s) en base, {} trou(s) à combler via {} (réseau).",
+            log.debug("Cache PARTIEL pour {} {} [{} .. {}] : {} bougie(s) en base, {} trou(s) à combler via {} (réseau).",
                     symbol, timeFrame, sinceGrid, untilGrid, cached.size(), gaps.size(), source);
         }
 
         List<MarketData> merged = new ArrayList<>(cached);
         for (Range gap : gaps) {
-            int gapLimit = gapSize(gap, timeFrame);
-            log.info("Appel réseau {} : fetch {} {} de {} à {} (limit={})", source, symbol, timeFrame, gap.since(), gap.until(), gapLimit);
-            List<MarketData> fetched = delegate.getCandles(symbol, timeFrame, gap.since(), gap.until(), gapLimit);
-
-            int expected = expectedCandleCount(gap, timeFrame, untilGrid, clock.now());
-            if (fetched.size() < expected) {
-                log.warn("Mismatch bougies attendues/reçues pour {} {} source={} trou=[{} .. {}] : attendu={}, reçu={}.",
-                        symbol, timeFrame, source, gap.since(), gap.until(), expected, fetched.size());
-            }
-
-            persistClosedOnly(fetched, timeFrame);
+            boolean touchesOpenCandle = gap.until().equals(untilGrid) && timeFrame.addTo(untilGrid).isAfter(now);
+            List<MarketData> fetched = touchesOpenCandle
+                    ? fetchGap(source, symbol, timeFrame, gap, untilGrid, now)
+                    : gapNetworkCache.computeIfAbsent(
+                            new GapKey(source, symbol, timeFrame, gap.since(), gap.until()),
+                            key -> fetchGap(source, symbol, timeFrame, gap, untilGrid, now));
             merged.addAll(fetched);
         }
 
@@ -115,6 +131,27 @@ public class CachingMarketDataApiClient implements MarketDataApiClient {
             result = result.subList(result.size() - limit, result.size());
         }
         return result;
+    }
+
+    /**
+     * Effectue l'appel réseau pour combler un trou donné, logue le mismatch éventuel et persiste
+     * les bougies closes. Factorisé pour être appelable aussi bien directement (trou touchant la
+     * bougie en cours) qu'au travers de {@link #gapNetworkCache} (trou définitivement dans le
+     * passé, mémoïsable pour la durée de vie du bean).
+     */
+    private List<MarketData> fetchGap(MarketDataSource source, String symbol, TimeFrame timeFrame, Range gap, Instant untilGrid, Instant now) {
+        int gapLimit = gapSize(gap, timeFrame);
+        log.debug("Appel réseau {} : fetch {} {} de {} à {} (limit={})", source, symbol, timeFrame, gap.since(), gap.until(), gapLimit);
+        List<MarketData> fetched = delegate.getCandles(symbol, timeFrame, gap.since(), gap.until(), gapLimit);
+
+        int expected = expectedCandleCount(gap, timeFrame, untilGrid, now);
+        if (fetched.size() < expected) {
+            log.warn("Mismatch bougies attendues/reçues pour {} {} source={} trou=[{} .. {}] : attendu={}, reçu={}.",
+                    symbol, timeFrame, source, gap.since(), gap.until(), expected, fetched.size());
+        }
+
+        persistClosedOnly(fetched, timeFrame);
+        return fetched;
     }
 
     /**
@@ -284,5 +321,8 @@ public class CachingMarketDataApiClient implements MarketDataApiClient {
     }
 
     record Range(Instant since, Instant until) {
+    }
+
+    private record GapKey(MarketDataSource source, String symbol, TimeFrame timeFrame, Instant since, Instant until) {
     }
 }
