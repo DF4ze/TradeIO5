@@ -1,6 +1,6 @@
 # Configuration
 
-Vérifié le : 2026-09-12 (`configuration/**`).
+Vérifié le : 2026-10-03 (`configuration/**`, `RainbowLiveDefaultPresets`).
 
 ## Beans de configuration (`configuration/`)
 
@@ -25,6 +25,8 @@ Vérifié le : 2026-09-12 (`configuration/**`).
 | `tradeio.decision.snapshot-cron` | `-` (désactivé) | Cron photo quotidienne |
 | `tradeio.decision.archival-cron` | `-` (désactivé) | Cron archivage inactivité |
 | `tradeio.decision.orchestrator-cron` | `-` (désactivé) | Cron orchestrateur de décision |
+| `tradeio.rainbow-live.pass-2355-cron` | `-` (désactivé) | Cron passe 23:55 UTC du bench Rainbow (action fictive) |
+| `tradeio.rainbow-live.pass-0005-cron` | `-` (désactivé) | Cron passe 00:05 UTC du bench Rainbow (vraie clôture, action non appliquée) |
 | `tradeio.security.agent-api-key` | vide (filtre inactif) | Active l'authentification par clé API (`ROLE_API_AGENT`) |
 
 Cette liste n'est pas nécessairement exhaustive — construite à partir des classes lues dans ce lot (jobs, sécurité, OpenAI, ETF flow), pas d'une recherche exhaustive de tous les `@Value`/`@ConfigurationProperties` du projet.

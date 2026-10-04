@@ -1,6 +1,6 @@
 # Endpoints REST
 
-Vérifié le : 2026-09-12 (`controller/**`).
+Vérifié le : 2026-10-03 (`controller/**`, dont `RainbowLiveController`).
 
 ## Web (Thymeleaf, `MainController`)
 
@@ -42,6 +42,35 @@ Tous ces endpoints partagent le préfixe `/api/admin/decision`. Introduits progr
 | Méthode | Chemin | Rôle | Action |
 |---|---|---|---|
 | POST | `/api/admin/etf-flow/backfill` | ADMIN | Backfill historique BTC+ETH via SoSoValue (synchrone, ~300 lignes/asset, quelques secondes). Idempotent par `(asset, date)` |
+
+## Bench Rainbow (admin, `RainbowLiveAdminController`)
+
+| Méthode | Chemin | Rôle | Effet |
+|---|---|---|---|
+| POST | `/api/admin/rainbow-live/run?pass=T2355\|T0005[&day=YYYY-MM-DD]` | ADMIN | Exécute une passe du bench grandeur nature (tous users actifs, presets `enabled`) ; `day` (UTC) force le jour. Réponse : `{pass, day, processed, skipped, errors}`. Aucun ordre réel |
+
+## Bench Rainbow (utilisateur, `RainbowLiveController`, `/api/rainbow-live`)
+
+Authentifié (`@PreAuthorize("isAuthenticated()")` sur la classe), scopé à l'utilisateur connecté ; preset d'un autre user ou inexistant ⇒ 404. JSON, dates `YYYY-MM-DD` (jour UTC), enums en chaîne. Détail : [`../architecture/08-rainbow-bench-grandeur-nature.md`](../architecture/08-rainbow-bench-grandeur-nature.md).
+
+| Méthode | Chemin | Description |
+|---|---|---|
+| GET | `/defaults` | `{assets, stablecoin, defaultName, analysisWindowMonths, initialCapitalUsdc, baseAmount, configs{BTC,ETH,PAXG → {tuning, globals}}, reentryModes[], zones[{code,name,label}]}` (enum `ReentryMode` et libellés de zones fournis par le serveur) |
+| GET | `/presets[?asset=BTC]` | Seed lazy (une fois par user) puis liste `PresetDto` ; actif hors BTC/ETH/PAXG ⇒ 400 |
+| POST | `/presets` | Corps `{assetSymbol, name, enabled, analysisWindowMonths, initialCapitalUsdc, tuning, globals}` ⇒ 201 `PresetDto` ; 400 (validation), 409 (nom déjà pris pour l'actif) |
+| GET | `/presets/{id}` | `PresetDto` |
+| PUT | `/presets/{id}` | Corps `{name, enabled, analysisWindowMonths, tuning, globals}` (actif et capital non modifiables) ⇒ `PresetDto` ; effet au run suivant, historique et wallet conservés |
+| DELETE | `/presets/{id}` | 204 ; supprime wallet mock et runs |
+| GET | `/presets/{id}/runs[?from&to]` | Liste chronologique `RunDto` |
+| GET | `/presets/{id}/performance[?to]` | `PerformanceDto` |
+| GET | `/presets/{id}/delta[?from&to]` | Synthèse delta 23:55 vs 00:05 |
+
+Réponses (noms de champs) :
+- `PresetDto` : `id, assetSymbol, name, enabled, analysisWindowMonths, initialCapitalUsdc, createdAt, updatedAt, tuning, globals, wallet{cashUsdc, positionQuantity, lastClose?, equityUsdc?}, runCount, firstRunDay?, lastRun?{day, pass, close, zone, actionType, actionAmountUsdc, actionQuantity}` (`tuning` = champs de `RainbowAtrTuning`, `globals` = champs de `RainbowAtrGlobals`, `baseAmount` inclus).
+- `RunDto` : `day, pass2355?, pass0005?` (blocs `{close, sma, atr, boundDown2, boundDown1, boundUp1, boundUp2, boundUp3, zone, athDistance, buyFactor, sellFactor, moonMode, buyArmed, sellArmed, buyLocked, cooldownRemaining, moonReserveQty, actionType, actionAmountUsdc, actionQuantity, actionPrice, cashAfter, positionAfter, configHash, computedAt}`), `deltaActionDiffers, configHash, configChanged, changedParams[]`. Jours manquants absents de la liste.
+- `PerformanceDto` : `presetId, assetSymbol, initialCapitalUsdc, days, firstDay, lastDay, metrics{invested, saleProceeds, currentValue, realizedGain, potentialGain, totalGain, pnlPercent, realizedPercent, potentialPercent, position, costBasis, lastClose, fixedInvested, fixedQuantity, fixedValue, fixedGain, fixedPnlPercent, outperformanceGain, outperformancePoints}, wallet{initialCapitalUsdc, cashUsdc, positionQuantity, equityUsdc, pnlPercent}, series[{day, close, zone, actionType, actionAmountUsdc, actionQuantity, invested, saleProceeds, currentValue, position, costBasis, walletEquity, fixedValue, fixedInvested}], markers[{day, type, price, amountUsdc, quantity}], configMarkers[{day, configHash, changedParams[]}]`. Sans run : 200, métriques à 0, séries vides.
+- Delta : `daysCompared, daysIgnored, daysActionDiffers, actionDifferences[{day, pass2355{type, amountUsdc, quantity}, pass0005{…}}], indicators{close|sma|atr|boundDown2|boundDown1|boundUp1|boundUp2|boundUp3 → {meanAbs, maxAbs, meanPct, maxPct}}, zoneDivergences[{day, zone2355, zone0005}], stateDivergences[{day, fields[]}]`.
+- Erreurs : `{"error": "<message>"}` (400 / 404 / 409, `RainbowLiveControllerAdvice`).
 
 ## Veille média (admin, `MediaWatchAdminController`)
 

@@ -1,5 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.tree.strategy.impl;
 
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
+import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.IndicatorKey;
 import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.MarketContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategyParameters;
@@ -7,30 +9,54 @@ import fr.ses10doigts.tradeIO5.model.dto.tree.strategy.StrategySignal;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorSnapshot;
+import fr.ses10doigts.tradeIO5.model.enumerate.tree.SignalType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.strategy.StrategyType;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.tree.helper.MarketOpinionHelper;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorEngine;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.IndicatorRegistry;
-import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.EmaIndicator;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.LinearRegressionIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.AbstractStrategy;
+import fr.ses10doigts.tradeIO5.service.tree.trend.TrendAnalyzer;
+import fr.ses10doigts.tradeIO5.service.tree.trend.TrendState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
- * "Tendance confirmée" (étude §3.1) : EMA cross (biais directionnel) + ADX (filtre de force
- * de tendance) + RSI (garde-fou anti-épuisement).
- *
- * Cette Strategy mélange des catégories d'indicateurs complémentaires qui jouent chacune un
- * rôle différent dans le calcul du score. Elle discrimine donc explicitement chaque entrée de
- * {@code parameters.getIndicatorParameters()} via son {@code IndicatorType}, et, pour les deux
- * EMA (même type, même TimeFrame mais des {@code IndicatorParameters}/périodes différentes,
- * donc des {@code IndicatorKey} distinctes), via la valeur du paramètre {@code period} pour
- * savoir laquelle est la rapide et laquelle est la lente.
+ * "Tendance confirmée" (étude {@code docs/etudes/etude-indicateur-trend-unifie.md} §3.1) — consomme
+ * {@link TrendAnalyzer}, qui porte depuis l'Étape 8 de la roadmap Trend unifié (2026-09-24, cf.
+ * {@code docs/prompts/prompt-implementation-trend-unifie-etape8-regression-hysteresis.md}) la
+ * régression linéaire multi-fenêtres à hystérésis. {@code SWING_STRUCTURE} et ADX ne font plus
+ * partie de cette Strategy depuis ce même lot (retirés de {@link TrendAnalyzer}).
+ * <p>
+ * Contrat d'entrée : exactement 3 indicateurs {@code LINEAR_REGRESSION} (périodes court/moyen/long,
+ * 7/14/30 par défaut) — même contrat que {@link RegressiveTrendStrategy}. Les constantes
+ * {@code P_SLOPE_SCALE_FACTOR}/{@code P_WEIGHT_*}/{@code P_ALIGNMENT_ENABLED} et leurs valeurs par
+ * défaut sont mutualisées depuis {@link RegressiveTrendStrategy} plutôt que redéfinies ici (règle du
+ * projet : "mutualiser toute constante métier dupliquée", cf. {@code docs/CODING_RULES.md} ; demande
+ * explicite du prompt Étape 8 §2.1 : "les constantes par défaut ne doivent exister qu'à un seul
+ * endroit").
+ * <p>
+ * Le score continu est calculé par {@link TrendAnalyzer} directement à partir des bougies brutes du
+ * dataset (pas des 3 valeurs {@code IndicatorResult} ponctuelles, qui ne suffisent pas à faire
+ * tourner la machine à états d'hystérésis sur toute la timeline) ; les 3 indicateurs restent
+ * néanmoins résolus via {@link IndicatorEngine} pour la traçabilité/cache
+ * ({@code context.addIndicatorValue}), même patron que l'ancien contrat SWING_STRUCTURE+ADX.
+ * <p>
+ * <b>Cohérence type/score</b> (choix par défaut retenu au prompt §6 point 2) : le {@code type} du
+ * signal est toujours dérivé du {@code regime} de l'hystérésis (UP/DOWN/RANGE), jamais redérivé du
+ * score brut en aval — un état UP peut avoir {@code |score| < 1/6} (c'est tout l'intérêt de
+ * l'hystérésis : ne pas repasser NEUTRAL à chaque petite oscillation), donc le score exposé dans
+ * {@link StrategySignal} est ajusté pour qu'une éventuelle redérivation en aval via
+ * {@link MarketOpinionHelper#scoreToConfidenceAndSignalType} retombe toujours sur le même type que
+ * celui déjà déterminé par l'hystérésis.
  */
 @Component
 public class TrendConfirmationStrategy extends AbstractStrategy {
@@ -38,19 +64,8 @@ public class TrendConfirmationStrategy extends AbstractStrategy {
 
     public static final String P_TIME_FRAME_NAME = "timeframe";
 
-    // Seuils propres à la Strategy (StrategyParameters.numericParams), pas aux IndicatorParameters
-    // de chaque indicateur individuel : première Strategy du projet à réellement utiliser ce champ.
-    public static final String P_ADX_LOW_THRESHOLD = "adxLowThreshold";
-    public static final String P_ADX_HIGH_THRESHOLD = "adxHighThreshold";
-    public static final String P_RSI_OVERBOUGHT_THRESHOLD = "rsiOverboughtThreshold";
-    public static final String P_RSI_OVERSOLD_THRESHOLD = "rsiOversoldThreshold";
-
-    private static final double DEFAULT_ADX_LOW_THRESHOLD = 15.0;
-    private static final double DEFAULT_ADX_HIGH_THRESHOLD = 25.0;
-    private static final double DEFAULT_RSI_OVERBOUGHT_THRESHOLD = 80.0;
-    private static final double DEFAULT_RSI_OVERSOLD_THRESHOLD = 20.0;
-
     private final IndicatorEngine indicatorEngine;
+    private final TrendAnalyzer trendAnalyzer = new TrendAnalyzer();
 
     public TrendConfirmationStrategy(IndicatorRegistry indicatorRegistry, IndicatorEngine indicatorEngine) {
         super(indicatorRegistry);
@@ -60,150 +75,106 @@ public class TrendConfirmationStrategy extends AbstractStrategy {
     @Override
     public StrategySignal evaluate(MarketContext context, StrategyParameters parameters) {
 
-        // Check validité : 4 entrées attendues (EMA rapide, EMA lente, ADX, RSI)
-        if (parameters.getIndicatorParameters().size() != 4) {
-            logger.error("Strategy {} needs 4 param (EMA fast, EMA slow, ADX, RSI)", getName());
-            return StrategySignal.notValid(getName(), "Strategy needs 4 param");
+        if (parameters.getIndicatorParameters().size() != 3) {
+            logger.error("Strategy {} needs 3 LINEAR_REGRESSION indicators (short/medium/long)", getName());
+            return StrategySignal.notValid(getName(), "Strategy needs 3 LINEAR_REGRESSION indicators");
         }
 
         boolean hasError = false;
-
-        // Chaque entrée joue un rôle distinct (EMA rapide/lente, ADX, RSI). On les répartit
-        // d'abord par rôle en discriminant via IndicatorKey#getType(), puis on les interprète.
-        List<double[]> emaCandidates = new ArrayList<>(); // {period, value}
-        Double adxValue = null;
-        Double rsiValue = null;
+        TimeFrame timeFrame = null;
 
         for (Map.Entry<IndicatorKey, IndicatorParameters> entry : parameters.getIndicatorParameters().entrySet()) {
             IndicatorKey indicatorKey = entry.getKey();
             IndicatorParameters indicatorParams = entry.getValue();
 
-            // Choix du TF depuis les paramètres de l'indicateur.
-            TimeFrame tf = TimeFrame.valueOf(indicatorParams.getStrings().getOrDefault(P_TIME_FRAME_NAME, "H1"));
+            if (indicatorKey.getType() != IndicatorType.LINEAR_REGRESSION) {
+                logger.warn("{} : unexpected indicator type {} in indicatorParameters", getName(), indicatorKey.getType());
+                hasError = true;
+                continue;
+            }
+
+            TimeFrame tf = indicatorKey.getTimeFrame();
+            timeFrame = tf;
 
             IndicatorContext indicatorContext = new IndicatorContext(
                     context.symbol(),
                     tf,
                     context.series().get(tf),
-                    null,
+                    Map.of(),
                     context.clock()
             );
 
             IndicatorSnapshot snapshot = indicatorEngine.execute(indicatorContext, indicatorParams);
 
             if (!snapshot.getResult().isValid()) {
-                logger.error("!---- {} snapshot indicator value considered as INVALID --- Skipping!", indicatorKey.getType());
+                logger.error("!---- LINEAR_REGRESSION (period={}) snapshot considered as INVALID --- Skipping!",
+                        indicatorParams.getNumeric(LinearRegressionIndicator.P_PERIOD_NAME));
                 hasError = true;
                 continue;
             }
 
-            // Stocker dans le MarketContext pour référence/debug ultérieur.
+            // Traçabilité/debug (même rôle que sous l'ancien contrat SWING_STRUCTURE+ADX) : la
+            // valeur réellement utilisée par TrendAnalyzer vient du calcul direct sur les bougies
+            // brutes ci-dessous, pas de cet IndicatorResult ponctuel.
             context.addIndicatorValue(indicatorKey, snapshot.getResult());
-
-            double value = snapshot.getResult().getValue();
-            IndicatorType type = indicatorKey.getType();
-
-            switch (type) {
-                case EMA -> {
-                    double period = indicatorParams.getNumerics().getOrDefault(EmaIndicator.P_PERIOD_NAME, 0.0);
-                    emaCandidates.add(new double[]{period, value});
-                }
-                case ADX -> adxValue = value;
-                case RSI -> rsiValue = value;
-                default -> logger.warn("{} : unexpected indicator type {} in indicatorParameters", getName(), type);
-            }
         }
 
-        // 1. Biais directionnel EMA -----------------------------------------------------------
-        // Note : IndicatorResult n'expose qu'une valeur ponctuelle (pas d'historique), on ne peut
-        // donc PAS détecter "le croisement vient d'avoir lieu à cette bougie précise" — seulement
-        // la position relative actuelle des deux EMA (laquelle est au-dessus de l'autre en ce
-        // moment). Un vrai détecteur de croisement nécessiterait de comparer au moins 2 bougies
-        // consécutives, ce que le modèle actuel d'IndicatorResult ne permet pas.
-        double emaBias = 0.0;
-        if (emaCandidates.size() == 2) {
-            double[] first = emaCandidates.get(0);
-            double[] second = emaCandidates.get(1);
-            double[] fast = first[0] <= second[0] ? first : second;
-            double[] slow = first[0] <= second[0] ? second : first;
-
-            double fastValue = fast[1];
-            double slowValue = slow[1];
-
-            if (fastValue > slowValue) {
-                emaBias = 1.0;
-            } else if (fastValue < slowValue) {
-                emaBias = -1.0;
-            } else {
-                emaBias = 0.0;
-            }
-        } else {
-            // EMA rapide et/ou lente manquante/invalide : impossible de statuer sur un biais,
-            // on reste neutre plutôt que de deviner (hasError a déjà été positionné plus haut).
-            logger.error("{} : expected 2 valid EMA results (fast/slow), got {}", getName(), emaCandidates.size());
+        if (hasError || timeFrame == null) {
+            logger.error("{} : LINEAR_REGRESSION indicator(s) missing/invalid, cannot compute score", getName());
+            return StrategySignal.notValid(getName(), "LINEAR_REGRESSION indicator(s) missing/invalid");
         }
 
-        // 2. Filtre ADX : facteur d'atténuation [0,1] interpolé linéairement entre les 2 seuils --
-        double adxLowThreshold = parameters.getNumericParams().getOrDefault(P_ADX_LOW_THRESHOLD, DEFAULT_ADX_LOW_THRESHOLD);
-        double adxHighThreshold = parameters.getNumericParams().getOrDefault(P_ADX_HIGH_THRESHOLD, DEFAULT_ADX_HIGH_THRESHOLD);
+        double slopeScaleFactor = parameters.getNumericParams().getOrDefault(
+                RegressiveTrendStrategy.P_SLOPE_SCALE_FACTOR, RegressiveTrendStrategy.DEFAULT_SLOPE_SCALE_FACTOR);
+        double weightShort = parameters.getNumericParams().getOrDefault(
+                RegressiveTrendStrategy.P_WEIGHT_SHORT, RegressiveTrendStrategy.DEFAULT_WEIGHT_SHORT);
+        double weightMedium = parameters.getNumericParams().getOrDefault(
+                RegressiveTrendStrategy.P_WEIGHT_MEDIUM, RegressiveTrendStrategy.DEFAULT_WEIGHT_MEDIUM);
+        double weightLong = parameters.getNumericParams().getOrDefault(
+                RegressiveTrendStrategy.P_WEIGHT_LONG, RegressiveTrendStrategy.DEFAULT_WEIGHT_LONG);
+        boolean alignmentEnabled = parameters.getBooleanParams().getOrDefault(
+                RegressiveTrendStrategy.P_ALIGNMENT_ENABLED, RegressiveTrendStrategy.DEFAULT_ALIGNMENT_ENABLED);
 
-        double adxFactor;
-        if (adxValue == null) {
-            // ADX invalide/absent : posture conservatrice, on n'autorise aucune confirmation
-            // de tendance plutôt que d'en supposer une.
-            adxFactor = 0.0;
-        } else if (adxHighThreshold <= adxLowThreshold) {
-            // Paramétrage dégénéré : repli sur un seuil binaire simple (accepté par l'étude
-            // comme version plus simple).
-            adxFactor = adxValue >= adxHighThreshold ? 1.0 : 0.0;
-        } else {
-            adxFactor = clamp01((adxValue - adxLowThreshold) / (adxHighThreshold - adxLowThreshold));
+        MarketDataset dataset = context.series().get(timeFrame);
+        List<MarketData> candles = dataset.getMarketDatas();
+
+        TrendState trendState;
+        try {
+            trendState = trendAnalyzer.analyze(candles, slopeScaleFactor, weightShort, weightMedium, weightLong, alignmentEnabled);
+        } catch (IllegalArgumentException e) {
+            logger.error("{} : TrendAnalyzer could not compute a TrendState : {}", getName(), e.getMessage());
+            return StrategySignal.notValid(getName(), "not enough candles for TrendAnalyzer : " + e.getMessage());
         }
 
-        // 3. Garde-fou RSI : réduit/neutralise le score si le mouvement semble épuisé -----------
-        double rsiOverboughtThreshold = parameters.getNumericParams().getOrDefault(P_RSI_OVERBOUGHT_THRESHOLD, DEFAULT_RSI_OVERBOUGHT_THRESHOLD);
-        double rsiOversoldThreshold = parameters.getNumericParams().getOrDefault(P_RSI_OVERSOLD_THRESHOLD, DEFAULT_RSI_OVERSOLD_THRESHOLD);
+        SignalType type = switch (trendState.regime()) {
+            case UP -> SignalType.BULLISH;
+            case DOWN -> SignalType.BEARISH;
+            case RANGE -> SignalType.NEUTRAL;
+        };
 
-        double rsiGuardFactor = 1.0;
-        if (rsiValue == null) {
-            // RSI invalide/absent : on ne peut pas juger l'épuisement du mouvement, on ne
-            // pénalise donc pas un signal EMA+ADX par ailleurs valide (facteur neutre = 1).
-            rsiGuardFactor = 1.0;
-        } else if (emaBias > 0 && rsiValue > rsiOverboughtThreshold) {
-            // Biais haussier mais RSI en zone de surachat extrême : mouvement probablement
-            // épuisé -> on réduit d'autant plus fort qu'on est loin au-delà du seuil (0 au
-            // maximum théorique de 100 = neutralisation complète).
-            rsiGuardFactor = clamp01((100.0 - rsiValue) / (100.0 - rsiOverboughtThreshold));
-        } else if (emaBias < 0 && rsiValue < rsiOversoldThreshold) {
-            // Symétrique côté survente / biais baissier.
-            rsiGuardFactor = clamp01(rsiValue / rsiOversoldThreshold);
-        }
+        // Cf. javadoc de classe (prompt §6 point 2) : en UP/DOWN, on garantit |score| >= barrière
+        // (+ epsilon) pour qu'une redérivation en aval via MarketOpinionHelper reste cohérente avec
+        // le type déjà déterminé par l'hystérésis, même quand le score brut est retombé sous la
+        // barrière (ce qui est précisément l'intérêt de l'hystérésis).
+        double score = switch (trendState.regime()) {
+            case RANGE -> trendState.score();
+            case UP -> Math.max(Math.abs(trendState.score()), MarketOpinionHelper.BARRIER + 1e-6);
+            case DOWN -> -Math.max(Math.abs(trendState.score()), MarketOpinionHelper.BARRIER + 1e-6);
+        };
 
-        // 4. Score final = biais x atténuation ADX x garde-fou RSI, clampé à [-1,1] ------------
-        double rawScore = emaBias * adxFactor * rsiGuardFactor;
-        double score = Math.clamp(rawScore, -1.0, 1.0);
+        double confidence = MarketOpinionHelper.scoreToConfidenceAndSignalType(score).confidence;
 
-        logger.debug("{} : emaBias={}, adxFactor={}, rsiGuardFactor={} => score={}",
-                getName(), emaBias, adxFactor, rsiGuardFactor, score);
-
-        MarketOpinionHelper.ConfidenceSignal confidenceSignal = MarketOpinionHelper.scoreToConfidenceAndSignalType(score);
-
-        logger.debug("{} : signal {} at confidence {}", getName(), confidenceSignal.signal, confidenceSignal.confidence);
+        logger.debug("{} : regime={}, rawScore={}, force={}, hysteresisConfidence={} => score={}, confidence={}",
+                getName(), trendState.regime(), trendState.score(), trendState.force(), trendState.confidence(),
+                score, confidence);
 
         return StrategySignal.builder()
                 .strategyName(getName())
-                .valid(!hasError)
-                .type(confidenceSignal.signal)
-                .confidence(confidenceSignal.confidence)
+                .valid(true)
+                .type(type)
+                .confidence(confidence)
                 .score(score)
                 .build();
-    }
-
-    private static double clamp01(double v) {
-        if (Double.isNaN(v)) {
-            return 0.0;
-        }
-        return Math.clamp(v, 0.0, 1.0);
     }
 
     @Override
@@ -214,14 +185,32 @@ public class TrendConfirmationStrategy extends AbstractStrategy {
     @Override
     public boolean accepts(StrategyParameters parameters) {
         Map<IndicatorKey, IndicatorParameters> indicatorParameters = parameters.getIndicatorParameters();
-        if (indicatorParameters == null || indicatorParameters.size() != 4) {
+        if (indicatorParameters == null || indicatorParameters.size() != 3) {
             return false;
         }
 
-        long emaCount = indicatorParameters.values().stream().filter(p -> p.getIndicatorType() == IndicatorType.EMA).count();
-        long adxCount = indicatorParameters.values().stream().filter(p -> p.getIndicatorType() == IndicatorType.ADX).count();
-        long rsiCount = indicatorParameters.values().stream().filter(p -> p.getIndicatorType() == IndicatorType.RSI).count();
+        long linearRegressionCount = indicatorParameters.values().stream()
+                .filter(p -> p.getIndicatorType() == IndicatorType.LINEAR_REGRESSION)
+                .count();
 
-        return emaCount == 2 && adxCount == 1 && rsiCount == 1;
+        return linearRegressionCount == 3;
+    }
+
+    /**
+     * {@link TrendAnalyzer} a besoin d'au moins {@link TrendAnalyzer#MIN_CANDLES} bougies (fenêtre
+     * longue de régression + warmup de l'hystérésis, cf. prompt Étape 8 §6 point 1) — supérieur au
+     * {@code period} de la fenêtre longue seule (30) que renvoie
+     * {@code LinearRegressionIndicator.getRequiredData}. Étendu ici plutôt que dans
+     * {@code LinearRegressionIndicator}, dont le contrat générique ("required = period") reste
+     * correct pour ses autres consommateurs (ex. {@link RegressiveTrendStrategy}, qui n'a pas besoin
+     * du warmup de l'hystérésis).
+     */
+    @Override
+    public Map<TimeFrame, Integer> getRequiredCandles(StrategyParameters parameters) {
+        Map<TimeFrame, Integer> required = new HashMap<>(super.getRequiredCandles(parameters));
+        for (IndicatorKey key : parameters.getIndicatorParameters().keySet()) {
+            required.merge(key.getTimeFrame(), TrendAnalyzer.MIN_CANDLES, Math::max);
+        }
+        return required;
     }
 }

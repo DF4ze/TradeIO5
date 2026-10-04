@@ -44,6 +44,12 @@ import static org.mockito.Mockito.when;
  * Kraken), qui manquait jusqu'ici : le client recevait directement le symbole passé par
  * l'appelant, jamais traduit. Repli sur l'ancien comportement (BINANCE /
  * {@code NON_BINANCE_MAX_HORIZON_DAYS} / symbole tel quel) si l'asset n'est pas encore migré.
+ * <p>
+ * Tests {@code valuationInstant_*} (2026-09-13, cf. étude §14) : vérifient l'overload à 9
+ * arguments ajouté pour {@link RainbowDcaBacktestService} — l'appel réseau "prix de valorisation"
+ * (seul appel avec {@code limit=1}, le range fetch du calendrier utilisant {@code CHUNK_HOURS=1000})
+ * doit interroger {@code valuationInstant} quand fourni, et {@code clock.now()} sinon (comportement
+ * historique, inchangé pour l'overload à 8 arguments / le tool MCP {@code calculate_dca}).
  */
 @DisplayName("DcaCalculatorService")
 @ExtendWith(MockitoExtension.class)
@@ -61,6 +67,8 @@ class DcaCalculatorServiceTest {
     @Mock
     private AssetProviderRepository assetProviderRepository;
 
+    private static final Instant CLOCK_NOW = Instant.parse("2026-02-01T00:00:00Z");
+
     private DcaCalculatorService service;
 
     /** Une seule bougie suffit : c'est aussi bien la "current price" que le seul point du calendrier résolu. */
@@ -77,7 +85,7 @@ class DcaCalculatorServiceTest {
 
     @BeforeEach
     void setUp() {
-        FixedDomainClock clock = new FixedDomainClock(Instant.parse("2026-02-01T00:00:00Z"));
+        FixedDomainClock clock = new FixedDomainClock(CLOCK_NOW);
         service = new DcaCalculatorService(binanceClient, krakenClient, okxClient, clock, assetProviderRepository);
     }
 
@@ -192,5 +200,42 @@ class DcaCalculatorServiceTest {
 
         assertEquals(MarketDataSource.OKX, result.getSource());
         verify(okxClient, atLeastOnce()).getCandles(eq("XYZ"), any(), any(), any(), anyInt());
+    }
+
+    @Test
+    @DisplayName("valuationInstant fourni (overload 9 arguments) → currentPrice interroge le client à cet "
+            + "instant explicite, jamais à clock.now()")
+    void valuationInstant_whenProvided_queriesClientAtThatInstant_notAtClockNow() {
+        when(assetProviderRepository.findByAsset_SymbolAndSource("BTC", MarketDataSource.BINANCE))
+                .thenReturn(Optional.empty());
+        when(binanceClient.getCandles(any(), any(), any(), any(), anyInt()))
+                .thenReturn(List.of(SAMPLE_CANDLE));
+
+        Instant explicitValuationInstant = Instant.parse("2026-01-03T23:00:00Z");
+        service.calculate(
+                "BTC", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 3),
+                TimeFrame.D1, 0, BigDecimal.valueOf(100), null, MarketDataSource.BINANCE,
+                explicitValuationInstant);
+
+        // L'appel "prix de valorisation" (fetchCurrentPrice) est le seul avec limit=1 : le range
+        // fetch du calendrier (fetchCandleRange) utilise CHUNK_HOURS=1000.
+        verify(binanceClient).getCandles(eq("BTC"), eq(TimeFrame.H1), eq(null), eq(explicitValuationInstant), eq(1));
+        verify(binanceClient, never()).getCandles(any(), any(), any(), eq(CLOCK_NOW), eq(1));
+    }
+
+    @Test
+    @DisplayName("valuationInstant omis (overload 8 arguments, comportement historique) → currentPrice "
+            + "interroge le client à clock.now(), pour ne pas régresser le tool MCP calculate_dca")
+    void valuationInstant_whenOmitted_preservesHistoricalBehavior_queriesClientAtClockNow() {
+        when(assetProviderRepository.findByAsset_SymbolAndSource("BTC", MarketDataSource.BINANCE))
+                .thenReturn(Optional.empty());
+        when(binanceClient.getCandles(any(), any(), any(), any(), anyInt()))
+                .thenReturn(List.of(SAMPLE_CANDLE));
+
+        service.calculate(
+                "BTC", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 3),
+                TimeFrame.D1, 0, BigDecimal.valueOf(100), null, MarketDataSource.BINANCE);
+
+        verify(binanceClient).getCandles(eq("BTC"), eq(TimeFrame.H1), eq(null), eq(CLOCK_NOW), eq(1));
     }
 }

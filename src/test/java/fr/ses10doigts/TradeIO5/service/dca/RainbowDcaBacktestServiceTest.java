@@ -45,6 +45,17 @@ import static org.mockito.Mockito.when;
  * ci-dessus n'utilisent jamais {@code buyReentryMode}/{@code sellReentryMode} explicitement, donc
  * exercent uniquement les défauts ({@code TRAILING_STOP} achat, {@code IMMEDIATE} vente) — c'est-à-
  * -dire le comportement V0 d'origine, inchangé bit à bit par cette réécriture.
+ * <p>
+ * Stub {@code dcaCalculatorService.calculate(...)} (2026-09-13, cf. étude §14) : 9 {@code any()}
+ * pour matcher le nouvel overload avec {@code valuationInstant}, désormais le seul appelé par
+ * {@link RainbowDcaBacktestService#backtest}. Aucun test ci-dessous n'affirme quoi que ce soit sur
+ * {@code getFixedDcaComparison()}, donc ce changement n'affecte aucune assertion existante.
+ * <p>
+ * Test {@code sell_partialPosition_computesRealizedAndPotentialGainViaWeightedAverageCostBasis}
+ * (2026-09-13, cf. étude §15, demande explicite de Clem) : vérifie à la main le calcul du coût de
+ * revient à coût moyen pondéré (WAC) qui isole la plus-value déjà réalisée (via une vente) de la
+ * plus-value encore potentielle (position restante), et l'invariant
+ * {@code realizedGain + potentialGain == pnl}.
  */
 @DisplayName("RainbowDcaBacktestService")
 @ExtendWith(MockitoExtension.class)
@@ -73,7 +84,7 @@ class RainbowDcaBacktestServiceTest {
                 .thenReturn(Optional.empty());
         // Pas invoqué par le test "historique insuffisant" (exception levée avant) : lenient pour
         // éviter un UnnecessaryStubbingException (MockitoExtension est en STRICT_STUBS par défaut).
-        lenient().when(dcaCalculatorService.calculate(any(), any(), any(), any(), anyInt(), any(), any(), any()))
+        lenient().when(dcaCalculatorService.calculate(any(), any(), any(), any(), anyInt(), any(), any(), any(), any()))
                 .thenReturn(DcaResult.builder().build());
     }
 
@@ -329,6 +340,75 @@ class RainbowDcaBacktestServiceTest {
     }
 
     @Test
+    @DisplayName("Bornes ATR non monotones côté haut (atrMultUp2 > atrMultUp3) -> DcaException (règle Clem 2026-09-30)")
+    void atrBoundsUpsideInverted_throwsDcaException() {
+        LocalDate start = LocalDate.of(2026, 1, 1);
+        RainbowDcaBacktestRequest request = RainbowDcaBacktestRequest.builder()
+                .symbol(SYMBOL).startDate(start).endDate(start)
+                .boundsMode(BoundsMode.ATR)
+                .atrMultDown2(BigDecimal.valueOf(4)).atrMultDown1(BigDecimal.valueOf(2))
+                .atrMultUp1(BigDecimal.valueOf(3)).atrMultUp2(BigDecimal.valueOf(3)).atrMultUp3(BigDecimal.valueOf(2))
+                .baseAmount(BigDecimal.valueOf(100))
+                .build();
+
+        assertThrows(DcaException.class, () -> serviceWithClock(
+                start.plusDays(30).atStartOfDay(TimeFrame.DEFAULT_ZONE).toInstant()).backtest(request));
+    }
+
+    @Test
+    @DisplayName("Bornes ATR non monotones côté bas (atrMultDown2 < atrMultDown1) -> DcaException (règle Clem 2026-09-30)")
+    void atrBoundsDownsideInverted_throwsDcaException() {
+        LocalDate start = LocalDate.of(2026, 1, 1);
+        RainbowDcaBacktestRequest request = RainbowDcaBacktestRequest.builder()
+                .symbol(SYMBOL).startDate(start).endDate(start)
+                .boundsMode(BoundsMode.ATR)
+                .atrMultDown2(BigDecimal.valueOf(1)).atrMultDown1(BigDecimal.valueOf(2))
+                .atrMultUp1(BigDecimal.valueOf(1)).atrMultUp2(BigDecimal.valueOf(2)).atrMultUp3(BigDecimal.valueOf(4))
+                .baseAmount(BigDecimal.valueOf(100))
+                .build();
+
+        assertThrows(DcaException.class, () -> serviceWithClock(
+                start.plusDays(30).atStartOfDay(TimeFrame.DEFAULT_ZONE).toInstant()).backtest(request));
+    }
+
+    @Test
+    @DisplayName("Bornes ATR avec égalités (up1=up2=up3, down2=down1) -> acceptées, pas d'exception (règle Clem 2026-09-30 : "
+            + "égalité permise pour supprimer une zone)")
+    void atrBoundsWithTies_doesNotThrow() {
+        LocalDate start = LocalDate.of(2026, 1, 1);
+        LocalDate warmupStart = start.minusDays(20);
+        BigDecimal[] closes = concat(warmup(20, 100), 100);
+        stubCandles(warmupStart, closes, BigDecimal.valueOf(100));
+
+        RainbowDcaBacktestRequest request = RainbowDcaBacktestRequest.builder()
+                .symbol(SYMBOL).startDate(start).endDate(start)
+                .boundsMode(BoundsMode.ATR)
+                .atrMultDown2(BigDecimal.valueOf(2)).atrMultDown1(BigDecimal.valueOf(2))
+                .atrMultUp1(BigDecimal.valueOf(2)).atrMultUp2(BigDecimal.valueOf(2)).atrMultUp3(BigDecimal.valueOf(2))
+                .baseAmount(BigDecimal.valueOf(100))
+                .build();
+
+        RainbowDcaBacktestResult result = serviceWithClock(
+                start.plusDays(30).atStartOfDay(TimeFrame.DEFAULT_ZONE).toInstant()).backtest(request);
+        assertEquals(1, result.getOccurrenceCount());
+    }
+
+    @Test
+    @DisplayName("Bornes % non monotones (percUp2 > percUp3) -> DcaException")
+    void percentBoundsInverted_throwsDcaException() {
+        LocalDate start = LocalDate.of(2026, 1, 1);
+        RainbowDcaBacktestRequest request = RainbowDcaBacktestRequest.builder()
+                .symbol(SYMBOL).startDate(start).endDate(start)
+                .percDown2(PERC_DOWN2).percDown1(PERC_DOWN1).percUp1(PERC_UP1)
+                .percUp2(BigDecimal.valueOf(40)).percUp3(BigDecimal.valueOf(30))
+                .baseAmount(BigDecimal.valueOf(100))
+                .build();
+
+        assertThrows(DcaException.class, () -> serviceWithClock(
+                start.plusDays(30).atStartOfDay(TimeFrame.DEFAULT_ZONE).toInstant()).backtest(request));
+    }
+
+    @Test
     @DisplayName("endDate égal à aujourd'hui ou dans le futur : borné à la veille (today.minusDays(1))")
     void endDate_whenTodayOrFuture_isCappedToYesterday() {
         LocalDate today = LocalDate.of(2026, 9, 13);
@@ -350,6 +430,33 @@ class RainbowDcaBacktestServiceTest {
 
         assertEquals(5, result.getOccurrenceCount()); // 5 jours clos (start à today-1)
         assertEquals(today.minusDays(1), result.getEndDate());
+    }
+
+    @Test
+    @DisplayName("trailingStopBuyPercent et trailingStopSellPercent sont indépendants : un trailing achat large " +
+            "retarde le déclenchement achat, quel que soit le trailing vente")
+    void trailingStop_buyPercentIndependentFromSellPercent() {
+        LocalDate start = LocalDate.of(2026, 1, 1);
+        LocalDate warmupStart = start.minusDays(20);
+        // Même séquence que buy_immediateReentry_reactsLaterThanTrailingStop : jour4 (75) déclenche
+        // avec un trailing achat de 5% (75 > 68*1.05), mais pas avec 20% (75 < 68*1.20 = 81.6).
+        BigDecimal[] closes = concat(warmup(20, 100), 100, 70, 68, 75, 100);
+        stubCandles(warmupStart, closes, BigDecimal.valueOf(100));
+
+        RainbowDcaBacktestRequest request = RainbowDcaBacktestRequest.builder()
+                .symbol(SYMBOL).startDate(start).endDate(start.plusDays(4))
+                .percDown2(PERC_DOWN2).percDown1(PERC_DOWN1).percUp1(PERC_UP1).percUp2(PERC_UP2).percUp3(PERC_UP3)
+                .trailingStopBuyPercent(BigDecimal.valueOf(20))
+                .trailingStopSellPercent(BigDecimal.ONE)
+                .baseAmount(BigDecimal.valueOf(100))
+                .build();
+
+        List<RainbowDcaOccurrence> occ = serviceWithClock(start.plusDays(30).atStartOfDay(TimeFrame.DEFAULT_ZONE).toInstant())
+                .backtest(request).getOccurrences();
+
+        assertEquals(RainbowDcaOccurrence.BuyAction.NONE, occ.get(3).getBuyAction());
+        assertEquals(RainbowDcaOccurrence.ArmState.ARMED, occ.get(3).getBuyState());
+        assertEquals(RainbowDcaOccurrence.BuyAction.TRIGGERED, occ.get(4).getBuyAction());
     }
 
     @Test
@@ -473,5 +580,56 @@ class RainbowDcaBacktestServiceTest {
         assertEquals(0, occ.get(3).getQuantitySold().compareTo(new BigDecimal("0.25")));
         assertEquals(0, occ.get(3).getPositionAfter().compareTo(new BigDecimal("0.75")));
         assertEquals(1, result.getSellTriggeredCount());
+    }
+
+    @Test
+    @DisplayName("Vente partielle : plus-value réelle (déjà encaissée) et plus-value potentielle (position restante) " +
+            "calculées via un coût de revient à coût moyen pondéré (WAC), et somme = pnl total")
+    void sell_partialPosition_computesRealizedAndPotentialGainViaWeightedAverageCostBasis() {
+        LocalDate start = LocalDate.of(2026, 1, 1);
+        LocalDate warmupStart = start.minusDays(20);
+        // jour1=100 (X1, achat x1 -> position=1, costBasis=100) ; jour2=200 (EXTREME_HAUT, activation
+        // ARMÉ_VENTE, pas de vente) ; jour3=150 (encore au-dessus de percup3/percup2 recalculés ->
+        // reste armée, pas de vente) ; jour4=110 (repasse sous percup3/percup2 recalculés ->
+        // déclenchement IMMEDIATE (défaut), vend 50% de la position ; le cooldown déclenché par la
+        // vente bloque l'achat de zone intermédiaire de ce même jour, sinon éligible en X1).
+        BigDecimal[] closes = concat(warmup(20, 100), 100, 200, 150, 110);
+        stubCandles(warmupStart, closes, BigDecimal.valueOf(110));
+
+        RainbowDcaBacktestRequest request = RainbowDcaBacktestRequest.builder()
+                .symbol(SYMBOL).startDate(start).endDate(start.plusDays(3))
+                .percDown2(PERC_DOWN2).percDown1(PERC_DOWN1).percUp1(PERC_UP1).percUp2(PERC_UP2).percUp3(PERC_UP3)
+                .sellFraction(new BigDecimal("0.5"))
+                .baseAmount(BigDecimal.valueOf(100))
+                .build();
+
+        RainbowDcaBacktestResult result = serviceWithClock(start.plusDays(30).atStartOfDay(TimeFrame.DEFAULT_ZONE).toInstant())
+                .backtest(request);
+
+        List<RainbowDcaOccurrence> occ = result.getOccurrences();
+        assertEquals(4, occ.size());
+
+        // jour4 : vente déclenchée, 0.5 * position(1) = 0.5 vendu à 110 -> produit = 55
+        RainbowDcaOccurrence jour4 = occ.get(3);
+        assertEquals(RainbowDcaOccurrence.SellAction.TRIGGERED, jour4.getSellAction());
+        assertEquals(0, jour4.getQuantitySold().compareTo(new BigDecimal("0.5")));
+        assertEquals(0, jour4.getPositionAfter().compareTo(new BigDecimal("0.5")));
+        assertEquals(0, result.getTotalSaleProceeds().compareTo(new BigDecimal("55")));
+
+        // Coût de revient (WAC) de la moitié vendue : la position entière (1) a été achetée à 100
+        // le jour1, donc costBasis=100 juste avant la vente -> moitié vendue = 50. Plus-value
+        // réelle = produit de vente - coût de revient vendu = 55 - 50 = 5, soit 5% de l'investi (100).
+        assertEquals(0, result.getRealizedGain().compareTo(new BigDecimal("5")));
+        assertEquals(0, result.getRealizedGainPercent().compareTo(new BigDecimal("5")));
+
+        // Position restante (0.5) valorisée au close d'endDate (110) = 55 ; coût de revient restant
+        // = 100 - 50 = 50 -> plus-value potentielle = 55 - 50 = 5, soit 5% de l'investi.
+        assertEquals(0, result.getCurrentValue().compareTo(new BigDecimal("55")));
+        assertEquals(0, result.getPotentialGain().compareTo(new BigDecimal("5")));
+        assertEquals(0, result.getPotentialGainPercent().compareTo(new BigDecimal("5")));
+
+        // Invariant : realizedGain + potentialGain == pnl (10 = 55 encaissé + 55 en position - 100 investi).
+        assertEquals(0, result.getPnl().compareTo(new BigDecimal("10")));
+        assertEquals(0, result.getRealizedGain().add(result.getPotentialGain()).compareTo(result.getPnl()));
     }
 }

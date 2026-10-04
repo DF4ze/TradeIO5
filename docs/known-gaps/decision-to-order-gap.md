@@ -4,6 +4,8 @@ Vérifié le : 2026-09-12, en croisant le code (`service/tree/decision/**`, `mod
 
 ## Constat
 
+Chaîne cible du DCA Rainbow automatisé et état de chaque brique : [`rainbow-dca-chantiers-ouverts.md`](rainbow-dca-chantiers-ouverts.md).
+
 TradeIO5 calcule des signaux et produit des `Decision`/`ActionStep` en base. Il ne les exécute jamais contre un exchange. Le squelette pour le faire existe en grande partie, mais rien n'est branché bout en bout.
 
 ## Ce qui existe déjà (squelette, pas de bug de conception)

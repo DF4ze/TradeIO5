@@ -4,4 +4,4 @@ Les fichiers de ce dossier sont des prompts/journaux d'implémentation datés, �
 
 **Pour l'état actuel vérifié de l'application, voir [`../architecture/`](../architecture/), [`../api/`](../api/), [`../operations/`](../operations/) et [`../known-gaps/`](../known-gaps/).**
 
-(Note : ce fichier a été ajouté le 2026-09-12 lors du redocumentage du projet ; les autres fichiers de ce dossier n'ont pas été modifiés.)
+Les prompts d'implémentation exécutés ont été supprimés (2026-10-04) ; seules les roadmaps (trace de la réflexion) et les prompts d'analyse sont conservés. Tout renvoi restant vers un prompt d'implémentation (roadmaps, études, javadoc) est historique : le fichier n'existe plus.

@@ -7,5 +7,8 @@ public enum IndicatorType {
     ORDER_BOOK,
     DXY, SP500, NASDAQ,
     ETF_FLOW,
-    REJECTION_ZONE
+    REJECTION_ZONE,
+    SWING_STRUCTURE,
+    LINEAR_REGRESSION,
+    RAINBOW_ATR
 }

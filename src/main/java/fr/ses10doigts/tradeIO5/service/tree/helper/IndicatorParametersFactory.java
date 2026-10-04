@@ -7,6 +7,7 @@ import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.TrendConfirmationStrategy;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.AdxIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.EmaIndicator;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.LinearRegressionIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.ObvIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.OrderBookIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.RsiIndicator;
@@ -46,6 +47,39 @@ public class IndicatorParametersFactory {
                 Map.of(
                         AdxIndicator.P_PERIOD_NAME, period
                 ),                                                                              // Numeric
+                Map.of( TrendConfirmationStrategy.P_TIME_FRAME_NAME, timeFrame.toString()),    // String
+                Map.of(),                                                                        // Boolean
+                null
+        );
+    }
+
+    /**
+     * LINEAR_REGRESSION, requis par {@code RegressiveTrendStrategy} — même patron que
+     * {@link #buildAdxParams}/{@link #buildEmaParams}. Utilisé 3 fois (period=7/14/30 par défaut,
+     * cf. {@code StrategyParametersFactory.RegressiveTrendParam}) pour construire les 3 fenêtres
+     * de la Strategy.
+     */
+    public static IndicatorParameters buildLinearRegressionParams(TimeFrame timeFrame, double period){
+        return new IndicatorParameters(
+                IndicatorType.LINEAR_REGRESSION,
+                Map.of(
+                        LinearRegressionIndicator.P_PERIOD_NAME, period
+                ),                                                                              // Numeric
+                Map.of( TrendConfirmationStrategy.P_TIME_FRAME_NAME, timeFrame.toString()),    // String
+                Map.of(),                                                                        // Boolean
+                null
+        );
+    }
+
+    /**
+     * SWING_STRUCTURE, requis par {@link TrendConfirmationStrategy} — même patron que
+     * {@link #buildAdxParams}. Sans paramètre numérique depuis la réécriture du 2026-09-19 de
+     * {@code SwingStructureCalculator} (plus d'ATR/seuil, cf. sa javadoc).
+     */
+    public static IndicatorParameters buildSwingStructureParams(TimeFrame timeFrame) {
+        return new IndicatorParameters(
+                IndicatorType.SWING_STRUCTURE,
+                Map.of(),                                                                        // Numeric
                 Map.of( TrendConfirmationStrategy.P_TIME_FRAME_NAME, timeFrame.toString()),    // String
                 Map.of(),                                                                        // Boolean
                 null

@@ -36,6 +36,16 @@ import java.util.TreeMap;
  * version {@code cachingBinanceMarketDataApiClient}, qui persiste déjà les bougies H1 en base —
  * cf. {@code CachingMarketDataApiClient} / etude-cache-db-candles-h1.md), avec sa propre
  * pagination par blocs de {@value #CHUNK_HOURS} bougies H1 (limite Binance par appel).
+  * <p>
+ * Valorisation du PnL (2026-09-13, cf. étude §14) : par défaut, {@code currentPrice} est TOUJOURS
+ * le prix H1 le plus récent au moment de l'appel ({@code clock.now()}), quel que soit
+ * {@code endDate} — comportement voulu pour le tool MCP {@code calculate_dca} ("si j'avais fait ce
+ * DCA depuis telle date, quel est mon PnL aujourd'hui ?"). L'overload avec {@code valuationInstant}
+ * permet de valoriser à un instant explicite (typiquement {@code endDate}) plutôt qu'à
+ * {@code clock.now()} — nécessaire pour tout appelant qui compare ce résultat à un autre calcul lui
+ * aussi borné à {@code endDate} (ex: {@link RainbowDcaBacktestService}) : sans ça, on compare un
+ * PnL borné dans le temps à un PnL valorisé au prix live, ce qui n'a pas de sens (cf. étude §14 pour
+ * l'incident concret qui a révélé le problème).
  */
 @Service
 public class DcaCalculatorService {
@@ -69,6 +79,7 @@ public class DcaCalculatorService {
         this.assetProviderRepository = assetProviderRepository;
     }
 
+    /** Valorise au prix live (clock.now()) — comportement historique, cf. javadoc de la classe. */
     public DcaResult calculate(
             String symbol,
             LocalDate startDate,
@@ -78,6 +89,29 @@ public class DcaCalculatorService {
             BigDecimal amount,
             BigDecimal feePercent,
             MarketDataSource source
+    ) {
+        return calculate(symbol, startDate, endDate, frequency, purchaseHourUtc, amount, feePercent, source, null);
+    }
+
+    /**
+     * @param valuationInstant instant explicite auquel valoriser {@code currentPrice}/{@code pnl} ;
+     *                         {@code null} pour reproduire le comportement historique (valorisation
+     *                         à {@code clock.now()}, cf. javadoc de la classe). Ne change QUE la
+     *                         valorisation : le calendrier d'achats reste borné par
+     *                         {@code startDate}/{@code endDate}/{@code clock.now()} comme avant
+     *                         (on ne simule jamais un achat dans le futur, y compris quand on
+     *                         valorise dans le passé).
+     */
+    public DcaResult calculate(
+            String symbol,
+            LocalDate startDate,
+            LocalDate endDate,
+            TimeFrame frequency,
+            int purchaseHourUtc,
+            BigDecimal amount,
+            BigDecimal feePercent,
+            MarketDataSource source,
+            Instant valuationInstant
     ) {
         validate(symbol, startDate, endDate, frequency, purchaseHourUtc, amount, feePercent);
         MarketDataSource effectiveSource = resolveEffectiveSource(source, symbol);
@@ -126,7 +160,8 @@ public class DcaCalculatorService {
                     + " chez " + effectiveSource + ") entre " + firstHour + " et " + lastHour + ".");
         }
 
-        BigDecimal currentPrice = fetchCurrentPrice(client, providerSymbol, now);
+        Instant valuationAt = valuationInstant != null ? valuationInstant : now;
+        BigDecimal currentPrice = fetchCurrentPrice(client, providerSymbol, valuationAt);
         if (currentPrice == null) {
             throw new DcaException("Impossible de résoudre le prix courant de " + symbol + " (" + providerSymbol
                     + " chez " + effectiveSource + ") pour calculer le PnL.");
@@ -319,9 +354,9 @@ public class DcaCalculatorService {
         return byHour;
     }
 
-    /** Même mécanique que {@code TreeAnalysisFacade.extractLastPrice} : dernière bougie H1 disponible. */
-    private static BigDecimal fetchCurrentPrice(MarketDataApiClient client, String symbol, Instant now) {
-        List<MarketData> candles = client.getCandles(symbol, TimeFrame.H1, null, now, 1);
+    /** Même mécanique que {@code TreeAnalysisFacade.extractLastPrice} : dernière bougie H1 disponible au plus tard à {@code at}. */
+    private static BigDecimal fetchCurrentPrice(MarketDataApiClient client, String symbol, Instant at) {
+        List<MarketData> candles = client.getCandles(symbol, TimeFrame.H1, null, at, 1);
         if (candles.isEmpty()) {
             return null;
         }

@@ -1,9 +1,45 @@
 # Calibration — DCA Rainbow : bornes % valides et méthodes de sortie ARMÉ
 
+> **Statut 2026-10-04** : bench des bornes en **%** (`RainbowDcaBacktestService`), **supplanté** par les bornes ATR ([`calibration-rainbow-atr-v3-regime.md`](calibration-rainbow-atr-v3-regime.md)). Conservé tant que le code correspondant n'est pas jugé inutile.
+
 Référencé depuis `RainbowDcaBacktestRequest` (javadoc classe) et `docs/etudes/etude-dca-tool-mcp.md`
 §11/§12, qui documentent la conception et l'implémentation du mécanisme lui-même — **ce document-ci
 documente uniquement l'usage du bench et ses résultats**, dans l'esprit de
 `calibration-rejection-zone.md` (protocole + verdict, pas un journal de conception).
+
+## Règles ARMÉ/cooldown (mise à jour 2026-09-29)
+
+Le comportement des deux machines à état ARMÉ (achat/vente) a changé le 2026-09-29 sur demande
+explicite de Clem — description faisant foi dans le javadoc de `RainbowDcaBacktestService`, résumé
+ici pour qui consulte ce document en premier :
+
+- `FIXED_DELAY` reste un compte de jours fixe depuis l'armement (formule de
+  `buyTriggered`/`sellTriggered` inchangée).
+- Tant qu'une vente est ARMÉE, **tout achat est bloqué** (armement, déclenchement ET achat de zone
+  intermédiaire) — évite les yoyo et les ventes multiples.
+- Le cooldown (`cooldownDays`, déclenché par une vente exécutée) bloque désormais **à la fois**
+  l'armement d'une nouvelle vente, le déclenchement d'une vente déjà armée et tout achat — plus
+  seulement le montant acheté comme avant cette date.
+
+Ceci change les résultats de tout run de bench antérieur au 2026-09-29 (moins d'achats/ventes
+qu'avant dans certains scénarios) : un résultat produit avant cette date n'est plus reproductible
+tel quel avec le code actuel.
+
+## Monotonie des bornes (mise à jour 2026-09-30)
+
+`RainbowDcaBacktestService#validate()` exige désormais, aussi bien en mode % qu'en mode ATR :
+
+```
+down2 >= down1 >= 0  <=  SMA  <=  0 <= up1 <= up2 <= up3
+```
+
+Égalité permise (pour supprimer une zone en la réduisant à largeur nulle — ex. `up3=up2` annule
+NO_BUY), mais toute inversion lève une `DcaException`. Avant cette date, rien ne validait cet ordre
+côté ATR : le coordinate ascent du bench pouvait retenir un `combinedCandidate` avec `up2>up3`, ce
+qui produit des achats de zone parasites au-delà du seuil EXTREME_HAUT (cf. étude §28/§29 pour le
+diagnostic complet). **`BULL_SEP24_FEV25` et `SIDEWAYS` (presets ci-dessous) sont dans ce cas et
+doivent être régénérés** en relançant `RainbowDcaAtrTrendBenchExportTest` avec cette validation
+active avant d'être réutilisés tels quels.
 
 ## Objectif
 
@@ -22,7 +58,7 @@ tool MCP ni d'endpoint REST pour ce lot). Deux méthodes de test, indépendantes
 - `runBoundsCalibration_realBtcHistory` — grille sur les 5 bornes %, reste des paramètres aux
   défauts V0.
 - `runReentryMethodsComparison_realBtcHistory` — grille sur `buyReentryMode`/`sellReentryMode`/
-  `trailingStopPercent`/`cooldownDays`/`fixedDelayDays`/`sellFraction`, bornes % fixées aux
+  `trailingStopBuyPercent`/`trailingStopSellPercent`/`cooldownDays`/`fixedDelayDays`/`sellFraction`, bornes % fixées aux
   défauts V0.
 
 ## Comment lancer le bench

@@ -1,6 +1,6 @@
 # Le moteur "tree" — pipeline Indicator → Strategy → Opinion → Scenario → Decision
 
-Vérifié le : 2026-09-12 (`service/tree/{indicator,strategy,opinion,scenario,decision,event}/**`).
+Vérifié le : 2026-10-04 (`RainbowAtrIndicator` ; reste : 2026-09-19 — `service/tree/{indicator,strategy,opinion,scenario,decision,event}/**` — swing structure re-vérifié le 2026-09-19).
 
 C'est le cœur métier du projet, package `service.tree`. Chaîne de transformation à 5 étages, chaque étage consommant le(s) précédent(s) :
 
@@ -17,7 +17,7 @@ Indicator  →  Strategy  →  Opinion  →  Scenario  →  Decision
 
 `service/tree/indicator/**`. Un `Indicator` calcule une valeur à partir de données de marché ou externes (RSI, EMA, ADX, Fear&Greed, DXY, ETF flow, etc.). `IndicatorEngine` + `IndicatorRegistry` : résolution par `IndicatorType` (enum). Les indicateurs qui dépendent d'un provider externe étendent `AbstractExternalIndicator` et résolvent leur credential via `IndicatorCredentialResolver` (voir [`architecture/03-ownership-and-lifecycle.md`](03-ownership-and-lifecycle.md) pour la résolution multi-owner des credentials).
 
-`IndicatorType` recense un ensemble large de types (techniques : RSI/EMA/ADX ; macro : DXY/SP500/NASDAQ/UNRATE ; on-chain/dérivés : OI/Funding/Liquidations via Coinalyze ; ETF_FLOW ; FEAR_AND_GREED ; STABLECOIN_CAP). Détail des providers par indicateur : [`architecture/05-external-providers.md`](05-external-providers.md).
+`IndicatorType` recense un ensemble large de types (techniques : RSI/EMA/ADX/LINEAR_REGRESSION ; macro : DXY/SP500/NASDAQ/UNRATE ; on-chain/dérivés : OI/Funding/Liquidations via Coinalyze ; ETF_FLOW ; FEAR_AND_GREED ; STABLECOIN_CAP ; structurels : REJECTION_ZONE, SWING_STRUCTURE ; Rainbow : RAINBOW (SMA + bornes %), RAINBOW_ATR (bornes ATR + ATH + To the moon, adaptateur `RainbowAtrIndicator` autour du moteur pur `service/dca/atr/RainbowAtrEngine`, cf. [`04-market-data.md`](04-market-data.md) — décrit l'état marché/armements à la dernière bougie, jamais de montant ni de PnL) — ce dernier suit le pattern à 2 couches calculateur/adaptateur, cf. `SwingStructureCalculator`/`SwingStructureIndicator`. Algo de pivot redesigné le 2026-09-19 : 2 extrêmes candidats (high/low) mis à jour à chaque bougie, confirmation d'un pivot dès que l'extrême opposé progresse seul sur la bougie — au plus 1 pivot confirmé par bougie, lag minimal. Aucun paramètre, aucun ATR — l'ancienne confirmation par seuil ATR (`AtrSeriesCalculator`) a été supprimée, jugée inexploitable en prod à cause d'un lag imprévisible. `SWING_STRUCTURE` n'est plus consommé par `TrendAnalyzer` depuis l'Étape 8 (2026-09-24, cf. `docs/etudes/spec-composition-trend-unifie.md` §11) — reste utilisé uniquement via `SwingStructureIndicator` lui-même. Détail des providers par indicateur : [`architecture/05-external-providers.md`](05-external-providers.md).
 
 ## 2. Strategy
 
@@ -28,7 +28,7 @@ Indicator  →  Strategy  →  Opinion  →  Scenario  →  Decision
 - `DIRECTIONAL` : contribue additivement au score directionnel agrégé (ex. `TrendConfirmationStrategy`, `MovementQualificationStrategy`, `OrderFlowStrategy`).
 - `CONFIDENCE_MODULATOR` : **n'est jamais agrégé au score directionnel.** Multiplie uniquement la confidence finale (ex. `EtfFlowConfidenceStrategy`, `MacroRiskWindowModulator`). Un `CONFIDENCE_MODULATOR` qui semble "ne rien faire" au score directionnel fonctionne comme prévu — ce n'est pas un bug.
 
-Combinaison par défaut utilisée à la fois par l'orchestrateur automatique et par le déclenchement manuel `/api/admin/decision/opinion` (scope `LOCAL`) : `DefaultLocalOpinionParamsProvider` — TrendConfirmation + MovementQualification + OrderFlow (DIRECTIONAL) + EtfFlow (CONFIDENCE_MODULATOR). Ce composant existe spécifiquement pour que les deux chemins de déclenchement ne divergent jamais silencieusement.
+Combinaison par défaut utilisée à la fois par l'orchestrateur automatique et par le déclenchement manuel `/api/admin/decision/opinion` (scope `LOCAL`) : `DefaultLocalOpinionParamsProvider` — TrendConfirmation + MovementQualification + OrderFlow (DIRECTIONAL) + EtfFlow (CONFIDENCE_MODULATOR). Ce composant existe spécifiquement pour que les deux chemins de déclenchement ne divergent jamais silencieusement. Le calcul de `TrendConfirmationStrategy` est porté par le Trend unifié : [`09-trend.md`](09-trend.md).
 
 ## 3. Opinion
 

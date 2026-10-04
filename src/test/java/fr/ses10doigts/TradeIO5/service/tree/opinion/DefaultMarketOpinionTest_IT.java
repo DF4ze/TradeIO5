@@ -26,13 +26,11 @@ class DefaultMarketOpinionTest_IT {
 
     @Test
     void getRequiredCandles() {
-        // Build params : EMA rapide=10, EMA lente=20, ADX=14, RSI=14, tous sur H1.
+        // Build params : 3x LINEAR_REGRESSION (periodes 7/14/30) sur H1, cf. réécriture Étape 8
+        // (régression à hystérésis, remplace SWING_STRUCTURE + ADX).
         Strategy strategy = strategyRegistry.get(TrendConfirmationStrategy.class.getSimpleName());
-        StrategyParametersFactory.TrendConfirmationParam param = new StrategyParametersFactory.TrendConfirmationParam(
-                TimeFrame.H1, 10, 20, 14, 14,
-                15.0, 25.0,
-                80.0, 20.0
-        );
+        StrategyParametersFactory.TrendConfirmationParam param =
+                StrategyParametersFactory.TrendConfirmationParam.defaults(TimeFrame.H1);
 
         MarketOpinionParameters marketOpinionParameters =
                 MarketOpinionParametersFactory.buildLocalOpinionParamWithTrendConfirmation(strategy, param);
@@ -42,8 +40,8 @@ class DefaultMarketOpinionTest_IT {
         Map<TimeFrame, Integer> requiredCandles = decision.getRequiredCandles(marketOpinionParameters);
 
         assertNotNull(requiredCandles);
-        // Les 4 indicateurs partagent le même TimeFrame (H1) : AdxIndicator.getRequiredData()
-        // renvoie 2 x period (28), le plus exigeant des 4 (EMA fast=10, EMA slow=20, RSI=14).
-        assertEquals(28, requiredCandles.get(TimeFrame.H1));
+        // TrendConfirmationStrategy#getRequiredCandles impose désormais TrendAnalyzer.MIN_CANDLES
+        // (60 = 30 fenêtre longue + 30 warmup hystérésis) sur le TimeFrame de ses indicateurs.
+        assertEquals(60, requiredCandles.get(TimeFrame.H1));
     }
 }

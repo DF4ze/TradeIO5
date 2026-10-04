@@ -9,7 +9,7 @@ import java.util.Map;
  * Description "plate" et LLM-friendly d'une stratégie à utiliser dans une Opinion.
  *
  * @param strategyType   type de la stratégie (DIRECTIONAL, CONFIDENCE_MODULATOR) — résolu via StrategyRegistry
- * @param indicators     indicateurs requis par la stratégie (ex: EMA rapide + EMA lente + ADX + RSI pour TrendConfirmationStrategy)
+ * @param indicators     indicateurs requis par la stratégie (ex: 3x LINEAR_REGRESSION pour TrendConfirmationStrategy)
  * @param numericParams  paramètres numériques propres à la stratégie
  * @param stringParams   paramètres texte propres à la stratégie
  * @param booleanParams  paramètres booléens propres à la stratégie

@@ -12,7 +12,9 @@ public class MarketOpinionParametersFactory {
 
     /**
      * Branche {@link fr.ses10doigts.tradeIO5.service.tree.strategy.impl.TrendConfirmationStrategy}
-     * (EMA + ADX + RSI) sur une {@code MarketOpinion} de scope {@code LOCAL}.
+     * (3x LINEAR_REGRESSION, régression à hystérésis depuis son Étape 8 de la roadmap Trend unifié,
+     * 2026-09-24 — auparavant SWING_STRUCTURE + ADX, et EMA + ADX + RSI avant l'Étape 4) sur une
+     * {@code MarketOpinion} de scope {@code LOCAL}.
      */
     public static MarketOpinionParameters buildLocalOpinionParamWithTrendConfirmation(
             Strategy strategy,

@@ -20,5 +20,7 @@ Règles de développement pour ce projet, à respecter par tout contributeur (hu
   est mineur. Cf. `CachingMarketDataApiClient` (mémoïsation en mémoire des trous H1 définitifs,
   2026-09-13) et `MacroMarketOpinion` (rate-limit Twelve Data sur DXY, 17/08) pour deux précédents
   concrets sur ce projet.
-
+- **Utiliser Lombok**
+- **Loguer** Mettre en INFO les points clés comme les changements d'état, mettre en DEBUG les valeurs clés.
+- **Utiliser getFirst()/getLast() sur les List/Collection**, ne pas faire de .get(0) ou autre pour récupérer ces valeurs.
 <!-- Ajouter ici les futures règles, au fil des décisions prises avec Clem. -->

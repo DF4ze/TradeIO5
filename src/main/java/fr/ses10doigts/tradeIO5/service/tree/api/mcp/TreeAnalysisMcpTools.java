@@ -154,7 +154,7 @@ public class TreeAnalysisMcpTools {
             name = "evaluate_strategy",
             description = "Évalue une stratégie de trading pour un symbole donné : calcule les indicateurs requis à "
                     + "partir de candles réelles, puis exécute la logique de la stratégie. Stratégies disponibles : "
-                    + "TrendConfirmationStrategy (DIRECTIONAL, EMA rapide + EMA lente + ADX + RSI), "
+                    + "TrendConfirmationStrategy (DIRECTIONAL, 3x LINEAR_REGRESSION 7/14/30, régression à hystérésis), "
                     + "MovementQualificationStrategy (CONFIDENCE_MODULATOR, requiert exactement 1 OPEN_INTEREST + "
                     + "1 FUNDING_RATE + 1 OBV en 'indicators' — nécessite la credential Coinalyze) et "
                     + "OrderFlowStrategy (CONFIDENCE_MODULATOR, requiert exactement 1 ORDER_BOOK + 1 LIQUIDATIONS en "

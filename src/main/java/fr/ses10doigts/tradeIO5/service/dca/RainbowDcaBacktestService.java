@@ -49,8 +49,36 @@ import java.util.TreeMap;
  * sortie des deux machines à état ARMÉ (achat sous percdown2, vente au-dessus de percup3) est
  * paramétrable indépendamment pour chaque côté ({@code buyReentryMode}/{@code sellReentryMode}) —
  * {@code buyTriggered}/{@code sellTriggered} ci-dessous. Les défauts reproduisent exactement le
- * comportement V0 d'origine (TRAILING_STOP achat, IMMEDIATE vente), donc aucune régression sur les
- * scénarios déjà couverts par {@code RainbowDcaBacktestServiceTest}.
+ * comportement V0 d'origine (TRAILING_STOP achat, IMMEDIATE vente).
+ * <p>
+ * Priorité vente/cooldown (2026-09-29, règles explicites de Clem) : {@code FIXED_DELAY} reste un
+ * nombre de jours fixe compté depuis l'armement (formule de {@code buyTriggered}/{@code
+ * sellTriggered} inchangée). Tant qu'une vente est ARMÉE, tout achat est bloqué (armement,
+ * déclenchement ET achat de zone intermédiaire), pour éviter les yoyo et les ventes multiples. Le
+ * cooldown ({@code cooldownDays}, déclenché par une vente exécutée) bloque à la fois l'armement
+ * d'une nouvelle vente, le déclenchement d'une vente déjà armée et tout achat — aucun des trois ne
+ * progresse tant que {@code cooldownRemaining > 0}. Ceci est une régression de comportement
+ * volontaire par rapport à la V0 d'origine (qui ne bloquait que le montant acheté pendant le
+ * cooldown, jamais l'armement/le déclenchement, et ne gatait pas du tout l'armement de vente) :
+ * {@code RainbowDcaBacktestServiceTest} peut nécessiter une mise à jour de ses attentes.
+ * <p>
+ * Valorisation du bloc comparatif "DCA fixe" (2026-09-13, cf. étude §14) : {@code currentPrice}
+ * ci-dessus est valorisé au prix de clôture d'{@code endDate} (la fenêtre backtestée), donc
+ * {@code fixedDcaComparison} DOIT être valorisé au même instant — sinon on compare un PnL borné
+ * dans le temps à un PnL {@code DcaCalculatorService} par défaut au prix BINANCE live
+ * ({@code clock.now()}), ce qui peut produire un delta aberrant dès qu'{@code endDate} n'est pas
+ * "aujourd'hui" (les 3 fenêtres du bench manuel, par exemple, toutes closes il y a des années).
+ * D'où l'appel à l'overload {@code calculate(..., valuationInstant)} avec {@code fetchTo} (borne
+ * haute H1 déjà calculée ci-dessus pour {@code endDate}).
+ * <p>
+ * {@code realizedGain}/{@code potentialGain} (2026-09-13, cf. étude §15, demande explicite de
+ * Clem) : {@code costBasis} suit, par la méthode du coût moyen pondéré (WAC), le coût de revient
+ * de la position actuellement détenue — augmenté de {@code amountInvested} à chaque achat exécuté,
+ * réduit proportionnellement à la part de la position vendue à chaque vente déclenchée (le coût
+ * moyen unitaire du reste de la position ne change pas lors d'une vente partielle). La plus-value
+ * réalisée d'une vente est {@code produitDeVente - partDuCoûtDeRevientVendue} ; la plus-value
+ * potentielle finale est {@code currentValue - costBasis} (coût de revient de ce qui reste en
+ * position à {@code endDate}). Cf. {@link RainbowDcaBacktestResult} pour le détail des invariants.
  */
 @Service
 public class RainbowDcaBacktestService {
@@ -91,7 +119,10 @@ public class RainbowDcaBacktestService {
 
         String providerSymbol = resolveProviderSymbol(request.getSymbol());
 
-        LocalDate warmupStart = startDate.minusDays(request.getSmaPeriod());
+        int warmupDays = request.getBoundsMode() == BoundsMode.ATR
+                ? Math.max(request.getSmaPeriod(), request.getAtrPeriod() + 1)
+                : request.getSmaPeriod();
+        LocalDate warmupStart = startDate.minusDays(warmupDays);
         Instant fetchFrom = warmupStart.atStartOfDay(TimeFrame.DEFAULT_ZONE).toInstant();
         Instant fetchTo = endDate.atTime(23, 0).atZone(TimeFrame.DEFAULT_ZONE).toInstant();
 
@@ -124,14 +155,19 @@ public class RainbowDcaBacktestService {
         while (startIndex < orderedDates.size() && orderedDates.get(startIndex).isBefore(startDate)) {
             startIndex++;
         }
-        if (startIndex < request.getSmaPeriod()) {
+        if (startIndex < warmupDays) {
             throw new DcaException("Historique insuffisant pour calculer une SMA(" + request.getSmaPeriod()
-                    + ") causale au " + startDate + " : seulement " + startIndex + " jour(s) de warm-up disponible(s) "
+                    + ")" + (request.getBoundsMode() == BoundsMode.ATR ? "/ATR(" + request.getAtrPeriod() + ")" : "")
+                    + " causale au " + startDate + " : seulement " + startIndex + " jour(s) de warm-up disponible(s) "
                     + "(bougies D1 dispo à partir de " + (orderedDates.isEmpty() ? "aucune" : orderedDates.getFirst()) + ").");
         }
         if (startIndex >= orderedDates.size()) {
             throw new DcaException("Aucune bougie D1 disponible à partir de " + startDate + " pour " + request.getSymbol() + ".");
         }
+
+        BigDecimal[] atrSeries = request.getBoundsMode() == BoundsMode.ATR
+                ? computeAtrSeries(orderedDates, byDate, request.getAtrPeriod())
+                : null;
 
         List<RainbowDcaOccurrence> occurrences = new ArrayList<>();
 
@@ -153,10 +189,17 @@ public class RainbowDcaBacktestService {
         int buyTriggeredCount = 0;
         int sellTriggeredCount = 0;
 
+        // Coût de revient de la position détenue (méthode du coût moyen pondéré, WAC) — cf.
+        // javadoc de la classe et étude §15. Indépendant de totalInvested : celui-ci ne diminue
+        // jamais (somme brute de tout ce qui a été investi), costBasis lui diminue à chaque vente
+        // (part du coût de revient "consommée" par la vente).
+        BigDecimal costBasis = BigDecimal.ZERO;
+        BigDecimal totalRealizedGain = BigDecimal.ZERO;
+
         BigDecimal trailingStopUpFactor = BigDecimal.ONE.add(
-                request.getTrailingStopPercent().divide(BigDecimal.valueOf(100), SCALE, RoundingMode.HALF_UP));
+                request.getTrailingStopBuyPercent().divide(BigDecimal.valueOf(100), SCALE, RoundingMode.HALF_UP));
         BigDecimal trailingStopDownFactor = BigDecimal.ONE.subtract(
-                request.getTrailingStopPercent().divide(BigDecimal.valueOf(100), SCALE, RoundingMode.HALF_UP));
+                request.getTrailingStopSellPercent().divide(BigDecimal.valueOf(100), SCALE, RoundingMode.HALF_UP));
 
         for (int i = startIndex; i < orderedDates.size(); i++) {
             LocalDate date = orderedDates.get(i);
@@ -167,16 +210,31 @@ public class RainbowDcaBacktestService {
             BigDecimal close = byDate.get(date).getClose();
             BigDecimal sma = computeSma(orderedDates, byDate, i, request.getSmaPeriod());
 
-            BigDecimal percdown2Level = level(sma, request.getPercDown2());
-            BigDecimal percdown1Level = level(sma, request.getPercDown1());
-            BigDecimal percup1Level = level(sma, request.getPercUp1());
-            BigDecimal percup2Level = level(sma, request.getPercUp2());
-            BigDecimal percup3Level = level(sma, request.getPercUp3());
+            BigDecimal percdown2Level;
+            BigDecimal percdown1Level;
+            BigDecimal percup1Level;
+            BigDecimal percup2Level;
+            BigDecimal percup3Level;
+            if (request.getBoundsMode() == BoundsMode.ATR) {
+                BigDecimal atr = atrSeries[i];
+                percdown2Level = sma.subtract(atr.multiply(request.getAtrMultDown2()));
+                percdown1Level = sma.subtract(atr.multiply(request.getAtrMultDown1()));
+                percup1Level = sma.add(atr.multiply(request.getAtrMultUp1()));
+                percup2Level = sma.add(atr.multiply(request.getAtrMultUp2()));
+                percup3Level = sma.add(atr.multiply(request.getAtrMultUp3()));
+            } else {
+                percdown2Level = level(sma, request.getPercDown2());
+                percdown1Level = level(sma, request.getPercDown1());
+                percup1Level = level(sma, request.getPercUp1());
+                percup2Level = level(sma, request.getPercUp2());
+                percup3Level = level(sma, request.getPercUp3());
+            }
 
             RainbowZone zone = RainbowZone.classify(close, percdown2Level, percdown1Level, percup1Level, percup2Level, percup3Level);
 
             // ---- VENTE (traitée avant l'achat : une vente déclenchée aujourd'hui active le
-            // cooldown qui peut bloquer l'achat de ce même jour, cf. javadoc plus bas) ----
+            // cooldown qui bloque l'achat ainsi que tout nouvel armement/déclenchement de vente,
+            // y compris ce même jour — cf. javadoc plus haut, règle Clem 2026-09-29) ----
             RainbowDcaOccurrence.SellAction sellAction = RainbowDcaOccurrence.SellAction.NONE;
             BigDecimal sellQuantity = BigDecimal.ZERO;
             BigDecimal saleProceeds = BigDecimal.ZERO;
@@ -186,6 +244,7 @@ public class RainbowDcaBacktestService {
                 boolean triggered = sellTriggered(request, close, percup3Level, percup2Level, highestSinceArmed,
                         trailingStopDownFactor, sellArmedDays);
                 if (triggered) {
+                    BigDecimal positionBeforeSell = position;
                     sellQuantity = position.multiply(request.getSellFraction());
                     if (sellQuantity.signum() > 0) {
                         saleProceeds = sellQuantity.multiply(close);
@@ -194,6 +253,13 @@ public class RainbowDcaBacktestService {
                         totalSaleProceeds = totalSaleProceeds.add(saleProceeds);
                         sellAction = RainbowDcaOccurrence.SellAction.TRIGGERED;
                         sellTriggeredCount++;
+
+                        // Plus-value réelle (WAC) : la part du coût de revient consommée par cette
+                        // vente est proportionnelle à la part de la position vendue.
+                        BigDecimal costBasisSoldPortion = costBasis.multiply(sellQuantity)
+                                .divide(positionBeforeSell, SCALE, RoundingMode.HALF_UP);
+                        totalRealizedGain = totalRealizedGain.add(saleProceeds.subtract(costBasisSoldPortion));
+                        costBasis = costBasis.subtract(costBasisSoldPortion);
                     }
                     sellState = RainbowDcaOccurrence.ArmState.NONE;
                     highestSinceArmed = null;
@@ -205,62 +271,64 @@ public class RainbowDcaBacktestService {
                     // jours (TRAILING_STOP), sans effet sur IMMEDIATE/FIXED_DELAY.
                     highestSinceArmed = highestSinceArmed.max(close);
                 }
-            } else if (zone == RainbowZone.EXTREME_HAUT) {
+            } else if (zone == RainbowZone.EXTREME_HAUT && cooldownRemaining == 0) {
+                // Armement de vente bloqué pendant le cooldown (cf. javadoc de la classe,
+                // règle Clem 2026-09-29) : aucun nouvel armement tant que cooldownRemaining > 0.
                 sellState = RainbowDcaOccurrence.ArmState.ARMED; // activation, pas de vente ce jour-là
                 highestSinceArmed = close;
                 sellArmedDays = 0;
             }
 
             // ---- ACHAT ----
+            // Bloqué en totalité (armement ET déclenchement ET achat de zone) tant qu'une vente
+            // est armée (évite les yoyo et les ventes multiples) ou que le cooldown est actif
+            // (cf. javadoc de la classe, règle Clem 2026-09-29). Avant cette règle, seul le
+            // montant investi était annulé pendant le cooldown ; désormais l'état/l'armement
+            // n'évolue plus du tout dans ces deux cas.
             RainbowDcaOccurrence.BuyAction buyAction = RainbowDcaOccurrence.BuyAction.NONE;
             BigDecimal buyMultiplier = null;
             BigDecimal amountInvested = BigDecimal.ZERO;
             BigDecimal quantityBought = BigDecimal.ZERO;
             boolean cadenceTick = (cadenceCounter % request.getCadenceDays()) == 0;
 
-            if (buyState == RainbowDcaOccurrence.ArmState.ARMED) {
-                buyArmedDays++;
-                boolean triggered = buyTriggered(request, close, percdown2Level, lowestSinceArmed,
-                        trailingStopUpFactor, buyArmedDays);
-                if (triggered) {
-                    buyMultiplier = request.getMultTriggered();
-                    buyAction = RainbowDcaOccurrence.BuyAction.TRIGGERED;
-                    buyState = RainbowDcaOccurrence.ArmState.NONE;
-                    lowestSinceArmed = null;
+            if (sellState != RainbowDcaOccurrence.ArmState.ARMED && cooldownRemaining == 0) {
+                if (buyState == RainbowDcaOccurrence.ArmState.ARMED) {
+                    buyArmedDays++;
+                    boolean triggered = buyTriggered(request, close, percdown2Level, lowestSinceArmed,
+                            trailingStopUpFactor, buyArmedDays);
+                    if (triggered) {
+                        buyMultiplier = request.getMultTriggered();
+                        buyAction = RainbowDcaOccurrence.BuyAction.TRIGGERED;
+                        buyState = RainbowDcaOccurrence.ArmState.NONE;
+                        lowestSinceArmed = null;
+                        buyArmedDays = 0;
+                    } else {
+                        lowestSinceArmed = lowestSinceArmed.min(close);
+                    }
+                } else if (zone == RainbowZone.EXTREME_BAS) {
+                    buyState = RainbowDcaOccurrence.ArmState.ARMED;
+                    lowestSinceArmed = close; // activation, pas d'achat ce jour-là
                     buyArmedDays = 0;
-                } else {
-                    lowestSinceArmed = lowestSinceArmed.min(close);
-                }
-            } else if (zone == RainbowZone.EXTREME_BAS) {
-                buyState = RainbowDcaOccurrence.ArmState.ARMED;
-                lowestSinceArmed = close; // activation, pas d'achat ce jour-là
-                buyArmedDays = 0;
-            } else if (cadenceTick) {
-                BigDecimal intermediateMultiplier = resolveIntermediateMultiplier(zone, request);
-                if (intermediateMultiplier != null && intermediateMultiplier.signum() > 0) {
-                    buyMultiplier = intermediateMultiplier;
-                    buyAction = RainbowDcaOccurrence.BuyAction.ZONE;
+                } else if (cadenceTick) {
+                    BigDecimal intermediateMultiplier = resolveIntermediateMultiplier(zone, request);
+                    if (intermediateMultiplier != null && intermediateMultiplier.signum() > 0) {
+                        buyMultiplier = intermediateMultiplier;
+                        buyAction = RainbowDcaOccurrence.BuyAction.ZONE;
+                    }
                 }
             }
 
             if (buyMultiplier != null) {
-                if (cooldownRemaining == 0) {
-                    amountInvested = request.getBaseAmount().multiply(buyMultiplier);
-                    quantityBought = amountInvested.divide(close, SCALE, RoundingMode.HALF_UP);
-                    position = position.add(quantityBought);
-                    totalInvested = totalInvested.add(amountInvested);
-                    totalQuantityBought = totalQuantityBought.add(quantityBought);
-                    if (buyAction == RainbowDcaOccurrence.BuyAction.TRIGGERED) {
-                        buyTriggeredCount++;
-                    } else {
-                        zoneBuyCount++;
-                    }
+                amountInvested = request.getBaseAmount().multiply(buyMultiplier);
+                quantityBought = amountInvested.divide(close, SCALE, RoundingMode.HALF_UP);
+                position = position.add(quantityBought);
+                totalInvested = totalInvested.add(amountInvested);
+                totalQuantityBought = totalQuantityBought.add(quantityBought);
+                costBasis = costBasis.add(amountInvested);
+                if (buyAction == RainbowDcaOccurrence.BuyAction.TRIGGERED) {
+                    buyTriggeredCount++;
                 } else {
-                    // Cooldown actif (y compris déclenché par la vente de ce même jour) : aucun
-                    // achat n'a lieu, quelle que soit la zone (cf. prompt) — l'état/le
-                    // multiplicateur "aurait dû" ci-dessus reste tracé mais le montant reste nul.
-                    buyAction = RainbowDcaOccurrence.BuyAction.NONE;
-                    buyMultiplier = null;
+                    zoneBuyCount++;
                 }
             }
 
@@ -300,9 +368,23 @@ public class RainbowDcaBacktestService {
                 ? pnl.divide(totalInvested, SCALE, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
                 : null;
 
+        // Plus-value réalisée/potentielle (2026-09-13, cf. étude §15) : décomposition de pnl entre
+        // gain déjà encaissé (via les ventes) et gain encore en position (pas garanti tant que non
+        // vendu). costBasis restant = coût de revient de la position à endDate (WAC).
+        BigDecimal potentialGain = currentValue.subtract(costBasis);
+        BigDecimal realizedGainPercent = totalInvested.signum() > 0
+                ? totalRealizedGain.divide(totalInvested, SCALE, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
+                : null;
+        BigDecimal potentialGainPercent = totalInvested.signum() > 0
+                ? potentialGain.divide(totalInvested, SCALE, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
+                : null;
+
+        // Valorisé au même instant (fetchTo, borne haute H1 d'endDate) que currentPrice ci-dessus —
+        // cf. javadoc de la classe et étude §14 : sans ça, on compare un PnL borné dans le temps à
+        // un PnL DcaCalculatorService valorisé par défaut au prix BINANCE live (clock.now()).
         DcaResult fixedDcaComparison = dcaCalculatorService.calculate(
                 request.getSymbol(), startDate, endDate, TimeFrame.D1, 0,
-                request.getBaseAmount(), null, MarketDataSource.BINANCE);
+                request.getBaseAmount(), null, MarketDataSource.BINANCE, fetchTo);
 
         return RainbowDcaBacktestResult.builder()
                 .symbol(request.getSymbol())
@@ -323,6 +405,10 @@ public class RainbowDcaBacktestService {
                 .currentValue(currentValue)
                 .pnl(pnl)
                 .pnlPercent(pnlPercent)
+                .realizedGain(totalRealizedGain)
+                .realizedGainPercent(realizedGainPercent)
+                .potentialGain(potentialGain)
+                .potentialGainPercent(potentialGainPercent)
                 .occurrences(occurrences)
                 .fixedDcaComparison(fixedDcaComparison)
                 .build();
@@ -356,8 +442,11 @@ public class RainbowDcaBacktestService {
             throw new DcaException("sellFraction doit être compris entre 0 (exclu) et 1 (inclus), reçu : "
                     + request.getSellFraction());
         }
-        if (request.getTrailingStopPercent() == null || request.getTrailingStopPercent().signum() < 0) {
-            throw new DcaException("trailingStopPercent ne peut pas être négatif");
+        if (request.getTrailingStopBuyPercent() == null || request.getTrailingStopBuyPercent().signum() < 0) {
+            throw new DcaException("trailingStopBuyPercent ne peut pas être négatif");
+        }
+        if (request.getTrailingStopSellPercent() == null || request.getTrailingStopSellPercent().signum() < 0) {
+            throw new DcaException("trailingStopSellPercent ne peut pas être négatif");
         }
         if (request.getMultX2() == null || request.getMultX2().signum() < 0
                 || request.getMultX1() == null || request.getMultX1().signum() < 0
@@ -368,16 +457,45 @@ public class RainbowDcaBacktestService {
         if (request.getBuyReentryMode() == null || request.getSellReentryMode() == null) {
             throw new DcaException("buyReentryMode et sellReentryMode sont requis");
         }
+        if (request.getBoundsMode() == BoundsMode.ATR) {
+            if (request.getAtrPeriod() <= 0) {
+                throw new DcaException("atrPeriod doit être strictement positif, reçu : " + request.getAtrPeriod());
+            }
+            if (request.getAtrMultDown2() == null || request.getAtrMultDown1() == null
+                    || request.getAtrMultUp1() == null || request.getAtrMultUp2() == null || request.getAtrMultUp3() == null) {
+                throw new DcaException("atrMultDown2/Down1/Up1/Up2/Up3 sont requis en mode ATR");
+            }
+            // Monotonie des bornes ATR (2026-09-30, demande explicite de Clem) : down2 >= down1 >= 0
+            // et 0 <= up1 <= up2 <= up3 (egalite permise pour "supprimer" une zone en la reduisant a
+            // largeur nulle, ex. up3=up2 pour ne plus jamais atteindre NO_BUY) — mais jamais
+            // d'inversion, sous peine de zones qui se chevauchent (cf. RainbowZone#classify, qui
+            // suppose cet ordre et ne le revalide pas lui-meme : un achat "zone" peut sinon se
+            // produire au-dela du seuil EXTREME_HAUT, cf. etudes/etude-dca-tool-mcp.md §28).
+            boolean atrOrdered = request.getAtrMultDown1().signum() >= 0
+                    && request.getAtrMultDown2().compareTo(request.getAtrMultDown1()) >= 0
+                    && request.getAtrMultUp1().signum() >= 0
+                    && request.getAtrMultUp1().compareTo(request.getAtrMultUp2()) <= 0
+                    && request.getAtrMultUp2().compareTo(request.getAtrMultUp3()) <= 0;
+            if (!atrOrdered) {
+                throw new DcaException("Les multiplicateurs ATR doivent respecter atrMultDown2 >= atrMultDown1 >= 0 "
+                        + "et 0 <= atrMultUp1 <= atrMultUp2 <= atrMultUp3 (egalite permise, jamais d'inversion), reçu : "
+                        + "down2=" + request.getAtrMultDown2() + " / down1=" + request.getAtrMultDown1()
+                        + " / up1=" + request.getAtrMultUp1() + " / up2=" + request.getAtrMultUp2()
+                        + " / up3=" + request.getAtrMultUp3());
+            }
+        }
         if (request.getFixedDelayDays() <= 0) {
             throw new DcaException("fixedDelayDays doit être strictement positif, reçu : " + request.getFixedDelayDays());
         }
-        boolean ordered = request.getPercDown2().compareTo(request.getPercDown1()) < 0
-                && request.getPercDown1().compareTo(request.getPercUp1()) < 0
-                && request.getPercUp1().compareTo(request.getPercUp2()) < 0
-                && request.getPercUp2().compareTo(request.getPercUp3()) < 0;
+        // Egalite permise (2026-09-30, meme regle que cote ATR ci-dessus) pour pouvoir "supprimer"
+        // une zone intermediaire, mais jamais d'inversion.
+        boolean ordered = request.getPercDown2().compareTo(request.getPercDown1()) <= 0
+                && request.getPercDown1().compareTo(request.getPercUp1()) <= 0
+                && request.getPercUp1().compareTo(request.getPercUp2()) <= 0
+                && request.getPercUp2().compareTo(request.getPercUp3()) <= 0;
         if (!ordered) {
-            throw new DcaException("Les bornes % doivent être strictement croissantes : percDown2 < percDown1 < "
-                    + "percUp1 < percUp2 < percUp3, reçu : " + request.getPercDown2() + " / " + request.getPercDown1()
+            throw new DcaException("Les bornes % doivent être croissantes (egalite permise) : percDown2 <= percDown1 <= "
+                    + "percUp1 <= percUp2 <= percUp3, reçu : " + request.getPercDown2() + " / " + request.getPercDown1()
                     + " / " + request.getPercUp1() + " / " + request.getPercUp2() + " / " + request.getPercUp3());
         }
     }
@@ -402,7 +520,7 @@ public class RainbowDcaBacktestService {
      * Condition de déclenchement de l'achat ARMÉ (zone EXTREME_BAS), selon
      * {@link RainbowDcaBacktestRequest#getBuyReentryMode()}. {@code TRAILING_STOP} reproduit
      * exactement la règle V0 d'origine (immuable) : franchissement de percdown2 OU rebond de
-     * {@code trailingStopPercent} depuis le plus bas atteint pendant l'armement.
+     * {@code trailingStopBuyPercent} depuis le plus bas atteint pendant l'armement.
      */
     private static boolean buyTriggered(
             RainbowDcaBacktestRequest request, BigDecimal close, BigDecimal percdown2Level,
@@ -448,6 +566,41 @@ public class RainbowDcaBacktestService {
             sum = sum.add(byDate.get(orderedDates.get(j)).getClose());
         }
         return sum.divide(BigDecimal.valueOf(period), SCALE, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * ATR (Wilder) causal, calcule une seule fois pour toute la serie D1 disponible (pas seulement
+     * la fenetre backtestee, warmupStart en amont fournit l'historique necessaire) : atrSeries[k]
+     * correspond a orderedDates.get(k), null tant que period+1 bougies ne sont pas disponibles.
+     * Meme formule de lissage que {@code AtrIndicator} (moyenne simple des period premiers TR puis
+     * lissage de Wilder), mais en une seule passe sur toute la serie plutot qu'un recalcul par jour.
+     */
+    private static BigDecimal[] computeAtrSeries(List<LocalDate> orderedDates, Map<LocalDate, MarketData> byDate, int period) {
+        int n = orderedDates.size();
+        BigDecimal[] atr = new BigDecimal[n];
+        if (n < period + 1) {
+            return atr;
+        }
+        BigDecimal bdPeriod = BigDecimal.valueOf(period);
+        BigDecimal trSum = BigDecimal.ZERO;
+        for (int k = 1; k <= period; k++) {
+            trSum = trSum.add(trueRange(byDate.get(orderedDates.get(k)), byDate.get(orderedDates.get(k - 1))));
+        }
+        BigDecimal current = trSum.divide(bdPeriod, SCALE, RoundingMode.HALF_UP);
+        atr[period] = current;
+        for (int k = period + 1; k < n; k++) {
+            BigDecimal tr = trueRange(byDate.get(orderedDates.get(k)), byDate.get(orderedDates.get(k - 1)));
+            current = current.multiply(bdPeriod.subtract(BigDecimal.ONE)).add(tr).divide(bdPeriod, SCALE, RoundingMode.HALF_UP);
+            atr[k] = current;
+        }
+        return atr;
+    }
+
+    private static BigDecimal trueRange(MarketData curr, MarketData prev) {
+        BigDecimal highLow = curr.getHigh().subtract(curr.getLow());
+        BigDecimal highPrevClose = curr.getHigh().subtract(prev.getClose()).abs();
+        BigDecimal lowPrevClose = curr.getLow().subtract(prev.getClose()).abs();
+        return highLow.max(highPrevClose).max(lowPrevClose);
     }
 
     /** Cf. {@code DcaCalculatorService#resolveProviderSymbol} : traduction du symbole nu vers la paire Binance native. */

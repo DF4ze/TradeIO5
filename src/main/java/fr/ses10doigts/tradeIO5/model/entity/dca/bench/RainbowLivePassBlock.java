@@ -1,0 +1,65 @@
+package fr.ses10doigts.tradeIO5.model.entity.dca.bench;
+
+import jakarta.persistence.Embeddable;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.Instant;
+
+/**
+ * Résultat d'une passe (23:55 ou 00:05) : indicateurs, états des machines, action. Champs nullables
+ * (Hibernate lit le bloc entier comme {@code null} tant que la passe n'a pas été jouée).
+ * <p>
+ * {@code cashAfter}/{@code positionAfter} : état du wallet mock après l'action — renseignés par
+ * {@code RainbowLiveRunService} pour la seule passe 23:55 (nuls en 00:05 : « action qui aurait été
+ * prise », jamais appliquée).
+ */
+@Embeddable
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class RainbowLivePassBlock {
+
+    private Double close;
+    private Double sma;
+    private Double atr;
+    /** Bornes ATR : SMA − ATR × atrMultDown2 (EXTREME_BAS). */
+    private Double boundDown2;
+    /** SMA − ATR × atrMultDown1. */
+    private Double boundDown1;
+    /** SMA + ATR × atrMultUp1. */
+    private Double boundUp1;
+    /** SMA + ATR × atrMultUp2. */
+    private Double boundUp2;
+    /** SMA + ATR × atrMultUp3 (EXTREME_HAUT). */
+    private Double boundUp3;
+    /** Index de zone de {@code RainbowAtrEngine} (EXTREME_BAS=0 … EXTREME_HAUT=5). */
+    private Integer zone;
+    private Double athDistance;
+    private Double buyFactor;
+    private Double sellFactor;
+    private Boolean moonMode;
+    private Boolean buyArmed;
+    private Boolean sellArmed;
+    private Boolean buyLocked;
+    private Integer cooldownRemaining;
+    private Double moonReserveQty;
+
+    @Enumerated(EnumType.STRING)
+    private RainbowLiveAction actionType;
+    private Double actionAmountUsdc;
+    private Double actionQuantity;
+    private Double actionPrice;
+
+    private Double cashAfter;
+    private Double positionAfter;
+
+    /** Hash de la config avec laquelle la passe a été calculée. */
+    private String configHash;
+    private Instant computedAt;
+}

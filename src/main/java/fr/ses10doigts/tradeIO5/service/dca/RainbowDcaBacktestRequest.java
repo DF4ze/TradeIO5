@@ -59,9 +59,13 @@ public class RainbowDcaBacktestRequest {
     @Builder.Default
     private final BigDecimal multTriggered = new BigDecimal("3");
 
-    /** Rebond/repli (%) depuis l'extrême atteint pendant l'armement qui déclenche en mode {@link ReentryMode#TRAILING_STOP}. */
+    /** Rebond (%) depuis le plus bas atteint pendant l'armement ACHAT qui déclenche en mode {@link ReentryMode#TRAILING_STOP}. */
     @Builder.Default
-    private final BigDecimal trailingStopPercent = new BigDecimal("5");
+    private final BigDecimal trailingStopBuyPercent = new BigDecimal("5");
+
+    /** Repli (%) depuis le plus haut atteint pendant l'armement VENTE qui déclenche en mode {@link ReentryMode#TRAILING_STOP}. */
+    @Builder.Default
+    private final BigDecimal trailingStopSellPercent = new BigDecimal("5");
 
     /** Fraction de la position vendue au déclenchement vente (1/4 par défaut). */
     @Builder.Default
@@ -92,4 +96,35 @@ public class RainbowDcaBacktestRequest {
     /** Jours d'armement avant déclenchement automatique en mode {@link ReentryMode#FIXED_DELAY} (achat ou vente). */
     @Builder.Default
     private final int fixedDelayDays = 10;
+
+    /**
+     * Mode de calcul des bornes de zone (2026-09-27, demande Clem) : {@link BoundsMode#PERCENT}
+     * (defaut, comportement V0 d'origine, inchange) ou {@link BoundsMode#ATR} (bornes adaptees a
+     * la volatilite realisee plutot qu'a un %fixe de la SMA). Les champs percDown2..percUp3
+     * restent lus en mode PERCENT ; les champs atrMultDown2..atrMultUp3 et atrPeriod en mode ATR.
+     */
+    @Builder.Default
+    private final BoundsMode boundsMode = BoundsMode.PERCENT;
+
+    /** Periode (en jours) de l'ATR de reference, utilise seulement si boundsMode = ATR. */
+    @Builder.Default
+    private final int atrPeriod = 14;
+
+    @Builder.Default
+    private final BigDecimal atrMultDown2 = new BigDecimal("3");
+    @Builder.Default
+    private final BigDecimal atrMultDown1 = new BigDecimal("1.5");
+    @Builder.Default
+    private final BigDecimal atrMultUp1 = new BigDecimal("1");
+    @Builder.Default
+    private final BigDecimal atrMultUp2 = new BigDecimal("2.5");
+    @Builder.Default
+    private final BigDecimal atrMultUp3 = new BigDecimal("5");
+
+    /** Raccourci du builder : applique la même valeur de trailing stop aux côtés achat et vente. */
+    public static class RainbowDcaBacktestRequestBuilder {
+        public RainbowDcaBacktestRequestBuilder trailingStopPercent(BigDecimal percent) {
+            return trailingStopBuyPercent(percent).trailingStopSellPercent(percent);
+        }
+    }
 }

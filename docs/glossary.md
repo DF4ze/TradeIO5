@@ -1,6 +1,6 @@
 # Glossaire
 
-Vérifié le : 2026-09-12.
+Vérifié le : 2026-10-04.
 
 - **ScenarioOwner** — clé d'isolation de l'état vivant (scénarios/décisions) : un utilisateur réel, ou l'owner technique `SYSTEM` (`SystemOwner`).
 - **StrategyType** — `DIRECTIONAL` (agrégé additivement au score) vs `CONFIDENCE_MODULATOR` (multiplie la confidence finale, jamais agrégé au score directionnel).
@@ -16,3 +16,8 @@ Vérifié le : 2026-09-12.
 - **asset_provider** — table pilotant la résolution en cascade des providers de marché par asset (priorité + `maxHorizonDays`), distincte du chemin plus ancien basé sur l'enum `MarketDataSource`.
 - **CachingEtfFlowClient / CachingMarketDataApiClient** — décorateurs de cache DB au-dessus des clients bruts (SoSoValue / Binance-Kraken-OKX), posés par `EtfFlowCachingConfig` / `MarketDataCachingConfig`.
 - **ROLE_API_AGENT** — rôle attribué uniquement par `ApiKeyAuthFilter` (clé statique `X-Api-Key`), jamais persisté en base, limité aux endpoints de lecture `/scenarios`/`/decisions`.
+- **Rainbow ATR** — DCA à bornes `SMA ± ATR × multiplicateur` (zones DOWN2…UP3), avec machines d'achat/vente ARMÉ, modulation par distance à l'ATH et mode « To the moon ». Moteur pur `service/dca/atr/RainbowAtrEngine`, port du pine `tools/pine/rainbow_dca_v4_atr_moon.pine` (source de vérité).
+- **Preset (bench)** — jeu de paramètres Rainbow ATR nommé, par utilisateur et par actif, rejoué chaque jour par le bench grandeur nature.
+- **Bench grandeur nature** — exécution quotidienne fictive (wallet mock USDC, aucun ordre) des presets Rainbow ATR, résultats en base ; double passe 23:55 / 00:05 UTC.
+- **TrendRegime** — `UP` / `DOWN` / `RANGE`, sortie du Trend unifié ([`architecture/09-trend.md`](architecture/09-trend.md)).
+- **Bull / Bear (Rainbow)** — les deux jeux de paramètres Rainbow visés par actif (pas de Sideways) ; sélection manuelle dans le pine aujourd'hui.

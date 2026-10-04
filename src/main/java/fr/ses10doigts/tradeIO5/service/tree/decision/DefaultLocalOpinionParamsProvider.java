@@ -22,9 +22,12 @@ import java.util.List;
  * en un unique {@link MarketOpinionParameters} — les paramètres LOCAL "par défaut" utilisés pour un
  * calcul d'Opinion automatique/manuel non personnalisé (décision 7 du prompt d'implémentation de
  * l'étape 7 du Palier 3). Concaténation des {@code StrategyKey} des 4 fabriques, patron déjà
- * documenté dans {@link MarketOpinionParametersFactory}. Valeurs de seuils reprises telles quelles de
- * {@code TrendConfirmationStrategy.DEFAULT_*} (mêmes valeurs que {@code TrendConfirmationStrategyTest})
- * pour TrendConfirmation ; les 3 autres réutilisent leurs {@code Param.defaults(...)} respectifs.
+ * documenté dans {@link MarketOpinionParametersFactory}. TrendConfirmation utilise désormais
+ * {@code StrategyParametersFactory.TrendConfirmationParam.defaults(TimeFrame.D1)} (Étape 8 de la
+ * roadmap Trend unifié, 2026-09-24 : régression à hystérésis, plus de SWING_STRUCTURE/ADX) —
+ * TrendConfirmation tourne en {@code TimeFrame.D1} depuis son refactor Étape 4 (2026-09-18), plus
+ * {@code H1}, changement de cadence de réévaluation signalé, pas glissé silencieusement. Les 3
+ * autres réutilisent leurs {@code Param.defaults(...)} respectifs.
  * <p>
  * Extrait de {@link DecisionOrchestrator} (2026-08-17, plan de test manuel Palier 3) dans un
  * composant partagé : {@code OpinionAdminController} (déclenchement manuel d'une Opinion, hors cycle
@@ -47,9 +50,7 @@ public class DefaultLocalOpinionParamsProvider {
 
         keys.addAll(MarketOpinionParametersFactory.buildLocalOpinionParamWithTrendConfirmation(
                 trendConfirmationStrategy,
-                new StrategyParametersFactory.TrendConfirmationParam(
-                        TimeFrame.H1, 10, 20, 14, 14,
-                        15.0, 25.0, 80.0, 20.0)
+                StrategyParametersFactory.TrendConfirmationParam.defaults(TimeFrame.D1)
         ).getStrategies());
 
         keys.addAll(MarketOpinionParametersFactory.buildLocalOpinionParamWithMovementQualification(

@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Rainbow DCA — visualiseur BTC/USDT</title>
+<script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root {
+    --bg: #0e1117;
+    --panel: #161b22;
+    --border: #2a3140;
+    --text: #d7dde5;
+    --muted: #8b95a5;
+    --green: #22c55e;
+    --red: #ef4444;
+    --blue: #60a5fa;
+    --band1: #ef4444;
+    --band2: #f59e0b;
+    --band3: #eab308;
+    --band4: #84cc16;
+    --band5: #22c55e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+  }
+  header {
+    padding: 12px 16px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  h1 { font-size: 16px; margin: 0 0 4px; font-weight: 600; }
+  .subtitle { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .presets {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .preset-btn {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .preset-btn.active { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue) inset; }
+  .preset-btn[data-preset="UP"].active { color: var(--green); border-color: var(--green); box-shadow: 0 0 0 1px var(--green) inset; }
+  .preset-btn[data-preset="DOWN"].active { color: var(--red); border-color: var(--red); box-shadow: 0 0 0 1px var(--red) inset; }
+  .preset-btn[data-preset="RANGE"].active { color: var(--band3); border-color: var(--band3); box-shadow: 0 0 0 1px var(--band3) inset; }
+  .period-controls {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-left: 16px;
+  }
+  .period-controls input[type=date] {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  .period-controls button, #resetAllBtn {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .period-controls button:hover, #resetAllBtn:hover, .preset-btn:hover { color: var(--text); }
+  .oat-banner {
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    margin-bottom: 8px;
+  }
+  #errorBanner {
+    background: #3b1d1d;
+    border: 1px solid #7f1d1d;
+    color: #fecaca;
+    padding: 8px 12px;
+    font-size: 12px;
+    margin: 8px 16px;
+    border-radius: 6px;
+  }
+  #loading { padding: 8px 16px; color: var(--muted); font-size: 12px; }
+  .layout {
+    display: flex;
+    height: calc(100vh - 128px);
+  }
+  #chartCol { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .legend {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    color: var(--muted);
+    padding: 4px 16px;
+  }
+  .legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+  #chart { flex: 1; min-height: 200px; }
+  #sidebar {
+    width: 340px;
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 12px;
+    background: var(--panel);
+  }
+  #sidebar h2 { font-size: 13px; margin: 0 0 8px; color: var(--text); }
+  .param-row { margin-bottom: 10px; }
+  .param-row label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 3px;
+  }
+  .param-row label .val { color: var(--text); font-weight: 600; }
+  .param-row label .val.modified { color: var(--blue); }
+  .param-row input[type=range] { width: calc(100% - 24px); vertical-align: middle; }
+  .param-row select {
+    width: 100%;
+    background: #0e1117;
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 3px;
+    border-radius: 4px;
+  }
+  .param-reset {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 12px;
+    vertical-align: middle;
+    margin-left: 4px;
+  }
+  .param-reset:hover { color: var(--blue); }
+  #summary { margin-top: 16px; font-size: 12px; }
+  #summary table { width: 100%; border-collapse: collapse; }
+  #summary td { padding: 2px 0; border-bottom: 1px solid var(--border); }
+  #summary td.label { color: var(--muted); }
+  #summary td.value { text-align: right; font-variant-numeric: tabular-nums; }
+  #summary tr.section td { padding-top: 10px; font-weight: 600; color: var(--text); border-bottom: none; }
+  .pos { color: var(--green); }
+  .neg { color: var(--red); }
+  #tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: #000c;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+    color: var(--text);
+    display: none;
+    z-index: 5;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Rainbow DCA — visualiseur BTC/USDT</h1>
+  <div class="subtitle">Backtests précalculés côté Java (bench <code>RainbowDcaVisualizerExportTest</code>) — aucun recalcul de simulation en JS. Bandes Rainbow recalculées côté client à partir de la SMA affichée.</div>
+  <div class="presets">
+    <button class="preset-btn" data-preset="UP">UP (bull)</button>
+    <button class="preset-btn" data-preset="DOWN">DOWN (bear)</button>
+    <button class="preset-btn" data-preset="RANGE">RANGE (sideways)</button>
+    <button id="resetAllBtn" type="button">↺ Réinitialiser au preset</button>
+    <div class="period-controls">
+      <span style="color:var(--muted)">Vue :</span>
+      <input type="date" id="viewStart">
+      <span style="color:var(--muted)">→</span>
+      <input type="date" id="viewEnd">
+      <button type="button" data-years="1">1 an</button>
+      <button type="button" data-years="2">2 ans</button>
+      <button type="button" data-years="3">3 ans</button>
+      <button type="button" data-years="5">5 ans</button>
+    </div>
+  </div>
+  <div class="oat-banner">Un seul réglage peut s'écarter du preset à la fois : en changer un autre réinitialise le précédent à sa valeur de preset (seules les combinaisons précalculées existent).</div>
+  <div id="errorBanner" hidden></div>
+  <div id="loading">Chargement des bougies BTC/USDT (Binance)…</div>
+</header>
+
+<div class="layout">
+  <div id="chartCol">
+    <div class="legend">
+      <span><span class="dot" style="background:var(--band1)"></span>percDown2</span>
+      <span><span class="dot" style="background:var(--band2)"></span>percDown1</span>
+      <span><span class="dot" style="background:var(--band3)"></span>percUp1</span>
+      <span><span class="dot" style="background:var(--band4)"></span>percUp2</span>
+      <span><span class="dot" style="background:var(--band5)"></span>percUp3</span>
+      <span><span class="dot" style="background:var(--green)"></span>achat x3 déclenché</span>
+      <span><span class="dot" style="background:var(--red)"></span>vente déclenchée</span>
+    </div>
+    <div id="chart"></div>
+  </div>
+  <div id="sidebar">
+    <h2>Réglages (preset <span id="activePresetLabel">UP</span>)</h2>
+    <div id="paramsContainer"></div>
+    <div id="summary"></div>
+  </div>
+</div>
+<div id="tooltip"></div>
+
+<!--
+  Architecture reprise de docs/prompts/prompt-implementation-visualiseur-tradingview-swing-structure.md :
+  page HTML autonome, Lightweight Charts v5.2.1 en CDN, fetch direct des chandelles BTC/USDT depuis
+  l'API publique Binance en JS (klines D1, tout l'historique disponible — indépendant du preset actif,
+  cf. spec point 7 du prompt). dataset.json (généré par RainbowDcaVisualizerExportTest, chemin par
+  défaut target/rainbow-dca-visualizer/dataset.json) est chargé séparément par fetch() relatif
+  ('../target/rainbow-dca-visualizer/dataset.json' — docs/ et target/ sont frères sous la racine du
+  repo). Comme pour le précédent visualiseur : si l'ouverture directe en file:// échoue (fetch bloqué),
+  servir le dossier en local : `python3 -m http.server 8000` depuis la racine du repo, puis ouvrir
+  http://localhost:8000/docs/visualiseur-rainbow-dca.html.
+
+  Seules les valeurs de dataset.json.grids sont sélectionnables (sliders à crans mappés sur l'index du
+  tableau, dropdowns pour les paramètres catégoriels) — jamais de champ texte libre, cf. spec point 8.
+-->
+<script>
+(function () {
+  'use strict';
+
+  var DATASET_URL = '../target/rainbow-dca-visualizer/dataset.json';
+  var BINANCE_SYMBOL = 'BTCUSDT';
+  var HISTORY_START_MS = Date.UTC(2017, 7, 17); // écoute BTCUSDT sur Binance ~17/08/2017
+
+  var PARAM_META = [
+    { key: 'percDown2', label: 'Borne extrême bas (percDown2)', type: 'slider', unit: '%', affectsBands: true },
+    { key: 'percDown1', label: 'Borne bas (percDown1)', type: 'slider', unit: '%', affectsBands: true },
+    { key: 'percUp1', label: 'Borne haut 1 (percUp1)', type: 'slider', unit: '%', affectsBands: true },
+    { key: 'percUp2', label: 'Borne haut 2 (percUp2)', type: 'slider', unit: '%', affectsBands: true },
+    { key: 'percUp3', label: 'Borne extrême haut (percUp3)', type: 'slider', unit: '%', affectsBands: true },
+    { key: 'buyReentryMode', label: 'Réentrée achat', type: 'dropdown', unit: '' },
+    { key: 'sellReentryMode', label: 'Réentrée vente', type: 'dropdown', unit: '' },
+    { key: 'trailingStopPercent', label: 'Trailing stop', type: 'slider', unit: '%' },
+    { key: 'cooldownDays', label: 'Cooldown', type: 'slider', unit: 'j' },
+    { key: 'fixedDelayDays', label: 'Délai fixe', type: 'slider', unit: 'j' },
+    { key: 'sellFraction', label: 'Fraction vente', type: 'slider', unit: '' },
+    { key: 'smaPeriod', label: 'Période SMA', type: 'slider', unit: 'j', affectsBands: true }
+  ];
+
+  var errorBanner = document.getElementById('errorBanner');
+  var loadingEl = document.getElementById('loading');
+  var chartEl = document.getElementById('chart');
+  var tooltipEl = document.getElementById('tooltip');
+  var paramsContainer = document.getElementById('paramsContainer');
+  var summaryEl = document.getElementById('summary');
+  var activePresetLabelEl = document.getElementById('activePresetLabel');
+
+  var DATASET = null;
+  var candles = []; // toutes les bougies BTC/USDT D1 disponibles (indépendant du preset)
+  var closeByTime = {};
+
+  var state = {
+    preset: 'UP',
+    modifiedParam: null,
+    modifiedValue: null
+  };
+
+  var chart = LightweightCharts.createChart(chartEl, {
+    layout: { background: { color: '#0e1117' }, textColor: '#c9d1d9' },
+    grid: { vertLines: { color: '#1c212b' }, horzLines: { color: '#1c212b' } },
+    rightPriceScale: { borderColor: '#262c36' },
+    timeScale: { borderColor: '#262c36' },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    autoSize: true
+  });
+
+  var candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
+    upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
+    wickUpColor: '#26a69a', wickDownColor: '#ef5350'
+  });
+
+  var bandColors = ['#ef4444', '#f59e0b', '#eab308', '#84cc16', '#22c55e'];
+  var bandKeys = ['percDown2', 'percDown1', 'percUp1', 'percUp2', 'percUp3'];
+  var bandSeries = bandKeys.map(function (key, i) {
+    return chart.addSeries(LightweightCharts.LineSeries, {
+      color: bandColors[i], lineWidth: 1, priceLineVisible: false, lastValueVisible: false
+    });
+  });
+
+  var markersPrimitive = LightweightCharts.createSeriesMarkers(candleSeries, []);
+
+  // --- Fetch dataset.json précalculé ---
+
+  function fetchDataset() {
+    return fetch(DATASET_URL).then(function (res) {
+      if (!res.ok) {
+        throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+      }
+      return res.json();
+    });
+  }
+
+  // --- Fetch chandelles BTC/USDT réelles (tout l'historique, indépendant du preset — spec point 7) ---
+
+  function fetchAllDailyKlines(symbol, startMs, endMs) {
+    var out = [];
+    var cursor = startMs;
+    var limit = 1000;
+    var dayMs = 24 * 60 * 60 * 1000;
+    function step() {
+      if (cursor >= endMs) {
+        return Promise.resolve(out);
+      }
+      var url = 'https://api.binance.com/api/v3/klines?symbol=' + symbol +
+        '&interval=1d&startTime=' + cursor + '&limit=' + limit;
+      return fetch(url).then(function (res) {
+        if (!res.ok) {
+          throw new Error('Binance a répondu ' + res.status + ' ' + res.statusText);
+        }
+        return res.json();
+      }).then(function (batch) {
+        if (!Array.isArray(batch) || batch.length === 0) {
+          return out;
+        }
+        out = out.concat(batch);
+        var lastOpenTime = batch[batch.length - 1][0];
+        cursor = lastOpenTime + dayMs;
+        if (batch.length < limit) {
+          return out;
+        }
+        return step();
+      });
+    }
+    return step();
+  }
+
+  function klinesToCandles(klines) {
+    return klines.map(function (k) {
+      return {
+        time: Math.floor(k[0] / 1000),
+        open: parseFloat(k[1]),
+        high: parseFloat(k[2]),
+        low: parseFloat(k[3]),
+        close: parseFloat(k[4])
+      };
+    });
+  }
+
+  function showError(prefix, err) {
+    errorBanner.hidden = false;
+    errorBanner.innerHTML = '<strong>' + prefix + '</strong><br>' +
+      escapeHtml(err && err.message ? err.message : String(err)) + '<br>' +
+      'Si cette page est ouverte en double-clic (file://), certains navigateurs bloquent les requêtes ' +
+      'réseau/fetch locales dans ce contexte. Servez le dossier racine du repo en local :<br>' +
+      '<code>python3 -m http.server 8000</code><br>' +
+      'puis ouvrez <code>http://localhost:8000/docs/visualiseur-rainbow-dca.html</code>.';
+  }
+
+  function escapeHtml(s) {
+    var div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  // --- SMA + bandes Rainbow (calcul 100% client, spec point 4) ---
+
+  function computeSma(period) {
+    var out = [];
+    var sum = 0;
+    for (var i = 0; i < candles.length; i++) {
+      sum += candles[i].close;
+      if (i >= period) {
+        sum -= candles[i - period].close;
+      }
+      if (i >= period - 1) {
+        out.push({ time: candles[i].time, value: sum / period });
+      }
+    }
+    return out;
+  }
+
+  function effectiveParamValue(preset, key) {
+    if (state.modifiedParam === key) {
+      return state.modifiedValue;
+    }
+    return preset.parameters[key];
+  }
+
+  function redrawBands() {
+    var preset = DATASET.presets[state.preset];
+    var smaPeriod = Number(effectiveParamValue(preset, 'smaPeriod'));
+    var sma = computeSma(smaPeriod);
+    var pcts = bandKeys.map(function (key) {
+      return Number(effectiveParamValue(preset, key));
+    });
+    bandSeries.forEach(function (series, i) {
+      var pct = pcts[i];
+      var data = sma.map(function (p) {
+        return { time: p.time, value: p.value * (1 + pct / 100) };
+      });
+      series.setData(data);
+    });
+  }
+
+  // --- Lookup de l'entrée précalculée (baseline ou variation OAT active) ---
+
+  function currentEntry() {
+    var preset = DATASET.presets[state.preset];
+    if (state.modifiedParam == null) {
+      return preset.baseline;
+    }
+    var candidates = preset.variations[state.modifiedParam] || [];
+    for (var i = 0; i < candidates.length; i++) {
+      var v = candidates[i].value;
+      if (typeof v === 'number') {
+        if (Math.abs(v - Number(state.modifiedValue)) < 1e-9) {
+          return candidates[i];
+        }
+      } else if (String(v) === String(state.modifiedValue)) {
+        return candidates[i];
+      }
+    }
+    return null; // combinaison non précalculée (ne devrait pas arriver, cf. point 2 : un seul param actif)
+  }
+
+  function toMarker(o) {
+    var isBuy = o.type === 'BUY_TRIGGERED';
+    return {
+      time: Math.floor(Date.parse(o.date + 'T00:00:00Z') / 1000),
+      position: isBuy ? 'belowBar' : 'aboveBar',
+      color: isBuy ? '#22c55e' : '#ef4444',
+      shape: isBuy ? 'arrowUp' : 'arrowDown',
+      text: isBuy ? 'x3' : 'VENTE'
+    };
+  }
+
+  function redrawMarkersAndSummary() {
+    var entry = currentEntry();
+    if (!entry) {
+      markersPrimitive.setMarkers([]);
+      summaryEl.innerHTML = '<div class="oat-banner">Combinaison non précalculée pour ce réglage.</div>';
+      return;
+    }
+    var markers = entry.occurrences.map(toMarker).sort(function (a, b) { return a.time - b.time; });
+    markersPrimitive.setMarkers(markers);
+    renderSummary(entry.summary);
+  }
+
+  // --- Résumé chiffré (mêmes champs que les logs Java §25/§26) ---
+
+  function fmt(n) {
+    if (n === null || n === undefined) return '—';
+    return Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function fmtPct(n) {
+    if (n === null || n === undefined) return '—';
+    var cls = Number(n) >= 0 ? 'pos' : 'neg';
+    return '<span class="' + cls + '">' + (Number(n) >= 0 ? '+' : '') + fmt(n) + '%</span>';
+  }
+
+  function renderSummary(s) {
+    var rows = [];
+    rows.push(['section', 'Rainbow']);
+    rows.push(['Investi', fmt(s.totalInvested) + ' (' + s.buyTriggeredCount + ' achats déclenchés)']);
+    rows.push(['Vendu', fmt(s.totalSaleProceeds) + ' (' + s.sellTriggeredCount + ' ventes déclenchées)']);
+    rows.push(['Valeur position restante', fmt(s.currentValue)]);
+    rows.push(['PnL total', fmt(s.pnl) + ' (' + fmtPct(s.pnlPercent) + ')']);
+    rows.push(['· réalisé', fmt(s.realizedGain) + ' (' + fmtPct(s.realizedGainPercent) + ')']);
+    rows.push(['· potentiel', fmt(s.potentialGain) + ' (' + fmtPct(s.potentialGainPercent) + ')']);
+    rows.push(['section', 'DCA fixe (comparaison)']);
+    rows.push(['Investi', fmt(s.fixedDca.totalInvested)]);
+    rows.push(['PnL', fmt(s.fixedDca.pnl) + ' (' + fmtPct(s.fixedDca.pnlPercent) + ')']);
+    rows.push(['section', 'Delta']);
+    rows.push(['Rainbow vs DCA fixe', fmtPct(s.deltaVsFixedPnlPercent)]);
+
+    var html = '<table>';
+    rows.forEach(function (r) {
+      if (r[0] === 'section') {
+        html += '<tr class="section"><td colspan="2">' + r[1] + '</td></tr>';
+      } else {
+        html += '<tr><td class="label">' + r[0] + '</td><td class="value">' + r[1] + '</td></tr>';
+      }
+    });
+    html += '</table>';
+    summaryEl.innerHTML = html;
+  }
+
+  // --- Panneau de réglages (sliders à crans sur les grilles Java, dropdowns catégoriels) ---
+
+  function gridIndexOf(grid, value) {
+    for (var i = 0; i < grid.length; i++) {
+      if (typeof grid[i] === 'number') {
+        if (Math.abs(grid[i] - Number(value)) < 1e-9) return i;
+      } else if (String(grid[i]) === String(value)) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  function onParamChanged(key, value) {
+    if (state.modifiedParam !== null && state.modifiedParam !== key) {
+      // un seul slider actif à la fois (spec point 2) : tout autre paramètre modifié revient au preset
+    }
+    state.modifiedParam = key;
+    state.modifiedValue = value;
+    renderParams();
+    redrawBands();
+    redrawMarkersAndSummary();
+  }
+
+  function resetParam(key) {
+    if (state.modifiedParam === key) {
+      state.modifiedParam = null;
+      state.modifiedValue = null;
+      renderParams();
+      redrawBands();
+      redrawMarkersAndSummary();
+    }
+  }
+
+  function resetAll() {
+    state.modifiedParam = null;
+    state.modifiedValue = null;
+    renderParams();
+    redrawBands();
+    redrawMarkersAndSummary();
+  }
+
+  function renderParams() {
+    var preset = DATASET.presets[state.preset];
+    paramsContainer.innerHTML = '';
+    PARAM_META.forEach(function (meta) {
+      var grid = DATASET.grids[meta.key];
+      var current = effectiveParamValue(preset, meta.key);
+      var isModified = state.modifiedParam === meta.key;
+
+      var row = document.createElement('div');
+      row.className = 'param-row';
+
+      var label = document.createElement('label');
+      var resetBtn = isModified ? '<button class="param-reset" data-reset="' + meta.key + '" title="Revenir au preset">↺</button>' : '';
+      label.innerHTML = '<span>' + meta.label + '</span><span class="val' + (isModified ? ' modified' : '') + '">' +
+        current + meta.unit + resetBtn + '</span>';
+      row.appendChild(label);
+
+      if (meta.type === 'dropdown') {
+        var select = document.createElement('select');
+        grid.forEach(function (g) {
+          var opt = document.createElement('option');
+          opt.value = g;
+          opt.textContent = g;
+          if (String(g) === String(current)) opt.selected = true;
+          select.appendChild(opt);
+        });
+        select.addEventListener('change', function () {
+          onParamChanged(meta.key, select.value);
+        });
+        row.appendChild(select);
+      } else {
+        var range = document.createElement('input');
+        range.type = 'range';
+        range.min = 0;
+        range.max = grid.length - 1;
+        range.step = 1;
+        range.value = gridIndexOf(grid, current);
+        range.addEventListener('input', function () {
+          onParamChanged(meta.key, grid[Number(range.value)]);
+        });
+        row.appendChild(range);
+      }
+
+      paramsContainer.appendChild(row);
+    });
+
+    paramsContainer.querySelectorAll('[data-reset]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        resetParam(btn.getAttribute('data-reset'));
+      });
+    });
+  }
+
+  // --- Presets UP/DOWN/RANGE (spec point 9) ---
+
+  function selectPreset(name) {
+    state.preset = name;
+    state.modifiedParam = null;
+    state.modifiedValue = null;
+    activePresetLabelEl.textContent = name;
+    document.querySelectorAll('.preset-btn').forEach(function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-preset') === name);
+    });
+    renderParams();
+    redrawBands();
+    redrawMarkersAndSummary();
+  }
+
+  document.querySelectorAll('.preset-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      selectPreset(btn.getAttribute('data-preset'));
+    });
+  });
+  document.getElementById('resetAllBtn').addEventListener('click', resetAll);
+
+  // --- Sélecteur de période (vue du graphique uniquement — spec point 7) ---
+
+  var viewStartEl = document.getElementById('viewStart');
+  var viewEndEl = document.getElementById('viewEnd');
+
+  function applyView(startDate, endDate) {
+    var startSec = Math.floor(startDate.getTime() / 1000);
+    var endSec = Math.floor(endDate.getTime() / 1000);
+    chart.timeScale().setVisibleRange({ from: startSec, to: endSec });
+    viewStartEl.value = startDate.toISOString().slice(0, 10);
+    viewEndEl.value = endDate.toISOString().slice(0, 10);
+  }
+
+  function applyYearsBack(years) {
+    if (candles.length === 0) return;
+    var lastTime = candles[candles.length - 1].time * 1000;
+    var end = new Date(lastTime);
+    var start = new Date(lastTime);
+    start.setUTCFullYear(start.getUTCFullYear() - years);
+    applyView(start, end);
+  }
+
+  document.querySelectorAll('.period-controls button[data-years]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      applyYearsBack(Number(btn.getAttribute('data-years')));
+    });
+  });
+  viewStartEl.addEventListener('change', function () {
+    if (viewStartEl.value && viewEndEl.value) {
+      applyView(new Date(viewStartEl.value + 'T00:00:00Z'), new Date(viewEndEl.value + 'T00:00:00Z'));
+    }
+  });
+  viewEndEl.addEventListener('change', function () {
+    if (viewStartEl.value && viewEndEl.value) {
+      applyView(new Date(viewStartEl.value + 'T00:00:00Z'), new Date(viewEndEl.value + 'T00:00:00Z'));
+    }
+  });
+
+  // --- Tooltip simple au survol d'un marqueur (achat x3 / vente) ---
+
+  chart.subscribeCrosshairMove(function (param) {
+    if (!param || !param.time || !param.point) {
+      tooltipEl.style.display = 'none';
+      return;
+    }
+    var entry = currentEntry();
+    if (!entry) {
+      tooltipEl.style.display = 'none';
+      return;
+    }
+    var match = entry.occurrences.find(function (o) {
+      return Math.floor(Date.parse(o.date + 'T00:00:00Z') / 1000) === param.time;
+    });
+    if (!match) {
+      tooltipEl.style.display = 'none';
+      return;
+    }
+    var isBuy = match.type === 'BUY_TRIGGERED';
+    tooltipEl.innerHTML = '<b>' + (isBuy ? 'Achat x3 déclenché' : 'Vente déclenchée') + '</b><br>' +
+      match.date + ' — prix ' + fmt(match.price) + '<br>' +
+      (isBuy ? ('investi ' + fmt(match.amountInvested)) : ('vendu ' + fmt(match.quantitySold) + ' (produit ' + fmt(match.saleProceeds) + ')'));
+    tooltipEl.style.display = 'block';
+    tooltipEl.style.left = (param.point.x + 60) + 'px';
+    tooltipEl.style.top = (param.point.y + 20) + 'px';
+  });
+
+  // --- Chargement initial ---
+
+  Promise.all([
+    fetchDataset(),
+    fetchAllDailyKlines(BINANCE_SYMBOL, HISTORY_START_MS, Date.now())
+  ]).then(function (results) {
+    DATASET = results[0];
+    candles = klinesToCandles(results[1]);
+    closeByTime = {};
+    candles.forEach(function (c) { closeByTime[c.time] = c.close; });
+    candleSeries.setData(candles);
+
+    loadingEl.hidden = true;
+    selectPreset('UP');
+    applyYearsBack(2);
+  }).catch(function (err) {
+    loadingEl.hidden = true;
+    if (!DATASET) {
+      showError('Impossible de charger dataset.json (' + DATASET_URL + ').', err);
+    } else {
+      showError('Impossible de charger les bougies BTC/USDT depuis Binance.', err);
+    }
+  });
+})();
+</script>
+</body>
+</html>

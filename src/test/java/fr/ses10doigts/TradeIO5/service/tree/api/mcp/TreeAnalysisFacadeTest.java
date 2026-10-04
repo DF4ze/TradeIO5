@@ -67,11 +67,8 @@ class TreeAnalysisFacadeTest {
     void getOpinion_onMemorySource_shouldReturnValidOpinionSignal() {
         Strategy strategy = strategyRegistry.get(TrendConfirmationStrategy.class.getSimpleName());
 
-        StrategyParametersFactory.TrendConfirmationParam param = new StrategyParametersFactory.TrendConfirmationParam(
-                TimeFrame.H1, 10, 20, 14, 14,
-                15.0, 25.0,
-                80.0, 20.0
-        );
+        StrategyParametersFactory.TrendConfirmationParam param =
+                StrategyParametersFactory.TrendConfirmationParam.defaults(TimeFrame.H1);
 
         MarketOpinionParameters params = MarketOpinionParametersFactory.buildLocalOpinionParamWithTrendConfirmation(
                 strategy, param

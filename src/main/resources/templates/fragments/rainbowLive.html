@@ -1,0 +1,134 @@
+<!-- Bench grandeur nature Rainbow DCA ATR : conteneur de la page (rendu et logique dans assets/js/rainbow-live.js) -->
+<section id="rainbow-live" class="rainbow-live" th:fragment="rainbowLive">
+  <div class="container">
+    <div class="section-title">
+      <h2>Bench grandeur nature — Rainbow DCA ATR</h2>
+      <p>Simulation en conditions réelles (dry-run) : aucun ordre n'est passé. Les actions fictives sont figées à la passe de 23:55 UTC,
+         la passe de 00:05 UTC n'enregistre que les valeurs d'indicateur définitives (voir le delta). Une modification de preset
+         est prise en compte au prochain run, l'historique n'est pas recalculé.</p>
+    </div>
+
+    <div id="rl-alert" class="alert alert-danger d-none" role="alert">
+      <span id="rl-alert-text"></span>
+      <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="rl-alert-retry">Réessayer</button>
+    </div>
+
+    <ul class="nav nav-tabs" id="rl-asset-tabs" role="tablist"></ul>
+
+    <div class="d-flex justify-content-between align-items-center my-3">
+      <h5 class="mb-0">Presets de l'actif <span id="rl-asset-label" class="fw-bold"></span></h5>
+      <button type="button" class="btn btn-primary btn-sm" id="rl-new-preset">Nouveau preset</button>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle" id="rl-presets-table">
+        <thead>
+          <tr>
+            <th>Nom</th><th title="Bascule rapide : le preset est joué (ou non) à chaque passe quotidienne">Actif</th>
+            <th>Fenêtre (mois)</th><th>Capital initial</th>
+            <th>Wallet mock (cash / position / équité)</th>
+            <th>Runs</th><th>1er run</th><th>Dernier run</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="rl-presets-body"></tbody>
+      </table>
+    </div>
+    <div id="rl-presets-empty" class="text-muted fst-italic d-none">Aucun preset sur cet actif. Utilisez « Nouveau preset » pour en créer un.</div>
+
+    <!-- Détail du preset sélectionné (chargé à la sélection) -->
+    <div id="rl-detail" class="d-none mt-4">
+      <h4 class="mb-3">Preset <span id="rl-detail-title"></span></h4>
+
+      <h5>Performance</h5>
+      <div id="rl-perf-panel"></div>
+
+      <h5 class="mt-4">Performance dans le temps</h5>
+      <div class="rl-chart-wrap">
+        <div id="rl-chart-perf" class="rl-chart"></div>
+        <div id="rl-chart-tooltip" class="rl-tooltip d-none"></div>
+      </div>
+      <div class="rl-legend small text-muted" id="rl-chart-legend"></div>
+
+      <div class="d-flex justify-content-between align-items-center mt-4">
+        <h5 class="mb-0">Taille de position</h5>
+        <div class="btn-group btn-group-sm" role="group" id="rl-pos-metric" aria-label="Métrique">
+          <input type="radio" class="btn-check" name="rl-pos-metric" id="rl-pm-currentValue" value="currentValue" checked>
+          <label class="btn btn-outline-secondary" for="rl-pm-currentValue">Valeur de marché</label>
+          <input type="radio" class="btn-check" name="rl-pos-metric" id="rl-pm-costBasis" value="costBasis">
+          <label class="btn btn-outline-secondary" for="rl-pm-costBasis">Coût</label>
+          <input type="radio" class="btn-check" name="rl-pos-metric" id="rl-pm-position" value="position">
+          <label class="btn btn-outline-secondary" for="rl-pm-position">Quantité</label>
+        </div>
+      </div>
+      <div id="rl-chart-pos" class="rl-chart rl-chart-small"></div>
+      <div class="small text-muted">Vert = jour d'achat, rouge = jour de vente, gris = pas d'action. Jours sans run : non interpolés.</div>
+      <div id="rl-chart-error" class="text-danger small d-none"></div>
+
+      <h5 class="mt-4">Runs</h5>
+      <form class="row g-2 align-items-end mb-2" id="rl-runs-filter" onsubmit="return false;">
+        <div class="col-auto"><label class="form-label small mb-0" for="rl-runs-from">Du</label>
+          <input type="date" class="form-control form-control-sm" id="rl-runs-from"></div>
+        <div class="col-auto"><label class="form-label small mb-0" for="rl-runs-to">Au</label>
+          <input type="date" class="form-control form-control-sm" id="rl-runs-to"></div>
+        <div class="col-auto">
+          <button type="button" class="btn btn-sm btn-outline-primary" id="rl-runs-apply">Appliquer</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="rl-runs-90">90 derniers jours</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="rl-runs-all">Tout afficher</button>
+        </div>
+      </form>
+      <div id="rl-runs-panel"></div>
+
+      <h5 class="mt-4">Delta 23:55 vs 00:05</h5>
+      <div id="rl-delta-panel"></div>
+    </div>
+  </div>
+
+  <!-- Modale formulaire (création / édition) -->
+  <div class="modal fade" id="rl-form-modal" tabindex="-1" aria-labelledby="rl-form-title" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="rl-form-title"></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+        </div>
+        <div class="modal-body">
+          <div id="rl-form-banner" class="alert alert-info py-2 d-none">
+            Les modifications sont prises en compte au prochain run ; l'historique n'est pas recalculé. L'actif et le capital initial ne sont pas modifiables.
+          </div>
+          <div id="rl-form-error" class="alert alert-danger py-2 d-none" role="alert"></div>
+          <div class="mb-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="rl-form-fill-default">Remplir avec le défaut de l'actif</button>
+          </div>
+          <form id="rl-form" novalidate onsubmit="return false;">
+            <div class="accordion" id="rl-form-accordion"></div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button type="button" class="btn btn-primary" id="rl-form-submit">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modale de suppression -->
+  <div class="modal fade" id="rl-delete-modal" tabindex="-1" aria-labelledby="rl-delete-title" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="rl-delete-title">Supprimer le preset</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+        </div>
+        <div class="modal-body">
+          <p>Supprimer le preset « <strong id="rl-delete-name"></strong> » ?</p>
+          <p class="mb-0 text-danger">La configuration, tout l'historique des runs et le wallet mock sont supprimés. Cette action est irréversible.</p>
+          <div id="rl-delete-error" class="alert alert-danger py-2 mt-2 d-none" role="alert"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button type="button" class="btn btn-danger" id="rl-delete-confirm">Supprimer définitivement</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

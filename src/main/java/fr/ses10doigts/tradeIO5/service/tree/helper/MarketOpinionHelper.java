@@ -12,6 +12,15 @@ import java.time.Instant;
 public class MarketOpinionHelper {
 
     /**
+     * Barrière NEUTRAL/BULLISH-BEARISH (1/6) utilisée par {@link #scoreToConfidenceAndSignalType} —
+     * exposée en constante publique pour être réutilisée ailleurs sans être recopiée (cf.
+     * {@code RegressionHysteresisCalculator.ENTER_THRESHOLD}, Étape 8 de la roadmap Trend unifié,
+     * prompt-implementation-trend-unifie-etape8-regression-hysteresis.md §2.2 : "ENTER = 1/6 (la
+     * barrière de MarketOpinionHelper, à réutiliser comme constante, pas à recopier)").
+     */
+    public static final double BARRIER = 1.0 / 6.0;
+
+    /**
      * Mapping MarketIntentAction -> SignalType (étude "extension-risk-macro-external" §4.1),
      * pour une opinion EXTERNAL (LlmAdvice) qui doit produire un OpinionSignal au même
      * contrat que les opinions techniques. ADJUST/SUSPEND n'ont pas d'équivalent direct en
@@ -28,7 +37,7 @@ public class MarketOpinionHelper {
     }
 
     public static ConfidenceSignal scoreToConfidenceAndSignalType(double score){
-        double barrier = 1.0 / 6.0;
+        double barrier = BARRIER;
 
         if (score >= -barrier && score < 0) {
             // linéaire : -1/6 -> 0, 0 -> 1

@@ -17,7 +17,7 @@ public enum ReentryMode {
 
     /**
      * Déclenche dès que le prix repasse la borne (percdown2 pour l'achat, percup3 pour la vente)
-     * OU dès qu'il rebondit/recule de {@code trailingStopPercent} depuis l'extrême (plus bas côté
+     * OU dès qu'il rebondit/recule de {@code trailingStopBuyPercent} (achat) / {@code trailingStopSellPercent} (vente) depuis l'extrême (plus bas côté
      * achat, plus haut côté vente) atteint pendant l'armement. Capture un rebond/repli avant le
      * retour complet dans la zone normale.
      */

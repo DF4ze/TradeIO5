@@ -1,0 +1,27 @@
+/* Page "Bench grandeur nature" (userPage) */
+#rainbow-live { text-align: left; }
+#rainbow-live .section-title p { font-size: 14px; color: #6c757d; }
+#rainbow-live .rl-chart-wrap { position: relative; }
+#rainbow-live .rl-chart { width: 100%; height: 340px; }
+#rainbow-live .rl-chart-small { height: 200px; }
+#rainbow-live .rl-tooltip {
+  position: absolute; top: 8px; left: 8px; z-index: 5; pointer-events: none;
+  background: rgba(255, 255, 255, .95); border: 1px solid #ced4da; border-radius: 4px;
+  padding: 6px 8px; font-size: 12px; max-width: 320px; box-shadow: 0 1px 4px rgba(0, 0, 0, .15);
+}
+#rainbow-live .rl-card { border: 1px solid #dee2e6; border-radius: 6px; padding: 8px 12px; height: 100%; }
+#rainbow-live .rl-card .rl-label { font-size: 12px; color: #6c757d; }
+#rainbow-live .rl-card .rl-value { font-size: 16px; font-weight: 600; }
+#rainbow-live .rl-pos { color: #198754; }
+#rainbow-live .rl-neg { color: #dc3545; }
+#rainbow-live .rl-runs-scroll { max-height: 480px; overflow: auto; }
+#rainbow-live .rl-runs-scroll thead th { position: sticky; top: 0; background: #fff; z-index: 1; }
+#rainbow-live .rl-detail-row td { background: #f8f9fa; font-size: 12px; }
+#rainbow-live .rl-muted-row { cursor: pointer; }
+#rainbow-live table { font-size: 13px; }
+#rainbow-live .nav-link { cursor: pointer; }
+#rainbow-live .rl-help { cursor: help; color: #6c757d; }
+
+/* Le menu latéral du template (#header, z-index 9997) passerait au-dessus des modales Bootstrap */
+#rl-form-modal, #rl-delete-modal { z-index: 10050; }
+body > .modal-backdrop { z-index: 10040; }

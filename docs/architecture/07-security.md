@@ -1,6 +1,6 @@
 # Sécurité
 
-Vérifié le : 2026-09-12 (`security/WebSecurityConfig`, `security/apikey/ApiKeyAuthFilter`, `security/jwt/*`, controllers).
+Vérifié le : 2026-10-03 (`security/WebSecurityConfig`, `security/apikey/ApiKeyAuthFilter`, `security/jwt/*`, controllers).
 
 ## Deux mécanismes d'authentification, cumulables
 
@@ -29,3 +29,7 @@ Vérifié le : 2026-09-12 (`security/WebSecurityConfig`, `security/apikey/ApiKey
 ## Rôles
 
 `ROLE_USER` / `ROLE_MODERATOR` / `ROLE_ADMIN` (Spring Security classique, `Role`/`RoleRepository`), plus `ROLE_API_AGENT` (jamais persisté en base, attribué uniquement par `ApiKeyAuthFilter` à la volée).
+
+## Accès propriétaire (bench Rainbow)
+
+`RainbowLiveController` (`/api/rainbow-live`) : `@PreAuthorize("isAuthenticated()")` au niveau classe (test `RainbowLiveControllerSecurityTest`, qui active réellement la sécurité par méthode), pas de `ROLE_API_AGENT`. Isolation par propriétaire : un preset d'un autre utilisateur est indiscernable d'un preset inexistant (404, pas de fuite d'existence).

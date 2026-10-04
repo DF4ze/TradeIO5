@@ -1,5 +1,14 @@
 # Spec — Structure de marché, Canal de régression, Rainbow à mémoire
 
+> **Statut 2026-10-04** : seule la brique `SWING_STRUCTURE` (§1) existe. `REGRESSION_CHANNEL`, `RAINBOW_STATE` et la Strategy combinée (§2-§4) n'ont jamais été implémentés (aucune occurrence dans `src/main`) et sont **abandonnés** : la mémoire de franchissement du Rainbow est portée par les machines ARMÉ/cooldown du moteur `service/dca/atr`, la Trend par `TrendAnalyzer` ([`architecture/09-trend.md`](../architecture/09-trend.md)).
+
+> **Note de réconciliation (2026-09-18)** : la brique `SWING_STRUCTURE` (§1) est également
+> référencée par [`etude-indicateur-trend-unifie.md`](etude-indicateur-trend-unifie.md), qui la
+> réutilise comme brique de Direction/Confiance/Break-of-Structure pour un calculateur de Trend
+> unifié (besoin distinct : régime de fond pour le paramétrage du DCA Rainbow, pas le timing de
+> ré-entrée `StructuralReversalStrategy` décrit ici). Le reste de cette spec (`REGRESSION_CHANNEL`,
+> `RAINBOW_STATE`, Strategy combinée) garde son périmètre d'origine, inchangé.
+
 ## 0. Objectif et méthode
 
 Cette spec formalise une stratégie réelle (utilisée manuellement sur TradingView) pour l'intégrer à la chaîne `Indicator → Strategy → Opinion` de TradeIO5. Elle prolonge `docs/etudes/etude-indicateurs-strategies-opinions.md`, dont la feuille de route est aujourd'hui largement réalisée : `ADX`/`ATR`/`BOLLINGER`/`OBV` existent dans `IndicatorType`, le bug de conflit de `StrategyAggregator` est corrigé, `DefaultMarketOpinion` est en scope `LOCAL`, `TrendConfirmationStrategy` (EMA+ADX+RSI) est branchée, et `GlobalMarketOpinion`/`ExternalMarketOpinion` existent. Cette spec ajoute la brique "structure de marché" que l'étude avait volontairement reportée en dernier faute de cas d'usage concret — on en a maintenant un.

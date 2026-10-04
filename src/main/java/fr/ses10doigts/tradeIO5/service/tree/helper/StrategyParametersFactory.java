@@ -11,54 +11,77 @@ import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.OrderBookIndicator;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.EtfFlowConfidenceStrategy;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.MovementQualificationStrategy;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.OrderFlowStrategy;
+import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.RegressiveTrendStrategy;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.TrendConfirmationStrategy;
+import fr.ses10doigts.tradeIO5.service.tree.indicator.impl.LinearRegressionIndicator;
+import fr.ses10doigts.tradeIO5.service.tree.trend.TrendAnalyzer;
 import lombok.AllArgsConstructor;
 
 public class StrategyParametersFactory {
 
     /**
-     * Construit les 4 {@code IndicatorKey}/{@code IndicatorParameters} (EMA rapide, EMA lente, ADX,
-     * RSI) requis par {@link TrendConfirmationStrategy}, ainsi que les seuils ADX/RSI de la
-     * Strategy elle-même, portés par {@code StrategyParameters.numericParams} (et non par les
-     * {@code IndicatorParameters} de chaque indicateur individuel).
+     * Construit les 3 {@code IndicatorKey}/{@code IndicatorParameters} ({@code LINEAR_REGRESSION}
+     * period court/moyen/long) requis par {@link TrendConfirmationStrategy} depuis son Étape 8
+     * (2026-09-24, régression à hystérésis, cf.
+     * {@code docs/prompts/prompt-implementation-trend-unifie-etape8-regression-hysteresis.md}),
+     * ainsi que les paramètres de combinaison — même patron que
+     * {@link #buildRegressiveTrendStrategyParam}. {@code TrendConfirmationParam} n'a plus de champ
+     * {@code adxPeriod}/{@code adxLowThreshold}/{@code adxHighThreshold} depuis ce lot (ADX retiré
+     * de {@code TrendAnalyzer}). Les constantes de clé ({@code P_SLOPE_SCALE_FACTOR}, etc.) et leurs
+     * défauts sont mutualisés depuis {@code RegressiveTrendStrategy} (seul et unique endroit où ils
+     * sont définis, cf. javadoc de {@link TrendConfirmationStrategy}).
      */
     public static StrategyParameters buildTrendConfirmationStrategyParam(TrendConfirmationParam param){
+        IndicatorParameters shortParams = IndicatorParametersFactory.buildLinearRegressionParams(param.timeFrame, param.shortPeriod);
+        IndicatorParameters mediumParams = IndicatorParametersFactory.buildLinearRegressionParams(param.timeFrame, param.mediumPeriod);
+        IndicatorParameters longParams = IndicatorParametersFactory.buildLinearRegressionParams(param.timeFrame, param.longPeriod);
 
-        IndicatorParameters emaFastParams = IndicatorParametersFactory.buildEmaParams(param.timeFrame, param.emaFastPeriod);
-        IndicatorParameters emaSlowParams = IndicatorParametersFactory.buildEmaParams(param.timeFrame, param.emaSlowPeriod);
-        IndicatorParameters adxParams = IndicatorParametersFactory.buildAdxParams(param.timeFrame, param.adxPeriod);
-        IndicatorParameters rsiParams = IndicatorParametersFactory.buildRsiParams(param.timeFrame, param.rsiPeriod);
-
-        IndicatorKey emaFastKey = new IndicatorKey(IndicatorType.EMA, param.timeFrame, emaFastParams);
-        IndicatorKey emaSlowKey = new IndicatorKey(IndicatorType.EMA, param.timeFrame, emaSlowParams);
-        IndicatorKey adxKey = new IndicatorKey(IndicatorType.ADX, param.timeFrame, adxParams);
-        IndicatorKey rsiKey = new IndicatorKey(IndicatorType.RSI, param.timeFrame, rsiParams);
+        IndicatorKey shortKey = new IndicatorKey(IndicatorType.LINEAR_REGRESSION, param.timeFrame, shortParams);
+        IndicatorKey mediumKey = new IndicatorKey(IndicatorType.LINEAR_REGRESSION, param.timeFrame, mediumParams);
+        IndicatorKey longKey = new IndicatorKey(IndicatorType.LINEAR_REGRESSION, param.timeFrame, longParams);
 
         StrategyParameters params = new StrategyParameters();
-        params.getIndicatorParameters().put(emaFastKey, emaFastParams);
-        params.getIndicatorParameters().put(emaSlowKey, emaSlowParams);
-        params.getIndicatorParameters().put(adxKey, adxParams);
-        params.getIndicatorParameters().put(rsiKey, rsiParams);
+        params.getIndicatorParameters().put(shortKey, shortParams);
+        params.getIndicatorParameters().put(mediumKey, mediumParams);
+        params.getIndicatorParameters().put(longKey, longParams);
 
-        params.getNumericParams().put(TrendConfirmationStrategy.P_ADX_LOW_THRESHOLD, param.adxLowThreshold);
-        params.getNumericParams().put(TrendConfirmationStrategy.P_ADX_HIGH_THRESHOLD, param.adxHighThreshold);
-        params.getNumericParams().put(TrendConfirmationStrategy.P_RSI_OVERBOUGHT_THRESHOLD, param.rsiOverboughtThreshold);
-        params.getNumericParams().put(TrendConfirmationStrategy.P_RSI_OVERSOLD_THRESHOLD, param.rsiOversoldThreshold);
+        params.getNumericParams().put(RegressiveTrendStrategy.P_SLOPE_SCALE_FACTOR, param.slopeScaleFactor);
+        params.getNumericParams().put(RegressiveTrendStrategy.P_WEIGHT_SHORT, param.weightShort);
+        params.getNumericParams().put(RegressiveTrendStrategy.P_WEIGHT_MEDIUM, param.weightMedium);
+        params.getNumericParams().put(RegressiveTrendStrategy.P_WEIGHT_LONG, param.weightLong);
+        params.getBooleanParams().put(RegressiveTrendStrategy.P_ALIGNMENT_ENABLED, param.alignmentEnabled);
 
         return params;
     }
 
+    /**
+     * Valeurs par défaut figées par le walk-forward de l'Étape 8 (cf.
+     * {@code RegressiveTrendStrategy.DEFAULT_*} et {@code TrendAnalyzer.SHORT_PERIOD}/
+     * {@code MEDIUM_PERIOD}/{@code LONG_PERIOD}, seuls endroits où ces constantes sont définies).
+     */
     @AllArgsConstructor
     public static class TrendConfirmationParam {
         TimeFrame timeFrame;
-        double emaFastPeriod;
-        double emaSlowPeriod;
-        double adxPeriod;
-        double rsiPeriod;
-        double adxLowThreshold;
-        double adxHighThreshold;
-        double rsiOverboughtThreshold;
-        double rsiOversoldThreshold;
+        double shortPeriod;
+        double mediumPeriod;
+        double longPeriod;
+        double slopeScaleFactor;
+        double weightShort;
+        double weightMedium;
+        double weightLong;
+        boolean alignmentEnabled;
+
+        public static TrendConfirmationParam defaults(TimeFrame timeFrame) {
+            return new TrendConfirmationParam(
+                    timeFrame,
+                    TrendAnalyzer.SHORT_PERIOD, TrendAnalyzer.MEDIUM_PERIOD, TrendAnalyzer.LONG_PERIOD,
+                    RegressiveTrendStrategy.DEFAULT_SLOPE_SCALE_FACTOR,
+                    RegressiveTrendStrategy.DEFAULT_WEIGHT_SHORT,
+                    RegressiveTrendStrategy.DEFAULT_WEIGHT_MEDIUM,
+                    RegressiveTrendStrategy.DEFAULT_WEIGHT_LONG,
+                    RegressiveTrendStrategy.DEFAULT_ALIGNMENT_ENABLED
+            );
+        }
     }
 
     /**
@@ -244,6 +267,66 @@ public class StrategyParametersFactory {
                     TimeFrame.D1,
                     50_000_000.0, 3.0,
                     0.02, 1.0
+            );
+        }
+    }
+    /**
+     * Construit les 3 {@code IndicatorKey}/{@code IndicatorParameters} ({@code LINEAR_REGRESSION}
+     * period court/moyen/long, 7/14/30 par défaut) requis par {@link RegressiveTrendStrategy},
+     * ainsi que les paramètres de combinaison (facteur d'échelle de pente, poids par fenêtre)
+     * portés par {@code StrategyParameters.numericParams} — même patron que
+     * {@link #buildTrendConfirmationStrategyParam}.
+     */
+    public static StrategyParameters buildRegressiveTrendStrategyParam(RegressiveTrendParam param) {
+        IndicatorParameters shortParams = IndicatorParametersFactory.buildLinearRegressionParams(param.timeFrame, param.shortPeriod);
+        IndicatorParameters mediumParams = IndicatorParametersFactory.buildLinearRegressionParams(param.timeFrame, param.mediumPeriod);
+        IndicatorParameters longParams = IndicatorParametersFactory.buildLinearRegressionParams(param.timeFrame, param.longPeriod);
+
+        IndicatorKey shortKey = new IndicatorKey(IndicatorType.LINEAR_REGRESSION, param.timeFrame, shortParams);
+        IndicatorKey mediumKey = new IndicatorKey(IndicatorType.LINEAR_REGRESSION, param.timeFrame, mediumParams);
+        IndicatorKey longKey = new IndicatorKey(IndicatorType.LINEAR_REGRESSION, param.timeFrame, longParams);
+
+        StrategyParameters params = new StrategyParameters();
+        params.getIndicatorParameters().put(shortKey, shortParams);
+        params.getIndicatorParameters().put(mediumKey, mediumParams);
+        params.getIndicatorParameters().put(longKey, longParams);
+
+        params.getNumericParams().put(RegressiveTrendStrategy.P_SLOPE_SCALE_FACTOR, param.slopeScaleFactor);
+        params.getNumericParams().put(RegressiveTrendStrategy.P_WEIGHT_SHORT, param.weightShort);
+        params.getNumericParams().put(RegressiveTrendStrategy.P_WEIGHT_MEDIUM, param.weightMedium);
+        params.getNumericParams().put(RegressiveTrendStrategy.P_WEIGHT_LONG, param.weightLong);
+        params.getBooleanParams().put(RegressiveTrendStrategy.P_ALIGNMENT_ENABLED, param.alignmentEnabled);
+
+        return params;
+    }
+
+    /**
+     * Valeurs par défaut alignées sur {@code RegressiveTrendStrategy.DEFAULT_*} — figées par le
+     * walk-forward de l'Étape 8 de la roadmap Trend unifié (2026-09-24, cf.
+     * {@code docs/etudes/spec-composition-trend-unifie.md} §10.1/10.3), appliquées à cette Strategy
+     * même si elle n'est branchée dans aucune Opinion par défaut (pas d'impact prod).
+     */
+    @AllArgsConstructor
+    public static class RegressiveTrendParam {
+        TimeFrame timeFrame;
+        double shortPeriod;
+        double mediumPeriod;
+        double longPeriod;
+        double slopeScaleFactor;
+        double weightShort;
+        double weightMedium;
+        double weightLong;
+        boolean alignmentEnabled;
+
+        public static RegressiveTrendParam defaults(TimeFrame timeFrame) {
+            return new RegressiveTrendParam(
+                    timeFrame,
+                    TrendAnalyzer.SHORT_PERIOD, TrendAnalyzer.MEDIUM_PERIOD, TrendAnalyzer.LONG_PERIOD,
+                    RegressiveTrendStrategy.DEFAULT_SLOPE_SCALE_FACTOR,
+                    RegressiveTrendStrategy.DEFAULT_WEIGHT_SHORT,
+                    RegressiveTrendStrategy.DEFAULT_WEIGHT_MEDIUM,
+                    RegressiveTrendStrategy.DEFAULT_WEIGHT_LONG,
+                    RegressiveTrendStrategy.DEFAULT_ALIGNMENT_ENABLED
             );
         }
     }

@@ -22,12 +22,17 @@ public class Bucket {
     private static final Logger logger = LoggerFactory.getLogger(Bucket.class);
 
     private static final TimeFrame BASE_TIME_FRAME = TimeFrame.H1; // TODO : parametrize
-    // ~5-6 ans de H1 (24*365*5 ≈ 43800). Relevé de 5000 (~208j) le 2026-08-13 : ce plafond servait
-    // à la fois de taille de buffer live et de limite par défaut de lookback, et provoquait une
-    // troncature silencieuse de l'historique (et un spam de logs) dès qu'un indicateur/opinion
-    // demandait un lookback important sur un TF plus large que H1 (D1, W1...). Une MarketData H1
-    // étant légère, ce volume par clé (symbole+source) reste négligeable en mémoire.
-    static final int BASE_MAX_ITEMS = 50_000; // TODO : parametrize
+    // ~11-12 ans de H1 (24*365*11 ≈ 96360). Relevé de 5000 (~208j) à 50000 (~5-6 ans) le
+    // 2026-08-13 : ce plafond servait à la fois de taille de buffer live et de limite par défaut
+    // de lookback, et provoquait une troncature silencieuse de l'historique (et un spam de logs)
+    // dès qu'un indicateur/opinion demandait un lookback important sur un TF plus large que H1
+    // (D1, W1...). Relevé à 100000 le 2026-09-25 : un appel get_indicator en W1 (500 périodes,
+    // cf. TreeAnalysisFacade#getIndicatorCommon / MarketDatasetEngine.DEFAULT_LIMIT) équivaut à
+    // 500*168 = 84000 H1, au-dessus des 50000 précédents (cf. WARN "EXCEEDS the bucket capacity"
+    // du 2026-09-25 sur BTCUSDT/ETHUSDT/PAXGUSDT). Fenêtre glissante (relative à "now"), donc ce
+    // plafond ne croit pas avec le temps ; 100000 couvre 84000 avec marge. Une MarketData H1 étant
+    // légère, ce volume par clé (symbole+source) reste négligeable en mémoire.
+    public static final int BASE_MAX_ITEMS = 100_000; // TODO : parametrize
 
     private final Deque<MarketData> buffer;
 

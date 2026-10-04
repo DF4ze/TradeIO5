@@ -1,0 +1,496 @@
+// © TradeIO — Rainbow DCA (bornes ATR) — logique fidèle à RainbowDcaBacktestService (Java)
+//@version=5
+indicator("Rainbow DCA — ATR Bands v3 (ATH + To the moon)", overlay=true, max_lines_count=10, max_labels_count=500)
+
+// ================== Sélecteur de paramétrage par actif (bench global du 2026-10-03) ==================
+// AUTO = jeu de l'actif du graphique (BTC / ETH / PAXG), sinon CUSTOM. Un jeu par actif, pas de jeu par régime de Trend.
+assetSel = input.string("AUTO", "Paramétrage", options=["AUTO", "BTC", "ETH", "PAXG", "CUSTOM"], group="Paramétrage")
+baseCur = syminfo.basecurrency
+asset = assetSel != "AUTO" ? assetSel : baseCur == "BTC" ? "BTC" : baseCur == "ETH" ? "ETH" : baseCur == "PAXG" ? "PAXG" : "CUSTOM"
+
+// ================== Paramètres manuels (utilisés si paramétrage = CUSTOM) ==================
+c_smaPeriod    = input.int(36, "SMA period", minval=1, group="Custom — bornes")
+c_atrPeriod    = input.int(14, "ATR period", minval=1, group="Custom — bornes")
+c_atrMultDown2 = input.float(2.0, "ATR mult DOWN2 (extrême bas)", step=0.5, group="Custom — bornes")
+c_atrMultDown1 = input.float(1.0, "ATR mult DOWN1", step=0.5, group="Custom — bornes")
+c_atrMultUp1   = input.float(0.0, "ATR mult UP1", step=0.5, group="Custom — bornes")
+c_atrMultUp2   = input.float(0.0, "ATR mult UP2", step=0.5, group="Custom — bornes")
+c_atrMultUp3   = input.float(2.5, "ATR mult UP3 (extrême haut)", step=0.5, group="Custom — bornes")
+
+c_buyReentryMode      = input.string("TRAILING_STOP", "Buy reentry mode", options=["FIXED_DELAY", "IMMEDIATE", "TRAILING_STOP"], group="Custom — mécanisme")
+c_sellReentryMode     = input.string("TRAILING_STOP", "Sell reentry mode", options=["FIXED_DELAY", "IMMEDIATE", "TRAILING_STOP"], group="Custom — mécanisme")
+c_trailingStopBuyPct  = input.float(3.0, "Trailing stop ACHAT % (rebond depuis le plus bas — actif si Buy reentry = TRAILING_STOP)", group="Custom — mécanisme")
+c_trailingStopSellPct = input.float(5.0, "Trailing stop VENTE % (repli depuis le plus haut — actif si Sell reentry = TRAILING_STOP)", group="Custom — mécanisme")
+c_cooldownDays        = input.int(10, "Cooldown days (bloque armement/déclenchement vente ET achat après une vente)", group="Custom — mécanisme")
+c_fixedDelayDays      = input.int(15, "Fixed delay days (partagé buy/sell)", group="Custom — mécanisme")
+c_sellFraction        = input.float(0.20, "Sell fraction", step=0.05, group="Custom — mécanisme")
+
+// Autorise l'armement/déclenchement de vente même pendant le cooldown (n'affecte jamais l'achat).
+i_allowSellDuringCooldown = input.bool(false, "Autoriser la vente pendant le cooldown", group="Custom — mécanisme")
+
+// Active/désactive le cooldown posé après une vente (vente normale ET stop To the moon).
+// Décoché : aucun cooldown après vente -> les achats ne sont plus coupés par le cooldown.
+i_cooldownAfterSellOn = input.bool(true, "Activer le cooldown après une vente", group="Custom — mécanisme")
+
+// Bloquer achat tant que valeur n'est pas < DOWN2
+i_blockBuyAfterSellUntilDown2 = input.bool(true, "Après une vente, bloquer les achats jusqu'au passage sous DOWN2", group="Custom — mécanisme")
+
+// ================== Paramètres non tunés par le bench (constantes RainbowDcaBacktestRequest) ==================
+p_multX2        = input.float(2.0,  "Mult zone X2",   group="Constantes multiplicateurs de zone (X2/X1/X0.5)")
+p_multX1        = input.float(1.0,  "Mult zone X1",   group="Constantes multiplicateurs de zone (X2/X1/X0.5)")
+p_multX0_5      = input.float(0.5,  "Mult zone X0.5", group="Constantes multiplicateurs de zone (X2/X1/X0.5)")
+
+p_multTriggered = input.float(3.0,  "Mult achat quand ARMÉ se déclenche (zone EXTREME_BAS)", group="Constantes mécanisme ARMÉ / DCA")
+p_baseAmount    = input.float(1.0,  "Base amount ($)", group="Constantes mécanisme ARMÉ / DCA")
+
+// ================== Modulation par la distance à l'ATH (v2) ==================
+// d = 1 - close/ATH ; t = clamp(d / distance de référence, 0, 1)
+//   ACHAT : base amount × (Min + (Max-Min) × t)
+//   VENTE : Sell fraction × (Max + (Min-Max) × t), fraction finale plafonnée à 1.0
+i_athOn        = input.bool(true, "Activer la modulation par distance à l'ATH", group="Custom — modulation ATH (v2)")
+i_athRefDdBuy  = input.float(60.0, "ACHAT : distance ATH de référence (%) — effet maximal à partir de là", minval=1, maxval=99, group="Custom — modulation ATH (v2)") / 100
+i_athRefDdSell = input.float(30.0, "VENTE : distance ATH de référence (%) — effet maximal à partir de là", minval=1, maxval=99, group="Custom — modulation ATH (v2)") / 100
+i_athBuyMin    = input.float(0.5, "ACHAT : facteur de base amount à l'ATH", minval=0, step=0.1, group="Custom — modulation ATH (v2)")
+i_athBuyMax    = input.float(2.0, "ACHAT : facteur de base amount à distance de référence", minval=0, step=0.1, group="Custom — modulation ATH (v2)")
+i_athSellMax   = input.float(2.0, "VENTE : facteur de Sell fraction à l'ATH", minval=0, step=0.1, group="Custom — modulation ATH (v2)")
+i_athSellMin   = input.float(0.5, "VENTE : facteur de Sell fraction à distance de référence", minval=0, step=0.1, group="Custom — modulation ATH (v2)")
+
+// ================== Mode To the moon (v3) ==================
+i_moonOn              = input.bool(true, "Activer le mode To the moon", group="Custom — To the moon (v3)")
+i_moonReservePct      = input.float(50.0, "Part du bag protégée (%)", minval=0, maxval=100, step=5, group="Custom — To the moon (v3)")
+// Décoché (défaut) : quantité protégée FIGÉE à l'entrée (= % du bag à l'entrée). Les achats faits ensuite
+//                    ne l'augmentent pas -> au stop, seule cette quantité initiale est vendue.
+// Coché            : quantité protégée recalculée à chaque bougie, À LA HAUSSE UNIQUEMENT (cliquet) :
+//                    réserve = max(réserve, % du bag courant). Elle grossit avec les rachats,
+//                    mais ne redescend jamais, même si le bag diminue (ventes) ou si le prix chute.
+i_moonReserveRatchet  = input.bool(false, "Réserve ajustée à la hausse (cliquet)", group="Custom — To the moon (v3)", tooltip="Décoché : la quantité protégée est figée à l'entrée en mode To the moon (% du bag à ce moment). Les achats suivants ne la font pas grossir.\n\nCoché : à chaque bougie, la quantité protégée = max(réserve actuelle, % du bag courant). Elle augmente avec les rachats, mais ne diminue jamais (ni après une vente, ni lors d'une baisse du prix).\n\nDans les deux cas, au stop To the moon, c'est la quantité protégée qui est vendue (× 'Réserve vendue au déclenchement du stop').")
+i_moonTrailingStopPct = input.float(15.0, "Trailing stop depuis le plus haut (%)", minval=1, maxval=90, step=1, group="Custom — To the moon (v3)")
+i_moonStopSellPct     = input.float(100.0, "Réserve vendue au déclenchement du stop (%)", minval=0, maxval=100, step=5, group="Custom — To the moon (v3)")
+
+// ================== Taille de position (histogramme en bas, comme le volume) ==================
+showSize   = input.bool(true, "Afficher la taille de position (histogramme en bas)", group="Taille de position")
+sizeMetric = input.string("Valeur de marché", "Métrique", options=["Valeur de marché", "Coût de la position", "Quantité"], group="Taille de position", tooltip="Valeur de marché = quantité × clôture ($ engagés au prix du moment).\nCoût de la position = $ investis restant dans la position (cost basis).\nQuantité = nombre d'unités du token détenues.")
+sizeHeightPct = input.float(15.0, "Hauteur de l'histogramme (% de la hauteur du graphique)", minval=5, maxval=60, step=5, group="Taille de position")
+sizeCols = input.int(100, "Colonnes (résolution horizontale)", minval=20, maxval=250, group="Taille de position")
+sizeRows = input.int(12, "Lignes (résolution verticale)", minval=4, maxval=30, group="Taille de position")
+sizeUpColor   = input.color(color.new(color.green, 55), "Couleur — position en hausse (achat)", group="Taille de position")
+sizeDownColor = input.color(color.new(color.red, 55), "Couleur — position en baisse (vente)", group="Taille de position")
+sizeFlatColor = input.color(color.new(color.gray, 65), "Couleur — position inchangée", group="Taille de position")
+
+// ================== Paramétrage effectif (preset d'actif ou CUSTOM) ==================
+// Presets : optimum global par actif du bench Rainbow ATR v3 (docs/calibration/calibration-rainbow-atr-v3-regime.md).
+// BTC = centre de plateau ; ETH/PAXG = optimum plein échantillon (en partie in-sample, PAXG ≈ DCA fixe hors-échantillon).
+var int    p_smaPeriod    = 36
+var int    p_atrPeriod    = 14
+var float  p_down2        = 2.0
+var float  p_down1        = 1.0
+var float  p_up1          = 0.0
+var float  p_up2          = 0.0
+var float  p_up3          = 2.5
+var string p_buyReentry   = "TRAILING_STOP"
+var string p_sellReentry  = "TRAILING_STOP"
+var float  p_trailingBuy  = 3.0
+var float  p_trailingSell = 5.0
+var int    p_cooldown     = 10
+var int    p_fixedDelay   = 15
+var float  p_sellFraction = 0.20
+var bool   p_allowSellCd  = false
+var bool   p_cooldownAfterSellOn = true
+var bool   p_blockBuy     = true
+var bool   p_athOn        = true
+var float  p_athRefDdBuy  = 60.0
+var float  p_athRefDdSell = 30.0
+var float  p_athBuyMin    = 0.5
+var float  p_athBuyMax    = 2.0
+var float  p_athSellMax   = 2.0
+var float  p_athSellMin   = 0.5
+var bool   p_moonOn       = true
+var float  p_moonReservePct = 50.0
+var bool   p_moonReserveRatchet = false
+var float  p_moonTrailingStopPct = 15.0
+var float  p_moonStopSellPct = 100.0
+
+if asset == "CUSTOM"
+    p_smaPeriod    := c_smaPeriod
+    p_atrPeriod    := c_atrPeriod
+    p_down2        := c_atrMultDown2
+    p_down1        := c_atrMultDown1
+    p_up1          := c_atrMultUp1
+    p_up2          := c_atrMultUp2
+    p_up3          := c_atrMultUp3
+    p_buyReentry   := c_buyReentryMode
+    p_sellReentry  := c_sellReentryMode
+    p_trailingBuy  := c_trailingStopBuyPct
+    p_trailingSell := c_trailingStopSellPct
+    p_cooldown     := c_cooldownDays
+    p_fixedDelay   := c_fixedDelayDays
+    p_sellFraction := c_sellFraction
+    p_allowSellCd  := i_allowSellDuringCooldown
+    p_cooldownAfterSellOn := i_cooldownAfterSellOn
+    p_blockBuy     := i_blockBuyAfterSellUntilDown2
+    p_athOn        := i_athOn
+    p_athRefDdBuy  := i_athRefDdBuy * 100
+    p_athRefDdSell := i_athRefDdSell * 100
+    p_athBuyMin    := i_athBuyMin
+    p_athBuyMax    := i_athBuyMax
+    p_athSellMax   := i_athSellMax
+    p_athSellMin   := i_athSellMin
+    p_moonOn       := i_moonOn
+    p_moonReservePct := i_moonReservePct
+    p_moonReserveRatchet := i_moonReserveRatchet
+    p_moonTrailingStopPct := i_moonTrailingStopPct
+    p_moonStopSellPct := i_moonStopSellPct
+else if asset == "BTC"
+    p_smaPeriod := 50, p_atrPeriod := 21, p_down2 := 5.0, p_down1 := 0.5, p_up1 := 2.0, p_up2 := 3.0, p_up3 := 3.5
+    p_buyReentry := "TRAILING_STOP", p_sellReentry := "FIXED_DELAY", p_trailingBuy := 3.0, p_trailingSell := 5.0, p_cooldown := 1, p_fixedDelay := 15, p_sellFraction := 0.25
+    p_allowSellCd := false, p_cooldownAfterSellOn := true, p_blockBuy := true
+    p_athOn := true, p_athRefDdBuy := 30.0, p_athRefDdSell := 15.0, p_athBuyMin := 0.25, p_athBuyMax := 4.0, p_athSellMax := 1.0, p_athSellMin := 1.0
+    p_moonOn := false, p_moonReservePct := 50.0, p_moonReserveRatchet := false, p_moonTrailingStopPct := 15.0, p_moonStopSellPct := 100.0
+else if asset == "ETH"
+    p_smaPeriod := 36, p_atrPeriod := 21, p_down2 := 4.0, p_down1 := 0.5, p_up1 := 2.0, p_up2 := 3.0, p_up3 := 3.5
+    p_buyReentry := "FIXED_DELAY", p_sellReentry := "FIXED_DELAY", p_trailingBuy := 3.0, p_trailingSell := 5.0, p_cooldown := 7, p_fixedDelay := 3, p_sellFraction := 0.2
+    p_allowSellCd := false, p_cooldownAfterSellOn := true, p_blockBuy := true
+    p_athOn := true, p_athRefDdBuy := 60.0, p_athRefDdSell := 15.0, p_athBuyMin := 0.0, p_athBuyMax := 5.0, p_athSellMax := 3.0, p_athSellMin := 1.0
+    p_moonOn := true, p_moonReservePct := 50.0, p_moonReserveRatchet := false, p_moonTrailingStopPct := 10.0, p_moonStopSellPct := 50.0
+else if asset == "PAXG"
+    p_smaPeriod := 36, p_atrPeriod := 28, p_down2 := 6.0, p_down1 := 0.5, p_up1 := 2.0, p_up2 := 2.0, p_up3 := 3.0
+    p_buyReentry := "FIXED_DELAY", p_sellReentry := "TRAILING_STOP", p_trailingBuy := 5.0, p_trailingSell := 2.0, p_cooldown := 1, p_fixedDelay := 10, p_sellFraction := 0.2
+    p_allowSellCd := true, p_cooldownAfterSellOn := true, p_blockBuy := true
+    p_athOn := true, p_athRefDdBuy := 15.0, p_athRefDdSell := 10.0, p_athBuyMin := 1.0, p_athBuyMax := 5.0, p_athSellMax := 2.0, p_athSellMin := 0.5
+    p_moonOn := true, p_moonReservePct := 75.0, p_moonReserveRatchet := false, p_moonTrailingStopPct := 8.0, p_moonStopSellPct := 50.0
+
+allowSellDuringCooldown     = p_allowSellCd
+cooldownAfterSellOn         = p_cooldownAfterSellOn
+blockBuyAfterSellUntilDown2 = p_blockBuy
+athOn        = p_athOn
+athRefDdBuy  = p_athRefDdBuy / 100
+athRefDdSell = p_athRefDdSell / 100
+athBuyMin    = p_athBuyMin
+athBuyMax    = p_athBuyMax
+athSellMax   = p_athSellMax
+athSellMin   = p_athSellMin
+moonOn              = p_moonOn
+moonReservePct      = p_moonReservePct
+moonReserveRatchet  = p_moonReserveRatchet
+moonTrailingStopPct = p_moonTrailingStopPct
+moonStopSellPct     = p_moonStopSellPct
+
+// Cooldown effectif posé après une vente
+cooldownAfterSell = cooldownAfterSellOn ? p_cooldown : 0
+
+// ================== Bornes (SMA ± ATR*mult) ==================
+sma = ta.sma(close, p_smaPeriod)
+atr = ta.atr(p_atrPeriod)
+
+extremeBas  = sma - atr * p_down2
+zoneBasse   = sma - atr * p_down1
+zoneHaute1  = sma + atr * p_up1
+zoneHaute2  = sma + atr * p_up2
+extremeHaut = sma + atr * p_up3
+
+plot(sma,         "SMA",           color=color.new(color.gray, 30), linewidth=1)
+plot(extremeBas,  "EXTREME_BAS",   color=color.new(color.green, 0), linewidth=2)
+plot(zoneBasse,   "Zone basse",    color=color.new(color.green, 45))
+plot(zoneHaute1,  "Zone haute 1",  color=color.new(color.red, 45))
+plot(zoneHaute2,  "Zone haute 2",  color=color.new(color.red, 30))
+plot(extremeHaut, "EXTREME_HAUT",  color=color.new(color.red, 0), linewidth=2)
+
+// ================== Classification de zone ==================
+zone = close < extremeBas ? "EXTREME_BAS" :
+       close < zoneBasse  ? "X2" :
+       close < zoneHaute1 ? "X1" :
+       close < zoneHaute2 ? "X0_5" :
+       close < extremeHaut ? "NO_BUY" : "EXTREME_HAUT"
+
+trailUpFactor   = 1 + p_trailingBuy / 100
+trailDownFactor = 1 - p_trailingSell / 100
+
+// ---- historique par barre (machine d'état rejouée sur la plage visible) ----
+var closeArr       = array.new_float(0)
+var timeArr        = array.new_int(0)
+var highArr        = array.new_float(0)
+var lowArr         = array.new_float(0)
+var extremeBasArr  = array.new_float(0)
+var zoneBasseArr   = array.new_float(0)
+var zoneHaute1Arr  = array.new_float(0)
+var zoneHaute2Arr  = array.new_float(0)
+var extremeHautArr = array.new_float(0)
+var athArr         = array.new_float(0)
+var float athRun   = na
+athRun := na(athRun) ? high : math.max(athRun, high)
+
+var bool moonModeRun = false
+var float moonPeakRun = na
+var moonModeArr = array.new_bool(0)
+var moonEntryArr = array.new_bool(0)
+var moonExitArr = array.new_bool(0)
+
+moonEntryRun = false
+moonExitRun = false
+newAthClose = not na(athRun[1]) and close > athRun[1]
+if moonOn and not moonModeRun and newAthClose
+    moonModeRun := true
+    moonPeakRun := high
+    moonEntryRun := true
+else if moonModeRun
+    moonPeakRun := math.max(nz(moonPeakRun, high), high)
+    if close <= moonPeakRun * (1 - moonTrailingStopPct / 100)
+        moonModeRun := false
+        moonExitRun := true
+        moonPeakRun := na
+
+array.push(closeArr, close)
+array.push(timeArr, int(time))
+array.push(highArr, high)
+array.push(lowArr, low)
+array.push(extremeBasArr, extremeBas)
+array.push(zoneBasseArr, zoneBasse)
+array.push(zoneHaute1Arr, zoneHaute1)
+array.push(zoneHaute2Arr, zoneHaute2)
+array.push(extremeHautArr, extremeHaut)
+array.push(athArr, athRun)
+array.push(moonModeArr, moonModeRun)
+array.push(moonEntryArr, moonEntryRun)
+array.push(moonExitArr, moonExitRun)
+
+// ================== Panneau de stats — rejeu sur la plage visible ==================
+tableSpacer = input.int(4, "Lignes vides sous le tableau (laisse la place à l'histogramme)", minval=0, maxval=20, group="Taille de position")
+var table info = table.new(position.bottom_left, 2, 14 + tableSpacer, bgcolor=color.new(color.black, 70), border_width=1)
+
+row(t, r, k, v) =>
+    table.cell(t, 0, r, k, text_color=color.white, text_halign=text.align_left, text_size=size.small)
+    table.cell(t, 1, r, v, text_color=color.orange, text_halign=text.align_right, text_size=size.small)
+
+// Histogramme = table ancrée en bas du graphique (position en pixels : ne bouge pas avec le zoom / l'échelle de prix)
+var table sizeTbl = table.new(position.bottom_center, sizeCols, sizeRows, bgcolor=color.new(color.black, 100), border_width=0)
+
+if barstate.islast
+    leftT  = chart.left_visible_bar_time
+    rightT = chart.right_visible_bar_time
+    n = array.size(timeArr)
+
+    startIdx = 0
+    endIdx = n - 1
+    for i = 0 to n - 1
+        if array.get(timeArr, i) >= leftT
+            startIdx := i
+            break
+    for i = n - 1 to 0
+        if array.get(timeArr, i) <= rightT
+            endIdx := i
+            break
+
+    vPos            = 0.0
+    vCostBasis      = 0.0
+    vRealized       = 0.0
+    vInvested       = 0.0
+    vSaleProceeds   = 0.0
+    vFixedQty       = 0.0
+    vFixedInvested  = 0.0
+    vMoonReserveQty = 0.0
+
+    vBuyArmed           = false
+    vLowestSinceArmed   = float(na)
+    vBuyArmedDays       = 0
+    vSellArmed          = false
+    vHighestSinceArmed  = float(na)
+    vSellArmedDays      = 0
+    vCooldownRemaining  = 0
+    vBuyLockedAfterSell = false
+
+    lastIdx = endIdx
+    sizeV = array.new_float(0)
+    sizeT = array.new_int(0)
+    sizeDir = array.new_int(0)
+    if lastIdx >= startIdx
+        for i = startIdx to lastIdx
+            tI  = array.get(timeArr, i)
+            hgI = array.get(highArr, i)
+            lwI = array.get(lowArr, i)
+            cl  = array.get(closeArr, i)
+            eb  = array.get(extremeBasArr, i)
+            zb  = array.get(zoneBasseArr, i)
+            zh1 = array.get(zoneHaute1Arr, i)
+            zh2 = array.get(zoneHaute2Arr, i)
+            eh  = array.get(extremeHautArr, i)
+            athI  = array.get(athArr, i)
+            moonModeI  = array.get(moonModeArr, i)
+            qtyBefore  = vPos
+            moonEntryI = array.get(moonEntryArr, i)
+            moonExitI  = array.get(moonExitArr, i)
+            athD  = athI > 0 ? 1 - cl / athI : 0.0
+            athTBuy  = math.min(math.max(athD / athRefDdBuy, 0), 1)
+            athTSell = math.min(math.max(athD / athRefDdSell, 0), 1)
+            buyAthFac  = athOn and not moonModeI ? athBuyMin + (athBuyMax - athBuyMin) * athTBuy : 1.0
+            sellAthFac = athOn and not moonModeI ? athSellMax + (athSellMin - athSellMax) * athTSell : 1.0
+            zoneI = cl < eb ? "EXTREME_BAS" : cl < zb ? "X2" : cl < zh1 ? "X1" : cl < zh2 ? "X0_5" : cl < eh ? "NO_BUY" : "EXTREME_HAUT"
+            soldThisBar = false
+
+            // Cliquet : pendant le mode moon, la réserve ne peut que monter (max entre l'existante et % du bag courant)
+            if moonReserveRatchet and moonModeI and not moonEntryI
+                vMoonReserveQty := math.max(vMoonReserveQty, vPos * moonReservePct / 100)
+
+            if moonEntryI
+                vMoonReserveQty := vPos * moonReservePct / 100
+                label.new(tI, hgI, "TO THE MOON", xloc=xloc.bar_time, yloc=yloc.price, style=label.style_label_down, color=color.new(color.yellow, 0), textcolor=color.black, size=size.tiny)
+
+            if moonExitI
+                moonStopQty = math.min(vMoonReserveQty, vPos) * moonStopSellPct / 100
+                if moonStopQty > 0
+                    moonStopProceeds = moonStopQty * cl
+                    moonStopCost = vCostBasis * moonStopQty / vPos
+                    vRealized += moonStopProceeds - moonStopCost
+                    vCostBasis -= moonStopCost
+                    vPos -= moonStopQty
+                    vSaleProceeds += moonStopProceeds
+                    soldThisBar := true
+                    label.new(tI, hgI, "MOON STOP -$" + str.tostring(moonStopProceeds, "#.##"), xloc=xloc.bar_time, yloc=yloc.price, style=label.style_label_down, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny)
+                vMoonReserveQty := 0.0
+
+            if moonExitI
+                vSellArmed := false
+                vHighestSinceArmed := na
+                vSellArmedDays := 0
+                vCooldownRemaining := cooldownAfterSell
+            else if vSellArmed
+                vSellArmedDays += 1
+                sellTrigI = p_sellReentry == "TRAILING_STOP" ? (cl < eh or cl < vHighestSinceArmed * trailDownFactor) :
+                           p_sellReentry == "IMMEDIATE"     ? (cl < eh or cl < zh2) :
+                           (vSellArmedDays >= p_fixedDelay)
+                if sellTrigI
+                    requestedSellQtyI = vPos * math.min(1.0, p_sellFraction * sellAthFac)
+                    sellableQtyI = math.max(vPos - vMoonReserveQty, 0.0)
+                    sellQtyI = math.min(requestedSellQtyI, sellableQtyI)
+                    if sellQtyI > 0
+                        saleProcI = sellQtyI * cl
+                        costSoldI = vCostBasis * sellQtyI / vPos
+                        vRealized += saleProcI - costSoldI
+                        vCostBasis -= costSoldI
+                        vPos -= sellQtyI
+                        vSaleProceeds += saleProcI
+
+                        if blockBuyAfterSellUntilDown2
+                            vBuyLockedAfterSell := true
+                            soldThisBar := true
+                            // Annule un éventuel armement d'achat antérieur à la vente.
+                            vBuyArmed := false
+                            vLowestSinceArmed := na
+                            vBuyArmedDays := 0
+
+                        label.new(tI, hgI, "-$" + str.tostring(saleProcI, "#.##") + (athOn ? " ×" + str.tostring(sellAthFac, "#.##") + " (ATH -" + str.tostring(athD * 100, "#") + "%)" : ""), xloc=xloc.bar_time, yloc=yloc.price, style=label.style_label_down, color=color.new(color.red, 0), textcolor=color.white, size=size.tiny)
+                    vSellArmed := false
+                    vHighestSinceArmed := na
+                    vSellArmedDays := 0
+                    vCooldownRemaining := cooldownAfterSell
+                else
+                    vHighestSinceArmed := math.max(vHighestSinceArmed, cl)
+            else if zoneI == "EXTREME_HAUT" and (vCooldownRemaining == 0 or allowSellDuringCooldown)
+                vSellArmed := true
+                vHighestSinceArmed := cl
+                vSellArmedDays := 0
+                label.new(tI, hgI, "", xloc=xloc.bar_time, yloc=yloc.price, style=label.style_diamond, color=color.new(color.orange, 0), size=size.tiny)
+
+            // Le verrou est levé par un nouveau franchissement sous DOWN2 après la vente.
+            crossedBelowDown2 = i > startIdx and array.get(closeArr, i - 1) >= array.get(extremeBasArr, i - 1) and cl < eb
+            if blockBuyAfterSellUntilDown2 and vBuyLockedAfterSell and not soldThisBar and crossedBelowDown2
+                vBuyLockedAfterSell := false
+
+            buyMultI = float(na)
+
+            if not vSellArmed and vCooldownRemaining == 0 and not vBuyLockedAfterSell
+                if vBuyArmed
+                    vBuyArmedDays += 1
+                    buyTrigI = p_buyReentry == "TRAILING_STOP" ? (cl > eb or cl > vLowestSinceArmed * trailUpFactor) :
+                              p_buyReentry == "IMMEDIATE"     ? (cl > eb) :
+                              (vBuyArmedDays >= p_fixedDelay)
+                    if buyTrigI
+                        buyMultI := p_multTriggered
+                        vBuyArmed := false
+                        vLowestSinceArmed := na
+                        vBuyArmedDays := 0
+                    else
+                        vLowestSinceArmed := math.min(vLowestSinceArmed, cl)
+                else if zoneI == "EXTREME_BAS"
+                    vBuyArmed := true
+                    vLowestSinceArmed := cl
+                    vBuyArmedDays := 0
+                    label.new(tI, lwI, "", xloc=xloc.bar_time, yloc=yloc.price, style=label.style_diamond, color=color.new(color.aqua, 0), size=size.tiny)
+                else
+                    imI = zoneI == "X2" ? p_multX2 : zoneI == "X1" ? p_multX1 : zoneI == "X0_5" ? p_multX0_5 : float(na)
+                    if not na(imI) and imI > 0
+                        buyMultI := imI
+
+            if not na(buyMultI)
+                invI = p_baseAmount * buyAthFac * buyMultI
+                vPos += invI / cl
+                vCostBasis += invI
+                vInvested += invI
+                label.new(tI, lwI, "+$" + str.tostring(invI, "#.##"), xloc=xloc.bar_time, yloc=yloc.price, style=label.style_label_up, color=color.new(color.green, 0), textcolor=color.white, size=size.tiny)
+
+            if vCooldownRemaining > 0
+                vCooldownRemaining -= 1
+
+            // DCA fixe de référence : même base, même cadence (tous les jours)
+            vFixedQty += p_baseAmount / cl
+            vFixedInvested += p_baseAmount
+
+            array.push(sizeV, sizeMetric == "Quantité" ? vPos : sizeMetric == "Coût de la position" ? vCostBasis : vPos * cl)
+            array.push(sizeT, tI)
+            array.push(sizeDir, vPos > qtyBefore * (1 + 1e-12) ? 1 : vPos < qtyBefore * (1 - 1e-12) ? -1 : 0)
+
+    // Histogramme de taille de position : sizeCols colonnes réparties sur toute la plage visible
+    nS = array.size(sizeV)
+    bV = array.new_float(sizeCols, 0.0)
+    bD = array.new_int(sizeCols, 0)
+    maxS = 0.0
+    if showSize and nS > 0
+        for c = 0 to sizeCols - 1
+            j0 = int(math.floor(c * nS / sizeCols))
+            j1 = math.min(nS - 1, math.max(j0, int(math.floor((c + 1) * nS / sizeCols)) - 1))
+            dsum = 0
+            for j = j0 to j1
+                dsum += array.get(sizeDir, j)
+            v = array.get(sizeV, j1)
+            maxS := math.max(maxS, v)
+            array.set(bV, c, v)
+            array.set(bD, c, dsum > 0 ? 1 : dsum < 0 ? -1 : 0)
+    cellW = 100.0 / sizeCols
+    cellH = sizeHeightPct / sizeRows
+    for c = 0 to sizeCols - 1
+        filled = maxS > 0 ? math.ceil(array.get(bV, c) / maxS * sizeRows) : 0
+        d = array.get(bD, c)
+        colr = d > 0 ? sizeUpColor : d < 0 ? sizeDownColor : sizeFlatColor
+        for r = 0 to sizeRows - 1
+            table.cell(sizeTbl, c, r, "", width=cellW, height=cellH, bgcolor=(sizeRows - 1 - r) < filled ? colr : color.new(color.black, 100))
+
+    vCurrentPrice = array.get(closeArr, lastIdx)
+    vCurrentValue = vPos * vCurrentPrice
+    vPotentialGain = vCurrentValue - vCostBasis
+
+    vPnlReelPercent = vInvested > 0 ? vRealized / vInvested * 100 : na
+    vPnlPotentielPercent = vInvested > 0 ? vPotentialGain / vInvested * 100 : na
+
+    vFixedValue = vFixedQty * vCurrentPrice
+    vFixedPnlPercent = vFixedInvested > 0 ? (vFixedValue - vFixedInvested) / vFixedInvested * 100 : na
+
+    row(info, 0, "Paramétrage",                   asset)
+    row(info, 1, "Plage visible",                 str.format_time(leftT, "yyyy-MM-dd") + "→" + str.format_time(rightT, "yyyy-MM-dd"))
+    row(info, 2, "Total $ Investi",                "$" + str.tostring(vInvested, "#.##"))
+    row(info, 3, "Total $ Vendu",                  "$" + str.tostring(vSaleProceeds, "#.##"))
+    row(info, 4, "Total $ Restant",  "$" + str.tostring(vCurrentValue, "#.##"))
+    row(info, 5, "Gain total", "$" + str.tostring(vSaleProceeds + vCurrentValue - vInvested, "#.##"))
+    row(info, 6, "Somme Gains réalisés",         "$" + str.tostring(vRealized, "#.##"))
+    row(info, 7, "PnL% Réel",                      na(vPnlReelPercent) ? "—" : str.tostring(vPnlReelPercent, "#.##") + " %")
+    row(info, 8, "PnL % Potentiel",                na(vPnlPotentielPercent) ? "—" : str.tostring(vPnlPotentielPercent, "#.##") + " %")
+    row(info, 9, "PnL % Potentiel DCA fixe",       na(vFixedPnlPercent) ? "—" : str.tostring(vFixedPnlPercent, "#.##") + " %")
+    vAthLast = array.get(athArr, lastIdx)
+    vMoonModeLast = array.get(moonModeArr, lastIdx)
+    athStatus = athOn ? (vMoonModeLast ? "NEUTRALISÉE (To the moon)" : "ON (" + str.tostring((1 - vCurrentPrice / vAthLast) * 100, "#.#") + " %)" ) : "OFF"
+    row(info, 10, "Modulation ATH (dist. fin de plage)", athStatus)
+    row(info, 11, "To the moon", vMoonModeLast ? "ON" : "OFF")
+    row(info, 12, "Bag protégé", "$" + str.tostring(vMoonReserveQty * vCurrentPrice, "#.##"))
+    row(info, 13, "Réserve moon", moonReserveRatchet ? "à la hausse (cliquet)" : "figée")
+    if tableSpacer > 0
+        for r = 14 to 13 + tableSpacer
+            table.cell(info, 0, r, " ", bgcolor=color.new(color.black, 100), text_size=size.small)
+            table.cell(info, 1, r, " ", bgcolor=color.new(color.black, 100), text_size=size.small)

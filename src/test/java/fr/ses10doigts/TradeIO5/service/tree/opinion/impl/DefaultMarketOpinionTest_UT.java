@@ -56,6 +56,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DefaultMarketOpinionTest_UT {
     private static final Logger logger = LoggerFactory.getLogger(DefaultMarketOpinionTest_UT.class);
 
+    // Marge au-dessus de TrendAnalyzer.MIN_CANDLES (60) : le générateur MEMORY produit des séries
+    // parfaitement linéaires (r²=1 dès la première fenêtre calculable), donc l'hystérésis franchit
+    // le seuil d'entrée (±1/6) dès les tout premiers scores calculables ; 90 bougies laisse de la
+    // marge sans dépendre d'un pile-poil sur le minimum requis.
+    private static final int LOOKBACK = 90;
+
     @Autowired
     private StrategyRegistry strategyRegistry;
     @Autowired
@@ -79,27 +85,39 @@ class DefaultMarketOpinionTest_UT {
 
     /**
      * Chaîne complète Indicator -&gt; Strategy -&gt; Opinion pour {@link TrendConfirmationStrategy}
-     * (EMA + ADX + RSI) branchée dans {@link DefaultMarketOpinion} (scope {@code LOCAL}) via
-     * {@link StrategyAggregator}. On s'abonne réellement à l'{@link OpinionEvent} publié par
-     * l'{@link EventBus} pour vérifier son contenu plutôt que de se contenter de constater que
-     * {@code decide()} ne plante pas.
+     * (3x LINEAR_REGRESSION + hystérésis depuis sa réécriture Étape 8, {@code docs/prompts/
+     * prompt-implementation-trend-unifie-etape8-regression-hysteresis.md}) branchée dans
+     * {@link DefaultMarketOpinion} (scope {@code LOCAL}) via {@link StrategyAggregator}. On
+     * s'abonne réellement à l'{@link OpinionEvent} publié par l'{@link EventBus} pour vérifier son
+     * contenu plutôt que de se contenter de constater que {@code decide()} ne plante pas.
+     * <p>
+     * Les scénarios haussier/baissier/plat ci-dessous utilisent le générateur MEMORY monotone
+     * ({@code TrendType.UPTREND}/{@code DOWNTREND}/{@code FLAT}) : contrairement à l'ancien
+     * SWING_STRUCTURE (qui exigeait des pivots confirmés, cf. javadoc historique de cette classe),
+     * la régression profite justement d'une tendance strictement monotone (r²=1) pour saturer le
+     * score dès les premières fenêtres calculables.
+     * <p>
+     * Les 3 scénarios utilisent {@link TimeFrame#H1} (et non D1) : {@code H1} est le TimeFrame de
+     * base du {@code Bucket} (cf. {@code MarketDatasetEngine}/{@code Bucket.BASE_TIME_FRAME}) —
+     * demander un TimeFrame supérieur (D1) force une conversion de lookBack vers H1 (facteur 24),
+     * et le générateur MEMORY appliquant un pas absolu (+-1) par bougie base plutôt que relatif, la
+     * série obtenue peut dériver jusqu'à des prix négatifs sur un long historique une fois ramenée
+     * en D1 — cas dégénéré propre au générateur synthétique de test (jamais rencontré sur un vrai
+     * flux de marché), qui inverse le signe de {@code normalizedSlope} (pente négative / prix
+     * négatif = signal positif) et fait apparaître un régime UP sur un DOWNTREND. Utiliser H1
+     * directement (aucune conversion, aucune dérive) évite ce cas dégénéré.
      */
     @Test
-    @DisplayName("Chaîne complète TrendConfirmation -> Opinion LOCAL : tendance haussière confirmée -> BULLISH")
-    void trendConfirmationFullChainTest_uptrend() {
+    @DisplayName("Chaîne complète TrendConfirmation -> Opinion LOCAL : tendance haussière soutenue -> régime UP -> BULLISH")
+    void trendConfirmationFullChainTest_bullConfirmed() {
         Strategy strategy = strategyRegistry.get(TrendConfirmationStrategy.class.getSimpleName());
-        // Seuil de surachat RSI volontairement inatteignable (100) pour isoler ici le
-        // comportement EMA+ADX, comme dans TrendConfirmationStrategyTest#should_emit_BULLISH_on_confirmed_uptrend.
-        StrategyParametersFactory.TrendConfirmationParam param = new StrategyParametersFactory.TrendConfirmationParam(
-                TimeFrame.H1, 10, 20, 14, 14,
-                15.0, 25.0,
-                100.0, 20.0
-        );
+        StrategyParametersFactory.TrendConfirmationParam param =
+                StrategyParametersFactory.TrendConfirmationParam.defaults(TimeFrame.H1);
         MarketOpinionParameters marketOpinionParameters =
                 MarketOpinionParametersFactory.buildLocalOpinionParamWithTrendConfirmation(strategy, param);
 
         OpinionEvent event = decideAndCapture(
-                "trendOpinionUp", TimeFrame.H1, TrendType.UPTREND, marketOpinionParameters);
+                "trendOpinionBull", TimeFrame.H1, TrendType.UPTREND, marketOpinionParameters);
 
         assertNotNull(event, "OpinionEvent should have been published");
         assertEquals(OpinionScope.LOCAL, event.getScope());
@@ -108,20 +126,16 @@ class DefaultMarketOpinionTest_UT {
     }
 
     @Test
-    @DisplayName("Chaîne complète TrendConfirmation -> Opinion LOCAL : tendance baissière confirmée -> BEARISH")
-    void trendConfirmationFullChainTest_downtrend() {
+    @DisplayName("Chaîne complète TrendConfirmation -> Opinion LOCAL : tendance baissière soutenue -> régime DOWN -> BEARISH")
+    void trendConfirmationFullChainTest_bearConfirmed() {
         Strategy strategy = strategyRegistry.get(TrendConfirmationStrategy.class.getSimpleName());
-        // Symétriquement, seuil de survente RSI inatteignable (0).
-        StrategyParametersFactory.TrendConfirmationParam param = new StrategyParametersFactory.TrendConfirmationParam(
-                TimeFrame.H1, 10, 20, 14, 14,
-                15.0, 25.0,
-                80.0, 0.0
-        );
+        StrategyParametersFactory.TrendConfirmationParam param =
+                StrategyParametersFactory.TrendConfirmationParam.defaults(TimeFrame.H1);
         MarketOpinionParameters marketOpinionParameters =
                 MarketOpinionParametersFactory.buildLocalOpinionParamWithTrendConfirmation(strategy, param);
 
         OpinionEvent event = decideAndCapture(
-                "trendOpinionDown", TimeFrame.H1, TrendType.DOWNTREND, marketOpinionParameters);
+                "trendOpinionBear", TimeFrame.H1, TrendType.DOWNTREND, marketOpinionParameters);
 
         assertNotNull(event, "OpinionEvent should have been published");
         assertEquals(OpinionScope.LOCAL, event.getScope());
@@ -130,14 +144,11 @@ class DefaultMarketOpinionTest_UT {
     }
 
     @Test
-    @DisplayName("Chaîne complète TrendConfirmation -> Opinion LOCAL : marché plat -> NEUTRAL (ADX bas neutralise malgré un éventuel bruit EMA/RSI)")
+    @DisplayName("Chaîne complète TrendConfirmation -> Opinion LOCAL : marché plat -> régime RANGE -> NEUTRAL")
     void trendConfirmationFullChainTest_flat() {
         Strategy strategy = strategyRegistry.get(TrendConfirmationStrategy.class.getSimpleName());
-        StrategyParametersFactory.TrendConfirmationParam param = new StrategyParametersFactory.TrendConfirmationParam(
-                TimeFrame.H1, 10, 20, 14, 14,
-                15.0, 25.0,
-                80.0, 20.0
-        );
+        StrategyParametersFactory.TrendConfirmationParam param =
+                StrategyParametersFactory.TrendConfirmationParam.defaults(TimeFrame.H1);
         MarketOpinionParameters marketOpinionParameters =
                 MarketOpinionParametersFactory.buildLocalOpinionParamWithTrendConfirmation(strategy, param);
 
@@ -150,9 +161,9 @@ class DefaultMarketOpinionTest_UT {
     }
 
     /**
-     * Construit un dataset MEMORY mono-timeframe, l'appelle à travers {@code decide()}, et
-     * capture réellement l'{@link OpinionEvent} publié (au lieu de se contenter de vérifier
-     * l'absence d'exception).
+     * Construit un dataset MEMORY mono-timeframe (source {@code TrendType}, via
+     * {@link MarketDatasetEngine}), l'appelle à travers {@code decide()}, et capture réellement
+     * l'{@link OpinionEvent} publié.
      */
     private OpinionEvent decideAndCapture(
             String datasetSymbol,
@@ -160,9 +171,17 @@ class DefaultMarketOpinionTest_UT {
             TrendType scenario,
             MarketOpinionParameters marketOpinionParameters
     ) {
-        MarketDatasetRequest mdr = new MarketDatasetRequest(datasetSymbol, timeFrame, 60, Instant.now(), MarketDataSource.MEMORY, scenario);
+        MarketDatasetRequest mdr = new MarketDatasetRequest(datasetSymbol, timeFrame, LOOKBACK, Instant.now(), MarketDataSource.MEMORY, scenario);
         MarketDataset dataset = marketDatasetEngine.getDataset(mdr);
 
+        return decideAndCaptureWithDataset(timeFrame, dataset, marketOpinionParameters);
+    }
+
+    private OpinionEvent decideAndCaptureWithDataset(
+            TimeFrame timeFrame,
+            MarketDataset dataset,
+            MarketOpinionParameters marketOpinionParameters
+    ) {
         MarketContext marketContext = new MarketContext(
                 "BTCUSDT",
                 new BigDecimal("42000"),
