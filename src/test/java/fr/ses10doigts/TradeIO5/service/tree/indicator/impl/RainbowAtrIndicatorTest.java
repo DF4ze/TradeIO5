@@ -58,7 +58,6 @@ class RainbowAtrIndicatorTest {
         assertEquals(104.0, r.getValues().get("zoneHaute2"), 1e-9);
         assertEquals(106.0, r.getValues().get("extremeHaut"), 1e-9);
         assertEquals(2.0, r.getValues().get("zone"), 1e-9); // X1
-        assertEquals(0.0, r.getValues().get("sellArmed"), 1e-9);
     }
 
     @Test
@@ -75,6 +74,6 @@ class RainbowAtrIndicatorTest {
     void contract() {
         assertEquals(IndicatorType.RAINBOW_ATR, indicator.getType());
         assertTrue(indicator.checkParameters(params(BANDS)));
-        assertEquals(RainbowAtrIndicator.DEFAULT_LOOKBACK, indicator.getRequiredData(params(BANDS)));
+        assertEquals(30, indicator.getRequiredData(params(BANDS))); // max(sma 3, 10 x atr 3)
     }
 }

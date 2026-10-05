@@ -6,11 +6,11 @@ Vérifié le : 2026-10-04 (code + décisions de Clem du jour). Objectif n°1 du 
 
 | Brique | État |
 |---|---|
-| Moteur Rainbow ATR (pine v4 = source de vérité, port Java) | fait — [`04-market-data.md`](../architecture/04-market-data.md) |
+| Moteur Rainbow ATR (pine v4 = source de vérité, port Java) | fait — découpé en couches L1 bornes / L2 `step` pur + `RainbowAtrState` / L3 `AthReference` / L4 `Sizer` (référence seulement) ; persistance de l'état et de l'ATH non faite — [`04-market-data.md`](../architecture/04-market-data.md) |
 | Paramétrage par actif et par trend (Bull / Bear) | **manuel** : presets `<ACTIF> Perso Bear/Bull` du pine v4 ; dans le code Java, les presets par défaut restent le jeu global du bench |
 | Trend simple (`TrendAnalyzer`, UP/DOWN/RANGE) | fait — [`09-trend.md`](../architecture/09-trend.md) |
 | Trend double (globale lente + locale) | non implémenté |
-| Branchement Trend → jeu de paramètres | **non fait** |
+| Branchement Trend → jeu de paramètres | rejeu comparatif fait (`RainbowSetSelector`, `RainbowAtrReplay`, jeux Bull/Bear du pine v4 en Java) ; mapping de `RANGE` à trancher sur ces rejeux ; pas branché à l'exécution quotidienne |
 | Bench grandeur nature (dry-run quotidien, wallet fictif, page web) | fait, tourne chaque jour sur le VPS (résultats de tous les presets en base) — [`08`](../architecture/08-rainbow-bench-grandeur-nature.md) |
 | Curseur d'exposition | non fait — [spec V1 §2](../etudes/spec-rainbow-v1-trend-global-exposition-risque-macro.md) |
 | Risque macro (`riskCursor`) | non fait — spec V1 §3 |
@@ -24,6 +24,7 @@ Besoin : pouvoir ajouter n'importe quel actif, avec un système de paramétrage 
 ## 2. Branchement de la Trend sur le Rainbow ATR (priorité n°1)
 
 - Il faut un jeu de paramètres **par trend, Bull et Bear seulement** (pas de Sideways) ; l'ancien raisonnement « un jeu global par actif suffit » est abandonné.
+- **Décisions (2026-10-04)** : Trend simple d'abord (constantes par défaut, à benchmarker par actif) ; mapping de `RANGE` tranché au rejeu (variantes) ; jeux Bull/Bear = presets pine v4 de l'actif (BTC : `Perso Bear`/`Perso Bull`). Contrat cible de l'indicateur : indicateur pur (L1), machine d'états en fonction pure `step` avec état persisté par (user, actif) (L2), ATH de référence par actif injecté (L3), signal décomposé sans montant, quantification dans un `Sizer` propre au wallet (L4). Séquence : [`prompts/prompt-roadmap-fil-rouge-dca-automatise.md`](../prompts/prompt-roadmap-fil-rouge-dca-automatise.md). Socle moteur (L1/L2/L3, signal décomposé, `ReferenceSizer`) et rejeu Trend → jeu implémentés ; reste : trancher `RANGE`, persistance de l'état par (user, actif), `AthReference` en base, orchestrateur.
 - `TrendAnalyzer` produit 3 états (UP/DOWN/RANGE) : mapping de `RANGE` vers Bull ou Bear à définir.
 - Un « double indicateur » (global lent + local réactif, 2×2 = 4 combinaisons) avait été envisagé pour limiter le retard ; il n'existe pas dans le code et on ne sait pas comment le raccorder à 2 jeux Bull/Bear (ou à 4 jeux ATR).
 - Décision de la spec V1 (2026-09-25) à reconfirmer : le jeu actif est réévalué chaque jour, y compris pendant un armement en cours (pas de jeu figé à l'armement).

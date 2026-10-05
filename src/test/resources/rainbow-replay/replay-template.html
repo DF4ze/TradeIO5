@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rainbow ATR — rejeu Java vs pine</title>
+<script>/*__LWC__*/</script>
+<style>
+  :root { --bg:#0e1117; --panel:#161b22; --border:#2a3140; --text:#d7dde5; --muted:#8b95a5;
+          --green:#22c55e; --red:#ef4444; --blue:#60a5fa; --amber:#f59e0b; --aqua:#22d3ee; --yellow:#eab308; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  header { padding:12px 16px 8px; border-bottom:1px solid var(--border); }
+  h1 { font-size:16px; margin:0 0 4px; font-weight:600; }
+  .subtitle { font-size:12px; color:var(--muted); margin-bottom:8px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px; }
+  .row .lbl { color:var(--muted); font-size:12px; min-width:48px; }
+  button.btn { background:var(--panel); border:1px solid var(--border); color:var(--text); padding:5px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; }
+  button.btn:hover { color:#fff; }
+  button.btn.active { border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; color:var(--blue); }
+  button.small { font-weight:400; padding:3px 9px; }
+  input[type=date] { background:var(--panel); border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:12px; }
+  .layout { display:flex; height:calc(100vh - 150px); min-height:520px; }
+  #chartCol { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .legend { display:flex; gap:12px; flex-wrap:wrap; font-size:11px; color:var(--muted); padding:4px 16px; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+  .line { display:inline-block; width:14px; height:0; border-top:2px solid; margin-right:4px; vertical-align:middle; }
+  #chart { flex:1; min-height:300px; }
+  #sidebar { width:470px; border-left:1px solid var(--border); overflow-y:auto; padding:12px; background:var(--panel); }
+  #sidebar h2 { font-size:13px; margin:14px 0 6px; } #sidebar h2:first-child { margin-top:0; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  td, th { padding:2px 4px; border-bottom:1px solid var(--border); font-size:12px; text-align:right; }
+  th { color:var(--muted); font-weight:500; } td:first-child, th:first-child { text-align:left; color:var(--muted); }
+  tr.sel td { background:#1f2937; color:var(--text); }
+  td.diff { color:var(--amber); font-weight:600; }
+  tr.sec td { padding-top:8px; font-weight:600; color:var(--text); border-bottom:none; text-align:left; }
+  .pos { color:var(--green); } .neg { color:var(--red); }
+  .tag { display:inline-block; padding:0 6px; border-radius:3px; font-size:11px; font-weight:600; }
+  .tag.bull { background:#14532d; color:#86efac; } .tag.bear { background:#7f1d1d; color:#fecaca; }
+  .tag.up { background:#14532d; color:#86efac; } .tag.down { background:#7f1d1d; color:#fecaca; } .tag.range { background:#3f3f46; color:#e4e4e7; }
+  #err { background:#3b1d1d; border:1px solid #7f1d1d; color:#fecaca; padding:8px 12px; margin:8px 16px; border-radius:6px; display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Rainbow ATR — rejeu Java vs pine v4 <span id="rangeLbl" style="color:var(--muted);font-weight:400"></span></h1>
+  <div class="subtitle">Données et décisions calculées côté Java (<code>RainbowAtrReplayMain</code>, même <code>step</code> que l'exécution quotidienne), aucun recalcul en JS. Machine à froid au début de plage, ATH et To the moon issus de tout l'historique, comme le pine sur la plage visible. Sizer de référence : base&nbsp;1 × facteur ATH × mult zone, sans plafond.</div>
+  <div class="row"><span class="lbl">Actif</span><span id="assetBtns"></span></div>
+  <div class="row"><span class="lbl">Mode</span><span id="modeBtns"></span></div>
+  <div class="row"><span class="lbl">Vue</span>
+    <input type="date" id="vStart"><span style="color:var(--muted)">→</span><input type="date" id="vEnd">
+    <button class="btn small" data-m="3">3 mois</button><button class="btn small" data-m="6">6 mois</button>
+    <button class="btn small" data-m="12">1 an</button><button class="btn small" data-m="0">Tout</button></div>
+</header>
+<div id="err"></div>
+<div class="layout">
+  <div id="chartCol">
+    <div class="legend">
+      <span><span class="line" style="border-color:#9ca3af"></span>SMA</span>
+      <span><span class="line" style="border-color:#22c55e"></span>DOWN2 (extrême bas)</span>
+      <span><span class="line" style="border-color:#86efac"></span>DOWN1</span>
+      <span><span class="line" style="border-color:#fca5a5"></span>UP1</span>
+      <span><span class="line" style="border-color:#f87171"></span>UP2</span>
+      <span><span class="line" style="border-color:#ef4444"></span>UP3 (extrême haut)</span>
+      <span><span class="line" style="border-color:#eab308"></span>ATH</span>
+      <span><span class="dot" style="background:var(--green)"></span>achat zone</span>
+      <span><span class="dot" style="background:var(--aqua)"></span>achat déclenché (×3)</span>
+      <span><span class="dot" style="background:var(--red)"></span>vente</span>
+      <span><span class="dot" style="background:var(--yellow)"></span>moon / <span class="dot" style="background:#fb923c"></span>stop moon</span>
+      <span>◆ armement (aqua achat, orange vente)</span>
+    </div>
+    <div id="chart"></div>
+  </div>
+  <div id="sidebar">
+    <h2>Jour <span id="dayLbl"></span></h2><div id="day"></div>
+    <h2>Comparaison des modes — <span id="assetLbl"></span></h2><div id="cmp"></div>
+    <h2>Jeux Bear / Bull (pine v4)</h2><div id="sets"></div>
+  </div>
+</div>
+<script>
+const DATA = /*__DATA__*/null;
+const ZONES = ['EXTRÊME BAS','X2','X1','X0,5','PAS D\'ACHAT','EXTRÊME HAUT'];
+const TRENDS = ['—','UP','DOWN','RANGE'];
+if (!DATA) { document.body.innerHTML = '<p style="padding:24px;font:14px sans-serif;color:#d7dde5">Gabarit sans données : ouvrir <code>target/rainbow-replay/replay.html</code> (généré par <code>RainbowAtrReplayMain</code>), pas ce fichier.</p>'; throw new Error('gabarit sans données'); }
+const state = { asset: Object.keys(DATA.assets)[0], mode: 0 };
+const $ = id => document.getElementById(id);
+const f = (x, d=2) => x == null || isNaN(x) ? '—' : Number(x).toLocaleString('fr-FR', {minimumFractionDigits:d, maximumFractionDigits:d});
+const cls = x => x > 0 ? 'pos' : x < 0 ? 'neg' : '';
+function fail(e) { const b = $('err'); b.style.display = 'block'; b.textContent = 'Erreur : ' + (e && e.message || e); }
+
+let chart, S = {}, markersPrim = null;
+function buildChart() {
+  chart = LightweightCharts.createChart($('chart'), {
+    autoSize: true,
+    layout: { background: { type: 'solid', color: '#0e1117' }, textColor: '#d7dde5', panes: { separatorColor: '#2a3140' } },
+    grid: { vertLines: { color: '#1a2030' }, horzLines: { color: '#1a2030' } },
+    rightPriceScale: { borderColor: '#2a3140' },
+    timeScale: { borderColor: '#2a3140', rightOffset: 4 },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+  });
+  const L = (color, w=1, style=0, pane=0, extra={}) => chart.addSeries(LightweightCharts.LineSeries,
+    Object.assign({ color, lineWidth: w, lineStyle: style, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }, extra), pane);
+  S.candle = chart.addSeries(LightweightCharts.CandlestickSeries, { upColor:'#26a69a', downColor:'#ef5350', borderVisible:false, wickUpColor:'#26a69a', wickDownColor:'#ef5350', priceLineVisible:false }, 0);
+  S.sma = L('#9ca3af'); S.d2 = L('#22c55e', 2); S.d1 = L('#86efac'); S.u1 = L('#fca5a5'); S.u2 = L('#f87171'); S.u3 = L('#ef4444', 2);
+  S.ath = L('#eab308', 1, 2);
+  S.real = L('#22c55e', 2, 0, 1, { title: 'réalisé' }); S.pot = L('#60a5fa', 2, 0, 1, { title: 'potentiel' });
+  S.tot = L('#e5e7eb', 2, 0, 1, { title: 'total' }); S.fix = L('#9ca3af', 1, 2, 1, { title: 'DCA fixe' });
+  S.wTot = L('#e5e7eb', 2, 0, 2, { title: 'wallet total' }); S.wAsset = L('#60a5fa', 2, 0, 2, { title: 'en actif' });
+  S.wStable = L('#22c55e', 2, 0, 2, { title: 'en stable' }); S.wInv = L('#9ca3af', 1, 2, 2, { title: 'capital initial' });
+  S.ord = chart.addSeries(LightweightCharts.HistogramSeries, { priceLineVisible:false, lastValueVisible:false, title:'ordres' }, 3);
+  markersPrim = LightweightCharts.createSeriesMarkers(S.candle, []);
+  chart.subscribeCrosshairMove(p => { if (p.time) showDay(p.time); });
+  chart.subscribeClick(p => { if (p.time) showDay(p.time); });
+  const panes = chart.panes();
+  if (panes[0]) panes[0].setStretchFactor(5);
+  if (panes[1]) panes[1].setStretchFactor(2);
+  if (panes[2]) panes[2].setStretchFactor(2);
+  if (panes[3]) panes[3].setStretchFactor(1);
+}
+
+const cur = () => DATA.assets[state.asset].modes[state.mode].cols;
+let dayIndex = {};
+let walletCap = 0;
+function render() {
+  const A = DATA.assets[state.asset], C = cur(), n = C.d.length;
+  $('assetLbl').textContent = state.asset;
+  const col = (name, t) => C.d.map((d, i) => ({ time: d, value: C[name][i] })).filter(p => p.value != null);
+  S.candle.setData(C.d.map((d, i) => ({ time: d, open: C.o[i], high: C.h[i], low: C.l[i], close: C.c[i] })));
+  S.sma.setData(col('sma')); S.d2.setData(col('down2')); S.d1.setData(col('down1'));
+  S.u1.setData(col('up1')); S.u2.setData(col('up2')); S.u3.setData(col('up3')); S.ath.setData(col('ath'));
+  S.real.setData(col('realized')); S.pot.setData(col('potential')); S.tot.setData(col('total')); S.fix.setData(col('fixedGain'));
+  // wallet fermé : capital initial = max(investi - vendu) (minimum pour que le stable reste >= 0) ;
+  // stable = capital - investi + produit des ventes ; actif = position x clôture ; total = actif + stable
+  const cap = Math.max(0, ...C.d.map((d, i) => C.invested[i] - C.proceeds[i]));
+  const wS = C.d.map((d, i) => cap - C.invested[i] + C.proceeds[i]);
+  const wA = C.d.map((d, i) => C.pos[i] * C.c[i]);
+  S.wAsset.setData(C.d.map((d, i) => ({ time: d, value: wA[i] })));
+  S.wStable.setData(C.d.map((d, i) => ({ time: d, value: wS[i] })));
+  S.wTot.setData(C.d.map((d, i) => ({ time: d, value: wA[i] + wS[i] })));
+  S.wInv.setData(C.d.map((d, i) => ({ time: d, value: cap })));
+  walletCap = cap;
+  S.ord.setData(C.d.map((d, i) => {
+    const v = (C.buyAmt[i] || 0) - (C.sellProc[i] || 0);
+    return { time: d, value: v, color: v >= 0 ? '#22c55e' : '#ef4444' };
+  }));
+  dayIndex = {}; C.d.forEach((d, i) => dayIndex[d] = i);
+  const mk = [];
+  for (let i = 0; i < n; i++) {
+    const d = C.d[i];
+    if (i > 0 && C.set[i] !== C.set[i-1]) mk.push({ time: d, position: 'belowBar', shape: 'square', color: C.set[i] ? '#16a34a' : '#dc2626', text: C.set[i] ? 'Bull' : 'Bear', size: 0.6 });
+    if (C.moonEntry[i]) mk.push({ time: d, position: 'aboveBar', shape: 'arrowDown', color: '#eab308', text: 'TO THE MOON' });
+    if (C.sellKind[i] === 2) mk.push({ time: d, position: 'aboveBar', shape: 'arrowDown', color: '#fb923c', text: 'MOON STOP -' + f(C.sellProc[i]) });
+    else if (C.sellKind[i] === 1) mk.push({ time: d, position: 'aboveBar', shape: 'arrowDown', color: '#ef4444', text: '-' + f(C.sellProc[i]) + ' ×' + f(C.sellFac[i]) });
+    if (C.sellArmNow[i]) mk.push({ time: d, position: 'aboveBar', shape: 'circle', color: '#fb923c', size: 0.5 });
+    if (C.buyArmNow[i]) mk.push({ time: d, position: 'belowBar', shape: 'circle', color: '#22d3ee', size: 0.5 });
+    if (C.buyKind[i] === 2) mk.push({ time: d, position: 'belowBar', shape: 'arrowUp', color: '#22d3ee', text: '+' + f(C.buyAmt[i]) });
+    else if (C.buyKind[i] === 1) mk.push({ time: d, position: 'belowBar', shape: 'arrowUp', color: '#22c55e', size: 0.7 });
+  }
+  markersPrim.setMarkers(mk);
+  $('rangeLbl').textContent = '— ' + C.d[0] + ' → ' + C.d[n-1] + ' (' + n + ' jours)';
+  $('vStart').value = C.d[0]; $('vEnd').value = C.d[n-1];
+  applyView();
+  showDay(C.d[n-1]);
+  renderCmp(); renderSets();
+}
+
+function showDay(d) {
+  const i = dayIndex[typeof d === 'string' ? d : (d.year ? d.year + '-' + String(d.month).padStart(2,'0') + '-' + String(d.day).padStart(2,'0') : d)];
+  if (i == null) return;
+  const C = cur(), A = DATA.assets[state.asset];
+  $('dayLbl').textContent = C.d[i];
+  const set = A.sets[C.set[i]];
+  const tr = TRENDS[C.trend[i]];
+  const pot = C.pos[i] * C.c[i] - C.cost[i], tot = C.proceeds[i] + C.pos[i] * C.c[i] - C.invested[i];
+  const flags = [C.buyArmed[i] && 'achat armé', C.sellArmed[i] && 'vente armée', C.locked[i] && 'achat verrouillé', C.cooldown[i] > 0 && ('cooldown ' + C.cooldown[i] + 'j'), C.moon[i] && 'MOON'].filter(Boolean).join(', ') || '—';
+  const sig = [];
+  if (C.buyKind[i]) sig.push((C.buyKind[i] === 2 ? 'ACHAT déclenché' : 'ACHAT zone') + ' +' + f(C.buyAmt[i], 4) + ' (×' + f(C.multZone[i]) + ' zone × ' + f(C.buyFac[i]) + ' ATH)');
+  if (C.sellKind[i]) sig.push((C.sellKind[i] === 2 ? 'STOP MOON' : 'VENTE') + ' ' + f(C.sellFrac[i] * 100, 1) + ' % de la position = ' + f(C.sellQty[i], 6) + ' → ' + f(C.sellProc[i]) );
+  if (C.sellArmNow[i]) sig.push('armement vente');
+  if (C.buyArmNow[i]) sig.push('armement achat');
+  if (C.moonEntry[i]) sig.push('entrée To the moon');
+  const row = (a, b) => '<tr><td>' + a + '</td><td>' + b + '</td></tr>';
+  $('day').innerHTML = '<table>' +
+    row('Jeu actif', '<span class="tag ' + (C.set[i] ? 'bull' : 'bear') + '">' + set.name + '</span>') +
+    row('Trend', tr === '—' ? '—' : '<span class="tag ' + tr.toLowerCase() + '">' + tr + '</span>') +
+    row('Clôture', f(C.c[i])) + row('Zone', ZONES[C.zone[i]]) +
+    row('SMA / ATR', f(C.sma[i]) + ' / ' + f(C.atr[i])) +
+    row('DOWN2 / DOWN1', f(C.down2[i]) + ' / ' + f(C.down1[i])) +
+    row('UP1 / UP2 / UP3', f(C.up1[i]) + ' / ' + f(C.up2[i]) + ' / ' + f(C.up3[i])) +
+    row('ATH / distance', f(C.ath[i]) + ' / -' + f(C.athDist[i] * 100, 1) + ' %') +
+    row('Facteurs ATH achat / vente', f(C.buyFac[i]) + ' / ' + f(C.sellFac[i])) +
+    row('Signal', sig.join('<br>') || '—') + row('États', flags) +
+    row('Position', f(C.pos[i], 6) + ' (réserve moon ' + f(C.reserve[i], 6) + ')') +
+    row('Wallet total / actif / stable', f(C.pos[i] * C.c[i] + walletCap - C.invested[i] + C.proceeds[i]) + ' / ' + f(C.pos[i] * C.c[i]) + ' / ' + f(walletCap - C.invested[i] + C.proceeds[i])) + row('Capital initial (wallet)', f(walletCap)) +
+    row('Investi / vendu', f(C.invested[i]) + ' / ' + f(C.proceeds[i])) +
+    row('Réalisé', '<span class="' + cls(C.realized[i]) + '">' + f(C.realized[i]) + '</span>') +
+    row('Potentiel', '<span class="' + cls(pot) + '">' + f(pot) + '</span>') +
+    row('Total', '<span class="' + cls(tot) + '">' + f(tot) + '</span>') +
+    row('DCA fixe (gain)', '<span class="' + cls(C.fixedGain[i]) + '">' + f(C.fixedGain[i]) + '</span>') + '</table>';
+}
+
+function renderCmp() {
+  const A = DATA.assets[state.asset];
+  let h = '<table><tr><th>Mode</th><th>investi</th><th>réalisé</th><th>potentiel</th><th>total</th><th>vs DCA fixe</th><th>A / V</th></tr>';
+  A.modes.forEach((m, k) => {
+    const C = m.cols, i = C.d.length - 1;
+    const pot = C.pos[i] * C.c[i] - C.cost[i], tot = C.proceeds[i] + C.pos[i] * C.c[i] - C.invested[i];
+    const nb = C.buyKind.filter(x => x > 0).length, ns = C.sellKind.filter(x => x > 0).length;
+    h += '<tr class="' + (k === state.mode ? 'sel' : '') + '" style="cursor:pointer" data-k="' + k + '"><td>' + m.label + '</td><td>' + f(C.invested[i], 1) + '</td><td class="' + cls(C.realized[i]) + '">' + f(C.realized[i], 1) +
+      '</td><td class="' + cls(pot) + '">' + f(pot, 1) + '</td><td class="' + cls(tot) + '">' + f(tot, 1) + '</td><td class="' + cls(tot - C.fixedGain[i]) + '">' + f(tot - C.fixedGain[i], 1) + '</td><td>' + nb + ' / ' + ns + '</td></tr>';
+  });
+  const C0 = A.modes[0].cols, e = C0.d.length - 1;
+  h += '</table><div style="color:var(--muted);font-size:11px;margin-top:4px">Base 1/jour. DCA fixe : investi ' + f(C0.d.length) + ', gain ' + f(C0.fixedGain[e], 1) + '. « vs DCA fixe » = total − gain du DCA fixe. A / V = nb d\'achats / de ventes.</div>';
+  $('cmp').innerHTML = h;
+  $('cmp').querySelectorAll('tr[data-k]').forEach(tr => tr.onclick = () => { state.mode = +tr.dataset.k; syncBtns(); render(); });
+}
+
+function renderSets() {
+  const A = DATA.assets[state.asset], [b, u] = A.sets;
+  let h = '<table><tr><th></th><th>' + b.name + '</th><th>' + u.name + '</th></tr>';
+  const sec = t => '<tr class="sec"><td colspan="3">' + t + '</td></tr>';
+  const rows = (o1, o2) => Object.keys(o1).map(k => {
+    const a = o1[k], c = o2[k], d = a !== c;
+    const fm = v => typeof v === 'number' ? (Number.isInteger(v) ? v : f(v, 2)) : v;
+    return '<tr><td>' + k + '</td><td class="' + (d ? 'diff' : '') + '">' + fm(a) + '</td><td class="' + (d ? 'diff' : '') + '">' + fm(c) + '</td></tr>';
+  }).join('');
+  h += sec('Bornes et mécanisme') + rows(b.tuning, u.tuning) + sec('ATH / moon / multiplicateurs') + rows(b.globals, u.globals) + '</table>';
+  $('sets').innerHTML = h + '<div style="color:var(--muted);font-size:11px;margin-top:4px">Orange = diffère entre Bear et Bull.</div>';
+}
+
+function applyView() {
+  const C = cur(); let a = $('vStart').value, b = $('vEnd').value;
+  if (a && b && a <= b) chart.timeScale().setVisibleRange({ from: a, to: b });
+}
+function setMonths(m) {
+  const C = cur(), end = C.d[C.d.length - 1];
+  if (!m) { $('vStart').value = C.d[0]; }
+  else { const d = new Date(end + 'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() - m); $('vStart').value = d.toISOString().slice(0, 10); }
+  $('vEnd').value = end; applyView();
+}
+function syncBtns() {
+  document.querySelectorAll('[data-asset]').forEach(b => b.classList.toggle('active', b.dataset.asset === state.asset));
+  document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('active', +b.dataset.mode === state.mode));
+}
+try {
+  Object.keys(DATA.assets).forEach(a => { const b = document.createElement('button'); b.className = 'btn'; b.textContent = a; b.dataset.asset = a; b.onclick = () => { state.asset = a; syncBtns(); render(); }; $('assetBtns').appendChild(b); });
+  DATA.assets[state.asset].modes.forEach((m, k) => { const b = document.createElement('button'); b.className = 'btn'; b.textContent = m.label; b.dataset.mode = k; b.onclick = () => { state.mode = k; syncBtns(); render(); }; $('modeBtns').appendChild(b); });
+  document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => setMonths(+b.dataset.m));
+  $('vStart').onchange = applyView; $('vEnd').onchange = applyView;
+  buildChart(); syncBtns(); render();
+} catch (e) { fail(e); }
+</script>
+</body>
+</html>

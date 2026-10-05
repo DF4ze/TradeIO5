@@ -21,7 +21,8 @@ Constantes par défaut : définies une seule fois dans `RegressiveTrendStrategy.
 - `TrendConfirmationStrategy` (`DIRECTIONAL`, scope `LOCAL`, combinaison par défaut de `DefaultLocalOpinionParamsProvider`) : 3 indicateurs `LINEAR_REGRESSION` en entrée, le `type` du signal est dérivé du `regime` (jamais redérivé du score brut).
 - `RegressiveTrendStrategy` : même score, sans hystérésis.
 - Bench `RainbowAtrRegimeBench` (test) : régimes UP/DOWN/RANGE rejoués jour par jour.
-- **Pas consommé par le Rainbow DCA ATR en production ni par le bench grandeur nature** (aucun jeu de paramètres n'est sélectionné par la Trend aujourd'hui), pas d'exposition MCP.
+- `RainbowSetSelector` + `RainbowAtrReplayMain` (rejeu comparatif au pine, cf. [`04-market-data.md`](04-market-data.md)) : Trend → jeu Bull/Bear, 3 variantes de mapping de `RANGE`. Rejeu seulement : toujours rien en production.
+- **Pas consommé par le Rainbow DCA ATR en production ni par le bench grandeur nature** (aucun jeu de paramètres n'est sélectionné par la Trend dans l'exécution quotidienne), pas d'exposition MCP.
 
 ## Hors de l'axe Trend
 
@@ -30,4 +31,4 @@ Constantes par défaut : définies une seule fois dans `RegressiveTrendStrategy.
 ## Limites connues
 
 - Un seul calculateur (pas de Trend « globale » lente en plus de la « locale » : étude et spec V1 §1 l'avaient proposé, **non implémenté**).
-- `RANGE` n'a pas de pendant dans le besoin Rainbow actuel (Bull/Bear uniquement) : mapping à définir ([`known-gaps/rainbow-dca-chantiers-ouverts.md`](../known-gaps/rainbow-dca-chantiers-ouverts.md) §2).
+- `RANGE` n'a pas de pendant dans le besoin Rainbow actuel (Bull/Bear uniquement) : mapping à trancher par comparaison des 3 variantes du rejeu (`RangeMapping`) ([`known-gaps/rainbow-dca-chantiers-ouverts.md`](../known-gaps/rainbow-dca-chantiers-ouverts.md) §2).

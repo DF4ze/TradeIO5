@@ -18,10 +18,19 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class RainbowAtrDataset {
 
-    /** Drapeaux To the moon par bougie (valeur APRÈS mise à jour de la bougie, comme les tableaux du pine). */
-    public record MoonFlags(boolean[] mode, boolean[] entry, boolean[] exit) { }
+    /**
+     * Drapeaux To the moon par bougie (valeur APRÈS mise à jour de la bougie, comme les tableaux du pine) ;
+     * {@code peak[i]} = pic suivi après la bougie i (NaN si inactif), pour reprendre l'automate en cours de série.
+     */
+    public record MoonFlags(boolean[] mode, boolean[] entry, boolean[] exit, double[] peak) {
+        /** État de l'automate après la bougie {@code i} ({@code i < 0} : état initial). */
+        public RainbowMoon.State stateAfter(int i) {
+            return i < 0 ? RainbowMoon.State.INACTIVE : new RainbowMoon.State(mode[i], peak[i]);
+        }
+    }
 
     private final long[] time;
+    private final double[] open; // facultatif (affichage) : null => clôture précédente
     private final double[] high;
     private final double[] low;
     private final double[] close;
@@ -31,11 +40,17 @@ public final class RainbowAtrDataset {
     private final Map<String, MoonFlags> moonCache = new ConcurrentHashMap<>();
 
     public RainbowAtrDataset(long[] time, double[] high, double[] low, double[] close) {
+        this(time, null, high, low, close);
+    }
+
+    /** {@code open} est purement informatif (affichage) : aucun calcul du moteur ne l'utilise. */
+    public RainbowAtrDataset(long[] time, double[] open, double[] high, double[] low, double[] close) {
         int n = close.length;
-        if (time.length != n || high.length != n || low.length != n) {
+        if (time.length != n || high.length != n || low.length != n || (open != null && open.length != n)) {
             throw new IllegalArgumentException("séries de longueurs différentes");
         }
         this.time = time;
+        this.open = open;
         this.high = high;
         this.low = low;
         this.close = close;
@@ -51,18 +66,23 @@ public final class RainbowAtrDataset {
         double[] h = new double[n];
         double[] l = new double[n];
         double[] c = new double[n];
+        double[] o = new double[n];
+        boolean hasOpen = true;
         for (int i = 0; i < n; i++) {
             MarketData m = candles.get(i);
+            hasOpen &= m.getOpen() != null;
+            o[i] = m.getOpen() == null ? Double.NaN : m.getOpen().doubleValue();
             t[i] = m.getTimestamp().toEpochMilli();
             h[i] = m.getHigh().doubleValue();
             l[i] = m.getLow().doubleValue();
             c[i] = m.getClose().doubleValue();
         }
-        return new RainbowAtrDataset(t, h, l, c);
+        return new RainbowAtrDataset(t, hasOpen ? o : null, h, l, c);
     }
 
     public int size() { return close.length; }
     public long time(int i) { return time[i]; }
+    public double open(int i) { return open != null ? open[i] : i > 0 ? close[i - 1] : close[i]; }
     public double high(int i) { return high[i]; }
     public double low(int i) { return low[i]; }
     public double close(int i) { return close[i]; }
@@ -109,9 +129,8 @@ public final class RainbowAtrDataset {
     }
 
     /**
-     * Drapeaux To the moon. Entrée : première clôture au-dessus de l'ATH (des plus hauts) de la bougie
-     * précédente, mode inactif ; pic = high de la bougie d'entrée. Sortie : clôture ≤ pic × (1 - stop%).
-     * Pas de test de sortie sur la bougie d'entrée. {@code moonOn=false} : aucun drapeau.
+     * Drapeaux To the moon de toute la série (automate {@link RainbowMoon}, ATH de la veille calculé depuis la
+     * 1re bougie). {@code moonOn=false} : aucun drapeau.
      */
     public MoonFlags moon(boolean moonOn, double trailingStopPct) {
         return moonCache.computeIfAbsent(moonOn + "|" + trailingStopPct, k -> {
@@ -119,25 +138,27 @@ public final class RainbowAtrDataset {
             boolean[] mode = new boolean[n];
             boolean[] entry = new boolean[n];
             boolean[] exit = new boolean[n];
-            boolean active = false;
-            double peak = Double.NaN;
+            double[] peak = new double[n];
+            RainbowMoon.State st = RainbowMoon.State.INACTIVE;
             for (int i = 0; i < n; i++) {
-                boolean newAthClose = i > 0 && close[i] > athRun[i - 1];
-                if (moonOn && !active && newAthClose) {
-                    active = true;
-                    peak = high[i];
-                    entry[i] = true;
-                } else if (active) {
-                    peak = Math.max(Double.isNaN(peak) ? high[i] : peak, high[i]);
-                    if (close[i] <= peak * (1 - trailingStopPct / 100)) {
-                        active = false;
-                        exit[i] = true;
-                        peak = Double.NaN;
-                    }
-                }
-                mode[i] = active;
+                RainbowMoon.Step ms = RainbowMoon.advance(st, moonOn, trailingStopPct, close[i], high[i],
+                        i > 0 ? athRun[i - 1] : Double.NaN);
+                st = ms.next();
+                mode[i] = st.active();
+                entry[i] = ms.entry();
+                exit[i] = ms.exit();
+                peak[i] = st.peak();
             }
-            return new MoonFlags(mode, entry, exit);
+            return new MoonFlags(mode, entry, exit, peak);
         });
+    }
+
+    /**
+     * Fenêtre D1 recommandée pour que l'ATR (RMA amorcée au début de la fenêtre) soit proche de celle de
+     * TradingView (calculée depuis la 1re bougie) : 10 × période ⇒ écart ≤ 0,02 % mesuré sur BTC/ETH/PAXG
+     * (5 × ⇒ jusqu'à ~2 %). Toujours au moins la période de SMA.
+     */
+    public static int recommendedWindow(int smaPeriod, int atrPeriod) {
+        return Math.max(smaPeriod, 10 * atrPeriod);
     }
 }
