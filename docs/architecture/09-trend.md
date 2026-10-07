@@ -21,7 +21,7 @@ Constantes par défaut : définies une seule fois dans `RegressiveTrendStrategy.
 - `TrendConfirmationStrategy` (`DIRECTIONAL`, scope `LOCAL`, combinaison par défaut de `DefaultLocalOpinionParamsProvider`) : 3 indicateurs `LINEAR_REGRESSION` en entrée, le `type` du signal est dérivé du `regime` (jamais redérivé du score brut).
 - `RegressiveTrendStrategy` : même score, sans hystérésis.
 - Bench `RainbowAtrRegimeBench` (test) : régimes UP/DOWN/RANGE rejoués jour par jour.
-- `RainbowSetSelector` + `RainbowAtrReplayMain` (rejeu comparatif au pine, cf. [`04-market-data.md`](04-market-data.md)) : Trend → jeu Bull/Bear, 3 variantes de mapping de `RANGE`. Rejeu seulement : toujours rien en production.
+- `RainbowSetSelector` + `RainbowAtrReplayMain` (rejeu comparatif au pine, cf. [`04-market-data.md`](04-market-data.md)) : Trend → jeu Bull/Bear, 3 variantes de mapping de `RANGE`. Rejeu seulement : toujours rien en production. `tools/pine/trend_bull_bear_v3.pine` : banc d'essai TradingView de la Trend (score multi-fenêtres + hystérésis + confirmation, prix vs SMA ± k×ATR (bande adaptée à la volatilité de l'actif), 2 régressions, Mix régression + SMA/ATR ; fond Bull/Bear, 2 barres de régime régression/SMA, stats de switchs).
 - **Pas consommé par le Rainbow DCA ATR en production ni par le bench grandeur nature** (aucun jeu de paramètres n'est sélectionné par la Trend dans l'exécution quotidienne), pas d'exposition MCP.
 
 ## Hors de l'axe Trend

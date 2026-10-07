@@ -1,0 +1,237 @@
+// © TradeIO — Trend → jeu Bull/Bear (banc d'essai visuel de l'indicateur de Trend)
+// Reproduit TrendAnalyzer (score = moyenne pondérée de tanh(pente normalisée × échelle) × r² sur 3 fenêtres,
+// hystérésis ENTER/EXIT) + variantes moins sensibles du bench RainbowAtrTrendBenchMain : seuils élargis,
+// confirmation de N jours, fenêtres longues, prix vs SMA, double Trend. Rendu : fond vert = jeu Bull, rouge = jeu Bear.
+//@version=5
+indicator("Trend Rainbow — Bull/Bear v2", overlay=true, max_labels_count=500)
+
+// ================== Paramétrage ==================
+method  = input.string("Régression", "Méthode", options=["Régression", "Prix vs SMA", "2 régressions (lente tranche, sinon rapide)", "Mix (régression + SMA)"], group="Méthode", tooltip="Mix : régression UP/DOWN décisive = elle donne le régime ; régression en RANGE = le régime de la SMA ; le 1er des deux à changer de côté fait basculer (RANGE n'est pas un switch, la dernière direction décisive de la régression est mémorisée).")
+presetS = input.string("CUSTOM", "Preset régression (rapide)", options=["Prod actuel (7/14/30, e=1/6, x=0)", "Large (14/30/60, e=0.30, confirm 7j)", "Lent (30/60/120, e=1/6)", "CUSTOM"], group="Méthode", tooltip="Prod/Large/Lent = valeurs figées : le groupe 'Custom' est IGNORÉ. Passer sur CUSTOM pour que fenêtres, échelle, ENTER, EXIT et confirmation s'appliquent (valeurs par défaut du groupe Custom = preset Large).")
+rangeMap = input.string("Garder le jeu précédent", "RANGE → jeu", options=["Garder le jeu précédent", "→ Bear", "→ Bull"], group="Méthode")
+
+cW1 = input.int(14, "Fenêtre courte", minval=2, group="Custom (régression rapide)", tooltip="Utilisé seulement si Preset régression = CUSTOM")
+cW2 = input.int(30, "Fenêtre moyenne", minval=2, group="Custom (régression rapide)", tooltip="Utilisé seulement si Preset régression = CUSTOM")
+cW3 = input.int(60, "Fenêtre longue", minval=2, group="Custom (régression rapide)", tooltip="Utilisé seulement si Preset régression = CUSTOM")
+cScale  = input.float(400.0, "Échelle de pente (slopeScaleFactor)", step=50, group="Custom (régression rapide)", tooltip="Utilisé seulement si Preset régression = CUSTOM")
+cEnter  = input.float(0.30, "Seuil ENTER (UP si score > e, DOWN si < -e)", step=0.05, group="Custom (régression rapide)", tooltip="Utilisé seulement si Preset régression = CUSTOM")
+cExit   = input.float(0.0, "Seuil EXIT (UP→RANGE si score < x ; négatif = plus tolérant)", step=0.05, group="Custom (régression rapide)", tooltip="Utilisé seulement si Preset régression = CUSTOM")
+cConfirm = input.int(7, "Confirmation (jours)", minval=1, group="Custom (régression rapide)", tooltip="Utilisé seulement si Preset régression = CUSTOM")
+
+wt1 = input.float(1.0, "Poids courte", group="Poids des fenêtres (tous presets)")
+wt2 = input.float(1.0, "Poids moyenne", group="Poids des fenêtres (tous presets)")
+wt3 = input.float(1.0, "Poids longue", group="Poids des fenêtres (tous presets)")
+
+sW1 = input.int(30, "Fenêtre courte", minval=2, group="Double : Trend lente")
+sW2 = input.int(90, "Fenêtre moyenne", minval=2, group="Double : Trend lente")
+sW3 = input.int(180, "Fenêtre longue", minval=2, group="Double : Trend lente")
+sEnter = input.float(0.45, "Seuil ENTER", step=0.05, group="Double : Trend lente")
+sExit  = input.float(0.0, "Seuil EXIT", step=0.05, group="Double : Trend lente")
+sConfirm = input.int(1, "Confirmation (jours)", minval=1, group="Double : Trend lente")
+
+maLen  = input.int(100, "SMA période", minval=2, group="Prix vs SMA")
+maBand = input.float(6.0, "Bande ± %", step=0.5, group="Prix vs SMA") / 100.0
+
+startT  = input.time(timestamp("2024-06-10 00:00 +0000"), "Compter les stats depuis", group="Affichage")
+bgTr    = input.int(88, "Transparence du fond", minval=0, maxval=100, group="Affichage")
+showRaw = input.bool(true, "Afficher les 2 barres de régime (régression + SMA), fixées en bas de la fenêtre", group="Affichage")
+barLayout = input.string("Imbriquées en bas", "Disposition des barres", options=["Imbriquées en bas", "Régression en bas / SMA en haut"], group="Affichage", tooltip="Imbriquées : carré extérieur = régression, carré intérieur = SMA (si les deux sont d'accord la barre est unie ; un coeur d'une autre couleur = désaccord). L'autre choix sépare : régression en bas, SMA en haut de la fenêtre.")
+showTbl = input.bool(true, "Afficher le tableau de stats", group="Affichage")
+
+// ================== Fonctions ==================
+f_tanh(x) =>
+    x2 = math.max(-20.0, math.min(20.0, 2.0 * x))
+    (math.exp(x2) - 1.0) / (math.exp(x2) + 1.0)
+
+// signal d'une fenêtre : tanh(pente normalisée × échelle) × r²
+f_sig(len, scale) =>
+    slope = ta.linreg(close, len, 0) - ta.linreg(close, len, 1)
+    ns = slope / ta.sma(close, len)
+    c = nz(ta.correlation(close, bar_index, len))
+    f_tanh(ns * scale) * c * c
+
+f_score(w1, w2, w3, scale) =>
+    s1 = f_sig(w1, scale)
+    s2 = f_sig(w2, scale)
+    s3 = f_sig(w3, scale)
+    wsum = wt1 + wt2 + wt3
+    wsum == 0 ? 0.0 : math.max(-1.0, math.min(1.0, (wt1 * s1 + wt2 * s2 + wt3 * s3) / wsum))
+
+// hystérésis ENTER/EXIT + confirmation de N jours ; 1 = UP, -1 = DOWN, 0 = RANGE (état propre à chaque appel)
+f_regime(score, enter, exitT, confirm) =>
+    var int raw = 0
+    var int applied = 0
+    var int diff = 0
+    if raw == 1 and score < exitT
+        raw := 0
+    else if raw == -1 and score > -exitT
+        raw := 0
+    else if raw == 0
+        if score > enter
+            raw := 1
+        else if score < -enter
+            raw := -1
+    if raw == applied
+        diff := 0
+    else
+        diff += 1
+        if diff >= confirm
+            applied := raw
+            diff := 0
+    applied
+
+f_priceMa(len, band, sma) =>
+    var int cur = 0
+    if close > sma * (1 + band)
+        cur := 1
+    else if close < sma * (1 - band)
+        cur := -1
+    cur
+
+// ================== Réglages effectifs ==================
+int w1 = cW1
+int w2 = cW2
+int w3 = cW3
+float scale = cScale
+float enterT = cEnter
+float exitT = cExit
+int conf = cConfirm
+if presetS == "Prod actuel (7/14/30, e=1/6, x=0)"
+    w1 := 7
+    w2 := 14
+    w3 := 30
+    scale := 400.0
+    enterT := 1.0 / 6.0
+    exitT := 0.0
+    conf := 1
+else if presetS == "Large (14/30/60, e=0.30, confirm 7j)"
+    w1 := 14
+    w2 := 30
+    w3 := 60
+    scale := 400.0
+    enterT := 0.30
+    exitT := 0.0
+    conf := 7
+else if presetS == "Lent (30/60/120, e=1/6)"
+    w1 := 30
+    w2 := 60
+    w3 := 120
+    scale := 400.0
+    enterT := 1.0 / 6.0
+    exitT := 0.0
+    conf := 1
+
+// ================== Calcul (tous les appels à chaque barre) ==================
+fastScore = f_score(w1, w2, w3, scale)
+slowScore = f_score(sW1, sW2, sW3, scale)
+fastReg   = f_regime(fastScore, enterT, exitT, conf)
+slowReg   = f_regime(slowScore, sEnter, sExit, sConfirm)
+maVal     = ta.sma(close, maLen)
+maReg     = f_priceMa(maLen, maBand, maVal)
+
+warm = math.max(math.max(w1, w2), w3)
+warmSlow = math.max(math.max(sW1, sW2), sW3)
+bool ready = bar_index >= math.max(warm, warmSlow) - 1
+if method == "Prix vs SMA"
+    ready := bar_index >= maLen - 1
+else if method == "Régression"
+    ready := bar_index >= warm - 1
+else if method == "Mix (régression + SMA)"
+    ready := bar_index >= math.max(warm, maLen) - 1
+
+// ---- Mix : régression (dernière direction décisive mémorisée) + SMA ; le 1er à changer de côté fait basculer
+var int regDir = 0      // dernière direction décisive (UP/DOWN) de la régression, conservée à travers les RANGE
+var int outMix = 0
+var int mixSrc = 0     // 1 = régression, 2 = SMA (qui pilote le régime Mix)
+if fastReg != 0
+    regDir := fastReg
+regEvent = fastReg != 0 and regDir != nz(regDir[1])
+smaEvent = maReg != 0 and maReg != nz(maReg[1])
+// règles à plat (priorité : régression qui bascule > SMA qui bascule ; RANGE de la régression -> SMA)
+bool rngSma = fastReg == 0 and maReg != 0
+bool regSw  = fastReg != 0 and regEvent
+bool smaSw  = fastReg != 0 and not regEvent and smaEvent
+if rngSma
+    outMix := maReg
+    mixSrc := 2
+if regSw
+    outMix := regDir
+    mixSrc := 1
+if smaSw
+    outMix := maReg
+    mixSrc := 2
+if outMix == 0 and fastReg != 0
+    outMix := fastReg
+    mixSrc := 1
+
+int regime = 0
+if method == "Régression"
+    regime := fastReg
+else if method == "Prix vs SMA"
+    regime := maReg
+else if method == "2 régressions (lente tranche, sinon rapide)"
+    regime := slowReg != 0 ? slowReg : fastReg
+else
+    regime := outMix
+
+// jeu actif : 1 = Bull, 0 = Bear (Bear au démarrage / tant que la Trend n'est pas définie)
+var int setIdx = 0
+if ready
+    if regime == 1
+        setIdx := 1
+    else if regime == -1
+        setIdx := 0
+    else if rangeMap == "→ Bear"
+        setIdx := 0
+    else if rangeMap == "→ Bull"
+        setIdx := 1
+
+// ================== Stats ==================
+inRange = time >= startT
+var int switches = 0
+var int barsIn = 0
+var int barsBull = 0
+var int sinceSwitch = 0
+switched = ready and setIdx != nz(setIdx[1], setIdx)
+if inRange
+    barsIn += 1
+    barsBull += setIdx == 1 ? 1 : 0
+    if barsIn > 1 and switched
+        switches += 1
+sinceSwitch := switched ? 0 : sinceSwitch + 1
+
+// ================== Rendu ==================
+bgcolor(ready ? (setIdx == 1 ? color.new(color.green, bgTr) : color.new(color.red, bgTr)) : na)
+plotshape(switched and setIdx == 1, "→ Bull", shape.triangleup, location.belowbar, color.green, size=size.small)
+plotshape(switched and setIdx == 0, "→ Bear", shape.triangledown, location.abovebar, color.red, size=size.small)
+plot(method != "Régression" and ready ? maVal : na, "SMA", color.new(color.gray, 20))
+regCol = bar_index < warm - 1 ? na : fastReg == 1 ? color.green : fastReg == -1 ? color.red : color.gray
+smaOk = bar_index >= maLen - 1
+smaCol = smaOk ? (maReg == 1 ? color.green : maReg == -1 ? color.red : color.gray) : na
+nested = barLayout == "Imbriquées en bas"
+plotshape(showRaw, "barre régression (bas)", shape.square, location.bottom, regCol, size=size.small)
+plotshape(showRaw and nested, "barre SMA (centre)", shape.square, location.bottom, smaCol, size=size.tiny)
+plotshape(showRaw and not nested, "barre SMA (haut)", shape.square, location.top, smaCol, size=size.small)
+plot(fastScore, "score rapide", display=display.data_window)
+plot(slowScore, "score lent", display=display.data_window)
+plot(setIdx, "jeu (1=Bull)", display=display.data_window)
+plot(mixSrc, "Mix : source (1=régression, 2=SMA)", display=display.data_window)
+
+var table tbl = table.new(position.top_right, 2, 8, bgcolor=color.new(color.black, 20), border_width=1)
+if showTbl and barstate.islast
+    table.cell(tbl, 0, 0, "Jeu actif", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 0, setIdx == 1 ? "BULL" : "BEAR", text_color=setIdx == 1 ? color.green : color.red, text_size=size.small)
+    table.cell(tbl, 0, 1, "Régime (régression / SMA)", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 1, (fastReg == 1 ? "UP" : fastReg == -1 ? "DOWN" : "RANGE") + " / " + (maReg == 1 ? "UP" : maReg == -1 ? "DOWN" : "—"), text_color=color.white, text_size=size.small)
+    table.cell(tbl, 0, 2, "Switchs (depuis la date)", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 2, str.tostring(switches), text_color=color.white, text_size=size.small)
+    table.cell(tbl, 0, 3, "Durée moy. segment (j)", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 3, switches > 0 ? str.tostring(barsIn / (switches + 1), "#.0") : "—", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 0, 4, "% du temps en Bull", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 4, barsIn > 0 ? str.tostring(100.0 * barsBull / barsIn, "#") + " %" : "—", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 0, 5, "Jours depuis le dernier switch", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 5, str.tostring(sinceSwitch), text_color=color.white, text_size=size.small)
+    table.cell(tbl, 0, 7, "Méthode active", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 7, method, text_color=color.yellow, text_size=size.small)
+    table.cell(tbl, 0, 6, "Mix : source du régime", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 6, mixSrc == 1 ? "régression" : mixSrc == 2 ? "SMA" : "—", text_color=color.white, text_size=size.small)

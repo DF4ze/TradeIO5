@@ -42,3 +42,7 @@ Intention (pas de code) : `riskCursor` (0-10, persisté, orphelin) comme gain su
 ## 5. Wallet réel et exécution
 
 Hors Rainbow : branchement `WalletSnapshot`, sizing réel, composant d'exécution (dry-run obligatoire avant activation) — [`decision-to-order-gap.md`](decision-to-order-gap.md).
+
+## 6. Preset Bull PAXG : trop de ventes
+
+Constat (rejeu, 2026-10-05) : avec le preset Bull de PAXG, les ventes sont trop fréquentes ou trop grosses, le bag ne gonfle pas et le gain reste minime. Pistes : ne vendre que sur les gros pics haussiers (seuil de vente plus haut / UP3), ou réduire drastiquement la fraction vendue. À comparer au rejeu (`RainbowAtrReplayMain`) avant de modifier `RainbowAtrPresets`.
