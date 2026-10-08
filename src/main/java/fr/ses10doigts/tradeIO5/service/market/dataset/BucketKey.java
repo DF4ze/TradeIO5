@@ -2,10 +2,12 @@ package fr.ses10doigts.tradeIO5.service.market.dataset;
 
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
-import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 
 /**
- * Identifie un flux natif unique : symbole + TimeFrame + source + paramètre provider.
+ * Identifie un flux natif unique : symbole + source + paramètre provider. Le TimeFrame demandé n'en
+ * fait PAS partie : le {@link Bucket} stocke toujours du H1 et agrège à la volée, donc tous les TF
+ * demandés (H1, D1, W1...) d'un même symbole/source partagent un seul Bucket, une seule fraîcheur
+ * ({@code lastUpdate}) et un seul refetch par bougie H1.
  * <p>
  * Contrairement à {@link MarketDatasetRequest}, ne contient PAS {@code endTime} ni
  * {@code lookBack} : ces deux champs décrivent la fenêtre demandée par un appelant à un
@@ -16,7 +18,6 @@ import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
  */
 public record BucketKey(
         String symbol,
-        TimeFrame timeFrame,
         MarketDataSource source,
         Object providerParam
 ) {
@@ -24,7 +25,6 @@ public record BucketKey(
     static BucketKey from(MarketDatasetRequest request) {
         return new BucketKey(
                 request.symbol(),
-                request.timeFrame(),
                 request.source(),
                 request.providerParam()
         );

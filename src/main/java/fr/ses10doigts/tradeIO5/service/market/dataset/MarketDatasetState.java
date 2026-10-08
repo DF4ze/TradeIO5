@@ -17,6 +17,12 @@ public class MarketDatasetState {
     private final Map<Instant, Integer> hasDataGap;
     private Instant lastUpdate;
 
+    /**
+     * Plus grande profondeur (en bougies de base) déjà demandée en fetch complet : tant qu'une
+     * requête n'en demande pas davantage, les refetchs peuvent être incrémentaux.
+     */
+    private int fetchedDepth;
+
     public MarketDatasetState(String pair, int maxSize) {
         this.pair = pair;
         this.maxSize = maxSize;

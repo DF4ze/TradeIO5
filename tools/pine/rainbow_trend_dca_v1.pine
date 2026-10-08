@@ -1,0 +1,720 @@
+// © TradeIO — Méga-indicateur : Trend (Mix régression + SMA/ATR) pilote le paramétrage du Rainbow DCA ATR (jeu Bear / jeu Bull)
+// Trend = trend_bull_bear_v3.pine ; Rainbow = rainbow_dca_v4_atr_moon.pine (logique fidèle à RainbowAtrStrategy/RainbowAtrReplay).
+// Chaque bougie : Trend -> jeu actif (Bull/Bear) -> bornes, tuning, ATH et To the moon de CE jeu. L'état de la machine (armements, cooldown, verrou, bag, réserve moon) est CONSERVÉ au changement de jeu.
+//@version=5
+indicator("Rainbow DCA × Trend v1", overlay=true, max_lines_count=10, max_labels_count=500)
+
+// ================== TREND : paramétrage ==================
+method  = input.string("Mix (régression + SMA/ATR)", "Méthode", options=["Régression", "Prix vs SMA (bande ATR)", "2 régressions (lente tranche, sinon rapide)", "Mix (régression + SMA/ATR)"], group="Trend — méthode", tooltip="Mix : régression UP/DOWN décisive = elle donne le régime ; régression en RANGE = le régime de la SMA ; le 1er des deux à changer de côté fait basculer (RANGE n'est pas un switch, la dernière direction décisive de la régression est mémorisée).")
+presetS = input.string("CUSTOM", "Preset régression (rapide)", options=["Prod actuel (7/14/30, e=1/6, x=0)", "Large (14/30/60, e=0.30, confirm 7j)", "Lent (30/60/120, e=1/6)", "CUSTOM"], group="Trend — méthode", tooltip="Prod/Large/Lent = valeurs figées : le groupe 'Trend — régression' est IGNORÉ. CUSTOM = fenêtres, échelle, ENTER, EXIT et confirmation s'appliquent.")
+rangeMap = input.string("Garder le jeu précédent", "RANGE → jeu", options=["Garder le jeu précédent", "→ Bear", "→ Bull"], group="Trend — méthode")
+
+cW1 = input.int(14, "Fenêtre courte", minval=2, group="Trend — régression")
+cW2 = input.int(30, "Fenêtre moyenne", minval=2, group="Trend — régression")
+cW3 = input.int(60, "Fenêtre longue", minval=2, group="Trend — régression")
+cScale  = input.float(400.0, "Échelle de pente (slopeScaleFactor)", step=50, group="Trend — régression")
+cEnter  = input.float(0.30, "Seuil ENTER", step=0.05, group="Trend — régression")
+cExit   = input.float(0.10, "Seuil EXIT (UP→RANGE si score < x)", step=0.05, group="Trend — régression")
+cConfirm = input.int(10, "Confirmation (jours)", minval=1, group="Trend — régression")
+wt1 = input.float(1.0, "Poids courte", group="Trend — régression")
+wt2 = input.float(1.0, "Poids moyenne", group="Trend — régression")
+wt3 = input.float(1.0, "Poids longue", group="Trend — régression")
+
+sW1 = input.int(30, "Fenêtre courte", minval=2, group="Trend — double (2 régressions)")
+sW2 = input.int(90, "Fenêtre moyenne", minval=2, group="Trend — double (2 régressions)")
+sW3 = input.int(180, "Fenêtre longue", minval=2, group="Trend — double (2 régressions)")
+sEnter = input.float(0.45, "Seuil ENTER", step=0.05, group="Trend — double (2 régressions)")
+sExit  = input.float(0.0, "Seuil EXIT", step=0.05, group="Trend — double (2 régressions)")
+sConfirm = input.int(1, "Confirmation (jours)", minval=1, group="Trend — double (2 régressions)")
+
+maLen  = input.int(100, "SMA période", minval=2, group="Trend — prix vs SMA (bande ATR)")
+atrLen = input.int(5, "ATR période", minval=2, group="Trend — prix vs SMA (bande ATR)")
+wickDn = input.bool(true, "Franchissement vers le BAS sur la mèche (low) ; désactivé = clôture", group="Trend — prix vs SMA (bande ATR)")
+wickUp = input.bool(false, "Franchissement vers le HAUT sur la mèche (high) ; désactivé = clôture", group="Trend — prix vs SMA (bande ATR)")
+atrMult = input.float(1.25, "Bande = SMA ± k × ATR (k)", step=0.25, minval=0.1, group="Trend — prix vs SMA (bande ATR)")
+
+startT  = input.time(timestamp("2024-06-10 00:00 +0000"), "Compter les stats Trend depuis", group="Trend — affichage")
+bgTr    = input.int(90, "Transparence du fond", minval=0, maxval=100, group="Trend — affichage")
+showRaw = input.bool(true, "Afficher les 2 barres de régime (régression + SMA) tout en bas", group="Trend — affichage")
+showSma = input.bool(false, "Afficher SMA ± k×ATR de la Trend", group="Trend — affichage")
+showTbl = input.bool(true, "Afficher le tableau Trend", group="Trend — affichage")
+
+// ================== RAINBOW : choix des jeux Bear / Bull ==================
+assetSel = input.string("Auto", "Actif", options=["Auto", "BTC", "ETH", "PAXG", "Autre (Perso Generic)"], group="Rainbow — jeux", tooltip="Auto : détecté depuis le symbole du graphique (BTC / ETH / PAXG, sinon Perso Generic).")
+bearSel = input.string("Auto", "Jeu Bear", options=["Auto", "Perso Generic (tous actifs)", "BTC Bench global", "BTC Bench global - Tuned Bull", "BTC Perso Bear", "BTC Perso Bull", "ETH Bench global", "ETH Perso Bear Tuned", "ETH Perso Bull Tuned", "PAXG Bench global", "PAXG Perso Bear", "PAXG Perso Bull"], group="Rainbow — jeux", tooltip="Auto : BTC Perso Bear / ETH Perso Bear Tuned / PAXG Perso Bear.")
+bullSel = input.string("Auto", "Jeu Bull", options=["Auto", "Perso Generic (tous actifs)", "BTC Bench global", "BTC Bench global - Tuned Bull", "BTC Perso Bear", "BTC Perso Bull", "ETH Bench global", "ETH Perso Bear Tuned", "ETH Perso Bull Tuned", "PAXG Bench global", "PAXG Perso Bear", "PAXG Perso Bull"], group="Rainbow — jeux", tooltip="Auto : BTC Perso Bull / ETH Perso Bull Tuned / PAXG Perso Bull.")
+
+// Constantes non tunées (RainbowAtrParamSet partagées)
+p_multX2        = input.float(2.0,  "Mult zone X2",   group="Rainbow — constantes")
+p_multX1        = input.float(1.0,  "Mult zone X1",   group="Rainbow — constantes")
+p_multX0_5      = input.float(0.5,  "Mult zone X0.5", group="Rainbow — constantes")
+p_multTriggered = input.float(3.0,  "Mult achat quand ARMÉ se déclenche (EXTREME_BAS)", group="Rainbow — constantes")
+p_baseAmount    = input.float(1.0,  "Base amount ($)", group="Rainbow — constantes")
+
+showSize   = input.bool(true, "Afficher la taille de position (histogramme en bas)", group="Taille de position")
+sizeMetric = input.string("Valeur de marché", "Métrique", options=["Valeur de marché", "Coût de la position", "Quantité"], group="Taille de position")
+sizeHeightPct = input.float(7.5, "Hauteur de l'histogramme (% de la hauteur du graphique)", minval=5, maxval=60, step=5, group="Taille de position")
+sizeCols = input.int(100, "Colonnes", minval=20, maxval=250, group="Taille de position")
+sizeRows = input.int(12, "Lignes", minval=4, maxval=30, group="Taille de position")
+sizeUpColor   = input.color(color.new(color.green, 55), "Couleur — achat", group="Taille de position")
+sizeDownColor = input.color(color.new(color.red, 55), "Couleur — vente", group="Taille de position")
+sizeFlatColor = input.color(color.new(color.gray, 65), "Couleur — inchangée", group="Taille de position")
+trBarPct = input.float(1.5, "Hauteur de chaque barre de régime Trend (% hauteur)", minval=0.5, maxval=5, step=0.25, group="Taille de position", tooltip="Les 2 barres de régime (régression tout en bas, SMA au-dessus) sont dessinées dans le même tableau que l'histogramme (ancré en pixels) : plus de chevauchement.")
+sizeMarginR = input.float(0.0, "Marge droite (% largeur ; négatif = étire l'histogramme)", minval=-60, maxval=40, step=1, group="Taille de position", tooltip="Largeur laissée vide à droite de l'histogramme (échelle des prix + marge droite du graphique) : à ajuster pour que la dernière colonne tombe sous la dernière bougie. L'histogramme couvre la plage visible de la 1re à la dernière bougie.")
+tableSpacer = input.int(4, "Lignes vides sous le tableau", minval=0, maxval=20, group="Taille de position")
+
+// ================== TREND : fonctions ==================
+f_tanh(x) =>
+    x2 = math.max(-20.0, math.min(20.0, 2.0 * x))
+    (math.exp(x2) - 1.0) / (math.exp(x2) + 1.0)
+
+f_sig(len, scale) =>
+    slope = ta.linreg(close, len, 0) - ta.linreg(close, len, 1)
+    ns = slope / ta.sma(close, len)
+    c = nz(ta.correlation(close, bar_index, len))
+    f_tanh(ns * scale) * c * c
+
+f_score(w1, w2, w3, scale) =>
+    s1 = f_sig(w1, scale)
+    s2 = f_sig(w2, scale)
+    s3 = f_sig(w3, scale)
+    wsum = wt1 + wt2 + wt3
+    wsum == 0 ? 0.0 : math.max(-1.0, math.min(1.0, (wt1 * s1 + wt2 * s2 + wt3 * s3) / wsum))
+
+f_regime(score, enter, exitT, confirm) =>
+    var int raw = 0
+    var int applied = 0
+    var int diff = 0
+    if raw == 1 and score < exitT
+        raw := 0
+    else if raw == -1 and score > -exitT
+        raw := 0
+    else if raw == 0
+        if score > enter
+            raw := 1
+        else if score < -enter
+            raw := -1
+    if raw == applied
+        diff := 0
+    else
+        diff += 1
+        if diff >= confirm
+            applied := raw
+            diff := 0
+    applied
+
+f_priceAtr(sma, atr, k, wDn, wUp) =>
+    var int cur = 0
+    dnPx = wDn ? low : close
+    upPx = wUp ? high : close
+    dnHit = dnPx < sma - k * atr
+    upHit = upPx > sma + k * atr
+    if dnHit and upHit
+        cur := close >= sma ? 1 : -1
+    else if upHit
+        cur := 1
+    else if dnHit
+        cur := -1
+    cur
+
+// ================== TREND : réglages effectifs ==================
+int w1 = cW1
+int w2 = cW2
+int w3 = cW3
+float scale = cScale
+float enterT = cEnter
+float exitT = cExit
+int conf = cConfirm
+if presetS == "Prod actuel (7/14/30, e=1/6, x=0)"
+    w1 := 7
+    w2 := 14
+    w3 := 30
+    scale := 400.0
+    enterT := 1.0 / 6.0
+    exitT := 0.0
+    conf := 1
+else if presetS == "Large (14/30/60, e=0.30, confirm 7j)"
+    w1 := 14
+    w2 := 30
+    w3 := 60
+    scale := 400.0
+    enterT := 0.30
+    exitT := 0.0
+    conf := 7
+else if presetS == "Lent (30/60/120, e=1/6)"
+    w1 := 30
+    w2 := 60
+    w3 := 120
+    scale := 400.0
+    enterT := 1.0 / 6.0
+    exitT := 0.0
+    conf := 1
+
+// ================== TREND : calcul ==================
+fastScore = f_score(w1, w2, w3, scale)
+slowScore = f_score(sW1, sW2, sW3, scale)
+fastReg   = f_regime(fastScore, enterT, exitT, conf)
+slowReg   = f_regime(slowScore, sEnter, sExit, sConfirm)
+maVal     = ta.sma(close, maLen)
+atrVal    = ta.atr(atrLen)
+maUp      = maVal + atrMult * atrVal
+maDn      = maVal - atrMult * atrVal
+maReg     = f_priceAtr(maVal, atrVal, atrMult, wickDn, wickUp)
+
+warm = math.max(math.max(w1, w2), w3)
+warmSlow = math.max(math.max(sW1, sW2), sW3)
+bool ready = bar_index >= math.max(warm, warmSlow) - 1
+if method == "Prix vs SMA (bande ATR)"
+    ready := bar_index >= math.max(maLen, atrLen) - 1
+else if method == "Régression"
+    ready := bar_index >= warm - 1
+else if method == "Mix (régression + SMA/ATR)"
+    ready := bar_index >= math.max(math.max(warm, maLen), atrLen) - 1
+
+var int regDir = 0
+var int outMix = 0
+var int mixSrc = 0
+if fastReg != 0
+    regDir := fastReg
+regEvent = fastReg != 0 and regDir != nz(regDir[1])
+smaEvent = maReg != 0 and maReg != nz(maReg[1])
+bool rngSma = fastReg == 0 and maReg != 0
+bool regSw  = fastReg != 0 and regEvent
+bool smaSw  = fastReg != 0 and not regEvent and smaEvent
+if rngSma
+    outMix := maReg
+    mixSrc := 2
+if regSw
+    outMix := regDir
+    mixSrc := 1
+if smaSw
+    outMix := maReg
+    mixSrc := 2
+if outMix == 0 and fastReg != 0
+    outMix := fastReg
+    mixSrc := 1
+
+int regime = 0
+if method == "Régression"
+    regime := fastReg
+else if method == "Prix vs SMA (bande ATR)"
+    regime := maReg
+else if method == "2 régressions (lente tranche, sinon rapide)"
+    regime := slowReg != 0 ? slowReg : fastReg
+else
+    regime := outMix
+
+// jeu actif : 1 = Bull, 0 = Bear (Bear tant que la Trend n'est pas définie)
+var int setIdx = 0
+if ready
+    if regime == 1
+        setIdx := 1
+    else if regime == -1
+        setIdx := 0
+    else if rangeMap == "→ Bear"
+        setIdx := 0
+    else if rangeMap == "→ Bull"
+        setIdx := 1
+
+// ================== TREND : stats + rendu ==================
+inRange = time >= startT
+var int switches = 0
+var int barsIn = 0
+var int barsBull = 0
+var int sinceSwitch = 0
+switched = ready and setIdx != nz(setIdx[1], setIdx)
+if inRange
+    barsIn += 1
+    barsBull += setIdx == 1 ? 1 : 0
+    if barsIn > 1 and switched
+        switches += 1
+sinceSwitch := switched ? 0 : sinceSwitch + 1
+
+bgcolor(ready ? (setIdx == 1 ? color.new(color.green, bgTr) : color.new(color.red, bgTr)) : na)
+plotshape(switched and setIdx == 1, "→ Bull", shape.triangleup, location.belowbar, color.green, size=size.small)
+plotshape(switched and setIdx == 0, "→ Bear", shape.triangledown, location.abovebar, color.red, size=size.small)
+trSmaShown = showSma and method != "Régression" and method != "2 régressions (lente tranche, sinon rapide)" and ready
+plot(trSmaShown ? maVal : na, "Trend SMA", color.new(color.gray, 20))
+plot(trSmaShown ? maUp : na, "Trend SMA + k×ATR", color.new(color.green, 55), style=plot.style_circles)
+plot(trSmaShown ? maDn : na, "Trend SMA − k×ATR", color.new(color.red, 55), style=plot.style_circles)
+plot(fastScore, "score rapide", display=display.data_window)
+plot(setIdx, "jeu (1=Bull)", display=display.data_window)
+plot(mixSrc, "Mix : source (1=régression, 2=SMA)", display=display.data_window)
+
+var table tbl = table.new(position.top_right, 2, 7, bgcolor=color.new(color.black, 20), border_width=1)
+if showTbl and barstate.islast
+    table.cell(tbl, 0, 0, "Jeu actif", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 0, setIdx == 1 ? "BULL" : "BEAR", text_color=setIdx == 1 ? color.green : color.red, text_size=size.small)
+    table.cell(tbl, 0, 1, "Régime (régression / SMA)", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 1, (fastReg == 1 ? "UP" : fastReg == -1 ? "DOWN" : "RANGE") + " / " + (maReg == 1 ? "UP" : maReg == -1 ? "DOWN" : "—"), text_color=color.white, text_size=size.small)
+    table.cell(tbl, 0, 2, "Switchs (depuis la date)", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 2, str.tostring(switches), text_color=color.white, text_size=size.small)
+    table.cell(tbl, 0, 3, "Durée moy. segment (j)", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 3, switches > 0 ? str.tostring(barsIn / (switches + 1), "#.0") : "—", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 0, 4, "% du temps en Bull", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 4, barsIn > 0 ? str.tostring(100.0 * barsBull / barsIn, "#") + " %" : "—", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 0, 5, "Jours depuis le dernier switch", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 5, str.tostring(sinceSwitch), text_color=color.white, text_size=size.small)
+    table.cell(tbl, 0, 6, "Mix : source du régime", text_color=color.white, text_size=size.small)
+    table.cell(tbl, 1, 6, mixSrc == 1 ? "régression" : mixSrc == 2 ? "SMA" : "—", text_color=color.white, text_size=size.small)
+
+// ================== RAINBOW : presets (tuple de 29 paramètres) ==================
+// Ordre : smaP, atrP, down2, down1, up1, up2, up3, buyReentry, sellReentry (0=FIXED_DELAY,1=IMMEDIATE,2=TRAILING_STOP), trailBuy%, trailSell%, cooldown, fixedDelay, sellFraction,
+//         allowSellCd, cooldownAfterSellOn, blockBuy, athOn, athRefDdBuy%, athRefDdSell%, athBuyMin, athBuyMax, athSellMax, athSellMin, moonOn, moonReserve%, moonRatchet, moonTrail%, moonStopSell%
+f_preset(name) =>
+    int smaP = 36
+    int atrP = 14
+    float d2 = 1.0
+    float d1 = 0.0
+    float u1 = 0.0
+    float u2 = 0.0
+    float u3 = 2.5
+    string bRe = "TRAILING_STOP"
+    string sRe = "TRAILING_STOP"
+    float trB = 3.0
+    float trS = 5.0
+    int cd = 10
+    int fd = 15
+    float sf = 0.2
+    bool alCd = false
+    bool cdOn = true
+    bool blk = true
+    bool aOn = true
+    float rB = 60.0
+    float rS = 30.0
+    float bMin = 0.5
+    float bMax = 4.0
+    float sMax = 4.0
+    float sMin = 1.0
+    bool mOn = true
+    float mRes = 30.0
+    bool mRat = false
+    float mTr = 9.0
+    float mStop = 100.0
+    if name == "BTC Bench global"
+        smaP := 50, atrP := 21, d2 := 5.0, d1 := 0.5, u1 := 2.0, u2 := 3.0, u3 := 3.5
+        bRe := "TRAILING_STOP", sRe := "FIXED_DELAY", trB := 3.0, trS := 5.0, cd := 1, fd := 15, sf := 0.25
+        alCd := false, cdOn := true, blk := true
+        aOn := true, rB := 30.0, rS := 15.0, bMin := 0.25, bMax := 4.0, sMax := 1.0, sMin := 1.0
+        mOn := false, mRes := 50.0, mRat := false, mTr := 15.0, mStop := 100.0
+    else if name == "BTC Bench global - Tuned Bull"
+        smaP := 50, atrP := 21, d2 := 3.5, d1 := 1.5, u1 := 2.0, u2 := 2.0, u3 := 3.5
+        bRe := "TRAILING_STOP", sRe := "TRAILING_STOP", trB := 3.0, trS := 5.0, cd := 1, fd := 15, sf := 0.25
+        alCd := false, cdOn := true, blk := true
+        aOn := true, rB := 30.0, rS := 15.0, bMin := 0.25, bMax := 4.0, sMax := 2.0, sMin := 1.0
+        mOn := false, mRes := 0.0, mRat := false, mTr := 15.0, mStop := 100.0
+    else if name == "BTC Perso Bear"
+        smaP := 36, atrP := 14, d2 := 2.5, d1 := 0.0, u1 := 0.0, u2 := 0.0, u3 := 2.5
+        bRe := "TRAILING_STOP", sRe := "TRAILING_STOP", trB := 3.0, trS := 5.0, cd := 10, fd := 15, sf := 0.3
+        alCd := false, cdOn := true, blk := true
+        aOn := true, rB := 60.0, rS := 30.0, bMin := 0.5, bMax := 4.0, sMax := 4.0, sMin := 1.0
+        mOn := true, mRes := 30.0, mRat := false, mTr := 9.0, mStop := 100.0
+    else if name == "BTC Perso Bull"
+        smaP := 36, atrP := 14, d2 := 1.0, d1 := 0.0, u1 := 0.0, u2 := 0.0, u3 := 2.5
+        bRe := "TRAILING_STOP", sRe := "TRAILING_STOP", trB := 3.0, trS := 5.0, cd := 10, fd := 15, sf := 0.2
+        alCd := false, cdOn := true, blk := true
+        aOn := true, rB := 60.0, rS := 30.0, bMin := 0.5, bMax := 4.0, sMax := 2.0, sMin := 1.0
+        mOn := true, mRes := 30.0, mRat := false, mTr := 9.0, mStop := 100.0
+    else if name == "ETH Bench global"
+        smaP := 36, atrP := 21, d2 := 4.0, d1 := 0.5, u1 := 2.0, u2 := 3.0, u3 := 3.5
+        bRe := "FIXED_DELAY", sRe := "FIXED_DELAY", trB := 3.0, trS := 5.0, cd := 7, fd := 3, sf := 0.2
+        alCd := false, cdOn := true, blk := true
+        aOn := true, rB := 60.0, rS := 15.0, bMin := 0.0, bMax := 5.0, sMax := 3.0, sMin := 1.0
+        mOn := true, mRes := 50.0, mRat := false, mTr := 10.0, mStop := 50.0
+    else if name == "ETH Perso Bear Tuned"
+        smaP := 26, atrP := 14, d2 := 2.7, d1 := 0.0, u1 := 0.0, u2 := 0.0, u3 := 1.7
+        bRe := "TRAILING_STOP", sRe := "TRAILING_STOP", trB := 3.0, trS := 5.0, cd := 10, fd := 3, sf := 0.2
+        alCd := false, cdOn := true, blk := true
+        aOn := true, rB := 60.0, rS := 30.0, bMin := 0.5, bMax := 4.0, sMax := 4.0, sMin := 1.0
+        mOn := false, mRes := 50.0, mRat := false, mTr := 10.0, mStop := 50.0
+    else if name == "ETH Perso Bull Tuned"
+        smaP := 26, atrP := 14, d2 := 2.0, d1 := 0.0, u1 := 0.0, u2 := 0.0, u3 := 2.5
+        bRe := "TRAILING_STOP", sRe := "TRAILING_STOP", trB := 3.0, trS := 5.0, cd := 10, fd := 3, sf := 0.2
+        alCd := false, cdOn := true, blk := true
+        aOn := true, rB := 60.0, rS := 30.0, bMin := 0.5, bMax := 4.0, sMax := 4.0, sMin := 1.0
+        mOn := true, mRes := 30.0, mRat := false, mTr := 9.0, mStop := 100.0
+    else if name == "PAXG Bench global"
+        smaP := 36, atrP := 28, d2 := 6.0, d1 := 0.5, u1 := 2.0, u2 := 2.0, u3 := 3.0
+        bRe := "FIXED_DELAY", sRe := "TRAILING_STOP", trB := 5.0, trS := 2.0, cd := 1, fd := 10, sf := 0.2
+        alCd := true, cdOn := true, blk := true
+        aOn := true, rB := 15.0, rS := 10.0, bMin := 1.0, bMax := 5.0, sMax := 2.0, sMin := 0.5
+        mOn := true, mRes := 75.0, mRat := false, mTr := 8.0, mStop := 50.0
+    else if name == "PAXG Perso Bear"
+        smaP := 24, atrP := 14, d2 := 2.7, d1 := 0.0, u1 := 0.0, u2 := 0.0, u3 := 1.7
+        bRe := "TRAILING_STOP", sRe := "TRAILING_STOP", trB := 3.0, trS := 5.0, cd := 1, fd := 10, sf := 0.2
+        alCd := false, cdOn := false, blk := true
+        aOn := true, rB := 30.0, rS := 99.0, bMin := 0.5, bMax := 5.0, sMax := 3.0, sMin := 1.0
+        mOn := false, mRes := 75.0, mRat := false, mTr := 8.0, mStop := 50.0
+    else if name == "PAXG Perso Bull"
+        smaP := 36, atrP := 28, d2 := 0.0, d1 := 0.0, u1 := 2.0, u2 := 2.0, u3 := 2.5
+        bRe := "TRAILING_STOP", sRe := "TRAILING_STOP", trB := 3.0, trS := 5.0, cd := 3, fd := 10, sf := 0.2
+        alCd := false, cdOn := true, blk := true
+        aOn := true, rB := 15.0, rS := 10.0, bMin := 1.0, bMax := 1.0, sMax := 3.0, sMin := 0.5
+        mOn := true, mRes := 75.0, mRat := false, mTr := 8.0, mStop := 50.0
+    [smaP, atrP, d2, d1, u1, u2, u3, bRe == "TRAILING_STOP" ? 2 : bRe == "IMMEDIATE" ? 1 : 0, sRe == "TRAILING_STOP" ? 2 : sRe == "IMMEDIATE" ? 1 : 0, trB, trS, cd, fd, sf, alCd, cdOn, blk, aOn, rB, rS, bMin, bMax, sMax, sMin, mOn, mRes, mRat, mTr, mStop]
+
+// Actif (auto depuis le symbole)
+tk = syminfo.ticker
+string assetKey = assetSel
+if assetSel == "Auto"
+    assetKey := str.contains(tk, "PAXG") ? "PAXG" : str.contains(tk, "BTC") ? "BTC" : str.contains(tk, "ETH") ? "ETH" : "Autre (Perso Generic)"
+string bearName = bearSel
+string bullName = bullSel
+if bearSel == "Auto"
+    bearName := assetKey == "BTC" ? "BTC Perso Bear" : assetKey == "ETH" ? "ETH Perso Bear Tuned" : assetKey == "PAXG" ? "PAXG Perso Bear" : "Perso Generic (tous actifs)"
+if bullSel == "Auto"
+    bullName := assetKey == "BTC" ? "BTC Perso Bull" : assetKey == "ETH" ? "ETH Perso Bull Tuned" : assetKey == "PAXG" ? "PAXG Perso Bull" : "Perso Generic (tous actifs)"
+
+[be_smaP, be_atrP, be_d2, be_d1, be_u1, be_u2, be_u3, be_bRe, be_sRe, be_trB, be_trS, be_cd, be_fd, be_sf, be_alCd, be_cdOn, be_blk, be_aOn, be_rB, be_rS, be_bMin, be_bMax, be_sMax, be_sMin, be_mOn, be_mRes, be_mRat, be_mTr, be_mStop] = f_preset(bearName)
+[bu_smaP, bu_atrP, bu_d2, bu_d1, bu_u1, bu_u2, bu_u3, bu_bRe, bu_sRe, bu_trB, bu_trS, bu_cd, bu_fd, bu_sf, bu_alCd, bu_cdOn, bu_blk, bu_aOn, bu_rB, bu_rS, bu_bMin, bu_bMax, bu_sMax, bu_sMin, bu_mOn, bu_mRes, bu_mRat, bu_mTr, bu_mStop] = f_preset(bullName)
+
+// ================== RAINBOW : bornes des 2 jeux (calculées à chaque bougie), puis jeu actif ==================
+smaBe = ta.sma(close, be_smaP)
+atrBe = ta.rma(ta.tr(true), be_atrP)
+smaBu = ta.sma(close, bu_smaP)
+atrBu = ta.rma(ta.tr(true), bu_atrP)
+
+bull = setIdx == 1
+smaA = bull ? smaBu : smaBe
+extremeBas  = bull ? smaBu - atrBu * bu_d2 : smaBe - atrBe * be_d2
+zoneBasse   = bull ? smaBu - atrBu * bu_d1 : smaBe - atrBe * be_d1
+zoneHaute1  = bull ? smaBu + atrBu * bu_u1 : smaBe + atrBe * be_u1
+zoneHaute2  = bull ? smaBu + atrBu * bu_u2 : smaBe + atrBe * be_u2
+extremeHaut = bull ? smaBu + atrBu * bu_u3 : smaBe + atrBe * be_u3
+
+plot(smaA,         "SMA",           color=color.new(color.gray, 30), linewidth=1)
+plot(extremeBas,  "EXTREME_BAS",   color=color.new(color.green, 0), linewidth=2)
+plot(zoneBasse,   "Zone basse",    color=color.new(color.green, 45))
+plot(zoneHaute1,  "Zone haute 1",  color=color.new(color.red, 45))
+plot(zoneHaute2,  "Zone haute 2",  color=color.new(color.red, 30))
+plot(extremeHaut, "EXTREME_HAUT",  color=color.new(color.red, 0), linewidth=2)
+
+// ---- historique par barre (machine rejouée sur la plage visible) ----
+var closeArr       = array.new_float(0)
+var timeArr        = array.new_int(0)
+var highArr        = array.new_float(0)
+var lowArr         = array.new_float(0)
+var extremeBasArr  = array.new_float(0)
+var zoneBasseArr   = array.new_float(0)
+var zoneHaute1Arr  = array.new_float(0)
+var zoneHaute2Arr  = array.new_float(0)
+var extremeHautArr = array.new_float(0)
+var athArr         = array.new_float(0)
+var setArr         = array.new_int(0)
+var regArr         = array.new_int(0)
+var smaRegArr      = array.new_int(0)
+var float athRun   = na
+athRun := na(athRun) ? high : math.max(athRun, high)
+
+// To the moon : pré-roulé depuis la 1re bougie, avec les globaux du jeu ACTIF de chaque bougie
+var bool moonModeRun = false
+var float moonPeakRun = na
+var moonModeArr = array.new_bool(0)
+var moonEntryArr = array.new_bool(0)
+var moonExitArr = array.new_bool(0)
+
+moonOnA = bull ? bu_mOn : be_mOn
+moonTrA = bull ? bu_mTr : be_mTr
+moonEntryRun = false
+moonExitRun = false
+newAthClose = not na(athRun[1]) and close > athRun[1]
+if moonOnA and not moonModeRun and newAthClose
+    moonModeRun := true
+    moonPeakRun := high
+    moonEntryRun := true
+else if moonModeRun
+    moonPeakRun := math.max(nz(moonPeakRun, high), high)
+    if close <= moonPeakRun * (1 - moonTrA / 100)
+        moonModeRun := false
+        moonExitRun := true
+        moonPeakRun := na
+
+array.push(closeArr, close)
+array.push(timeArr, int(time))
+array.push(highArr, high)
+array.push(lowArr, low)
+array.push(extremeBasArr, extremeBas)
+array.push(zoneBasseArr, zoneBasse)
+array.push(zoneHaute1Arr, zoneHaute1)
+array.push(zoneHaute2Arr, zoneHaute2)
+array.push(extremeHautArr, extremeHaut)
+array.push(athArr, athRun)
+array.push(setArr, setIdx)
+array.push(regArr, bar_index < warm - 1 ? 9 : fastReg)
+array.push(smaRegArr, bar_index < math.max(maLen, atrLen) - 1 ? 9 : maReg)
+array.push(moonModeArr, moonModeRun)
+array.push(moonEntryArr, moonEntryRun)
+array.push(moonExitArr, moonExitRun)
+
+// ================== RAINBOW : panneau + rejeu sur la plage visible ==================
+var table info = table.new(position.bottom_left, 2, 14 + tableSpacer, bgcolor=color.new(color.black, 70), border_width=1)
+
+row(t, r, k, v) =>
+    table.cell(t, 0, r, k, text_color=color.white, text_halign=text.align_left, text_size=size.small)
+    table.cell(t, 1, r, v, text_color=color.orange, text_halign=text.align_right, text_size=size.small)
+
+var table sizeTbl = table.new(position.bottom_center, sizeCols + 1, sizeRows + 2, bgcolor=color.new(color.black, 100), border_width=0)
+
+if barstate.islast
+    leftT  = chart.left_visible_bar_time
+    rightT = chart.right_visible_bar_time
+    n = array.size(timeArr)
+
+    startIdx = 0
+    endIdx = n - 1
+    for i = 0 to n - 1
+        if array.get(timeArr, i) >= leftT
+            startIdx := i
+            break
+    for i = n - 1 to 0
+        if array.get(timeArr, i) <= rightT
+            endIdx := i
+            break
+
+    vPos            = 0.0
+    vCostBasis      = 0.0
+    vRealized       = 0.0
+    vInvested       = 0.0   // total achats (tous les achats)
+    vExternal       = 0.0   // total investi = $ apportés de l'extérieur (achats non couverts par le cash des ventes)
+    vCash           = 0.0   // cash (stablecoin) restant : produit des ventes non réutilisé
+    vSaleProceeds   = 0.0
+    vFixedQty       = 0.0
+    vFixedInvested  = 0.0
+    vMoonReserveQty = 0.0
+
+    vBuyArmed           = false
+    vLowestSinceArmed   = float(na)
+    vBuyArmedDays       = 0
+    vSellArmed          = false
+    vHighestSinceArmed  = float(na)
+    vSellArmedDays      = 0
+    vCooldownRemaining  = 0
+    vBuyLockedAfterSell = false
+
+    lastIdx = endIdx
+    sizeV = array.new_float(0)
+    sizeT = array.new_int(0)
+    sizeDir = array.new_int(0)
+    sizeReg = array.new_int(0)
+    sizeSma = array.new_int(0)
+    if lastIdx >= startIdx
+        for i = startIdx to lastIdx
+            tI  = array.get(timeArr, i)
+            hgI = array.get(highArr, i)
+            lwI = array.get(lowArr, i)
+            cl  = array.get(closeArr, i)
+            eb  = array.get(extremeBasArr, i)
+            zb  = array.get(zoneBasseArr, i)
+            zh1 = array.get(zoneHaute1Arr, i)
+            zh2 = array.get(zoneHaute2Arr, i)
+            eh  = array.get(extremeHautArr, i)
+            athI  = array.get(athArr, i)
+            moonModeI  = array.get(moonModeArr, i)
+            qtyBefore  = vPos
+            moonEntryI = array.get(moonEntryArr, i)
+            moonExitI  = array.get(moonExitArr, i)
+
+            // paramètres du jeu actif à cette bougie
+            bu = array.get(setArr, i) == 1
+            athOnI       = bu ? bu_aOn : be_aOn
+            refBuyI      = (bu ? bu_rB : be_rB) / 100
+            refSellI     = (bu ? bu_rS : be_rS) / 100
+            bMinI        = bu ? bu_bMin : be_bMin
+            bMaxI        = bu ? bu_bMax : be_bMax
+            sMaxI        = bu ? bu_sMax : be_sMax
+            sMinI        = bu ? bu_sMin : be_sMin
+            resPctI      = bu ? bu_mRes : be_mRes
+            ratchetI     = bu ? bu_mRat : be_mRat
+            moonStopPctI = bu ? bu_mStop : be_mStop
+            cdAfterI     = (bu ? bu_cdOn : be_cdOn) ? (bu ? bu_cd : be_cd) : 0
+            sellReI      = bu ? bu_sRe : be_sRe
+            buyReI       = bu ? bu_bRe : be_bRe
+            trUpI        = 1 + (bu ? bu_trB : be_trB) / 100
+            trDnI        = 1 - (bu ? bu_trS : be_trS) / 100
+            fdI          = bu ? bu_fd : be_fd
+            sfI          = bu ? bu_sf : be_sf
+            allowCdI     = bu ? bu_alCd : be_alCd
+            blkI         = bu ? bu_blk : be_blk
+
+            athD  = athI > 0 ? 1 - cl / athI : 0.0
+            athTBuy  = math.min(math.max(athD / refBuyI, 0), 1)
+            athTSell = math.min(math.max(athD / refSellI, 0), 1)
+            buyAthFac  = athOnI and not moonModeI ? bMinI + (bMaxI - bMinI) * athTBuy : 1.0
+            sellAthFac = athOnI and not moonModeI ? sMaxI + (sMinI - sMaxI) * athTSell : 1.0
+            zoneI = cl < eb ? "EXTREME_BAS" : cl < zb ? "X2" : cl < zh1 ? "X1" : cl < zh2 ? "X0_5" : cl < eh ? "NO_BUY" : "EXTREME_HAUT"
+            soldThisBar = false
+
+            if ratchetI and moonModeI and not moonEntryI
+                vMoonReserveQty := math.max(vMoonReserveQty, vPos * resPctI / 100)
+
+            if moonEntryI
+                vMoonReserveQty := vPos * resPctI / 100
+                label.new(tI, hgI, "TO THE MOON", xloc=xloc.bar_time, yloc=yloc.price, style=label.style_label_down, color=color.new(color.yellow, 0), textcolor=color.black, size=size.tiny)
+
+            if moonExitI
+                moonStopQty = math.min(vMoonReserveQty, vPos) * moonStopPctI / 100
+                if moonStopQty > 0
+                    moonStopProceeds = moonStopQty * cl
+                    moonStopCost = vCostBasis * moonStopQty / vPos
+                    vRealized += moonStopProceeds - moonStopCost
+                    vCostBasis -= moonStopCost
+                    vPos -= moonStopQty
+                    vSaleProceeds += moonStopProceeds
+                    vCash += moonStopProceeds
+                    soldThisBar := true
+                    label.new(tI, hgI, "MOON STOP -$" + str.tostring(moonStopProceeds, "#.##"), xloc=xloc.bar_time, yloc=yloc.price, style=label.style_label_down, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny)
+                vMoonReserveQty := 0.0
+
+            if moonExitI
+                vSellArmed := false
+                vHighestSinceArmed := na
+                vSellArmedDays := 0
+                vCooldownRemaining := cdAfterI
+            else if vSellArmed
+                vSellArmedDays += 1
+                sellTrigI = sellReI == 2 ? (cl < eh or cl < vHighestSinceArmed * trDnI) :
+                           sellReI == 1 ? (cl < eh or cl < zh2) :
+                           (vSellArmedDays >= fdI)
+                if sellTrigI
+                    requestedSellQtyI = vPos * math.min(1.0, sfI * sellAthFac)
+                    sellableQtyI = math.max(vPos - vMoonReserveQty, 0.0)
+                    sellQtyI = math.min(requestedSellQtyI, sellableQtyI)
+                    if sellQtyI > 0
+                        saleProcI = sellQtyI * cl
+                        costSoldI = vCostBasis * sellQtyI / vPos
+                        vRealized += saleProcI - costSoldI
+                        vCostBasis -= costSoldI
+                        vPos -= sellQtyI
+                        vSaleProceeds += saleProcI
+                        vCash += saleProcI
+
+                        if blkI
+                            vBuyLockedAfterSell := true
+                            soldThisBar := true
+                            vBuyArmed := false
+                            vLowestSinceArmed := na
+                            vBuyArmedDays := 0
+
+                        label.new(tI, hgI, "-$" + str.tostring(saleProcI, "#.##") + (athOnI ? " ×" + str.tostring(sellAthFac, "#.##") + " (ATH -" + str.tostring(athD * 100, "#") + "%)" : ""), xloc=xloc.bar_time, yloc=yloc.price, style=label.style_label_down, color=color.new(color.red, 0), textcolor=color.white, size=size.tiny)
+                    vSellArmed := false
+                    vHighestSinceArmed := na
+                    vSellArmedDays := 0
+                    vCooldownRemaining := cdAfterI
+                else
+                    vHighestSinceArmed := math.max(vHighestSinceArmed, cl)
+            else if zoneI == "EXTREME_HAUT" and (vCooldownRemaining == 0 or allowCdI)
+                vSellArmed := true
+                vHighestSinceArmed := cl
+                vSellArmedDays := 0
+                label.new(tI, hgI, "", xloc=xloc.bar_time, yloc=yloc.price, style=label.style_diamond, color=color.new(color.orange, 0), size=size.tiny)
+
+            // Levée du verrou : clôture sous DOWN2 une fois le cooldown terminé (un passage sous DOWN2 pendant le cooldown ne lève rien).
+            if blkI and vBuyLockedAfterSell and not soldThisBar and vCooldownRemaining == 0 and cl < eb
+                vBuyLockedAfterSell := false
+
+            buyMultI = float(na)
+
+            if not vSellArmed and vCooldownRemaining == 0 and not vBuyLockedAfterSell
+                if vBuyArmed
+                    vBuyArmedDays += 1
+                    buyTrigI = buyReI == 2 ? (cl > eb or cl > vLowestSinceArmed * trUpI) :
+                              buyReI == 1 ? (cl > eb) :
+                              (vBuyArmedDays >= fdI)
+                    if buyTrigI
+                        buyMultI := p_multTriggered
+                        vBuyArmed := false
+                        vLowestSinceArmed := na
+                        vBuyArmedDays := 0
+                    else
+                        vLowestSinceArmed := math.min(vLowestSinceArmed, cl)
+                else if zoneI == "EXTREME_BAS"
+                    vBuyArmed := true
+                    vLowestSinceArmed := cl
+                    vBuyArmedDays := 0
+                    label.new(tI, lwI, "", xloc=xloc.bar_time, yloc=yloc.price, style=label.style_diamond, color=color.new(color.aqua, 0), size=size.tiny)
+                else
+                    imI = zoneI == "X2" ? p_multX2 : zoneI == "X1" ? p_multX1 : zoneI == "X0_5" ? p_multX0_5 : float(na)
+                    if not na(imI) and imI > 0
+                        buyMultI := imI
+
+            if not na(buyMultI)
+                invI = p_baseAmount * buyAthFac * buyMultI
+                vPos += invI / cl
+                vCostBasis += invI
+                vInvested += invI
+                fromCash = math.min(vCash, invI)
+                vCash -= fromCash
+                vExternal += invI - fromCash
+                label.new(tI, lwI, "+$" + str.tostring(invI, "#.##"), xloc=xloc.bar_time, yloc=yloc.price, style=label.style_label_up, color=color.new(color.green, 0), textcolor=color.white, size=size.tiny)
+
+            if vCooldownRemaining > 0
+                vCooldownRemaining -= 1
+
+            vFixedQty += p_baseAmount / cl
+            vFixedInvested += p_baseAmount
+
+            array.push(sizeV, sizeMetric == "Quantité" ? vPos : sizeMetric == "Coût de la position" ? vCostBasis : vPos * cl)
+            array.push(sizeT, tI)
+            array.push(sizeReg, array.get(regArr, i))
+            array.push(sizeSma, array.get(smaRegArr, i))
+            array.push(sizeDir, vPos > qtyBefore * (1 + 1e-12) ? 1 : vPos < qtyBefore * (1 - 1e-12) ? -1 : 0)
+
+    nS = array.size(sizeV)
+    bV = array.new_float(sizeCols, 0.0)
+    bD = array.new_int(sizeCols, 0)
+    maxS = 0.0
+    if showSize and nS > 0
+        for c = 0 to sizeCols - 1
+            j0 = int(math.floor(c * nS / sizeCols))
+            j1 = math.min(nS - 1, math.max(j0, int(math.floor((c + 1) * nS / sizeCols)) - 1))
+            dsum = 0
+            for j = j0 to j1
+                dsum += array.get(sizeDir, j)
+            v = array.get(sizeV, j1)
+            maxS := math.max(maxS, v)
+            array.set(bV, c, v)
+            array.set(bD, c, dsum > 0 ? 1 : dsum < 0 ? -1 : 0)
+    cellW = (100.0 - sizeMarginR) / sizeCols
+    cellH = sizeHeightPct / sizeRows
+    for c = 0 to sizeCols - 1
+        filled = maxS > 0 ? math.ceil(array.get(bV, c) / maxS * sizeRows) : 0
+        d = array.get(bD, c)
+        colr = d > 0 ? sizeUpColor : d < 0 ? sizeDownColor : sizeFlatColor
+        for r = 0 to sizeRows - 1
+            table.cell(sizeTbl, c, r, "", width=cellW, height=cellH, bgcolor=(sizeRows - 1 - r) < filled ? colr : color.new(color.black, 100))
+        jEnd = nS > 0 ? math.min(nS - 1, math.max(int(math.floor(c * nS / sizeCols)), int(math.floor((c + 1) * nS / sizeCols)) - 1)) : 0
+        rg = nS > 0 ? array.get(sizeReg, jEnd) : 9
+        sg = nS > 0 ? array.get(sizeSma, jEnd) : 9
+        table.cell(sizeTbl, c, sizeRows + 1, "", width=cellW, height=trBarPct, bgcolor=not showRaw or rg == 9 ? color.new(color.black, 100) : rg == 1 ? color.green : rg == -1 ? color.red : color.gray)
+        table.cell(sizeTbl, c, sizeRows, "", width=cellW, height=trBarPct, bgcolor=not showRaw or sg == 9 ? color.new(color.black, 100) : sg == 1 ? color.green : sg == -1 ? color.red : color.gray)
+    for r = 0 to sizeRows + 1
+        table.cell(sizeTbl, sizeCols, r, "", width=math.max(sizeMarginR, 0.1), height=r >= sizeRows ? trBarPct : cellH, bgcolor=color.new(color.black, 100))
+
+    vCurrentPrice = array.get(closeArr, lastIdx)
+    vCurrentValue = vPos * vCurrentPrice
+    vPotentialGain = vCurrentValue - vCostBasis
+
+    vPnlReelPercent = vInvested > 0 ? vRealized / vInvested * 100 : na
+    vPnlPotentielPercent = vInvested > 0 ? vPotentialGain / vInvested * 100 : na
+
+    vFixedValue = vFixedQty * vCurrentPrice
+    vFixedPnlPercent = vFixedInvested > 0 ? (vFixedValue - vFixedInvested) / vFixedInvested * 100 : na
+
+    row(info, 0, "Actif détecté", assetKey)
+    row(info, 1, "Jeu Bear",                      bearName)
+    row(info, 2, "Jeu Bull",                      bullName)
+    row(info, 3, "Plage visible",                 str.format_time(leftT, "yyyy-MM-dd") + "→" + str.format_time(rightT, "yyyy-MM-dd"))
+    row(info, 4, "Total investi (apport extérieur)", "$" + str.tostring(vExternal, "#.##"))
+    row(info, 5, "Total achats",                   "$" + str.tostring(vInvested, "#.##"))
+    row(info, 6, "Total ventes",                   "$" + str.tostring(vSaleProceeds, "#.##"))
+    row(info, 7, "Cash restant (stable)",          "$" + str.tostring(vCash, "#.##"))
+    row(info, 8, "Position restante",              "$" + str.tostring(vCurrentValue, "#.##"))
+    row(info, 9, "Gain total (cash + position − investi)", "$" + str.tostring(vCash + vCurrentValue - vExternal, "#.##"))
+    row(info, 10, "Somme Gains réalisés",          "$" + str.tostring(vRealized, "#.##"))
+    row(info, 11, "PnL% Réel (réalisé / achats)",  na(vPnlReelPercent) ? "—" : str.tostring(vPnlReelPercent, "#.##") + " %")
+    row(info, 12, "PnL % Potentiel (latent / achats)", na(vPnlPotentielPercent) ? "—" : str.tostring(vPnlPotentielPercent, "#.##") + " %")
+    row(info, 13, "PnL % Potentiel DCA fixe",      na(vFixedPnlPercent) ? "—" : str.tostring(vFixedPnlPercent, "#.##") + " %")
+    if tableSpacer > 0
+        for r = 14 to 13 + tableSpacer
+            table.cell(info, 0, r, " ", bgcolor=color.new(color.black, 100), text_size=size.small)
+            table.cell(info, 1, r, " ", bgcolor=color.new(color.black, 100), text_size=size.small)

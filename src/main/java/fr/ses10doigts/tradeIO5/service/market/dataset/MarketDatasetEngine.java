@@ -19,8 +19,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.EnumMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -88,7 +90,7 @@ public class MarketDatasetEngine {
 
         if (shouldFetch(state, request, now)) {
             log.debug("Should Fetch");
-            List<MarketData> marketData = fetchDataForBucket(request, state.getBucket().getBaseTimeFrame(), state.getBucket().getMaxSize());
+            List<MarketData> marketData = fetchDataForBucket(request, state);
             manager.merge(state, marketData, request.endTime());
             cache.put(key, state);
         }else{
@@ -172,7 +174,10 @@ public class MarketDatasetEngine {
     }
 
     // can throw IllegalStateException when getProvider didn't find
-    private List<MarketData> fetchDataForBucket(MarketDatasetRequest request, TimeFrame baseTimeFrame, int bucketMaxSize) {
+    private List<MarketData> fetchDataForBucket(MarketDatasetRequest request, MarketDatasetState state) {
+        Bucket bucket = state.getBucket();
+        TimeFrame baseTimeFrame = bucket.getBaseTimeFrame();
+        int bucketMaxSize = bucket.getMaxSize();
 
         if (!request.timeFrame().isGreaterOrEqualThan(baseTimeFrame)) {
             throw new IllegalArgumentException("Limit TimeFrame must be >= Base TimeFrame");
@@ -199,10 +204,15 @@ public class MarketDatasetEngine {
 
         log.debug("Equiv Limit : {} in {} TF", limit, baseTimeFrame);
 
+        // Refetch incrémental : si le Bucket couvre déjà la profondeur demandée, on ne redemande
+        // que la queue (bougies manquantes + la dernière, à rafraîchir). Sinon fetch complet.
+        boolean incremental = !bucket.isEmpty() && state.getFetchedDepth() >= limit;
+        int fetchLimit = incremental ? incrementalLimit(bucket, baseTimeFrame, request.endTime(), limit) : limit;
+
         MarketDatasetRequest fetchRequest = new MarketDatasetRequest(
                 request.symbol(),
                 baseTimeFrame,
-                limit,
+                fetchLimit,
                 request.endTime(),
                 request.source(),
                 request.providerParam()
@@ -220,12 +230,15 @@ public class MarketDatasetEngine {
             // engine/cache.
             long startNanos = System.nanoTime();
             log.info("fetchDataForBucket : appel provider.loadSince démarré pour {} source={} limit={}",
-                    fetchRequest.symbol(), fetchRequest.source(), limit);
+                    fetchRequest.symbol(), fetchRequest.source(), fetchLimit);
             fetched = provider.loadSince( fetchRequest );
             log.info("fetchDataForBucket : provider.loadSince terminé pour {} source={} en {} ms, {} candle(s)",
                     fetchRequest.symbol(), fetchRequest.source(), (System.nanoTime() - startNanos) / 1_000_000,
                     fetched.getMarketDatas().size());
 
+            if (!incremental) {
+                state.setFetchedDepth(limit);
+            }
         }else{
             log.error("Must have thrown an Exception before...!");
         }
@@ -241,18 +254,30 @@ public class MarketDatasetEngine {
             return ;
         }
 
-        Map<Instant, Integer> hasDataGap = state.getHasDataGap();
-        for( Map.Entry<Instant, Integer> gap : hasDataGap.entrySet() ) {
-            List<MarketData> marketData = provider.fetchMarketData(
+        // Chaque trou n'est tenté qu'une fois (retiré avant l'appel) : un trou non comblable
+        // (provider sans l'historique) ne doit pas être refetché à chaque getDataset().
+        Iterator<Map.Entry<Instant, Integer>> gaps = state.getHasDataGap().entrySet().iterator();
+        while (gaps.hasNext()) {
+            Map.Entry<Instant, Integer> gap = gaps.next();
+            gaps.remove();
+            // +1 : la borne de fin (première bougie après le trou) est comprise dans la réponse
+            manager.fillGap(state, provider.fetchMarketData(
                     request.symbol(),
                     state.getBucket().getBaseTimeFrame(),
                     gap.getKey(),
-                    gap.getValue()
-            );
-
-            if( !marketData.isEmpty() )
-                manager.merge(state, marketData, request.endTime());
+                    gap.getValue() + 1
+            ));
         }
+    }
+
+    /** Bougies de base à redemander : celles écoulées depuis la dernière stockée + elle-même + marge. */
+    private int incrementalLimit(Bucket bucket, TimeFrame baseTimeFrame, Instant endTime, int fullLimit) {
+        long missing = Duration.between(bucket.peekLast().getTimestamp(), endTime).getSeconds() / stepSeconds(baseTimeFrame);
+        return (int) Math.min(fullLimit, Math.max(missing, 0) + 2);
+    }
+
+    private long stepSeconds(TimeFrame timeFrame) {
+        return timeFrame.getUnit().getDuration().multipliedBy(timeFrame.getAmount()).toSeconds();
     }
 
     private int convertLimitToBaseTimeFrame(int limit, TimeFrame limitTf, TimeFrame baseTf, Instant anchor) {
@@ -265,12 +290,12 @@ public class MarketDatasetEngine {
         }
 
         if (isLiveSource(request.source())) {
-            Instant expiration = now
-                    .atZone(TimeFrame.DEFAULT_ZONE)
-                    .minus(request.timeFrame().getAmount(), request.timeFrame().getUnit())
-                    .toInstant();
-
-            return state.getLastUpdate().isBefore(expiration);
+            // Frais tant que le dernier fetch date de la bougie de base en cours (ou plus récent) :
+            // chaque nouvelle bougie de base déclenche un refetch, quel que soit le TF demandé
+            // (la bougie D1 d'un bench à 23h55 doit voir la H1 de 23h, pas celle de 04h).
+            long step = stepSeconds(Bucket.BASE_TIME_FRAME);
+            Instant currentBaseCandle = Instant.ofEpochSecond(Math.floorDiv(now.getEpochSecond(), step) * step);
+            return state.getLastUpdate().isBefore(currentBaseCandle);
         }
 
         // historique / backtest : fetch une seule fois

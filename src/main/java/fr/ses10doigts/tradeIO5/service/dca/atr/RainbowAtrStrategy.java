@@ -20,8 +20,8 @@ package fr.ses10doigts.tradeIO5.service.dca.atr;
  *       mode, fraction = min(1, fraction × facteurATH) plafonnée à la position hors réserve ; verrou d'achat +
  *       annulation d'un armement achat antérieur si l'option est active ; désarmement + cooldown même si rien
  *       n'a été vendu) ; sinon armement en zone EXTREME_HAUT (cooldown = 0 OU vente autorisée pendant cooldown) ;</li>
- *   <li>levée du verrou d'achat : franchissement vers le bas de DOWN2 (clôture précédente ≥ DOWN2 précédente ET
- *       clôture &lt; DOWN2), pas sur une bougie vendue ;</li>
+ *   <li>levée du verrou d'achat : clôture &lt; DOWN2 une fois le cooldown terminé (cooldown = 0), pas sur une
+ *       bougie vendue ; un passage sous DOWN2 pendant le cooldown ne lève pas le verrou ;</li>
  *   <li>achat (bloqué si vente armée, cooldown &gt; 0 ou verrou ; armement GELÉ alors) : armé => déclenchement
  *       (×multTriggered) ; sinon zone EXTREME_BAS arme ; sinon multiplicateur de zone ;</li>
  *   <li>décrément du cooldown.</li>
@@ -50,11 +50,11 @@ public final class RainbowAtrStrategy {
         return stepWithMoon(state, band, ms, ath.includingToday(high), position, t, g);
     }
 
-    /** Variante pour une bougie sans bornes : avance l'automate moon et réinitialise le franchissement DOWN2. */
+    /** Variante pour une bougie sans bornes : avance seulement l'automate moon. */
     public static StepResult stepInvalid(RainbowAtrState state, double close, double high, AthReference ath,
                                          RainbowAtrGlobals g) {
         RainbowMoon.Step ms = RainbowMoon.advance(state.moon(), g.moonOn(), g.moonTrailingStopPct(), close, high, ath.value());
-        return new StepResult(state.afterInvalidBar(ms.next(), close), RainbowSignal.invalid(ms.mode(), ms.entry()));
+        return new StepResult(state.withMoon(ms.next()), RainbowSignal.invalid(ms.mode(), ms.entry()));
     }
 
     /** Cœur de la machine ; {@code ms} = automate moon déjà avancé (permet au rejeu d'utiliser les drapeaux en cache). */
@@ -151,9 +151,8 @@ public final class RainbowAtrStrategy {
             sellArmedNow = true;
         }
 
-        // 5) levée du verrou : nouveau franchissement sous DOWN2
-        boolean crossedBelowDown2 = !Double.isNaN(s.prevDown2()) && s.prevClose() >= s.prevDown2() && cl < eb;
-        if (t.blockBuyAfterSellUntilDown2() && buyLocked && !soldThisBar && crossedBelowDown2) {
+        // 5) levée du verrou : clôture sous DOWN2 une fois le cooldown terminé (un passage sous DOWN2 pendant le cooldown ne lève rien)
+        if (t.blockBuyAfterSellUntilDown2() && buyLocked && !soldThisBar && cooldown == 0 && cl < eb) {
             buyLocked = false;
         }
 
@@ -203,7 +202,7 @@ public final class RainbowAtrStrategy {
         }
 
         RainbowAtrState next = new RainbowAtrState(buyArmed, sellArmed, buyLocked, lowestSinceArmed, highestSinceArmed,
-                buyArmedDays, sellArmedDays, cooldown, reserve, ms.next(), eb, cl);
+                buyArmedDays, sellArmedDays, cooldown, reserve, ms.next());
         RainbowSignal signal = new RainbowSignal(true, zone, buyKind, Double.isNaN(buyMult) ? 0.0 : buyMult, buyAthFac,
                 sellKind, sellFraction, sellAthFac, moonModeI, moonEntryI, buyArmedNow, sellArmedNow, athD, null, null);
         return new StepResult(next, signal);

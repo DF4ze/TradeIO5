@@ -441,8 +441,8 @@ if barstate.islast
                 label.new(tI, hgI, "", xloc=xloc.bar_time, yloc=yloc.price, style=label.style_diamond, color=color.new(color.orange, 0), size=size.tiny)
 
             // Le verrou est levé par un nouveau franchissement sous DOWN2 après la vente.
-            crossedBelowDown2 = i > startIdx and array.get(closeArr, i - 1) >= array.get(extremeBasArr, i - 1) and cl < eb
-            if blockBuyAfterSellUntilDown2 and vBuyLockedAfterSell and not soldThisBar and crossedBelowDown2
+            // Levée du verrou : clôture sous DOWN2 une fois le cooldown terminé (un passage sous DOWN2 pendant le cooldown ne lève rien).
+            if blockBuyAfterSellUntilDown2 and vBuyLockedAfterSell and not soldThisBar and vCooldownRemaining == 0 and cl < eb
                 vBuyLockedAfterSell := false
 
             buyMultI = float(na)

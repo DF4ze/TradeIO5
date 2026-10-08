@@ -77,7 +77,7 @@ public final class RainbowAtrEngine {
             double athToday = ath.includingToday(ds.high(i));
             ath = ath.observe(ds.high(i), ds.time(i));
             if (Double.isNaN(sma) || Double.isNaN(atr)) {
-                st = st.afterInvalidBar(ms.next(), cl);
+                st = st.withMoon(ms.next());
                 continue;
             }
 

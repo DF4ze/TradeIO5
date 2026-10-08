@@ -26,11 +26,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
@@ -158,7 +160,8 @@ class MarketDatasetEngineTest {
     @Test
     void shouldNotFetchWhenCacheIsFreshForLiveSource() {
         when(cache.getState(BucketKey.from(request))).thenReturn(state);
-        when(state.getLastUpdate()).thenReturn(now.minusSeconds(10));
+        // dernier fetch dans la bougie de base (H1) en cours => frais
+        when(state.getLastUpdate()).thenReturn(now);
         when(state.getHasDataGap()).thenReturn(Map.of());
 
         MarketDataset snapshot = mock(MarketDataset.class);
@@ -175,12 +178,12 @@ class MarketDatasetEngineTest {
     @Test
     void shouldFillMissingDataWhenGapExists() {
         when(cache.getState(BucketKey.from(request))).thenReturn(state);
-        when(state.getLastUpdate()).thenReturn(now.minusSeconds(3600));
-        when(state.getBucket()).thenReturn(mock(Bucket.class));
+        when(state.getLastUpdate()).thenReturn(now);
+        when(state.getBucket()).thenReturn(new Bucket(TimeFrame.H1, 10));
 
-        when(state.getHasDataGap()).thenReturn(
-                Map.of(now.minusSeconds(300), 10)
-        );
+        Map<Instant, Integer> gaps = new ConcurrentHashMap<>();
+        gaps.put(now.minusSeconds(300), 10);
+        when(state.getHasDataGap()).thenReturn(gaps);
 
         when(providerRegistry.getProvider(any(), any())).thenReturn(provider);
         when(provider.fetchMarketData(any(), any(), any(), anyInt()))
@@ -191,7 +194,10 @@ class MarketDatasetEngineTest {
 
         engine.getDataset(request);
 
-        verify(manager, atLeastOnce()).merge(eq(state), anyList(), any(Instant.class));
+        // le comblement passe par fillGap (ne repousse pas lastUpdate), et chaque trou n'est tenté qu'une fois
+        verify(manager).fillGap(eq(state), anyList());
+        verify(manager, never()).merge(any(), any(), any(Instant.class));
+        assertTrue(gaps.isEmpty());
         verify(manager).snapshot(request, state);
     }
 

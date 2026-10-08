@@ -1,4 +1,4 @@
-# Port Python INDEPENDANT du pine rainbow_dca_v3_atr_moon.pine (verification de parite du moteur Java
+# Port Python INDEPENDANT du pine rainbow_dca_v4_atr_moon.pine (verification de parite du moteur Java
 # RainbowAtrEngine). Usage :
 #   python rainbow_atr_pine_port.py export-csv <btcusdt_klines_d1_full.json> <dir>   -> <dir>/d1.csv (t,h,l,c ; aussi lu par RainbowAtrRegimeBench)
 #   python rainbow_atr_pine_port.py parity <dir>   -> <dir>/parity_cases.csv + parity_py.csv ; comparer avec RainbowAtrParityMain (parity_java.csv)
@@ -38,10 +38,10 @@ def run(D,P,s,e):
     SM=sma(C,P['sma']);AT=atr(H,L,C,P['atr'])
     pos=cb=real=inv=sp=0.0; res=0.0
     bArm=sArm=lock=False; low=high=None; bd=sd=cd=0
-    zb=tb=sl=ms=0; prev=None
+    zb=tb=sl=ms=0
     for i in range(s,e+1):
         cl=C[i]; sm=SM[i]; at=AT[i]
-        if math.isnan(sm) or math.isnan(at): prev=None; continue
+        if math.isnan(sm) or math.isnan(at): continue
         eb=sm-at*P['d2']; zlow=sm-at*P['d1']; zh1=sm+at*P['u1']; zh2=sm+at*P['u2']; eh=sm+at*P['u3']
         zone='EB' if cl<eb else 'X2' if cl<zlow else 'X1' if cl<zh1 else 'X05' if cl<zh2 else 'NB' if cl<eh else 'EH'
         up=1+P['tb']/100; dn=1-P['ts']/100
@@ -76,8 +76,7 @@ def run(D,P,s,e):
             else: high=max(high,cl)
         elif zone=='EH' and (cd==0 or P['allowSell']):
             sArm=True;high=cl;sd=0
-        crossed = i>s and prev is not None and C[i-1]>=prev and cl<eb
-        if P['block'] and lock and (not sold) and crossed: lock=False
+        if P['block'] and lock and (not sold) and cd==0 and cl<eb: lock=False
         bm=None; trg=False
         if (not sArm) and cd==0 and (not lock):
             if bArm:
@@ -97,7 +96,6 @@ def run(D,P,s,e):
             if trg: tb+=1
             else: zb+=1
         if cd>0: cd-=1
-        prev=eb
     lp=C[e]
     return [inv,sp,pos*lp,real,cb,pos,zb,tb,sl,ms]
 def rnd(rng,D):

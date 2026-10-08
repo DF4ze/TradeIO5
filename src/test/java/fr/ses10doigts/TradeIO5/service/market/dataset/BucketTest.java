@@ -120,6 +120,57 @@ class BucketTest {
         assertNotSame(first, third); // cache invalidé
     }
 
+    @Test
+    @DisplayName("append d'une bougie de même timestamp que la dernière => remplacement (bougie en cours rafraîchie)")
+    void shouldReplaceLastCandleWhenSameTimestamp() {
+        Bucket bucket = new Bucket(TimeFrame.H1, 10);
+
+        bucket.append(candle(ts(0), bd(1), bd(1), bd(1), bd(1), bd(1)));
+        bucket.append(candle(ts(1), bd(1), bd(5), bd(5), bd(1), bd(1))); // partielle
+        bucket.append(candle(ts(1), bd(1), bd(9), bd(9), bd(1), bd(2))); // version à jour
+
+        BucketView view = bucket.view(TimeFrame.H1, now);
+        assertEquals(2, view.size());
+        assertEquals(0, bd(9).compareTo(view.data().getLast().getClose()));
+    }
+
+    @Test
+    @DisplayName("fill insère l'historique plus ancien et les trous, sans écraser ni dépasser la dernière bougie")
+    void shouldFillOlderHistoryAndHoles() {
+        Bucket bucket = new Bucket(TimeFrame.H1, 100);
+        bucket.append(candle(ts(10), bd(1), bd(1), bd(1), bd(1), bd(1)));
+        bucket.append(candle(ts(13), bd(1), bd(1), bd(1), bd(1), bd(1)));
+
+        int inserted = bucket.fill(java.util.List.of(
+                candle(ts(8), bd(1), bd(1), bd(1), bd(1), bd(1)),   // plus ancien
+                candle(ts(9), bd(1), bd(1), bd(1), bd(1), bd(1)),   // plus ancien
+                candle(ts(11), bd(1), bd(1), bd(1), bd(1), bd(1)),  // trou
+                candle(ts(13), bd(1), bd(7), bd(7), bd(1), bd(1)),  // déjà présent : inchangé
+                candle(ts(14), bd(1), bd(1), bd(1), bd(1), bd(1)))); // après la dernière : ignoré
+
+        assertEquals(3, inserted);
+        BucketView view = bucket.view(TimeFrame.H1, now);
+        assertEquals(5, view.size());
+        assertEquals(ts(8), view.data().getFirst().getTimestamp());
+        assertEquals(ts(13), view.data().getLast().getTimestamp());
+        assertEquals(0, bd(1).compareTo(view.data().getLast().getClose()));
+    }
+
+    @Test
+    @DisplayName("fill respecte maxSize en évinçant le plus ancien")
+    void shouldFillRespectMaxSize() {
+        Bucket bucket = new Bucket(TimeFrame.H1, 3);
+        bucket.append(candle(ts(10), bd(1), bd(1), bd(1), bd(1), bd(1)));
+        bucket.append(candle(ts(11), bd(1), bd(1), bd(1), bd(1), bd(1)));
+
+        bucket.fill(java.util.List.of(
+                candle(ts(8), bd(1), bd(1), bd(1), bd(1), bd(1)),
+                candle(ts(9), bd(1), bd(1), bd(1), bd(1), bd(1))));
+
+        assertEquals(3, bucket.size());
+        assertEquals(ts(9), bucket.peekFirst().getTimestamp());
+    }
+
     /* ===== helpers ===== */
 
     private static Instant ts(long hoursFromEpoch) {

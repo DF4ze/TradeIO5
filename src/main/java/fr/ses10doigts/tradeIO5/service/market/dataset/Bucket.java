@@ -21,7 +21,7 @@ public class Bucket {
 
     private static final Logger logger = LoggerFactory.getLogger(Bucket.class);
 
-    private static final TimeFrame BASE_TIME_FRAME = TimeFrame.H1; // TODO : parametrize
+    public static final TimeFrame BASE_TIME_FRAME = TimeFrame.H1; // TODO : parametrize
     // ~11-12 ans de H1 (24*365*11 ≈ 96360). Relevé de 5000 (~208j) à 50000 (~5-6 ans) le
     // 2026-08-13 : ce plafond servait à la fois de taille de buffer live et de limite par défaut
     // de lookback, et provoquait une troncature silencieuse de l'historique (et un spam de logs)
@@ -78,9 +78,19 @@ public class Bucket {
         }
 
         MarketData last = buffer.peekLast();
-        // forward-only strict
-        if (!data.getTimestamp().isAfter(last.getTimestamp())) {
-            logger.error("Given MarketData before last Bucket data");
+        int order = data.getTimestamp().compareTo(last.getTimestamp());
+        if (order == 0) {
+            // Même bougie que la dernière stockée : on la remplace (la bougie en cours, stockée
+            // partielle, doit être remplacée par sa version à jour/finale à chaque refetch).
+            buffer.removeLast();
+            buffer.addLast(data);
+            invalidateViews();
+            return 0;
+        }
+        if (order < 0) {
+            // Chevauchement normal d'un refetch : pas une anomalie. Les bougies plus anciennes
+            // que le début du buffer sont ajoutées via fill(), jamais via append().
+            logger.debug("MarketData {} older than last Bucket data {}, ignored by append", data.getTimestamp(), last.getTimestamp());
             return 0;
         }
 
@@ -97,6 +107,42 @@ public class Bucket {
 
         invalidateViews();
         return evicted;
+    }
+
+    /**
+     * Insère les bougies absentes (historique plus ancien que le début du buffer, ou trou interne),
+     * sans toucher à celles déjà présentes. Reconstruit le buffer trié, tronqué à maxSize côté
+     * ancien. Les bougies postérieures à la dernière sont ignorées (réservées à append()).
+     *
+     * @return le nombre de bougies réellement insérées
+     */
+    public int fill(List<MarketData> candidates) {
+        if (buffer.isEmpty() || candidates.isEmpty()) {
+            return 0;
+        }
+        Instant last = buffer.getLast().getTimestamp();
+        TreeMap<Instant, MarketData> merged = new TreeMap<>();
+        for (MarketData existing : buffer) {
+            merged.put(existing.getTimestamp(), existing);
+        }
+        int inserted = 0;
+        for (MarketData candidate : candidates) {
+            if (candidate.getTimeFrame() == baseTimeFrame
+                    && !candidate.getTimestamp().isAfter(last)
+                    && merged.putIfAbsent(candidate.getTimestamp(), candidate) == null) {
+                inserted++;
+            }
+        }
+        if (inserted == 0) {
+            return 0;
+        }
+        buffer.clear();
+        buffer.addAll(merged.values());
+        while (buffer.size() > maxSize) {
+            buffer.removeFirst();
+        }
+        invalidateViews();
+        return inserted;
     }
 
     /* ================= VIEWS ================= */
@@ -319,6 +365,14 @@ public class Bucket {
 
     public boolean isEmpty() {
         return buffer.isEmpty();
+    }
+
+    public int size() {
+        return buffer.size();
+    }
+
+    public MarketData peekFirst() {
+        return buffer.peekFirst();
     }
 
     public MarketData peekLast() {

@@ -5,6 +5,7 @@ import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDatasetRequest;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSourceType;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.service.market.dataset.execution.BacktestExecutionPolicy;
 import fr.ses10doigts.tradeIO5.service.market.dataset.execution.ExecutionPolicy;
 import fr.ses10doigts.tradeIO5.service.market.dataset.execution.LiveExecutionPolicy;
@@ -12,8 +13,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Component
@@ -90,42 +91,30 @@ public class MarketDatasetManager {
         incoming.sort(Comparator.comparing(MarketData::getTimestamp));
 
         Bucket bucket = state.getBucket();
+        TimeFrame baseTimeFrame = bucket.getBaseTimeFrame();
+        boolean hasOlderHistory = !bucket.isEmpty()
+                && incoming.getFirst().getTimestamp().isBefore(bucket.peekFirst().getTimestamp());
 
-        // Dernière donnée déjà présente dans le bucket (si existe)
-        MarketData previous = bucket.isEmpty()
-                ? null
-                : bucket.peekLast();
-
-        // Vérification des gaps
-        int count = 0;
-        Instant current;
-        boolean isOutOfRange = false;
+        // Un trou n'existe que vers l'avant : entre la dernière bougie connue et la première
+        // bougie entrante plus récente (ou entre deux bougies entrantes). Le chevauchement avec
+        // l'existant (refetch) n'est jamais un trou.
+        MarketData previous = bucket.peekLast();
         int totalEvicted = 0;
         for (MarketData data : incoming) {
-            current = data.getTimestamp();
-            if (previous != null) {
-                Instant i1 = previous.getTimestamp();
-                Instant i2 = data.getTimestamp();
-
-                int amount = state.getBucket().getBaseTimeFrame().getAmount();
-                ChronoUnit unit = state.getBucket().getBaseTimeFrame().getUnit();
-                Instant lowerBound = i1.plus(amount, unit);       // i1 + d
-                Instant upperBound = i1.plus(amount* 2L, unit); // i1 + 2d
-
-                boolean inRange = !i2.isBefore(lowerBound) && i2.isBefore(upperBound);
-
-                if (!inRange ) {
-                    count++;
-                    isOutOfRange = true;
-                } else if ( isOutOfRange ) { // implicit inRange == true
-                    state.getHasDataGap().put(Instant.from(current), count);
-                    isOutOfRange = false;
-                    count = 0;
+            if (previous != null && data.getTimestamp().isAfter(previous.getTimestamp())) {
+                long missing = missingCandles(previous.getTimestamp(), data.getTimestamp(), baseTimeFrame);
+                if (missing > 0) {
+                    state.getHasDataGap().put(data.getTimestamp(), (int) missing);
                 }
             }
+            totalEvicted += bucket.append(data);
+            previous = bucket.peekLast();
+        }
 
-            totalEvicted += state.getBucket().append(data);
-            previous = data;
+        // Historique plus ancien que le début du buffer (requête plus profonde que la précédente)
+        if (hasOlderHistory) {
+            int inserted = bucket.fill(incoming);
+            log.debug("Bucket deepened : {} older candle(s) inserted", inserted);
         }
 
         if (totalEvicted > 0) {
@@ -135,6 +124,23 @@ public class MarketDatasetManager {
         }
 
         state.setLastUpdate(providedNow);
+    }
+
+    /**
+     * Comble un trou : insère les bougies manquantes dans le Bucket. Ne touche pas à lastUpdate
+     * (ce n'est pas un refetch de la fin de série ; le repousser retardait les vrais refetchs).
+     */
+    public void fillGap(MarketDatasetState state, List<MarketData> candles) {
+        if (candles == null || candles.isEmpty()) {
+            return;
+        }
+        int inserted = state.getBucket().fill(candles);
+        log.debug("Gap fill : {} candle(s) inserted", inserted);
+    }
+
+    private long missingCandles(Instant from, Instant to, TimeFrame baseTimeFrame) {
+        long step = baseTimeFrame.getUnit().getDuration().multipliedBy(baseTimeFrame.getAmount()).toSeconds();
+        return Duration.between(from, to).getSeconds() / step - 1;
     }
 
 }
