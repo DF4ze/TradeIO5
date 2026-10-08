@@ -77,8 +77,15 @@ class DxyIndicatorCacheSharingTest {
                 "le cache de base (même symbole, même timeframe) doit continuer à fonctionner comme avant");
     }
 
+    /**
+     * Horloge unique partagée : comme en prod (une seule instance {@code DomainClock}), et car
+     * {@code FixedDomainClock} n'a pas d'equals (égalité par identité) alors que l'horloge fait
+     * partie de {@code IndicatorExecutionKey}.
+     */
+    private static final FixedDomainClock CLOCK = new FixedDomainClock(Instant.parse("2025-01-01T12:00:00Z"));
+
     private IndicatorContext contextFor(String symbol) {
-        FixedDomainClock clock = new FixedDomainClock(Instant.parse("2025-01-01T12:00:00Z"));
+        FixedDomainClock clock = CLOCK;
         return new IndicatorContext(
                 symbol,
                 TimeFrame.H1,
