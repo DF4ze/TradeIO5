@@ -16,6 +16,7 @@ import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrTuning;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetTemplateService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.CreateRequest;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.UpdateRequest;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveQueryService;
@@ -47,6 +48,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -58,7 +60,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@link IAuthenticationFacade}.
  */
 @DataJpaTest
-@Import({RainbowLivePresetService.class, RainbowLiveRunService.class, RainbowLiveQueryService.class,
+@Import({RainbowLivePresetService.class, RainbowLivePresetTemplateService.class, RainbowLiveRunService.class,
+        RainbowLiveQueryService.class,
         RainbowLiveControllerTest.ClockConfig.class})
 @DisplayName("RainbowLiveController : API REST du bench grandeur nature")
 class RainbowLiveControllerTest {
@@ -76,6 +79,7 @@ class RainbowLiveControllerTest {
     }
 
     @Autowired private RainbowLivePresetService presetService;
+    @Autowired private RainbowLivePresetTemplateService templateService;
     @Autowired private RainbowLiveRunService runService;
     @Autowired private RainbowLiveQueryService queryService;
     @Autowired private RainbowLivePresetRepository presetRepository;
@@ -153,29 +157,69 @@ class RainbowLiveControllerTest {
                 .andExpect(jsonPath("$.zones[0].code").value(0))
                 .andExpect(jsonPath("$.zones[0].name").value("EXTREME_BAS"))
                 .andExpect(jsonPath("$.zones[5].name").value("EXTREME_HAUT"))
-                .andExpect(jsonPath("$.zones[2].label").value("Zone ×1"));
+                .andExpect(jsonPath("$.zones[2].label").value("Zone ×1"))
+                .andExpect(jsonPath("$.systemPrefix").value("[Système] "));
     }
 
     @Test
-    @DisplayName("GET /presets : seed lazy (3 presets) ; supprimer BTC ⇒ jamais re-créé ; filtre ?asset ; actif invalide ⇒ 400")
-    void listSeedsOnceAndFilters() throws Exception {
+    @DisplayName("GET /presets : copie des templates système (6, inactifs, préfixés) ; filtre ?asset ; actif invalide ⇒ 400")
+    void listCopiesSystemPresetsAndFilters() throws Exception {
+        templateService.ensureTemplates();
         mvc.perform(get("/api/rainbow-live/presets"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$.length()").value(6))
                 .andExpect(jsonPath("$[0].assetSymbol").value("BTC"))
-                .andExpect(jsonPath("$[0].name").value("Bench global"))
+                .andExpect(jsonPath("$[0].name").value("[Système] Bench global"))
+                .andExpect(jsonPath("$[0].system").value(true))
+                .andExpect(jsonPath("$[0].enabled").value(false))
+                .andExpect(jsonPath("$[1].name").value("[Système] Trend Mix"))
+                .andExpect(jsonPath("$[1].mode").value("TREND_MIX"))
                 .andExpect(jsonPath("$[0].wallet.cashUsdc").value(1000.0))
                 .andExpect(jsonPath("$[0].wallet.equityUsdc").doesNotExist())
                 .andExpect(jsonPath("$[0].runCount").value(0))
                 .andExpect(jsonPath("$[0].lastRun").doesNotExist());
 
-        Long btcId = presetRepository.findByUserAndAssetSymbolOrderByNameAsc(alice, "BTC").getFirst().getId();
-        mvc.perform(delete("/api/rainbow-live/presets/" + btcId)).andExpect(status().isNoContent());
-
-        mvc.perform(get("/api/rainbow-live/presets")).andExpect(jsonPath("$.length()").value(2));
+        mvc.perform(get("/api/rainbow-live/presets")).andExpect(jsonPath("$.length()").value(6));
         mvc.perform(get("/api/rainbow-live/presets").param("asset", "ETH"))
-                .andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].assetSymbol").value("ETH"));
+                .andExpect(jsonPath("$.length()").value(2)).andExpect(jsonPath("$[0].assetSymbol").value("ETH"));
         mvc.perform(get("/api/rainbow-live/presets").param("asset", "SOL")).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Preset système : PUT et DELETE ⇒ 409, PATCH /enabled autorisé ; nom préfixé refusé à la création")
+    void systemPresetIsLocked() throws Exception {
+        templateService.ensureTemplates();
+        mvc.perform(get("/api/rainbow-live/presets")).andExpect(status().isOk());
+        Long id = presetRepository.findByUserAndAssetSymbolAndName(alice, "BTC", "[Système] Bench global").orElseThrow().getId();
+        RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor("BTC");
+
+        putJson("/api/rainbow-live/presets/" + id, new UpdateRequest("x", true, 6, c.toTuning(), c.toGlobals()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error").exists());
+        mvc.perform(delete("/api/rainbow-live/presets/" + id)).andExpect(status().isConflict());
+
+        mvc.perform(patch("/api/rainbow-live/presets/" + id + "/enabled").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"enabled\":true}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.enabled").value(true))
+                .andExpect(jsonPath("$.name").value("[Système] Bench global"));
+
+        postJson("/api/rainbow-live/presets", createRequest("BTC", "[Système] perso")).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("GET /templates : 6 templates en lecture seule (aucun endpoint d'écriture)")
+    void templatesReadOnly() throws Exception {
+        templateService.ensureTemplates();
+        mvc.perform(get("/api/rainbow-live/templates"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(6))
+                .andExpect(jsonPath("$[0].assetSymbol").value("BTC"))
+                .andExpect(jsonPath("$[0].name").value("Bench global"))
+                .andExpect(jsonPath("$[0].mode").value("FIXED"))
+                .andExpect(jsonPath("$[0].trendConfig").doesNotExist())
+                .andExpect(jsonPath("$[1].name").value("Trend Mix"))
+                .andExpect(jsonPath("$[1].trendConfig.trend.shortWindow").exists());
+        mvc.perform(post("/api/rainbow-live/templates")).andExpect(status().is4xxClientError());
+        mvc.perform(delete("/api/rainbow-live/templates/1")).andExpect(status().is4xxClientError());
     }
 
     @Test

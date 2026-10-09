@@ -15,19 +15,26 @@
 
     <ul class="nav nav-tabs" id="rl-asset-tabs" role="tablist"></ul>
 
-    <div class="d-flex justify-content-between align-items-center my-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 my-3">
       <h5 class="mb-0">Presets de l'actif <span id="rl-asset-label" class="fw-bold"></span></h5>
-      <button type="button" class="btn btn-primary btn-sm" id="rl-new-preset">Nouveau preset</button>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="small text-muted">Mode</span>
+        <div class="btn-group btn-group-sm" role="group" id="rl-ui-mode" aria-label="Mode d'affichage"></div>
+        <button type="button" class="btn btn-primary btn-sm" id="rl-new-trend"
+                title="Jeux Bear/Bull choisis chaque jour par le Trend Mix">Nouveau Trend Mix</button>
+        <button type="button" class="btn btn-outline-primary btn-sm" id="rl-new-preset"
+                title="Un seul jeu de paramètres fixe">Nouveau preset fixe</button>
+      </div>
     </div>
 
     <div class="table-responsive">
       <table class="table table-sm table-hover align-middle" id="rl-presets-table">
         <thead>
           <tr>
-            <th>Nom</th><th title="Bascule rapide : le preset est joué (ou non) à chaque passe quotidienne">Actif</th>
+            <th>Nom</th><th>Type</th><th title="Bascule rapide : le preset est joué (ou non) à chaque passe quotidienne">Actif</th>
             <th>Fenêtre (mois)</th><th>Capital initial</th>
             <th>Wallet mock (cash / position / équité)</th>
-            <th>Runs</th><th>1er run</th><th>Dernier run</th><th></th>
+            <th>Runs</th><th>1er run</th><th title="Jeu actif et régime de Trend du dernier run (Trend Mix)">Jeu · Trend</th><th>Dernier run</th><th></th>
           </tr>
         </thead>
         <tbody id="rl-presets-body"></tbody>
@@ -49,19 +56,10 @@
       </div>
       <div class="rl-legend small text-muted" id="rl-chart-legend"></div>
 
-      <div class="d-flex justify-content-between align-items-center mt-4">
-        <h5 class="mb-0">Taille de position</h5>
-        <div class="btn-group btn-group-sm" role="group" id="rl-pos-metric" aria-label="Métrique">
-          <input type="radio" class="btn-check" name="rl-pos-metric" id="rl-pm-currentValue" value="currentValue" checked>
-          <label class="btn btn-outline-secondary" for="rl-pm-currentValue">Valeur de marché</label>
-          <input type="radio" class="btn-check" name="rl-pos-metric" id="rl-pm-costBasis" value="costBasis">
-          <label class="btn btn-outline-secondary" for="rl-pm-costBasis">Coût</label>
-          <input type="radio" class="btn-check" name="rl-pos-metric" id="rl-pm-position" value="position">
-          <label class="btn btn-outline-secondary" for="rl-pm-position">Quantité</label>
-        </div>
-      </div>
-      <div id="rl-chart-pos" class="rl-chart rl-chart-small"></div>
-      <div class="small text-muted">Vert = jour d'achat, rouge = jour de vente, gris = pas d'action. Jours sans run : non interpolés.</div>
+      <h5 class="mt-4">Prix, PnL et expositions</h5>
+      <div id="rl-chart-multi" class="rl-chart rl-chart-multi"></div>
+      <div class="rl-legend small text-muted" id="rl-multi-legend"></div>
+      <div class="small text-muted">Haut : close, SMA et bornes ATR, tags achat/vente (prix · facteur ATH · distance à l'ATH). Milieu : PnL réalisé / potentiel / total. Bas : exposition actif / stable / wallet total. Jours sans run : non interpolés.</div>
       <div id="rl-chart-error" class="text-danger small d-none"></div>
 
       <h5 class="mt-4">Runs</h5>

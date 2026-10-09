@@ -5,6 +5,7 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrGlobals;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrTuning;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePerformanceCalculator;
+import fr.ses10doigts.tradeIO5.service.tree.trend.TrendMixCalculator;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -26,7 +27,9 @@ public final class RainbowLiveDtos {
      */
     public record DefaultsDto(List<String> assets, String stablecoin, String defaultName, int analysisWindowMonths,
                               double initialCapitalUsdc, double baseAmount, Map<String, ConfigDto> configs,
-                              List<String> reentryModes, List<ZoneDto> zones) {
+                              List<String> reentryModes, List<ZoneDto> zones,
+                              Map<String, TrendConfigDto> trendDefaults, List<String> rangeMappings,
+                              List<String> uiModes, String systemPrefix) {
     }
 
     public record ZoneDto(int code, String name, String label) {
@@ -35,18 +38,37 @@ public final class RainbowLiveDtos {
     public record ConfigDto(RainbowAtrTuning tuning, RainbowAtrGlobals globals) {
     }
 
+    /** Réglages d'un preset TREND_MIX : Trend Mix, mapping du RANGE (KEEP_PREVIOUS|TO_BEAR|TO_BULL), jeux Bear/Bull. */
+    public record TrendConfigDto(TrendMixCalculator.Params trend, String rangeMapping, ConfigDto bear, ConfigDto bull) {
+    }
+
+    /** Template de preset système (lecture seule) ; {@code trendConfig} nul pour un template FIXED. */
+    public record TemplateDto(Long id, String assetSymbol, String name, String mode, int analysisWindowMonths,
+                              double initialCapitalUsdc, ConfigDto config, TrendConfigDto trendConfig) {
+    }
+
+    /** Activation / désactivation d'un preset. */
+    public record EnabledDto(boolean enabled) {
+    }
+
+    /** Mode d'affichage de la page, par utilisateur. */
+    public record UiModeDto(String mode) {
+    }
+
     /** Wallet mock ; {@code lastClose}/{@code equityUsdc} nuls tant qu'aucun close n'est connu. */
     public record WalletDto(double cashUsdc, double positionQuantity, Double lastClose, Double equityUsdc) {
     }
 
     public record LastRunDto(LocalDate day, RainbowLivePass pass, Double close, Integer zone, RainbowLiveAction actionType,
-                             Double actionAmountUsdc, Double actionQuantity) {
+                             Double actionAmountUsdc, Double actionQuantity,
+                             String activeSet, String trendRegime) {
     }
 
     public record PresetDto(Long id, String assetSymbol, String name, boolean enabled, int analysisWindowMonths,
                             double initialCapitalUsdc, Instant createdAt, Instant updatedAt,
                             RainbowAtrTuning tuning, RainbowAtrGlobals globals, WalletDto wallet,
-                            long runCount, LocalDate firstRunDay, LastRunDto lastRun) {
+                            long runCount, LocalDate firstRunDay, LastRunDto lastRun, String mode, TrendConfigDto trendConfig,
+                            boolean system) {
     }
 
     public record BlockDto(Double close, Double sma, Double atr, Double boundDown2, Double boundDown1, Double boundUp1,
@@ -54,7 +76,8 @@ public final class RainbowLiveDtos {
                            Double sellFactor, Boolean moonMode, Boolean buyArmed, Boolean sellArmed, Boolean buyLocked,
                            Integer cooldownRemaining, Double moonReserveQty, RainbowLiveAction actionType,
                            Double actionAmountUsdc, Double actionQuantity, Double actionPrice, Double cashAfter,
-                           Double positionAfter, String configHash, Instant computedAt) {
+                           Double positionAfter, String configHash, Instant computedAt,
+                           String activeSet, String trendRegime) {
     }
 
     public record RunDto(LocalDate day, BlockDto pass2355, BlockDto pass0005, boolean deltaActionDiffers,

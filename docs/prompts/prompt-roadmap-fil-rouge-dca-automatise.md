@@ -24,7 +24,8 @@ Trace de la réflexion du 2026-10-04 (suite de `prompt-analyse-fil-rouge-dca-aut
 |---|---|---|
 | 1 | Étude de compatibilité + socle moteur (L1/L2/L3, contrat `RainbowSignal`, Sizer de référence) | codée + testée (2026-10-04), point avec Clem à faire |
 | 2 | Trend → Bull/Bear + rejeu Java sur plage + graphique HTML (CSV) vs pine v4 | codée (2026-10-04), comparaison de Clem sous TradingView à faire |
-| 3 | Exécution quotidienne en dry-run (orchestrateur, état user-actif, `AthReference` en DB, Trend → jeu) | à faire |
+| 2 bis | Trend Mix (`TrendMixCalculator`) + mode `TREND_MIX` du rejeu = méga-pine `rainbow_trend_dca_v1.pine` | codée + testée (2026-10-08), comparaison de Clem sous TradingView à faire |
+| 3 | Exécution quotidienne en dry-run (presets `TREND_MIX` du bench : état persisté, `AthReference` en base, Trend → jeu) | codée + testée (2026-10-08), presets Trend Mix fournis par les templates système (copie inactive à la 1re utilisation, activation par l'utilisateur) ; point avec Clem à faire |
 
 Hors roadmap (roadmap suivante) : wallet réel (`WalletSnapshot`), sizing réel et plafonds, curseur d'exposition, risque macro, exécution réelle (dry-run obligatoire avant), paramétrage automatique d'un actif quelconque, bench du delta 23:55/00:05.
 
@@ -47,7 +48,13 @@ Hors roadmap (roadmap suivante) : wallet réel (`WalletSnapshot`), sizing réel 
 - **Réalisé (2026-10-04)** : jeux Bull/Bear du pine en Java (`RainbowAtrPresets`), `RainbowSetSelector`, `RainbowAtrReplay`, `RainbowAtrReplayMain` (5 modes × BTC/ETH/PAXG, plage 2024-06-10 → dernière bougie close, sorties dans `target/rainbow-replay/`). Style du graphique = visualiseur « Rainbow DCA Bench » (validé par Clem). Données : D1 Binance (BTC/ETH/PAXGUSDT) ; PAXG en Binance et non Kraken (historique Kraken public ~720 j < plage).
 - **Point** : Clem compare Java vs pine ; écarts à expliquer avant d'aller plus loin.
 
+## Étape 2 bis — Trend Mix = méga-pine
+- `TrendMixCalculator` (`service/tree/trend`) : port du Mix du méga-pine (régression 14/30/60 échelle 400 ENTER 0,3 EXIT 0,1 confirm 10 + SMA100 ± 1,25×ATR5, mèche basse oui / haute non). Jeu actif = `RainbowSetSelector` (RANGE : garder), état de la machine conservé au changement de jeu, ATH/moon suivant le jeu actif, verrou DOWN2 levé seulement après le cooldown (déjà identique au pine).
+- `RainbowAtrReplayMain` : mode `TREND_MIX` ajouté (CSV jour par jour + `replay.html`).
+- **Point** : Clem compare Java vs méga-pine jour à jour ; écarts à expliquer avant l'étape 3.
+
 ## Étape 3 — Exécution quotidienne en dry-run
-- Orchestrateur : charge l'état (user, actif), appelle L1 → Trend → choix du jeu → L2 `step` avec `AthReference` → signal → Sizer (wallet mock au départ) → sauvegarde de l'état. Remplace/adapte le bench live (`08-rainbow-bench-grandeur-nature.md`).
-- Test « état persisté == état rejoué » ; cron désactivé par défaut.
+- Décisions (2026-10-08) : presets `TREND_MIX` **à côté** des presets `FIXED` actuels (comparaison) ; état de la machine amorcé au 1er run par un rejeu de la fenêtre du preset (6 mois par défaut) puis incrémental jour après jour ; ATH par actif amorcé par un import one-shot de l'historique Binance à la 1re demande, puis alimenté par la passe 23:55.
+- **Réalisé (2026-10-08)** : `RainbowLiveMode`, `RainbowLiveEngineState`, `RainbowAthReference` (+ repositories), `RainbowAthService`, `RainbowTrendLiveService` (Trend Mix → jeu → un pas de `step` → `ReferenceSizer` plafonné par le wallet mock), `RainbowAtrReplay.runFull`, `activeSet`/`trendRegime` dans les blocs et l'API, copie des templates système `ensureSystemPresets`. Test « état persisté == état rejoué » (`RainbowTrendLiveServiceTest`). Détail : [`08-rainbow-bench-grandeur-nature.md`](../architecture/08-rainbow-bench-grandeur-nature.md).
+- Reste côté front : afficher le mode, le jeu actif et la Trend dans la page du bench (données déjà dans l'API).
 - **Point** : cadrage de la roadmap suivante (wallet réel, sizing, exposition, risque macro, exécution).

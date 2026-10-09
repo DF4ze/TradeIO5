@@ -71,6 +71,16 @@
 		    <version>2.1</version>
 		</dependency>
 
+		<!-- Flyway : préparé mais NON activé (spring.flyway.enabled=false), cf. docs/operations/flyway.md.
+		     Versions gérées par le BOM Spring Boot ; flyway-mysql couvre MySQL et MariaDB. -->
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-mysql</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>com.mysql</groupId>
 			<artifactId>mysql-connector-j</artifactId>

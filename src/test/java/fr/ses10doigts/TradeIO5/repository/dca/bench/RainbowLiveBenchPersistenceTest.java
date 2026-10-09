@@ -5,17 +5,22 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMockWallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMode;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePresetTemplate;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrGlobals;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrTuning;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetLockedException;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.CreateRequest;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.UpdateRequest;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetTemplateService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveRunService;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveTrendConfigs;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import jakarta.persistence.EntityManager;
@@ -28,6 +33,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -42,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest
-@Import({RainbowLivePresetService.class, RainbowLiveRunService.class, RainbowLiveBenchPersistenceTest.ClockConfig.class})
+@Import({RainbowLivePresetService.class, RainbowLivePresetTemplateService.class, RainbowLiveRunService.class, RainbowLiveBenchPersistenceTest.ClockConfig.class})
 @DisplayName("Bench grandeur nature Rainbow : persistance, presets, runs")
 class RainbowLiveBenchPersistenceTest {
 
@@ -61,7 +67,9 @@ class RainbowLiveBenchPersistenceTest {
     @Autowired private RainbowLivePresetRepository presetRepository;
     @Autowired private RainbowLiveMockWalletRepository walletRepository;
     @Autowired private RainbowLiveRunRepository runRepository;
-    @Autowired private RainbowLiveUserSeedRepository seedRepository;
+    @Autowired private RainbowLivePresetTemplateService templateService;
+    @Autowired private RainbowLivePresetTemplateRepository templateRepository;
+    @Autowired private RainbowLiveTrendConfigRepository trendConfigRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private EntityManager em;
 
@@ -145,30 +153,6 @@ class RainbowLiveBenchPersistenceTest {
         RainbowAtrConfig z = RainbowAtrConfig.of(c.toTuning(), c.toGlobals());
         z.setBaseAmount(0);
         return z.toGlobals();
-    }
-
-    @Test
-    @DisplayName("ensureDefaultPresets : 1 preset par actif (BTC/ETH/PAXG), idempotent, respecte l'existant")
-    void ensureDefaults() {
-        List<RainbowLivePreset> created = presetService.ensureDefaultPresets(alice);
-
-        assertEquals(3, created.size());
-        for (String asset : RainbowLiveDefaultPresets.ASSETS) {
-            RainbowLivePreset p = presetService.list(alice, asset).getFirst();
-            assertEquals(RainbowLiveDefaultPresets.configFor(asset), p.getConfig(), asset);
-            assertEquals(1000, p.getInitialCapitalUsdc(), 0.0);
-            assertEquals(6, p.getAnalysisWindowMonths());
-            assertTrue(p.isEnabled());
-        }
-        assertTrue(presetService.ensureDefaultPresets(alice).isEmpty());
-        assertEquals(3, presetService.list(alice).size());
-        assertEquals(3, walletRepository.count());
-
-        // bob a déjà un preset ETH custom : seuls BTC et PAXG sont ajoutés
-        RainbowAtrConfig e = RainbowLiveDefaultPresets.configFor("ETH");
-        presetService.create(bob, new CreateRequest("ETH", "perso", false, 3, 500, e.toTuning(), e.toGlobals()));
-        assertEquals(2, presetService.ensureDefaultPresets(bob).size());
-        assertEquals(1, presetService.list(bob, "ETH").size());
     }
 
     @Test
@@ -325,43 +309,110 @@ class RainbowLiveBenchPersistenceTest {
         assertEquals(other.getId(), runRepository.findAll().getFirst().getPreset().getId());
     }
 
-    // --- Seed une seule fois par user
+    // --- Templates système + copie par user
 
     @Test
-    @DisplayName("Seed : marqueur posé ; supprimer le dernier preset d'un actif ⇒ pas de re-création aux appels suivants")
-    void seedOnlyOncePerUser() {
-        assertFalse(seedRepository.existsByUser(alice));
-        assertEquals(3, presetService.ensureDefaultPresets(alice).size());
-        assertTrue(seedRepository.existsByUser(alice));
+    @DisplayName("Templates : 2 par actif (Bench global FIXED + Trend Mix), idempotent, complète seulement les manquants")
+    void ensureTemplates() {
+        assertEquals(6, templateService.ensureTemplates().size());
+        assertTrue(templateService.ensureTemplates().isEmpty(), "2e démarrage : aucun doublon");
+        assertEquals(6, templateRepository.count());
 
-        RainbowLivePreset btc = presetService.list(alice, "BTC").getFirst();
-        presetService.delete(alice, btc.getId());
-
-        assertTrue(presetService.ensureDefaultPresets(alice).isEmpty());
-        assertTrue(presetService.list(alice, "BTC").isEmpty());
-        assertEquals(2, presetService.list(alice).size());
-    }
-
-    @Test
-    @DisplayName("Seed : user ayant déjà tous ses presets ⇒ marqueur posé sans rien créer de superflu")
-    void seedMarkerWithoutDuplicates() {
         for (String asset : RainbowLiveDefaultPresets.ASSETS) {
-            RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor(asset);
-            presetService.create(alice, new CreateRequest(asset, "perso", true, 6, 1000, c.toTuning(), c.toGlobals()));
+            RainbowLivePresetTemplate bench = templateRepository.findAllByOrderByAssetSymbolAscNameAsc().stream()
+                    .filter(t -> t.getAssetSymbol().equals(asset) && t.getMode() == RainbowLiveMode.FIXED)
+                    .findFirst().orElseThrow();
+            assertEquals(RainbowLiveDefaultPresets.DEFAULT_NAME, bench.getName());
+            assertEquals(RainbowLiveDefaultPresets.configFor(asset), bench.getConfig(), asset);
+            assertEquals(null, bench.getTrendConfigJson());
         }
-        assertTrue(presetService.ensureDefaultPresets(alice).isEmpty());
-        assertTrue(seedRepository.existsByUser(alice));
-        assertEquals(3, presetService.list(alice).size());
+
+        // un template manquant (suppression en masse, hors callbacks) est recréé seul, les autres ne sont pas touchés
+        em.createQuery("delete from RainbowLivePresetTemplate t where t.assetSymbol = 'ETH'").executeUpdate();
+        em.clear();
+        assertEquals(2, templateService.ensureTemplates().size());
+        assertEquals(6, templateRepository.count());
     }
 
     @Test
-    @DisplayName("Seed : deux users indépendants (le marqueur d'un user n'affecte pas l'autre)")
-    void seedIndependentPerUser() {
-        presetService.ensureDefaultPresets(alice);
-        assertFalse(seedRepository.existsByUser(bob));
-        assertEquals(3, presetService.ensureDefaultPresets(bob).size());
-        assertEquals(3, presetService.list(alice).size());
-        assertEquals(3, presetService.list(bob).size());
-        assertEquals(2, seedRepository.count());
+    @DisplayName("Templates : immuables (update et delete refusés par l'entité)")
+    void templatesImmutable() {
+        templateService.ensureTemplates();
+        em.flush();
+        em.clear();
+
+        RainbowLivePresetTemplate t = templateRepository.findAll().getFirst();
+        ReflectionTestUtils.setField(t, "name", "autre");
+        assertThrows(RuntimeException.class, () -> em.flush());
+        em.clear();
+
+        RainbowLivePresetTemplate t2 = templateRepository.findAll().getFirst();
+        assertThrows(RuntimeException.class, () -> templateRepository.delete(t2));
+    }
+
+    @Test
+    @DisplayName("1re utilisation : copie des 6 templates (inactifs, système, nom préfixé, wallet au capital), idempotent, par user")
+    void ensureSystemPresets() {
+        templateService.ensureTemplates();
+
+        List<RainbowLivePreset> created = presetService.ensureSystemPresets(alice);
+        assertEquals(6, created.size());
+        assertEquals(6, presetService.list(alice).size());
+        assertEquals(6, walletRepository.count());
+        for (RainbowLivePreset p : created) {
+            assertTrue(p.isSystem());
+            assertFalse(p.isEnabled(), "copie créée inactive");
+            assertTrue(p.getName().startsWith(RainbowLiveDefaultPresets.SYSTEM_PREFIX), p.getName());
+            assertEquals(1000, walletRepository.findByPreset(p).orElseThrow().cash(), 0.0);
+        }
+        for (String asset : RainbowLiveDefaultPresets.ASSETS) {
+            RainbowLivePreset bench = presetService.list(alice, asset).stream().filter(p -> !p.isTrendMix()).findFirst().orElseThrow();
+            assertEquals(RainbowLiveDefaultPresets.SYSTEM_PREFIX + RainbowLiveDefaultPresets.DEFAULT_NAME, bench.getName());
+            assertEquals(RainbowLiveDefaultPresets.configFor(asset), bench.getConfig(), asset);
+
+            RainbowLivePreset trend = presetService.list(alice, asset).stream().filter(RainbowLivePreset::isTrendMix).findFirst().orElseThrow();
+            assertEquals(RainbowLiveDefaultPresets.SYSTEM_PREFIX + RainbowLiveDefaultPresets.TREND_MIX_NAME, trend.getName());
+            RainbowLiveTrendConfigs.Resolved got = RainbowLiveTrendConfigs.resolve(
+                    trendConfigRepository.findByPreset(trend).orElseThrow(), asset);
+            RainbowLiveTrendConfigs.Resolved expected = RainbowLiveTrendConfigs.defaults(asset);
+            assertEquals(expected.trend(), got.trend(), asset);
+            assertEquals(expected.range(), got.range(), asset);
+            assertEquals(expected.bear().tuning(), got.bear().tuning(), asset);
+            assertEquals(expected.bull().globals(), got.bull().globals(), asset);
+        }
+
+        assertTrue(presetService.ensureSystemPresets(alice).isEmpty(), "2e appel : pas de doublon");
+        assertEquals(6, presetService.ensureSystemPresets(bob).size(), "bob indépendant d'alice");
+        assertEquals(12, walletRepository.count());
+    }
+
+    @Test
+    @DisplayName("Copie système : ni modifiable ni supprimable, activation seule permise ; préfixe réservé")
+    void systemPresetLocked() {
+        templateService.ensureTemplates();
+        RainbowLivePreset sys = presetService.ensureSystemPresets(alice).getFirst();
+        RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor("BTC");
+
+        assertThrows(RainbowLivePresetLockedException.class, () ->
+                presetService.update(alice, sys.getId(), new UpdateRequest("x", true, 6, c.toTuning(), c.toGlobals())));
+        assertThrows(RainbowLivePresetLockedException.class, () -> presetService.delete(alice, sys.getId()));
+
+        assertTrue(presetService.setEnabled(alice, sys.getId(), true).isEnabled());
+        assertFalse(presetService.setEnabled(alice, sys.getId(), false).isEnabled());
+        assertEquals(6, presetService.list(alice).size());
+
+        assertThrows(IllegalArgumentException.class, () -> btcPreset(alice, RainbowLiveDefaultPresets.SYSTEM_PREFIX + "perso"));
+        RainbowLivePreset own = btcPreset(alice, "perso");
+        assertThrows(IllegalArgumentException.class, () -> presetService.update(alice, own.getId(),
+                new UpdateRequest(RainbowLiveDefaultPresets.SYSTEM_PREFIX + "perso", true, 6, c.toTuning(), c.toGlobals())));
+        assertFalse(own.isSystem());
+    }
+
+    @Test
+    @DisplayName("Sans template en base : aucune copie (le user garde ses presets perso)")
+    void noTemplateNoCopy() {
+        btcPreset(alice, "perso");
+        assertTrue(presetService.ensureSystemPresets(alice).isEmpty());
+        assertEquals(1, presetService.list(alice).size());
     }
 }

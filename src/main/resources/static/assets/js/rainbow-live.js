@@ -18,8 +18,8 @@
 
   const state = {
     defaults: null, zones: new Map(), asset: null, presets: [], selectedId: null,
-    formMode: null, formPreset: null, deleteTarget: null,
-    charts: [], perf: null, retry: null, updateHist: null
+    formMode: null, formKind: 'FIXED', formPreset: null, uiMode: 'EXPERT', deleteTarget: null,
+    charts: [], perf: null, retry: null
   };
 
   /* ------------------------------------------------------------------ utilitaires */
@@ -153,6 +153,15 @@
     body.replaceChildren(...state.presets.map((p) => presetRow(p)));
   }
 
+  const isTrend = (p) => p.mode === 'TREND_MIX';
+
+  /** « Bear · DOWN » (badge de régime coloré) ; tiret si non applicable. */
+  function setTrendCell(set, regime) {
+    if (!set && !regime) { return DASH; }
+    return el('span', { class: 'text-nowrap' }, el('span', { class: 'me-1', text: set || DASH }),
+      regime ? el('span', { class: 'badge rl-tag-' + regime.toLowerCase(), text: regime }) : null);
+  }
+
   function presetRow(p) {
     const w = p.wallet;
     const last = p.lastRun;
@@ -162,29 +171,34 @@
     toggle.addEventListener('change', () => toggleEnabled(p, toggle));
     return el('tr', { class: p.id === state.selectedId ? 'table-active' : '' },
       el('td', { text: p.name }),
+      el('td', null, el('span', { class: 'badge ' + (isTrend(p) ? 'bg-primary' : 'bg-secondary'), text: isTrend(p) ? 'Trend Mix' : 'Fixe' }),
+        p.system ? el('span', { class: 'badge bg-dark ms-1', text: 'Système',
+          title: 'Preset système : seule son activation est modifiable' }) : null),
       el('td', null, el('div', { class: 'form-check form-switch' }, toggle)),
       el('td', { text: p.analysisWindowMonths }),
       el('td', { text: usd(p.initialCapitalUsdc) }),
       el('td', { text: w ? usd(w.cashUsdc) + ' / ' + qty(w.positionQuantity) + ' / ' + usd(w.equityUsdc) : DASH }),
       el('td', { text: p.runCount }),
       el('td', { text: p.firstRunDay || DASH }),
+      el('td', null, setTrendCell(last && last.activeSet, last && last.trendRegime)),
       el('td', { text: last ? last.day + ' · ' + zoneLabel(last.zone) + ' · '
         + actionText(last.actionType, last.actionAmountUsdc, last.actionQuantity) : DASH }),
       el('td', { class: 'text-nowrap' },
         el('div', { class: 'btn-group btn-group-sm' },
           el('button', { type: 'button', class: 'btn btn-outline-primary', text: 'Voir', onclick: () => selectPreset(p.id) }),
-          el('button', { type: 'button', class: 'btn btn-outline-secondary', text: 'Éditer', onclick: () => openForm('edit', p) }),
+          el('button', { type: 'button', class: 'btn btn-outline-secondary', text: 'Éditer', disabled: p.system,
+            title: p.system ? 'Preset système : non modifiable' : null, onclick: () => openForm('edit', p) }),
           el('button', { type: 'button', class: 'btn btn-outline-secondary', text: 'Dupliquer', onclick: () => openForm('duplicate', p) }),
-          el('button', { type: 'button', class: 'btn btn-outline-danger', text: 'Supprimer', onclick: () => openDelete(p) }))));
+          el('button', { type: 'button', class: 'btn btn-outline-danger', text: 'Supprimer', disabled: p.system,
+            title: p.system ? 'Preset système : non supprimable' : null, onclick: () => openDelete(p) }))));
   }
 
-  /** Bascule rapide actif/inactif : PUT avec le reste inchangé. */
+  /** Bascule rapide actif/inactif (seule modification permise sur un preset système). */
   async function toggleEnabled(p, input) {
     const wanted = input.checked;
     input.disabled = true;
     try {
-      await api('PUT', '/presets/' + p.id, { name: p.name, enabled: wanted, analysisWindowMonths: p.analysisWindowMonths,
-        tuning: p.tuning, globals: p.globals });
+      await api('PATCH', '/presets/' + p.id + '/enabled', { enabled: wanted });
       hideAlert();
       await loadPresets();
     } catch (e) {
@@ -244,84 +258,162 @@
       { scope: 'globals', key: 'multTriggered', label: 'Multiplicateur achat déclenché', type: 'number' },
       { scope: 'globals', key: 'baseAmount', label: 'Montant de base par achat (USDC)', type: 'number' }] }
   ];
-  const inputId = (f) => 'rl-f-' + f.scope + '-' + f.key;
+  /** Groupes propres au Trend Mix (scope 'trend' = Params du Trend Mix, 'top' = racine de trendConfig). */
+  const TREND_GROUP = { id: 'trend', title: 'Trend Mix (régression + SMA/ATR)', fields: [
+    { scope: 'trend', key: 'shortWindow', label: 'Régression courte (j)', type: 'int' },
+    { scope: 'trend', key: 'mediumWindow', label: 'Régression moyenne (j)', type: 'int' },
+    { scope: 'trend', key: 'longWindow', label: 'Régression longue (j)', type: 'int' },
+    { scope: 'trend', key: 'slopeScale', label: 'Échelle de pente', type: 'number' },
+    { scope: 'trend', key: 'enter', label: 'Seuil ENTER (entrée en tendance)', type: 'number' },
+    { scope: 'trend', key: 'exit', label: 'Seuil EXIT (sortie de tendance)', type: 'number' },
+    { scope: 'trend', key: 'confirm', label: 'Confirmation (jours)', type: 'int' },
+    { scope: 'trend', key: 'smaPeriod', label: 'Période SMA', type: 'int' },
+    { scope: 'trend', key: 'atrPeriod', label: 'Période ATR', type: 'int' },
+    { scope: 'trend', key: 'atrMultiplier', label: 'Mult. ATR autour de la SMA', type: 'number' },
+    { scope: 'trend', key: 'wickDown', label: 'Mèche basse prise en compte', type: 'bool' },
+    { scope: 'trend', key: 'wickUp', label: 'Mèche haute prise en compte', type: 'bool' },
+    { scope: 'top', key: 'rangeMapping', label: 'Régime RANGE ⇒ jeu', type: 'range' }] };
+  const SET_GROUPS = FORM_GROUPS.slice(1); // bornes, mécanisme, cooldown, ATH, moon, multiplicateurs
+  const inputId = (f) => 'rl-f-' + f.scope.replace(':', '-') + '-' + f.key;
+  const RANGE_LABELS = { KEEP_PREVIOUS: 'Garder le jeu précédent', TO_BEAR: 'Bear', TO_BULL: 'Bull' };
 
-  function buildForm() {
+  /** Groupes du formulaire selon le type : FIXED = schéma historique ; TREND_MIX = général + Trend + tableau Bear|Bull. */
+  const groupsFor = (kind) => (kind === 'TREND_MIX' ? [FORM_GROUPS[0], TREND_GROUP] : FORM_GROUPS);
+  const setFields = (set) => SET_GROUPS.flatMap((g) => g.fields.map((f) => Object.assign({}, f, { scope: set + ':' + f.scope })));
+  const allFields = (kind) => groupsFor(kind).flatMap((g) => g.fields)
+    .concat(kind === 'TREND_MIX' ? setFields('bear').concat(setFields('bull')) : []);
+
+  function buildForm(kind) {
     const acc = $('rl-form-accordion');
     const assetField = el('div', { class: 'col-12 col-md-6 col-xl-4' },
       el('label', { class: 'form-label small', for: 'rl-f-asset', text: 'Actif' }),
       el('input', { id: 'rl-f-asset', type: 'text', class: 'form-control form-control-sm', disabled: true }));
-    acc.replaceChildren(...FORM_GROUPS.map((g, i) => {
+    const item = (g, i, body) => el('div', { class: 'accordion-item' },
+      el('h2', { class: 'accordion-header' },
+        el('button', { type: 'button', class: 'accordion-button' + (i === 0 ? '' : ' collapsed'),
+          'data-bs-toggle': 'collapse', 'data-bs-target': '#rl-acc-' + g.id, text: g.title })),
+      el('div', { id: 'rl-acc-' + g.id, class: 'accordion-collapse collapse' + (i === 0 ? ' show' : '') },
+        el('div', { class: 'accordion-body' }, body)));
+    const items = groupsFor(kind).map((g, i) => {
       const fields = g.fields.map(fieldNode);
       if (i === 0) { fields.unshift(assetField); }
-      return el('div', { class: 'accordion-item' },
-        el('h2', { class: 'accordion-header' },
-          el('button', { type: 'button', class: 'accordion-button' + (i === 0 ? '' : ' collapsed'),
-            'data-bs-toggle': 'collapse', 'data-bs-target': '#rl-acc-' + g.id, text: g.title })),
-        el('div', { id: 'rl-acc-' + g.id, class: 'accordion-collapse collapse' + (i === 0 ? ' show' : '') },
-          el('div', { class: 'accordion-body' }, el('div', { class: 'row g-3' }, fields))));
-    }));
+      return item(g, i, el('div', { class: 'row g-3' }, fields));
+    });
+    if (kind === 'TREND_MIX') {
+      SET_GROUPS.forEach((g, i) => items.push(item(
+        { id: 'set-' + g.id, title: 'Jeux Bear | Bull — ' + g.title }, 1 + i, setsTable(g))));
+    }
+    acc.replaceChildren(...items);
+  }
+
+  /** Tableau paramètre × (Bear, Bull) ; ligne en ambre quand les deux jeux diffèrent. */
+  function setsTable(g) {
+    const rows = g.fields.map((f) => {
+      const fb = Object.assign({}, f, { scope: 'bear:' + f.scope });
+      const fu = Object.assign({}, f, { scope: 'bull:' + f.scope });
+      const tr = el('tr', null, el('td', { text: f.label }),
+        el('td', null, control(fb, inputId(fb))), el('td', null, control(fu, inputId(fu))));
+      const refresh = () => tr.classList.toggle('rl-diff', readControl(fb) !== readControl(fu));
+      tr.addEventListener('input', refresh); tr.addEventListener('change', refresh);
+      tr.refreshDiff = refresh;
+      return tr;
+    });
+    return el('table', { class: 'table table-sm align-middle rl-sets-table mb-0' },
+      el('thead', null, el('tr', null, el('th', { text: 'Paramètre' }),
+        el('th', null, el('span', { class: 'badge rl-tag-down', text: 'Bear' })),
+        el('th', null, el('span', { class: 'badge rl-tag-up', text: 'Bull' })))),
+      el('tbody', null, rows));
+  }
+
+  function readControl(f) {
+    const input = $(inputId(f));
+    return f.type === 'bool' ? String(input.checked) : input.value;
+  }
+
+  /** Contrôle de saisie seul (sans libellé). */
+  function control(f, id) {
+    if (f.type === 'bool') { return el('input', { id, type: 'checkbox', class: 'form-check-input' }); }
+    if (f.type === 'enum') {
+      return el('select', { id, class: 'form-select form-select-sm' },
+        (state.defaults.reentryModes || []).map((m) => el('option', { value: m, text: m })));
+    }
+    if (f.type === 'range') {
+      return el('select', { id, class: 'form-select form-select-sm' },
+        (state.defaults.rangeMappings || []).map((m) => el('option', { value: m, text: RANGE_LABELS[m] || m })));
+    }
+    if (f.type === 'text') { return el('input', { id, type: 'text', class: 'form-control form-control-sm', maxlength: 100 }); }
+    return el('input', { id, type: 'number', step: f.type === 'int' ? '1' : 'any', class: 'form-control form-control-sm' });
   }
 
   function fieldNode(f) {
     const id = inputId(f);
-    let input;
+    const input = control(f, id);
     if (f.type === 'bool') {
-      input = el('input', { id, type: 'checkbox', class: 'form-check-input' });
       return el('div', { class: 'col-12 col-md-6 col-xl-4' },
         el('div', { class: 'form-check form-switch mt-4' }, input,
           el('label', { class: 'form-check-label small', for: id, text: f.label })));
-    }
-    if (f.type === 'enum') {
-      input = el('select', { id, class: 'form-select form-select-sm' },
-        (state.defaults.reentryModes || []).map((m) => el('option', { value: m, text: m })));
-    } else if (f.type === 'text') {
-      input = el('input', { id, type: 'text', class: 'form-control form-control-sm', maxlength: 100 });
-    } else {
-      input = el('input', { id, type: 'number', step: f.type === 'int' ? '1' : 'any', class: 'form-control form-control-sm' });
     }
     return el('div', { class: 'col-12 col-md-6 col-xl-4' },
       el('label', { class: 'form-label small', for: id, text: f.label }), input,
       el('div', { class: 'invalid-feedback', text: f.type === 'text' ? 'Valeur requise.' : 'Nombre valide requis.' }));
   }
 
-  const sourceOf = (f, data) => (f.scope === 'preset' ? data.preset : data[f.scope]);
-
-  /** Remplit le formulaire depuis {preset:{...}, tuning, globals}. */
-  function fillForm(data) {
-    for (const g of FORM_GROUPS) {
-      for (const f of g.fields) {
-        const input = $(inputId(f));
-        const v = sourceOf(f, data)[f.key];
-        if (f.type === 'bool') { input.checked = !!v; } else { input.value = v == null ? '' : v; }
-        input.classList.remove('is-invalid');
-      }
+  /** Lecture/écriture dans {preset, tuning, globals, trend, top, bear:{tuning,globals}, bull:{...}} via le scope « a:b ». */
+  function scopeObj(data, scope, create) {
+    let o = data;
+    for (const part of scope.split(':')) {
+      if (o[part] == null) { if (!create) { return {}; } o[part] = {}; }
+      o = o[part];
     }
+    return o;
+  }
+
+  /** Remplit le formulaire (kind courant) depuis {preset, tuning, globals, trend, top, bear, bull}. */
+  function fillForm(data) {
+    for (const f of allFields(state.formKind)) {
+      const input = $(inputId(f));
+      const v = scopeObj(data, f.scope, false)[f.key];
+      if (f.type === 'bool') { input.checked = !!v; } else { input.value = v == null ? '' : v; }
+      input.classList.remove('is-invalid');
+    }
+    document.querySelectorAll('#rl-form-accordion tr').forEach((tr) => { if (tr.refreshDiff) { tr.refreshDiff(); } });
   }
 
   function formData(p) {
-    return { preset: { name: p.name, enabled: p.enabled, analysisWindowMonths: p.analysisWindowMonths,
+    const d = { preset: { name: p.name, enabled: p.enabled, analysisWindowMonths: p.analysisWindowMonths,
       initialCapitalUsdc: p.initialCapitalUsdc }, tuning: p.tuning, globals: p.globals };
+    return isTrend(p) ? Object.assign(d, trendData(p.trendConfig)) : d;
   }
 
+  const trendData = (tc) => ({ trend: tc.trend, top: { rangeMapping: tc.rangeMapping }, bear: tc.bear, bull: tc.bull });
+
   /** mode : 'create' | 'edit' | 'duplicate' (création pré-remplie avec la config d'un preset). */
-  function openForm(mode, p) {
+  function openForm(mode, p, kind) {
     state.formMode = mode === 'edit' ? 'edit' : 'create';
     state.formPreset = p || null;
+    state.formKind = p ? (isTrend(p) ? 'TREND_MIX' : 'FIXED') : (kind || 'FIXED');
+    buildForm(state.formKind);
     const asset = p ? p.assetSymbol : state.asset;
+    const label = state.formKind === 'TREND_MIX' ? 'Trend Mix' : 'preset fixe';
     $('rl-form-title').textContent = mode === 'edit' ? 'Éditer « ' + p.name + ' »'
-      : (mode === 'duplicate' ? 'Dupliquer « ' + p.name + ' »' : 'Nouveau preset — ' + asset);
+      : (mode === 'duplicate' ? 'Dupliquer « ' + p.name + ' »' : 'Nouveau ' + label + ' — ' + asset);
     $('rl-form-banner').classList.toggle('d-none', mode !== 'edit');
     $('rl-form-error').classList.add('d-none');
     $('rl-f-asset').value = asset;
     if (p) {
       const d = formData(p);
-      if (mode === 'duplicate') { d.preset.name = p.name + ' (copie)'; }
+      if (mode === 'duplicate') {
+        const prefix = state.defaults.systemPrefix;
+        d.preset.name = (p.system && p.name.startsWith(prefix) ? p.name.slice(prefix.length) : p.name) + ' (copie)';
+      }
       fillForm(d);
     } else {
       const cfg = state.defaults.configs[asset];
-      fillForm({ preset: { name: '', enabled: true, analysisWindowMonths: state.defaults.analysisWindowMonths,
-        initialCapitalUsdc: state.defaults.initialCapitalUsdc }, tuning: cfg.tuning, globals: cfg.globals });
+      const base = { preset: { name: state.formKind === 'TREND_MIX' ? 'Trend Mix' : '',
+        enabled: true, analysisWindowMonths: state.defaults.analysisWindowMonths,
+        initialCapitalUsdc: state.defaults.initialCapitalUsdc }, tuning: cfg.tuning, globals: cfg.globals };
+      fillForm(state.formKind === 'TREND_MIX'
+        ? Object.assign(base, trendData(state.defaults.trendDefaults[asset])) : base);
     }
     // capital initial : lecture seule en édition (l'actif l'est toujours)
     $(inputId({ scope: 'preset', key: 'initialCapitalUsdc' })).disabled = mode === 'edit';
@@ -330,40 +422,49 @@
 
   /** Remplace tuning + globals par le défaut de l'actif (nom, actif, fenêtre et capital inchangés). */
   function fillWithAssetDefault() {
-    const cfg = state.defaults.configs[$('rl-f-asset').value];
+    const asset = $('rl-f-asset').value;
+    const cfg = state.defaults.configs[asset];
     if (!cfg) { return; }
     const keep = {};
     for (const f of FORM_GROUPS[0].fields) {
       const input = $(inputId(f));
       keep[f.key] = f.type === 'bool' ? input.checked : input.value;
     }
-    fillForm({ preset: keep, tuning: cfg.tuning, globals: cfg.globals });
+    const data = { preset: keep, tuning: cfg.tuning, globals: cfg.globals };
+    fillForm(state.formKind === 'TREND_MIX'
+      ? Object.assign(data, trendData(state.defaults.trendDefaults[asset])) : data);
   }
 
   /** Lit et valide le formulaire ; marque les champs invalides, ouvre le groupe fautif. */
   function collectForm() {
-    const out = { preset: {}, tuning: {}, globals: {} };
+    const out = { preset: {}, tuning: {}, globals: {}, trend: {}, top: {}, bear: {}, bull: {} };
     let firstBad = null;
-    for (const g of FORM_GROUPS) {
-      for (const f of g.fields) {
-        if (f.createOnly && state.formMode === 'edit') { continue; }
-        const input = $(inputId(f));
-        let v;
-        let ok = true;
-        if (f.type === 'bool') { v = input.checked; }
-        else if (f.type === 'enum') { v = input.value; ok = !!v; }
-        else if (f.type === 'text') { v = input.value.trim(); ok = v.length > 0; }
-        else {
-          v = input.value.trim() === '' ? NaN : Number(input.value);
-          ok = Number.isFinite(v) && (f.type !== 'int' || Number.isInteger(v));
-        }
-        input.classList.toggle('is-invalid', !ok);
-        if (!ok && !firstBad) { firstBad = { input, group: g }; }
-        out[f.scope][f.key] = v;
+    const groupOf = new Map();
+    groupsFor(state.formKind).forEach((g) => g.fields.forEach((f) => groupOf.set(f, g.id)));
+    SET_GROUPS.forEach((g) => g.fields.forEach((f0) => ['bear', 'bull'].forEach((set) =>
+      groupOf.set(set + ':' + f0.scope + ':' + f0.key, 'set-' + g.id))));
+    for (const f of allFields(state.formKind)) {
+      if (f.createOnly && state.formMode === 'edit') { continue; }
+      const input = $(inputId(f));
+      let v;
+      let ok = true;
+      if (f.type === 'bool') { v = input.checked; }
+      else if (f.type === 'enum' || f.type === 'range') { v = input.value; ok = !!v; }
+      else if (f.type === 'text') { v = input.value.trim(); ok = v.length > 0; }
+      else {
+        v = input.value.trim() === '' ? NaN : Number(input.value);
+        ok = Number.isFinite(v) && (f.type !== 'int' || Number.isInteger(v));
       }
+      input.classList.toggle('is-invalid', !ok);
+      if (!ok && !firstBad) {
+        firstBad = { input, group: groupOf.get(f) || groupOf.get(f.scope + ':' + f.key) };
+      }
+      scopeObj(out, f.scope, true)[f.key] = v;
     }
     if (firstBad) {
-      bootstrap.Collapse.getOrCreateInstance($('rl-acc-' + firstBad.group.id), { toggle: false }).show();
+      if (firstBad.group) {
+        bootstrap.Collapse.getOrCreateInstance($('rl-acc-' + firstBad.group), { toggle: false }).show();
+      }
       firstBad.input.focus();
       return null;
     }
@@ -383,13 +484,17 @@
     btn.disabled = true;
     try {
       let saved;
+      const trend = state.formKind === 'TREND_MIX';
+      const specific = trend
+        ? { trendConfig: { trend: d.trend, rangeMapping: d.top.rangeMapping, bear: d.bear, bull: d.bull } }
+        : { tuning: d.tuning, globals: d.globals };
       if (state.formMode === 'edit') {
-        saved = await api('PUT', '/presets/' + state.formPreset.id, { name: d.preset.name, enabled: d.preset.enabled,
-          analysisWindowMonths: d.preset.analysisWindowMonths, tuning: d.tuning, globals: d.globals });
+        saved = await api('PUT', '/presets/' + state.formPreset.id, Object.assign({ name: d.preset.name,
+          enabled: d.preset.enabled, analysisWindowMonths: d.preset.analysisWindowMonths }, specific));
       } else {
-        saved = await api('POST', '/presets', { assetSymbol: $('rl-f-asset').value, name: d.preset.name,
+        saved = await api('POST', '/presets', Object.assign({ assetSymbol: $('rl-f-asset').value, name: d.preset.name,
           enabled: d.preset.enabled, analysisWindowMonths: d.preset.analysisWindowMonths,
-          initialCapitalUsdc: d.preset.initialCapitalUsdc, tuning: d.tuning, globals: d.globals });
+          initialCapitalUsdc: d.preset.initialCapitalUsdc, mode: state.formKind }, specific));
       }
       bootstrap.Modal.getOrCreateInstance($('rl-form-modal')).hide();
       hideAlert();
@@ -461,11 +566,12 @@
     const id = state.selectedId;
     const panel = $('rl-perf-panel');
     try {
-      const perf = await api('GET', '/presets/' + id + '/performance');
+      const [perf, runs] = await Promise.all([api('GET', '/presets/' + id + '/performance'),
+        api('GET', '/presets/' + id + '/runs').catch(() => [])]);
       if (id !== state.selectedId) { return; }
       state.perf = perf;
       renderPerformance(panel, perf);
-      if (perf.days > 0) { renderCharts(perf); }
+      if (perf.days > 0) { renderCharts(perf, runs); }
     } catch (e) {
       if (id !== state.selectedId) { return; }
       destroyCharts();
@@ -478,7 +584,8 @@
       destroyCharts();
       panel.replaceChildren(emptyMsg('Aucun run encore : les passes 23:55/00:05 UTC alimenteront cette vue.'));
       $('rl-chart-perf').textContent = '';
-      $('rl-chart-pos').textContent = '';
+      $('rl-chart-multi').textContent = '';
+      $('rl-multi-legend').textContent = '';
       $('rl-chart-legend').textContent = '';
       return;
     }
@@ -516,7 +623,6 @@
   function destroyCharts() {
     state.charts.forEach((c) => { try { c.remove(); } catch (e) { /* déjà détruit */ } });
     state.charts = [];
-    state.updateHist = null;
     $('rl-chart-tooltip').classList.add('d-none');
   }
 
@@ -536,7 +642,7 @@
   const legendItem = (color, text) => el('span', { class: 'me-3' },
     el('span', { style: 'display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;background:' + color }), text);
 
-  function renderCharts(perf) {
+  function renderCharts(perf, runs) {
     destroyCharts();
     const errBox = $('rl-chart-error');
     errBox.classList.add('d-none');
@@ -600,20 +706,9 @@
       tip.classList.remove('d-none');
     });
 
-    // --- graphique taille de position (histogramme)
-    const posEl = $('rl-chart-pos');
-    posEl.textContent = '';
-    const chart2 = LW.createChart(posEl, baseChartOptions(LW, false));
-    const hist = chart2.addSeries(LW.HistogramSeries, {});
+    // --- graphique multi-panneaux : prix + tags, PnL, expositions
+    const chart2 = renderMultiChart(LW, perf, runs || [], fmt);
     state.charts = [chart, chart2];
-    state.updateHist = () => {
-      const metric = (document.querySelector('input[name="rl-pos-metric"]:checked') || {}).value || 'currentValue';
-      hist.applyOptions({ priceFormat: metric === 'position' ? { type: 'price', precision: 8, minMove: 0.00000001 } : fmt });
-      hist.setData(series.map((p) => ({ time: p.day, value: p[metric],
-        color: p.actionType === 'BUY' ? COLORS.buy : (p.actionType === 'SELL' ? COLORS.sell : COLORS.neutral) })));
-    };
-    state.updateHist();
-    chart2.timeScale().fitContent();
 
     // plages visibles synchronisées (mêmes jours sur les deux graphiques)
     let syncing = false;
@@ -629,6 +724,68 @@
       legendItem(COLORS.strategy, 'Stratégie (vendu + restant)'), legendItem(COLORS.fixed, 'DCA fixe (valeur)'),
       legendItem(COLORS.invested, 'Investi cumulé'), legendItem(COLORS.buy, '▲ achat'), legendItem(COLORS.sell, '▼ vente'),
       legendItem(COLORS.config, '● config modifiée'));
+  }
+
+  const pctText = (v) => (isNum(v) ? F2.format(v * 100) + ' %' : DASH);
+  const compact = (v) => (isNum(v) ? nf(0, v >= 1000 ? 0 : 2).format(v) : DASH);
+
+  /** 3 panneaux : close + SMA/bornes + tags d'ordres ; PnL ; expositions. Données = /performance + /runs (rien recalculé côté moteur). */
+  function renderMultiChart(LW, perf, runs, fmt) {
+    const host = $('rl-chart-multi');
+    host.textContent = '';
+    const chart = LW.createChart(host, baseChartOptions(LW, false));
+    const series = perf.series;
+    const L = (color, width, style, pane, title) => chart.addSeries(LW.LineSeries, { color, lineWidth: width,
+      lineStyle: style || 0, priceFormat: fmt, priceLineVisible: false, lastValueVisible: false,
+      crosshairMarkerVisible: false, title: title || '' }, pane);
+    const dashed = LW.LineStyle.Dashed;
+
+    // panneau 0 : prix, SMA, bornes
+    const sClose = L('#212529', 2, 0, 0, 'Close');
+    sClose.setData(series.map((p) => ({ time: p.day, value: p.close })));
+    const blockOf = new Map(runs.map((r) => [r.day, r.pass2355 || r.pass0005]));
+    const band = (key, color, width) => {
+      const data = runs.map((r) => ({ time: r.day, value: (r.pass2355 || r.pass0005 || {})[key] }))
+        .filter((d) => isNum(d.value));
+      if (data.length) { L(color, width || 1, 0, 0).setData(data); }
+    };
+    band('sma', '#9ca3af'); band('boundDown2', '#198754', 2); band('boundDown1', '#86efac');
+    band('boundUp1', '#fca5a5'); band('boundUp2', '#f87171'); band('boundUp3', '#dc3545', 2);
+    const tags = perf.markers.map((t) => {
+      const b = blockOf.get(t.day) || {};
+      const factor = t.type === 'BUY' ? b.buyFactor : b.sellFactor;
+      const text = (t.type === 'BUY' ? '▲ ' : '▼ ') + compact(t.price)
+        + (isNum(factor) ? ' ×' + F2.format(factor) : '')
+        + (isNum(b.athDistance) ? ' · ATH −' + pctText(b.athDistance) : '');
+      return t.type === 'BUY'
+        ? { time: t.day, position: 'belowBar', color: COLORS.buy, shape: 'arrowUp', text }
+        : { time: t.day, position: 'aboveBar', color: COLORS.sell, shape: 'arrowDown', text };
+    }).sort((a, b) => (a.time < b.time ? -1 : (a.time > b.time ? 1 : 0)));
+    LW.createSeriesMarkers(sClose, tags);
+
+    // panneau 1 : PnL (réalisé = vendu − coût des parts vendues ; potentiel = valeur − coût de revient)
+    const realized = (p) => p.saleProceeds - (p.invested - p.costBasis);
+    L('#198754', 2, 0, 1, 'réalisé').setData(series.map((p) => ({ time: p.day, value: realized(p) })));
+    L('#0d6efd', 2, 0, 1, 'potentiel').setData(series.map((p) => ({ time: p.day, value: p.currentValue - p.costBasis })));
+    L('#212529', 2, 0, 1, 'total').setData(series.map((p) => ({ time: p.day, value: realized(p) + p.currentValue - p.costBasis })));
+    L('#9ca3af', 1, dashed, 1, 'DCA fixe').setData(series.map((p) => ({ time: p.day, value: p.fixedValue - p.fixedInvested })));
+
+    // panneau 2 : expositions du wallet mock
+    const cap = perf.wallet ? perf.wallet.initialCapitalUsdc : null;
+    L('#212529', 2, 0, 2, 'wallet total').setData(series.map((p) => ({ time: p.day, value: p.walletEquity })));
+    L('#0d6efd', 2, 0, 2, 'en actif').setData(series.map((p) => ({ time: p.day, value: p.currentValue })));
+    L('#198754', 2, 0, 2, 'en stable').setData(series.map((p) => ({ time: p.day, value: p.walletEquity - p.currentValue })));
+    if (isNum(cap)) { L('#9ca3af', 1, dashed, 2, 'capital initial').setData(series.map((p) => ({ time: p.day, value: cap }))); }
+
+    const panes = chart.panes();
+    [5, 2, 2].forEach((f, i) => { if (panes[i]) { panes[i].setStretchFactor(f); } });
+    chart.timeScale().fitContent();
+
+    $('rl-multi-legend').replaceChildren(
+      legendItem('#212529', 'Close'), legendItem('#9ca3af', 'SMA'), legendItem('#198754', 'bornes basses / réalisé / stable'),
+      legendItem('#dc3545', 'bornes hautes'), legendItem('#0d6efd', 'potentiel / en actif'),
+      legendItem(COLORS.buy, '▲ achat (prix ×facteur ATH · distance ATH)'), legendItem(COLORS.sell, '▼ vente'));
+    return chart;
   }
 
   /* -------- runs */
@@ -665,7 +822,7 @@
     const rows = [];
     [...runs].reverse().forEach((r) => {
       const b = refBlock(r);
-      const detail = el('tr', { class: 'rl-detail-row d-none' }, el('td', { colspan: 9 }, runDetail(r)));
+      const detail = el('tr', { class: 'rl-detail-row d-none' }, el('td', { colspan: 10 }, runDetail(r)));
       const btn = el('button', { type: 'button', class: 'btn btn-sm btn-link p-0', text: '▸', title: 'Détails (bornes, facteurs)' });
       btn.addEventListener('click', () => {
         const open = detail.classList.toggle('d-none') === false;
@@ -678,6 +835,7 @@
         el('td', { text: b ? zoneLabel(b.zone) : DASH }),
         el('td', { text: r.pass2355 ? actionText(r.pass2355.actionType, r.pass2355.actionAmountUsdc, r.pass2355.actionQuantity) : DASH }),
         el('td', { text: r.pass0005 ? actionText(r.pass0005.actionType, r.pass0005.actionAmountUsdc, r.pass0005.actionQuantity) : DASH }),
+        el('td', null, setTrendCell(b && b.activeSet, b && b.trendRegime)),
         el('td', null, stateBadges(b)),
         el('td', { text: r.pass2355 ? usd(r.pass2355.cashAfter) + ' / ' + qty(r.pass2355.positionAfter) : DASH }),
         el('td', null,
@@ -690,7 +848,7 @@
     panel.replaceChildren(
       el('div', { class: 'small text-muted mb-1', text: runs.length + ' jour(s), le plus récent en premier. Action 23:55 = action fictive retenue.' }),
       el('div', { class: 'rl-runs-scroll' }, el('table', { class: 'table table-sm align-middle mb-0' },
-        el('thead', null, el('tr', null, ...['', 'Jour', 'Close', 'Zone', 'Action 23:55', 'Action 00:05', 'États',
+        el('thead', null, el('tr', null, ...['', 'Jour', 'Close', 'Zone', 'Action 23:55', 'Action 00:05', 'Jeu · Trend', 'États',
           'Cash / position après', ''].map((h) => el('th', { text: h })))),
         el('tbody', null, rows))));
   }
@@ -763,19 +921,43 @@
         + 'Les chiffres ci-dessus sont fournis tels quels, sans conclusion.' }));
   }
 
+  /* ------------------------------------------------------------------ mode d'affichage (par utilisateur) */
+
+  const UI_MODES = [['AUTO', 'Auto'], ['SIMPLE', 'Simple'], ['ADVANCED', 'Avancé'], ['EXPERT', 'Expert']];
+  const UI_MODE_READY = new Set(['EXPERT']);
+
+  function renderUiMode() {
+    $('rl-ui-mode').replaceChildren(...UI_MODES.map(([code, label]) => el('button', {
+      type: 'button', class: 'btn ' + (code === state.uiMode ? 'btn-secondary' : 'btn-outline-secondary'),
+      disabled: !UI_MODE_READY.has(code), text: label,
+      title: UI_MODE_READY.has(code) ? 'Tous les paramètres' : 'Bientôt disponible',
+      onclick: () => setUiMode(code) })));
+  }
+
+  async function setUiMode(code) {
+    try {
+      state.uiMode = (await api('PUT', '/ui-mode', { mode: code })).mode;
+      renderUiMode();
+    } catch (e) { showAlert('Changement de mode impossible : ' + e.message, null); }
+  }
+
+  async function loadUiMode() {
+    try { state.uiMode = (await api('GET', '/ui-mode')).mode; } catch (e) { state.uiMode = 'EXPERT'; }
+    renderUiMode();
+  }
+
   /* ------------------------------------------------------------------ initialisation */
 
   function bindEvents() {
     $('rl-alert-retry').addEventListener('click', () => { if (state.retry) { state.retry(); } });
-    $('rl-new-preset').addEventListener('click', () => openForm('create', null));
+    $('rl-new-preset').addEventListener('click', () => openForm('create', null, 'FIXED'));
+    $('rl-new-trend').addEventListener('click', () => openForm('create', null, 'TREND_MIX'));
     $('rl-form-submit').addEventListener('click', submitForm);
     $('rl-form-fill-default').addEventListener('click', fillWithAssetDefault);
     $('rl-delete-confirm').addEventListener('click', confirmDelete);
     $('rl-runs-apply').addEventListener('click', loadRuns);
     $('rl-runs-90').addEventListener('click', () => { $('rl-runs-from').value = todayMinus(90); $('rl-runs-to').value = ''; loadRuns(); });
     $('rl-runs-all').addEventListener('click', () => { $('rl-runs-from').value = ''; $('rl-runs-to').value = ''; loadRuns(); });
-    document.querySelectorAll('input[name="rl-pos-metric"]').forEach((r) =>
-      r.addEventListener('change', () => { if (state.updateHist) { state.updateHist(); } }));
   }
 
   async function init() {
@@ -789,7 +971,7 @@
     hideAlert();
     state.defaults.zones.forEach((z) => state.zones.set(z.code, z.label));
     buildTabs();
-    buildForm();
+    loadUiMode();
     selectAsset(state.defaults.assets[0]);
   }
 

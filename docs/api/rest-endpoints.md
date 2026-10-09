@@ -55,22 +55,26 @@ Authentifié (`@PreAuthorize("isAuthenticated()")` sur la classe), scopé à l'u
 
 | Méthode | Chemin | Description |
 |---|---|---|
-| GET | `/defaults` | `{assets, stablecoin, defaultName, analysisWindowMonths, initialCapitalUsdc, baseAmount, configs{BTC,ETH,PAXG → {tuning, globals}}, reentryModes[], zones[{code,name,label}]}` (enum `ReentryMode` et libellés de zones fournis par le serveur) |
-| GET | `/presets[?asset=BTC]` | Seed lazy (une fois par user) puis liste `PresetDto` ; actif hors BTC/ETH/PAXG ⇒ 400 |
-| POST | `/presets` | Corps `{assetSymbol, name, enabled, analysisWindowMonths, initialCapitalUsdc, tuning, globals}` ⇒ 201 `PresetDto` ; 400 (validation), 409 (nom déjà pris pour l'actif) |
+| GET | `/defaults` | `{assets, stablecoin, defaultName, analysisWindowMonths, initialCapitalUsdc, baseAmount, configs{BTC,ETH,PAXG → {tuning, globals}}, reentryModes[], zones[{code,name,label}], trendDefaults{actif → TrendConfigDto}, rangeMappings[], uiModes[], systemPrefix}` (enum `ReentryMode` et libellés de zones fournis par le serveur) |
+| GET / PUT | `/ui-mode` | Mode d'affichage de l'user : `{mode: AUTO\|SIMPLE\|ADVANCED\|EXPERT}` (défaut `EXPERT`) ; valeur invalide ⇒ 400 |
+| GET | `/templates` | Templates de presets système, **lecture seule** (`TemplateDto`) ; aucun endpoint d'écriture |
+| GET | `/presets[?asset=BTC]` | Copie des templates système manquants (inactives, `system=true`) puis liste `PresetDto` ; actif hors BTC/ETH/PAXG ⇒ 400 |
+| POST | `/presets` | Corps `{assetSymbol, name, enabled, analysisWindowMonths, initialCapitalUsdc, tuning, globals}` ⇒ 201 `PresetDto` ; preset Trend Mix : `mode:"TREND_MIX"` + `trendConfig` (sans `tuning`/`globals`) ; 400 (validation, nom préfixé par le préfixe système réservé), 409 (nom déjà pris pour l'actif) |
 | GET | `/presets/{id}` | `PresetDto` |
-| PUT | `/presets/{id}` | Corps `{name, enabled, analysisWindowMonths, tuning, globals}` (actif et capital non modifiables) ⇒ `PresetDto` ; effet au run suivant, historique et wallet conservés |
-| DELETE | `/presets/{id}` | 204 ; supprime wallet mock et runs |
+| PUT | `/presets/{id}` | Corps `{name, enabled, analysisWindowMonths, tuning, globals}` (Trend Mix : `trendConfig` à la place, absent ⇒ inchangé) (actif et capital non modifiables) ⇒ `PresetDto` ; effet au run suivant, historique et wallet conservés ; preset système ⇒ 409 |
+| PATCH | `/presets/{id}/enabled` | Corps `{enabled}` ⇒ `PresetDto` ; seule modification permise sur un preset système |
+| DELETE | `/presets/{id}` | 204 ; supprime wallet mock et runs ; preset système ⇒ 409 |
 | GET | `/presets/{id}/runs[?from&to]` | Liste chronologique `RunDto` |
 | GET | `/presets/{id}/performance[?to]` | `PerformanceDto` |
 | GET | `/presets/{id}/delta[?from&to]` | Synthèse delta 23:55 vs 00:05 |
 
 Réponses (noms de champs) :
-- `PresetDto` : `id, assetSymbol, name, enabled, analysisWindowMonths, initialCapitalUsdc, createdAt, updatedAt, tuning, globals, wallet{cashUsdc, positionQuantity, lastClose?, equityUsdc?}, runCount, firstRunDay?, lastRun?{day, pass, close, zone, actionType, actionAmountUsdc, actionQuantity}` (`tuning` = champs de `RainbowAtrTuning`, `globals` = champs de `RainbowAtrGlobals`, `baseAmount` inclus).
+- `PresetDto` : `id, assetSymbol, name, enabled, analysisWindowMonths, initialCapitalUsdc, createdAt, updatedAt, tuning, globals, wallet{cashUsdc, positionQuantity, lastClose?, equityUsdc?}, runCount, firstRunDay?, lastRun?{day, pass, close, zone, actionType, actionAmountUsdc, actionQuantity, activeSet?, trendRegime?}, mode (FIXED|TREND_MIX), trendConfig?` (Trend Mix), `system` (copie d'un template) ; `TrendConfigDto` = `{trend{shortWindow, mediumWindow, longWindow, slopeScale, enter, exit, confirm, smaPeriod, atrPeriod, atrMultiplier, wickDown, wickUp}, rangeMapping, bear{tuning, globals}, bull{tuning, globals}}` (`tuning` = champs de `RainbowAtrTuning`, `globals` = champs de `RainbowAtrGlobals`, `baseAmount` inclus).
+- `TemplateDto` : `id, assetSymbol, name, mode, analysisWindowMonths, initialCapitalUsdc, config{tuning, globals}, trendConfig?` (Trend Mix).
 - `RunDto` : `day, pass2355?, pass0005?` (blocs `{close, sma, atr, boundDown2, boundDown1, boundUp1, boundUp2, boundUp3, zone, athDistance, buyFactor, sellFactor, moonMode, buyArmed, sellArmed, buyLocked, cooldownRemaining, moonReserveQty, actionType, actionAmountUsdc, actionQuantity, actionPrice, cashAfter, positionAfter, configHash, computedAt}`), `deltaActionDiffers, configHash, configChanged, changedParams[]`. Jours manquants absents de la liste.
 - `PerformanceDto` : `presetId, assetSymbol, initialCapitalUsdc, days, firstDay, lastDay, metrics{invested, saleProceeds, currentValue, realizedGain, potentialGain, totalGain, pnlPercent, realizedPercent, potentialPercent, position, costBasis, lastClose, fixedInvested, fixedQuantity, fixedValue, fixedGain, fixedPnlPercent, outperformanceGain, outperformancePoints}, wallet{initialCapitalUsdc, cashUsdc, positionQuantity, equityUsdc, pnlPercent}, series[{day, close, zone, actionType, actionAmountUsdc, actionQuantity, invested, saleProceeds, currentValue, position, costBasis, walletEquity, fixedValue, fixedInvested}], markers[{day, type, price, amountUsdc, quantity}], configMarkers[{day, configHash, changedParams[]}]`. Sans run : 200, métriques à 0, séries vides.
 - Delta : `daysCompared, daysIgnored, daysActionDiffers, actionDifferences[{day, pass2355{type, amountUsdc, quantity}, pass0005{…}}], indicators{close|sma|atr|boundDown2|boundDown1|boundUp1|boundUp2|boundUp3 → {meanAbs, maxAbs, meanPct, maxPct}}, zoneDivergences[{day, zone2355, zone0005}], stateDivergences[{day, fields[]}]`.
-- Erreurs : `{"error": "<message>"}` (400 / 404 / 409, `RainbowLiveControllerAdvice`).
+- Erreurs : `{"error": "<message>"}` (400 / 404 / 409, `RainbowLiveControllerAdvice` ; 409 = nom déjà pris ou preset système verrouillé).
 
 ## Veille média (admin, `MediaWatchAdminController`)
 

@@ -25,6 +25,8 @@ Vérifié le : 2026-10-03 (`configuration/**`, `RainbowLiveDefaultPresets`).
 | `tradeio.decision.snapshot-cron` | `-` (désactivé) | Cron photo quotidienne |
 | `tradeio.decision.archival-cron` | `-` (désactivé) | Cron archivage inactivité |
 | `tradeio.decision.orchestrator-cron` | `-` (désactivé) | Cron orchestrateur de décision |
+| `tradeio.backup.dir` | `backup/historical` | Dossier des backups `candle` / `etf_flow_snapshot` (gitignoré) |
+| `tradeio.backup.historical-cron` | `0 0 4 * * SUN` | Cron du backup hebdomadaire des données historiques (`-` désactive) |
 | `tradeio.rainbow-live.pass-2355-cron` | `-` (désactivé) | Cron passe 23:55 UTC du bench Rainbow (action fictive) |
 | `tradeio.rainbow-live.pass-0005-cron` | `-` (désactivé) | Cron passe 00:05 UTC du bench Rainbow (vraie clôture, action non appliquée) |
 | `tradeio.security.agent-api-key` | vide (filtre inactif) | Active l'authentification par clé API (`ROLE_API_AGENT`) |

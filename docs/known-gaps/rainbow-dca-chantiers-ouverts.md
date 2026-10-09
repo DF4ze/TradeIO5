@@ -1,17 +1,18 @@
 # Rainbow DCA ATR — chantiers ouverts
 
-Vérifié le : 2026-10-04 (code + décisions de Clem du jour). Objectif n°1 du projet : **automatiser le DCA intelligent** (achats/ventes réels). Cette page liste ce qui sépare l'état actuel de cet objectif. Sauf mention « fait », rien ici n'est implémenté.
+Vérifié le : 2026-10-08 (code + décisions de Clem du jour). Objectif n°1 du projet : **automatiser le DCA intelligent** (achats/ventes réels). Cette page liste ce qui sépare l'état actuel de cet objectif. Sauf mention « fait », rien ici n'est implémenté.
 
 ## État de la chaîne
 
 | Brique | État |
 |---|---|
-| Moteur Rainbow ATR (pine v4 = source de vérité, port Java) | fait — découpé en couches L1 bornes / L2 `step` pur + `RainbowAtrState` / L3 `AthReference` / L4 `Sizer` (référence seulement) ; persistance de l'état et de l'ATH non faite — [`04-market-data.md`](../architecture/04-market-data.md) |
-| Paramétrage par actif et par trend (Bull / Bear) | **manuel** : presets `<ACTIF> Perso Bear/Bull` du pine v4 ; dans le code Java, les presets par défaut restent le jeu global du bench |
+| Moteur Rainbow ATR (pine v4 = source de vérité, port Java) | fait — découpé en couches L1 bornes / L2 `step` pur + `RainbowAtrState` / L3 `AthReference` / L4 `Sizer` (référence seulement) ; état et ATH persistés pour les presets `TREND_MIX` du bench (`RainbowLiveEngineState`, `RainbowAthReference`) — [`04-market-data.md`](../architecture/04-market-data.md) |
+| Paramétrage par actif et par trend (Bull / Bear) | **manuel** : presets `<ACTIF> Perso Bear/Bull` du pine v4 ; dans le code Java, les templates de presets système (copiés par user, inactifs) restent le jeu global du bench + Trend Mix aux réglages par défaut |
 | Trend simple (`TrendAnalyzer`, UP/DOWN/RANGE) | fait — [`09-trend.md`](../architecture/09-trend.md) |
 | Trend double (globale lente + locale) | non implémenté |
-| Branchement Trend → jeu de paramètres | rejeu comparatif fait (`RainbowSetSelector`, `RainbowAtrReplay`, jeux Bull/Bear du pine v4 en Java) ; mapping de `RANGE` à trancher sur ces rejeux ; pas branché à l'exécution quotidienne |
+| Branchement Trend → jeu de paramètres | rejeu comparatif fait (`RainbowSetSelector`, `RainbowAtrReplay`, jeux Bull/Bear du pine v4 en Java, Trend Mix `TrendMixCalculator` = méga-pine `rainbow_trend_dca_v1.pine`) ; comparaison de Clem Java vs méga-pine sous TradingView à faire ; branché à l'exécution quotidienne **dry-run** (presets `TREND_MIX` du bench, [`08`](../architecture/08-rainbow-bench-grandeur-nature.md)), pas à une exécution réelle |
 | Bench grandeur nature (dry-run quotidien, wallet fictif, page web) | fait, tourne chaque jour sur le VPS (résultats de tous les presets en base) — [`08`](../architecture/08-rainbow-bench-grandeur-nature.md) |
+| Recréation d'une base (Flyway + initializers) | fait : `V1__init.sql` généré (non activé), défauts créés par les initializers, presets système par templates — [`operations/flyway.md`](../operations/flyway.md). données historiques (`candle`, `etf_flow_snapshot`) sauvegardées chaque semaine et rechargées au démarrage. **Ouvert** : sauvegarde récurrente de la branche décisionnelle (branche en pause) |
 | Curseur d'exposition | non fait — [spec V1 §2](../etudes/spec-rainbow-v1-trend-global-exposition-risque-macro.md) |
 | Risque macro (`riskCursor`) | non fait — spec V1 §3 |
 | Wallet réel dans le calcul (`WalletSnapshot`) | non fait — [`decision-to-order-gap.md`](decision-to-order-gap.md) |
@@ -46,3 +47,8 @@ Hors Rainbow : branchement `WalletSnapshot`, sizing réel, composant d'exécutio
 ## 6. Preset Bull PAXG : trop de ventes
 
 Constat (rejeu, 2026-10-05) : avec le preset Bull de PAXG, les ventes sont trop fréquentes ou trop grosses, le bag ne gonfle pas et le gain reste minime. Pistes : ne vendre que sur les gros pics haussiers (seuil de vente plus haut / UP3), ou réduire drastiquement la fraction vendue. À comparer au rejeu (`RainbowAtrReplayMain`) avant de modifier `RainbowAtrPresets`.
+
+## 5. Interface utilisateur : modes et alertes (intentions, pas de code)
+
+- **Modes de réglage** par utilisateur (choix stocké en base, sélecteur déjà présent sur la page) : *Expert* (tous les paramètres, Trend Mix et jeux Bear/Bull éditables) est livré ; restent *Auto*, *Simple* (curseurs seulement) et *Avancé* (paramètres les plus influents). Un bench en ligne (comparable au pinescript sous TradingView) est envisagé pour chacun des modes.
+- **Alerte utilisateur** quand le portefeuille devient pleinement exposé (plus de stablecoin disponible) : inviter à ajouter des fonds. Dépend du vrai wallet et du curseur d'exposition.

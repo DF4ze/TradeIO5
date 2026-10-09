@@ -6,6 +6,7 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrReplay.DayRow;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowSetSelector.RangeMapping;
 import fr.ses10doigts.tradeIO5.service.tree.strategy.impl.RegressiveTrendStrategy;
 import fr.ses10doigts.tradeIO5.service.tree.trend.TrendAnalyzer;
+import fr.ses10doigts.tradeIO5.service.tree.trend.TrendMixCalculator;
 import fr.ses10doigts.tradeIO5.service.tree.trend.TrendRegime;
 import fr.ses10doigts.tradeIO5.service.tree.trend.TrendState;
 
@@ -33,18 +34,19 @@ import java.util.function.Function;
  * du repo (gabarit {@code src/test/resources/rainbow-replay/replay-template.html}).
  * <p>
  * Modes : preset fixe Bear / Bull (comparaison propre au pine) ; Trend avec RANGE = garder le jeu précédent /
- * → Bear / → Bull.
+ * → Bear / → Bull ; Trend Mix (équivalent Java de {@code tools/pine/rainbow_trend_dca_v1.pine}, RANGE : garder).
  */
 public final class RainbowAtrReplayMain {
 
     private static final String[] ASSETS = {"BTC", "ETH", "PAXG"};
-    private static final String[] MODE_IDS = {"FIXED_BEAR", "FIXED_BULL", "TREND_KEEP", "TREND_LARGE", "TREND_SLOW", "TREND_SMA"};
+    private static final String[] MODE_IDS = {"FIXED_BEAR", "FIXED_BULL", "TREND_KEEP", "TREND_LARGE", "TREND_SLOW", "TREND_SMA", "TREND_MIX"};
     private static final String[] MODE_LABELS = {
             "Preset fixe Bear (pine)", "Preset fixe Bull (pine)",
             "Trend actuel 7/14/30 (RANGE : garder)",
             "Trend large 14/30/60, seuil 0.30, confirm 7j",
             "Trend lent 30/60/120",
-            "Prix vs SMA100 ±6 %"};
+            "Prix vs SMA100 ±6 %",
+            "Trend Mix (régression 14/30/60 + SMA100±1,25×ATR5) = méga-pine"};
 
     /** Colonnes exportées (nom → extracteur), dans l'ordre du CSV. */
     private static final Map<String, Function<DayRow, Object>> COLS = new LinkedHashMap<>();
@@ -125,6 +127,10 @@ public final class RainbowAtrReplayMain {
                     case 3 -> RainbowAtrTrendBenchMain.regression(new int[]{14, 30, 60}, 400, 0.30, 0, 7).apply(closes);
                     case 4 -> RainbowAtrTrendBenchMain.regression(new int[]{30, 60, 120}, 400, 1.0 / 6, 0, 1).apply(closes);
                     case 5 -> RainbowAtrTrendBenchMain.priceMa(100, 0.06).apply(closes);
+                    case 6 -> {
+                        TrendMixCalculator.Params mp = TrendMixCalculator.Params.defaults();
+                        yield TrendMixCalculator.compute(candles, ds.sma(mp.smaPeriod()), ds.atr(mp.atrPeriod()), mp).regime();
+                    }
                     default -> regime;
                 };
                 int[] setOfBar = switch (m) {

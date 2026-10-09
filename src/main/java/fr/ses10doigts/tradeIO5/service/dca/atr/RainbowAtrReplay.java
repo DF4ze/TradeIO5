@@ -43,6 +43,19 @@ public final class RainbowAtrReplay {
      */
     public static List<DayRow> run(RainbowAtrDataset ds, RainbowAtrParamSet[] sets, int[] setOfBar,
                                    int startIdx, int endIdx) {
+        return runFull(ds, sets, setOfBar, startIdx, endIdx).rows();
+    }
+
+    /** Lignes du rejeu + état de la machine après la dernière bougie (amorçage de l'exécution quotidienne). */
+    public record Result(List<DayRow> rows, RainbowAtrState finalState) {
+    }
+
+    /**
+     * Comme {@link #run} mais renvoie aussi l'état final. Si {@code endIdx < startIdx} : aucune ligne, état initial
+     * dont l'automate moon est avancé jusqu'à {@code startIdx - 1} (amorçage sans fenêtre à rejouer).
+     */
+    public static Result runFull(RainbowAtrDataset ds, RainbowAtrParamSet[] sets, int[] setOfBar,
+                                 int startIdx, int endIdx) {
         if (setOfBar.length != ds.size()) {
             throw new IllegalArgumentException("setOfBar doit couvrir tout le dataset");
         }
@@ -116,6 +129,6 @@ public final class RainbowAtrReplay {
                     st.buyArmed(), st.sellArmed(), st.buyLocked(), st.cooldown(), st.reserveQty(),
                     pos, costBasis, invested, saleProceeds, realized, fixedQty * cl - fixedInvested));
         }
-        return rows;
+        return new Result(rows, st);
     }
 }

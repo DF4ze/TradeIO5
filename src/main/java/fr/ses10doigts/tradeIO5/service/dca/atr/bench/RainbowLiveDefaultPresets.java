@@ -21,6 +21,9 @@ public final class RainbowLiveDefaultPresets {
     /** Seul stablecoin du wallet mock. */
     public static final String STABLECOIN = "USDC";
     public static final String DEFAULT_NAME = "Bench global";
+    public static final String TREND_MIX_NAME = "Trend Mix";
+    /** Préfixe réservé du nom des presets système (copies des templates) ; refusé sur un preset créé par l'utilisateur. */
+    public static final String SYSTEM_PREFIX = "[Système] ";
     public static final int DEFAULT_ANALYSIS_WINDOW_MONTHS = 6;
     public static final double DEFAULT_INITIAL_CAPITAL_USDC = 1000.0;
 

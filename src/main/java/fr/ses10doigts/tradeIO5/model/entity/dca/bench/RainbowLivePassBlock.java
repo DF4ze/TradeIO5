@@ -49,6 +49,10 @@ public class RainbowLivePassBlock {
     private Boolean buyLocked;
     private Integer cooldownRemaining;
     private Double moonReserveQty;
+    /** Jeu de paramètres actif (preset {@code TREND_MIX} : « BTC Perso Bull »…) ; null en mode FIXED. */
+    private String activeSet;
+    /** Régime Trend Mix du jour (UP / DOWN / RANGE) ; null en mode FIXED. */
+    private String trendRegime;
 
     @Enumerated(EnumType.STRING)
     private RainbowLiveAction actionType;

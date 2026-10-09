@@ -24,11 +24,11 @@ public class RoleInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        if (roleRepository.count() == 0) {
-            Arrays.stream(ERole.values()).forEach(roleEnum ->
-                roleRepository.save(new Role(null, roleEnum))
-            );
-			logger.info("✅ Rôles initialisés.");
-        }
+        Arrays.stream(ERole.values())
+            .filter(roleEnum -> roleRepository.findByName(roleEnum).isEmpty())
+            .forEach(roleEnum -> {
+                roleRepository.save(new Role(null, roleEnum));
+                logger.info("✅ Rôle initialisé : {}", roleEnum);
+            });
     }
 }

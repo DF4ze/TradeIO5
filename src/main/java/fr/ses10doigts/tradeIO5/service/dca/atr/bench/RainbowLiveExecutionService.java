@@ -18,6 +18,7 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrGlobals;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrResult;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrTuning;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
+import fr.ses10doigts.tradeIO5.service.tree.trend.TrendMixCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -60,13 +61,14 @@ public class RainbowLiveExecutionService {
     private final RainbowLivePresetService presetService;
     private final RainbowLiveMockWalletRepository walletRepository;
     private final RainbowLiveRunService runService;
+    private final RainbowTrendLiveService trendService;
 
     /** Récapitulatif d'une passe (log + réponse de l'endpoint admin). */
     public record PassSummary(RainbowLivePass pass, LocalDate day, int processed, int skipped, int errors) {
     }
 
     /** Série D1 d'un actif tronquée au jour traité (la bougie du jour suivant, éventuelle, est ignorée). */
-    private record AssetSeries(RainbowAtrDataset dataset, int dayIdx) {
+    private record AssetSeries(RainbowAtrDataset dataset, int dayIdx, List<MarketData> candles) {
     }
 
     private static final class Counters {
@@ -104,12 +106,12 @@ public class RainbowLiveExecutionService {
         return summary;
     }
 
-    /** Seed des presets par défaut puis presets {@code enabled} des utilisateurs actifs, groupés par actif. */
+    /** Copie des templates système manquants puis presets {@code enabled} des utilisateurs actifs, groupés par actif. */
     private Map<String, List<RainbowLivePreset>> collectPresets(Counters counters) {
         Map<String, List<RainbowLivePreset>> byAsset = new LinkedHashMap<>();
         for (User user : userRepository.findByEnabledTrueAndArchivedAtIsNull()) {
             try {
-                presetService.ensureDefaultPresets(user);
+                presetService.ensureSystemPresets(user);
                 for (RainbowLivePreset preset : presetService.list(user)) {
                     if (preset.isEnabled()) {
                         byAsset.computeIfAbsent(preset.getAssetSymbol(), k -> new ArrayList<>()).add(preset);
@@ -177,11 +179,14 @@ public class RainbowLiveExecutionService {
         }
         // bougie du jour suivant (00:05) ignorée : la vraie clôture est la bougie du jour
         List<MarketData> upToDay = candles.subList(0, dayIdx + 1);
-        return new AssetSeries(RainbowAtrDataset.fromMarketData(upToDay), dayIdx);
+        return new AssetSeries(RainbowAtrDataset.fromMarketData(upToDay), dayIdx, upToDay);
     }
 
     /** @return {@code true} si la passe a été enregistrée, {@code false} si sautée (données insuffisantes). */
     private boolean runPreset(RainbowLivePass pass, LocalDate day, RainbowLivePreset preset, AssetSeries series) {
+        if (preset.isTrendMix()) {
+            return runTrendPreset(pass, day, preset, series);
+        }
         RainbowAtrConfig config = preset.getConfig();
         RainbowAtrTuning tuning = config.toTuning();
         RainbowAtrGlobals globals = config.toGlobals();
@@ -209,6 +214,24 @@ public class RainbowLiveExecutionService {
         log.info("Bench Rainbow : preset={} actif={} jour={} passe {} action fictive={} montant={} qté={}",
                 preset.getId(), preset.getAssetSymbol(), day, pass, block.getActionType(),
                 block.getActionAmountUsdc(), block.getActionQuantity());
+        return true;
+    }
+
+    /** Preset {@code TREND_MIX} : un pas de la machine à partir de l'état persisté (cf. {@link RainbowTrendLiveService}). */
+    private boolean runTrendPreset(RainbowLivePass pass, LocalDate day, RainbowLivePreset preset, AssetSeries series) {
+        RainbowAtrDataset ds = series.dataset();
+        int endIdx = series.dayIdx();
+        int warmup = TrendMixCalculator.Params.defaults().warmup();
+        if (endIdx < warmup) {
+            log.warn("Bench Rainbow : dataset trop court pour le Trend Mix preset={} actif={} ({} bougies, warmup {}), sauté",
+                    preset.getId(), preset.getAssetSymbol(), endIdx + 1, warmup);
+            return false;
+        }
+        RainbowLiveMockWallet wallet = walletRepository.findByPreset(preset)
+                .orElseThrow(() -> new IllegalStateException("Wallet mock introuvable pour le preset " + preset.getId()));
+        RainbowTrendLiveService.Outcome outcome = trendService.run(pass, day, preset, series.candles(), ds, endIdx, wallet);
+        runService.upsertPass(preset, day, pass, outcome.block());
+        outcome.commit();
         return true;
     }
 

@@ -1,6 +1,7 @@
 package fr.ses10doigts.tradeIO5.controller;
 
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConflictException;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetLockedException;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +22,12 @@ public class RainbowLiveControllerAdvice {
 
     @ExceptionHandler(RainbowLivePresetConflictException.class)
     public ResponseEntity<ErrorResponse> conflict(RainbowLivePresetConflictException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
+    }
+
+    /** 409 (pas 403 : le front redirige vers /login sur 401/403). */
+    @ExceptionHandler(RainbowLivePresetLockedException.class)
+    public ResponseEntity<ErrorResponse> locked(RainbowLivePresetLockedException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
     }
 

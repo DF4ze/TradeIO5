@@ -4,6 +4,8 @@ import fr.ses10doigts.tradeIO5.security.model.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -50,6 +52,15 @@ public class RainbowLivePreset {
 
     private boolean enabled;
 
+    /** Copie d'un template système : ni modifiable ni supprimable, seul {@code enabled} change. */
+    @Column(name = "system_preset", nullable = false)
+    private boolean system;
+
+    /** Mode de calcul ; {@code null} (lignes historiques) = {@link RainbowLiveMode#FIXED}. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private RainbowLiveMode mode;
+
     /** Fenêtre rejouée par le moteur, en mois. */
     private int analysisWindowMonths;
 
@@ -65,4 +76,8 @@ public class RainbowLivePreset {
     /** Paramètres Tuning + Globals (dont {@code baseAmount}). */
     @Embedded
     private RainbowAtrConfig config;
+
+    public boolean isTrendMix() {
+        return mode == RainbowLiveMode.TREND_MIX;
+    }
 }

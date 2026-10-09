@@ -53,3 +53,6 @@ src/test/resources/application-*.properties
 __pycache__/
 tools/calibration/*_report.md
 tools/calibration/*_view*.html
+
+# Backups données historiques (tradeio.backup.dir)
+/backup/

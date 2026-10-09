@@ -6,6 +6,7 @@ Vérifié le : 2026-10-04 (`service/scheduler/**`).
 
 | Job | Propriété | Défaut | Actif par défaut ? | Déclenchement manuel |
 |---|---|---|---|---|
+| `HistoricalDataBackupJob` | `tradeio.backup.historical-cron` | `0 0 4 * * SUN` | **Oui** | — |
 | `MediaWatchIngestionJob` | `tradeio.media-watch.poll-cron` | `0 30 9,15,21,3 * * *` | **Oui** | `POST /api/admin/media-watch/ingest` |
 | `MediaWatchExtractionJob` | `tradeio.media-watch.extraction-cron` | `0 45 9,15,21,3 * * *` | **Oui** | `POST /api/admin/media-watch/extract` |
 | `EtfFlowHistorizationJob` | `tradeio.etf-flow.historization-cron` | `0 0 7 * * *` | **Oui** | — (pas d'endpoint dédié ; `POST /api/admin/etf-flow/backfill` couvre le backfill historique, pas ce rafraîchissement quotidien) |

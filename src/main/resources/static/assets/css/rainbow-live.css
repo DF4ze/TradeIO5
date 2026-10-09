@@ -25,3 +25,13 @@
 /* Le menu latéral du template (#header, z-index 9997) passerait au-dessus des modales Bootstrap */
 #rl-form-modal, #rl-delete-modal { z-index: 10050; }
 body > .modal-backdrop { z-index: 10040; }
+
+/* Tableau Bear | Bull (formulaire Trend Mix) : lignes dont les deux jeux diffèrent en ambre */
+#rainbow-live .rl-sets-table { font-size: 13px; }
+#rainbow-live .rl-sets-table th { font-weight: 500; color: #6c757d; text-align: left; }
+#rainbow-live .rl-sets-table td:not(:first-child) { width: 160px; }
+#rainbow-live .rl-sets-table tr.rl-diff td:first-child { color: #b45309; font-weight: 600; }
+#rainbow-live .rl-sets-table tr.rl-diff .form-control, #rainbow-live .rl-sets-table tr.rl-diff .form-select { border-color: #f59e0b; }
+#rainbow-live .rl-tag-up { background: #198754; } #rainbow-live .rl-tag-down { background: #dc3545; } #rainbow-live .rl-tag-range { background: #6c757d; }
+
+#rainbow-live .rl-chart-multi { height: 680px; }

@@ -16,7 +16,6 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -33,8 +32,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        if (!List.of(environment.getActiveProfiles()).contains("dev")) return;
-
 		Optional<User> userOpt = userRepository.findByUsername("OKlm");
 		Optional<User> sysOpt = userRepository.findByUsername("System");
 		Optional<WebProvider> wpBinanceTestNetOpt = providerRepository.findByCode(WebProviderCode.BINANCE_TESTNET);
@@ -179,25 +176,17 @@ public class ApiCredentialInitializer implements CommandLineRunner {
             logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur OKlm.", webProviderBinance.getName());
 
 		} else {
-			// Clé API-utilisateur (compte trading réel de Clem), pas une clé System partagée comme
-			// Coinalyze/Twelve Data/Finnhub/CoinStats : le patron `application-dev.properties` ne
-			// convient pas ici (config unique par déploiement, pas par utilisateur), et aucun flux de
-			// saisie utilisateur (écran de configuration exchange) n'existe encore côté web. Retiré
-			// du code en dur le 2026-07-09 (backlog 5.1) — plus aucun seed automatique d'une vraie
-			// clé Binance. Gestion : mise à jour directe de la ligne `api_credentials` existante en DB
-			// en cas de rotation, jusqu'à ce qu'un vrai flux de saisie utilisateur soit écrit.
-			logger.warn("❗ Aucune credential BINANCE créée pour OKlm (clé retirée du code, cf. backlog 5.1) : "
-					+ "à gérer directement en DB (table api_credentials) en attendant un flux de saisie utilisateur.");
+			// Clé API-utilisateur (compte trading réel d'OKlm), lue dans les propriétés (gitignorées)
+			// `tradeio.binance.apiKey` / `tradeio.binance.secretKey` ; absentes ⇒ aucune credential, à saisir en DB.
+			seedUserExchangeCredential(user, webProviderBinance, "tradeio.binance", true);
         }
 
 		if (alreadyExistsKraken) {
 			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur OKlm.", webProviderKraken.getName());
 
 		} else {
-			// Même principe que BINANCE ci-dessus : clé API-utilisateur, retirée du code en dur le
-			// 2026-07-09 (backlog 5.1). Gestion directe en DB.
-			logger.warn("❗ Aucune credential KRAKEN créée pour OKlm (clé retirée du code, cf. backlog 5.1) : "
-					+ "à gérer directement en DB (table api_credentials) en attendant un flux de saisie utilisateur.");
+			// Même principe que BINANCE ci-dessus : propriétés `tradeio.kraken.apiKey` / `tradeio.kraken.secretKey`.
+			seedUserExchangeCredential(user, webProviderKraken, "tradeio.kraken", true);
 		}
 
 		if (alreadyExistsCoinstats) {
@@ -206,13 +195,13 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		} else {
 			// Clé System partagée (Fear & Greed, aucun wallet/utilisateur rattaché — cf.
 			// IndicatorCredentialResolver), même principe que COINALYZE/TWELVE_DATA/FINNHUB ci-dessous :
-			// migrée hors du code en dur le 2026-07-09 (backlog 5.1) vers application-dev.properties
+			// migrée hors du code en dur le 2026-07-09 (backlog 5.1) vers application-*.properties
 			// (gitignoré) sous `tradeio.coinstats.apiKey`. Si absente, on n'insère pas de credential :
 			// FEAR_GREED retombera proprement en invalid() plutôt que d'utiliser une clé factice.
 			String coinstatsApiKey = environment.getProperty("tradeio.coinstats.apiKey");
 
 			if (coinstatsApiKey == null || coinstatsApiKey.isBlank()) {
-				logger.warn("❗ `tradeio.coinstats.apiKey` absente d'application-dev.properties : "
+				logger.warn("❗ `tradeio.coinstats.apiKey` absente d'application-*.properties : "
 						+ "aucune credential COINSTATS créée pour System (FEAR_GREED restera invalid "
 						+ "tant qu'elle n'est pas renseignée).");
 			} else {
@@ -255,7 +244,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		} else {
 			// Contrairement aux autres providers de cette méthode, la clé Coinalyze n'est PAS
 			// committée en clair ici : elle est générée manuellement sur coinalyze.net/account/api-key/
-			// (compte gratuit) et doit être fournie via application-dev.properties (gitignoré,
+			// (compte gratuit) et doit être fournie via application-*.properties (gitignoré,
 			// cf. mémoire projet "TradeIO5 secrets are gitignored") sous la clé
 			// `tradeio.coinalyze.apiKey`. Si absente, on n'insère pas de credential : l'indicateur
 			// retombera proprement en invalid() (cf. IndicatorCredentialResolver) plutôt que
@@ -263,7 +252,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			String coinalyzeApiKey = environment.getProperty("tradeio.coinalyze.apiKey");
 
 			if (coinalyzeApiKey == null || coinalyzeApiKey.isBlank()) {
-				logger.warn("❗ `tradeio.coinalyze.apiKey` absente d'application-dev.properties : "
+				logger.warn("❗ `tradeio.coinalyze.apiKey` absente d'application-*.properties : "
 						+ "aucune credential COINALYZE créée pour System (OPEN_INTEREST/FUNDING_RATE/"
 						+ "LIQUIDATIONS resteront invalid tant qu'elle n'est pas renseignée).");
 			} else {
@@ -285,13 +274,13 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 		} else {
 			// Même principe que COINALYZE ci-dessus : clé générée manuellement sur twelvedata.com
-			// (compte gratuit), jamais committée en clair. À renseigner via application-dev.properties
+			// (compte gratuit), jamais committée en clair. À renseigner via application-*.properties
 			// (gitignoré) sous `tradeio.twelvedata.apiKey`. Sans elle, DXY/SP500/NASDAQ resteront
 			// invalid (cf. IndicatorCredentialResolver).
 			String twelveDataApiKey = environment.getProperty("tradeio.twelvedata.apiKey");
 
 			if (twelveDataApiKey == null || twelveDataApiKey.isBlank()) {
-				logger.warn("❗ `tradeio.twelvedata.apiKey` absente d'application-dev.properties : "
+				logger.warn("❗ `tradeio.twelvedata.apiKey` absente d'application-*.properties : "
 						+ "aucune credential TWELVE_DATA créée pour System (DXY/SP500/NASDAQ resteront "
 						+ "invalid tant qu'elle n'est pas renseignée).");
 			} else {
@@ -313,13 +302,13 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 		} else {
 			// Même principe : clé générée manuellement sur finnhub.io (compte gratuit), jamais
-			// committée en clair. À renseigner via application-dev.properties (gitignoré) sous
+			// committée en clair. À renseigner via application-*.properties (gitignoré) sous
 			// `tradeio.finnhub.apiKey`. Sans elle, MacroEventCalendarService ne recevra aucun
 			// événement Finnhub (ForexFactory reste disponible sans clé, voir ci-dessous).
 			String finnhubApiKey = environment.getProperty("tradeio.finnhub.apiKey");
 
 			if (finnhubApiKey == null || finnhubApiKey.isBlank()) {
-				logger.warn("❗ `tradeio.finnhub.apiKey` absente d'application-dev.properties : "
+				logger.warn("❗ `tradeio.finnhub.apiKey` absente d'application-*.properties : "
 						+ "aucune credential FINNHUB créée pour System (calendrier macro limité à "
 						+ "ForexFactory tant qu'elle n'est pas renseignée).");
 			} else {
@@ -429,13 +418,13 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			// ETF_FLOW (docs/etudes/etude-sourcing-etf-flow-alternative-farside.md) : remplace FARSIDE
 			// (scraping HTML) le 2026-07-16. Clé obtenue via inscription gratuite sur
 			// sosovalue.com/developer (palier "Demo", 20 appels/min), jamais committée en clair (ce
-			// fichier est gitignoré). À renseigner via application-dev.properties sous
+			// fichier est gitignoré). À renseigner via application-*.properties sous
 			// `tradeio.sosovalue.apiKey`. Sans elle, ETF_FLOW reste invalid (voir
 			// IndicatorCredentialResolver) — même principe que COINALYZE/TWELVE_DATA/FINNHUB/COINSTATS.
 			String sosoValueApiKey = environment.getProperty("tradeio.sosovalue.apiKey");
 
 			if (sosoValueApiKey == null || sosoValueApiKey.isBlank()) {
-				logger.warn("❗ `tradeio.sosovalue.apiKey` absente d'application-dev.properties : "
+				logger.warn("❗ `tradeio.sosovalue.apiKey` absente d'application-*.properties : "
 						+ "aucune credential SOSOVALUE créée pour System (ETF_FLOW restera invalid "
 						+ "tant qu'elle n'est pas renseignée).");
 			} else {
@@ -452,4 +441,29 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			}
 		}
     }
+
+	/**
+	 * Crée la credential exchange d'OKlm depuis les propriétés {@code <prefix>.apiKey} / {@code <prefix>.secretKey}
+	 * (fichiers {@code application-*.properties}, gitignorés). Propriétés absentes ou vides : aucune credential n'est
+	 * créée (WARN) et la clé reste à saisir directement en DB. Appelé uniquement quand la credential n'existe pas encore.
+	 */
+	private void seedUserExchangeCredential(User user, WebProvider provider, String prefix, boolean enabled) {
+		String apiKey = environment.getProperty(prefix + ".apiKey");
+		String secretKey = environment.getProperty(prefix + ".secretKey");
+		if (apiKey == null || apiKey.isBlank() || secretKey == null || secretKey.isBlank()) {
+			logger.warn("❗ `{}.apiKey` / `{}.secretKey` absentes : aucune credential {} créée pour OKlm "
+					+ "(à renseigner dans application-*.properties ou directement en DB, table api_credentials).",
+					prefix, prefix, provider.getName());
+			return;
+		}
+		credentialRepository.save(ApiCredential.builder()
+				.user(user)
+				.webProvider(provider)
+				.apiKey(apiKey)
+				.secretKey(secretKey)
+				.enabled(enabled)
+				.createdAt(LocalDateTime.now())
+				.build());
+		logger.info("🔑 Clé API {} ajoutée pour OKlm depuis les propriétés.", provider.getName());
+	}
 }

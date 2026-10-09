@@ -1,9 +1,12 @@
 package fr.ses10doigts.tradeIO5.controller;
 
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.DefaultsDto;
+import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.EnabledDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.PerformanceDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.PresetDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.RunDto;
+import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.TemplateDto;
+import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.UiModeDto;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDeltaCalculator;
@@ -18,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -49,6 +53,23 @@ public class RainbowLiveController {
         return queryService.defaults();
     }
 
+    /** Templates de presets système (lecture seule : aucun endpoint d'écriture). */
+    @GetMapping("/templates")
+    public List<TemplateDto> templates() {
+        return queryService.templates();
+    }
+
+    /** Mode d'affichage de l'utilisateur (EXPERT par défaut). */
+    @GetMapping("/ui-mode")
+    public UiModeDto uiMode() {
+        return new UiModeDto(presetService.uiMode(authenticationFacade.getConnectedUser()).name());
+    }
+
+    @PutMapping("/ui-mode")
+    public UiModeDto setUiMode(@RequestBody UiModeDto request) {
+        return new UiModeDto(presetService.setUiMode(authenticationFacade.getConnectedUser(), request.mode()).name());
+    }
+
     @GetMapping("/presets")
     public List<PresetDto> presets(@RequestParam(required = false) String asset) {
         return queryService.listPresets(authenticationFacade.getConnectedUser(), asset);
@@ -70,6 +91,14 @@ public class RainbowLiveController {
     public PresetDto update(@PathVariable Long id, @RequestBody UpdateRequest request) {
         User user = authenticationFacade.getConnectedUser();
         presetService.update(user, id, request);
+        return queryService.getPreset(user, id);
+    }
+
+    /** Activation / désactivation : seule modification permise sur un preset système. */
+    @PatchMapping("/presets/{id}/enabled")
+    public PresetDto setEnabled(@PathVariable Long id, @RequestBody EnabledDto request) {
+        User user = authenticationFacade.getConnectedUser();
+        presetService.setEnabled(user, id, request.enabled());
         return queryService.getPreset(user, id);
     }
 
