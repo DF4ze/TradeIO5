@@ -56,7 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * sans binding / sans snapshot), isolation entre users, absence de secret, aucune dépendance exchange.
  */
 @DataJpaTest
-@Import({RainbowLivePresetService.class, RainbowLiveWalletQueryService.class, RainbowLiveWalletControllerTest.ClockConfig.class})
+@Import({RainbowLivePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService.class, RainbowLiveWalletQueryService.class, RainbowLiveWalletControllerTest.ClockConfig.class})
 @DisplayName("RainbowLiveWalletController : wallet réel affiché depuis le snapshot")
 class RainbowLiveWalletControllerTest {
 

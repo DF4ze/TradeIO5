@@ -15,8 +15,11 @@ import org.springframework.stereotype.Service;
 import fr.ses10doigts.tradeIO5.model.dto.AssetOverview;
 import fr.ses10doigts.tradeIO5.service.TransactionService;
 import fr.ses10doigts.tradeIO5.service.connector.ProviderApiService;
+import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceUnavailableException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AssetOverviewService {
@@ -43,7 +46,13 @@ public class AssetOverviewService {
 		BigDecimal superTotalInvest = BigDecimal.ZERO;
 		BigDecimal superTotalSold = BigDecimal.ZERO;
 		for (Wallet wallet : wallets) {
-			Map<String, BigDecimal> balances = apiService.getAllBalances(wallet); // BTC → 0.2
+			Map<String, BigDecimal> balances;
+			try {
+				balances = apiService.getAllBalances(wallet); // BTC → 0.2
+			} catch (BalanceUnavailableException | IllegalArgumentException e) {
+				log.warn("Overview : wallet {} ignoré, soldes indisponibles ou exchange sans client : {}", wallet.getId(), e.getMessage());
+				continue;
+			}
 
 			for (Map.Entry<String, BigDecimal> entry : balances.entrySet()) {
 				String asset = entry.getKey();

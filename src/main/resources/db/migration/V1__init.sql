@@ -140,6 +140,54 @@
         primary key (id)
     ) engine=InnoDB;
 
+    create table rainbow_asset_strategy (
+        allow_sell_during_cooldown bit,
+        analysis_window_months integer not null,
+        ath_buy_max float(53),
+        ath_buy_min float(53),
+        ath_on bit,
+        ath_ref_dd_buy_pct float(53),
+        ath_ref_dd_sell_pct float(53),
+        ath_sell_max float(53),
+        ath_sell_min float(53),
+        atr_mult_down1 float(53),
+        atr_mult_down2 float(53),
+        atr_mult_up1 float(53),
+        atr_mult_up2 float(53),
+        atr_mult_up3 float(53),
+        atr_period integer,
+        base_amount float(53),
+        block_buy_after_sell_until_down2 bit,
+        cooldown_after_sell_on bit,
+        cooldown_days integer,
+        fixed_delay_days integer,
+        initial_capital_usdc float(53) not null,
+        moon_on bit,
+        moon_reserve_pct float(53),
+        moon_reserve_ratchet bit,
+        moon_stop_sell_pct float(53),
+        moon_trailing_stop_pct float(53),
+        mult_triggered float(53),
+        multx0_5 float(53),
+        multx1 float(53),
+        multx2 float(53),
+        revision integer not null,
+        sell_fraction float(53),
+        sma_period integer,
+        trailing_stop_buy_pct float(53),
+        trailing_stop_sell_pct float(53),
+        created_at datetime(6) not null,
+        id bigint not null auto_increment,
+        updated_at datetime(6) not null,
+        asset_symbol varchar(16) not null,
+        name varchar(64) not null,
+        buy_reentry_mode enum ('FIXED_DELAY','IMMEDIATE','TRAILING_STOP'),
+        mode enum ('FIXED','TREND_MIX') not null,
+        sell_reentry_mode enum ('FIXED_DELAY','IMMEDIATE','TRAILING_STOP'),
+        trend_config_json longtext,
+        primary key (id)
+    ) engine=InnoDB;
+
     create table rainbow_ath_reference (
         ath_value float(53) not null,
         ref_day date not null,
@@ -175,6 +223,7 @@
         state_day date not null,
         id bigint not null auto_increment,
         preset_id bigint not null,
+        config_hash varchar(64),
         primary key (id)
     ) engine=InnoDB;
 
@@ -222,9 +271,9 @@
         multx2 float(53),
         sell_fraction float(53),
         sma_period integer,
-        system_preset bit not null,
         trailing_stop_buy_pct float(53),
         trailing_stop_sell_pct float(53),
+        asset_strategy_id bigint,
         created_at datetime(6) not null,
         id bigint not null auto_increment,
         updated_at datetime(6) not null,
@@ -237,49 +286,18 @@
         primary key (id)
     ) engine=InnoDB;
 
-    create table rainbow_live_preset_template (
-        allow_sell_during_cooldown bit,
-        analysis_window_months integer not null,
-        ath_buy_max float(53),
-        ath_buy_min float(53),
-        ath_on bit,
-        ath_ref_dd_buy_pct float(53),
-        ath_ref_dd_sell_pct float(53),
-        ath_sell_max float(53),
-        ath_sell_min float(53),
-        atr_mult_down1 float(53),
-        atr_mult_down2 float(53),
-        atr_mult_up1 float(53),
-        atr_mult_up2 float(53),
-        atr_mult_up3 float(53),
-        atr_period integer,
-        base_amount float(53),
-        block_buy_after_sell_until_down2 bit,
-        cooldown_after_sell_on bit,
-        cooldown_days integer,
-        fixed_delay_days integer,
-        initial_capital_usdc float(53) not null,
-        moon_on bit,
-        moon_reserve_pct float(53),
-        moon_reserve_ratchet bit,
-        moon_stop_sell_pct float(53),
-        moon_trailing_stop_pct float(53),
-        mult_triggered float(53),
-        multx0_5 float(53),
-        multx1 float(53),
-        multx2 float(53),
-        sell_fraction float(53),
-        sma_period integer,
-        trailing_stop_buy_pct float(53),
-        trailing_stop_sell_pct float(53),
-        created_at datetime(6) not null,
+    create table rainbow_live_preset_event (
+        strategy_revision integer,
         id bigint not null auto_increment,
+        occurred_at datetime(6) not null,
+        preset_after_id bigint,
+        preset_before_id bigint,
+        user_id bigint not null,
         asset_symbol varchar(16) not null,
-        name varchar(64) not null,
-        buy_reentry_mode enum ('FIXED_DELAY','IMMEDIATE','TRAILING_STOP'),
-        mode enum ('FIXED','TREND_MIX') not null,
-        sell_reentry_mode enum ('FIXED_DELAY','IMMEDIATE','TRAILING_STOP'),
-        trend_config_json longtext,
+        preset_after_name varchar(96),
+        preset_before_name varchar(96),
+        reason varchar(255),
+        type enum ('DETACH','DISABLE','ENABLE','LIVE_SWITCH','STRATEGY_CHANGED') not null,
         primary key (id)
     ) engine=InnoDB;
 
@@ -553,6 +571,9 @@
     alter table provider 
        add constraint uk_provider_code unique (code);
 
+    alter table rainbow_asset_strategy 
+       add constraint uk_rainbow_asset_strategy_asset_name unique (asset_symbol, name);
+
     alter table rainbow_ath_reference 
        add constraint uk_rainbow_ath_reference_asset_day unique (asset_symbol, ref_day);
 
@@ -568,8 +589,8 @@
     alter table rainbow_live_preset 
        add constraint uk_rainbow_live_preset_user_asset_name unique (user_id, asset_symbol, name);
 
-    alter table rainbow_live_preset_template 
-       add constraint uk_rainbow_live_preset_template_asset_name unique (asset_symbol, name);
+    create index idx_rainbow_live_preset_event_user_at 
+       on rainbow_live_preset_event (user_id, occurred_at);
 
     alter table rainbow_live_run 
        add constraint uk_rainbow_live_run_preset_day unique (preset_id, run_day);
@@ -651,9 +672,20 @@
        on delete cascade;
 
     alter table rainbow_live_preset 
+       add constraint FK26tkmy3l90xeh8q10ngdv2swc 
+       foreign key (asset_strategy_id) 
+       references rainbow_asset_strategy (id);
+
+    alter table rainbow_live_preset 
        add constraint FKjv3p5rldd6g78g1ci1t74xxwg 
        foreign key (user_id) 
        references users (id);
+
+    alter table rainbow_live_preset_event 
+       add constraint FKnkvptgo9daedft0qc978qak0e 
+       foreign key (user_id) 
+       references users (id) 
+       on delete cascade;
 
     alter table rainbow_live_run 
        add constraint FK3xlk4cprs7y5q8p54olaqoka7 

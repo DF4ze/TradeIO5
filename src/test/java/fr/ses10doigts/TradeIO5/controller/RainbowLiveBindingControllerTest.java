@@ -56,7 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Services réels sur H2 + MockMvc standalone ; {@link BindingCheck} est mocké (testé dans BindingCheckTest). */
 @DataJpaTest
-@Import({RainbowLivePresetService.class, RainbowLiveBindingService.class, RainbowLiveBindingControllerTest.TestConfig.class})
+@Import({RainbowLivePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService.class, RainbowLiveBindingService.class, RainbowLiveBindingControllerTest.TestConfig.class})
 @DisplayName("RainbowLiveBindingController : bindings preset live + wallet")
 class RainbowLiveBindingControllerTest {
 

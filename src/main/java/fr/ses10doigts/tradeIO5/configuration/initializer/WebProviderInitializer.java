@@ -51,7 +51,7 @@ public class WebProviderInitializer implements CommandLineRunner {
                 WebProvider.builder()
                         .code(WebProviderCode.OKX)
                         .name("OKX")
-                        .apiBaseUrl("https://www.okx.com")
+                        .apiBaseUrl("https://eea.okx.com") // compte EEA : la clé API n'existe que sur ce domaine
                         .enabled(true)
                         .createdAt(LocalDateTime.now())
                         .build(),

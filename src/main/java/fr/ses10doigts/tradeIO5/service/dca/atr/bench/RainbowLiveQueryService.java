@@ -8,13 +8,12 @@ import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.LastRunDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.PerformanceDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.PresetDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.RunDto;
-import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.TemplateDto;
+import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.PresetEventDto;
+import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.StrategyDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.TrendConfigDto;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMode;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePresetTemplate;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveTrendConfig;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAssetStrategy;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveUiMode;
-import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveTrendConfigRepository;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowSetSelector;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.WalletDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.ZoneDto;
@@ -70,10 +69,11 @@ public class RainbowLiveQueryService {
             new ZoneDto(RainbowAtrEngine.EXTREME_HAUT, "EXTREME_HAUT", "Extrême haut"));
 
     private final RainbowLivePresetService presetService;
-    private final RainbowLivePresetTemplateService templateService;
+    private final RainbowAssetStrategyService strategyService;
     private final RainbowLiveMockWalletRepository walletRepository;
     private final RainbowLiveRunRepository runRepository;
-    private final RainbowLiveTrendConfigRepository trendConfigRepository;
+    private final RainbowLivePresetConfigResolver configResolver;
+    private final RainbowLivePresetEventService eventService;
 
     /** Métadonnées du formulaire : actifs, stablecoin, valeurs par défaut et config par défaut de chaque actif. */
     public DefaultsDto defaults() {
@@ -95,29 +95,39 @@ public class RainbowLiveQueryService {
                 RainbowLiveDefaultPresets.SYSTEM_PREFIX);
     }
 
-    /** Copie des templates système manquants puis liste enrichie ; transaction en écriture (la copie peut créer). */
+    /** Création des presets qui suivent les stratégies puis liste enrichie ; transaction en écriture. */
     @Transactional
     public List<PresetDto> listPresets(User user, String asset) {
         if (asset != null && !RainbowLiveDefaultPresets.ASSETS.contains(asset)) {
             throw new IllegalArgumentException("Actif non autorisé : " + asset
                     + " (autorisés : " + RainbowLiveDefaultPresets.ASSETS + ")");
         }
-        presetService.ensureSystemPresets(user);
+        presetService.ensureStrategyPresets(user);
         return toPresetDtos(asset == null ? presetService.list(user) : presetService.list(user, asset));
     }
 
-    /** Templates système (lecture seule). */
+    /** Stratégies Actif (lecture seule). */
     @Transactional(readOnly = true)
-    public List<TemplateDto> templates() {
-        return templateService.list().stream().map(RainbowLiveQueryService::toTemplateDto).toList();
+    public List<StrategyDto> strategies() {
+        return strategyService.list().stream().map(RainbowLiveQueryService::toStrategyDto).toList();
     }
 
-    private static TemplateDto toTemplateDto(RainbowLivePresetTemplate t) {
+    public static StrategyDto toStrategyDto(RainbowAssetStrategy t) {
         boolean trend = t.getMode() == RainbowLiveMode.TREND_MIX;
-        return new TemplateDto(t.getId(), t.getAssetSymbol(), t.getName(), t.getMode().name(),
+        return new StrategyDto(t.getId(), t.getAssetSymbol(), t.getName(), t.getMode().name(), t.getRevision(), t.getUpdatedAt(),
                 t.getAnalysisWindowMonths(), t.getInitialCapitalUsdc(),
                 new ConfigDto(t.getConfig().toTuning(), t.getConfig().toGlobals()),
                 trend ? RainbowLiveTrendConfigs.fromJson(t.getTrendConfigJson()) : null);
+    }
+
+    /** Historique des switchs de preset du user (filtre actif optionnel), du plus récent au plus ancien. */
+    @Transactional(readOnly = true)
+    public List<PresetEventDto> presetEvents(User user, String asset) {
+        return eventService.list(user, asset).stream()
+                .map(e -> new PresetEventDto(e.getId(), e.getAssetSymbol(), e.getType().name(), e.getPresetBeforeId(),
+                        e.getPresetBeforeName(), e.getPresetAfterId(), e.getPresetAfterName(), e.getStrategyRevision(),
+                        e.getOccurredAt(), e.getReason()))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -171,16 +181,13 @@ public class RainbowLiveQueryService {
                 .collect(Collectors.toMap(RunStats::getPresetId, Function.identity()));
         Map<Long, RainbowLiveRun> latest = runRepository.latestByPresets(presets).stream()
                 .collect(Collectors.toMap(r -> r.getPreset().getId(), Function.identity()));
-        Map<Long, RainbowLiveTrendConfig> trends = trendConfigRepository.findByPresetIn(presets).stream()
-                .collect(Collectors.toMap(t -> t.getPreset().getId(), Function.identity()));
         return presets.stream()
                 .map(p -> toPresetDto(p, wallets.get(p.getId()), stats.get(p.getId()), latest.get(p.getId()),
-                        p.isTrendMix() ? RainbowLiveTrendConfigs.toDto(
-                                RainbowLiveTrendConfigs.resolve(trends.get(p.getId()), p.getAssetSymbol())) : null))
+                        p.isTrendMix() ? RainbowLiveTrendConfigs.toDto(configResolver.trendConfig(p)) : null))
                 .toList();
     }
 
-    private static PresetDto toPresetDto(RainbowLivePreset p, RainbowLiveMockWallet wallet, RunStats stats,
+    private PresetDto toPresetDto(RainbowLivePreset p, RainbowLiveMockWallet wallet, RunStats stats,
                                          RainbowLiveRun latest, TrendConfigDto trendConfig) {
         RainbowLivePassBlock block = latest == null ? null : latestBlock(latest);
         Double lastClose = block == null ? null : block.getClose();
@@ -190,11 +197,13 @@ public class RainbowLiveQueryService {
                 latest.getPass2355() != null ? RainbowLivePass.T2355 : RainbowLivePass.T0005,
                 block.getClose(), block.getZone(), block.getActionType(), block.getActionAmountUsdc(),
                 block.getActionQuantity(), block.getActiveSet(), block.getTrendRegime());
-        return new PresetDto(p.getId(), p.getAssetSymbol(), p.getName(), p.isEnabled(), p.getAnalysisWindowMonths(),
-                p.getInitialCapitalUsdc(), p.getCreatedAt(), p.getUpdatedAt(), p.getConfig().toTuning(),
-                p.getConfig().toGlobals(), walletDto, stats == null ? 0 : stats.getRuns(),
+        RainbowAtrConfig cfg = configResolver.config(p);
+        return new PresetDto(p.getId(), p.getAssetSymbol(), p.getName(), p.isEnabled(),
+                configResolver.analysisWindowMonths(p), p.getInitialCapitalUsdc(), p.getCreatedAt(), p.getUpdatedAt(),
+                cfg.toTuning(), cfg.toGlobals(), walletDto, stats == null ? 0 : stats.getRuns(),
                 stats == null ? null : stats.getFirstDay(), lastRun,
-                p.isTrendMix() ? "TREND_MIX" : "FIXED", trendConfig, p.isSystem());
+                p.isTrendMix() ? "TREND_MIX" : "FIXED", trendConfig,
+                p.isFollowingStrategy(), p.isFollowingStrategy() ? p.getAssetStrategy().getRevision() : null);
     }
 
     /** Bloc de référence d'un run : 23:55 s'il existe, sinon 00:05. */

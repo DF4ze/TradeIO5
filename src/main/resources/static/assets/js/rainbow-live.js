@@ -18,7 +18,7 @@
 
   const state = {
     defaults: null, zones: new Map(), asset: null, presets: [], selectedId: null,
-    formMode: null, formKind: 'FIXED', formPreset: null, uiMode: 'EXPERT', deleteTarget: null,
+    formMode: null, formKind: 'FIXED', formPreset: null, formSource: null, uiMode: 'EXPERT', deleteTarget: null,
     charts: [], perf: null, retry: null,
     live: new Map(), liveCheck: null
   };
@@ -177,8 +177,10 @@
       el('td', null, el('span', { text: p.name }), isLivePreset(p) ? el('span', { class: 'badge rl-badge-live ms-1', text: 'LIVE',
         title: 'Preset live : lié à un wallet réel (action recommandée, jamais exécutée)' }) : null),
       el('td', null, el('span', { class: 'badge ' + (isTrend(p) ? 'bg-primary' : 'bg-secondary'), text: isTrend(p) ? 'Trend Mix' : 'Fixe' }),
-        p.system ? el('span', { class: 'badge bg-dark ms-1', text: 'Système',
-          title: 'Preset système : seule son activation est modifiable' }) : null),
+        p.followsStrategy ? el('span', { class: 'badge bg-dark ms-1', text: 'Stratégie · rév. ' + p.strategyRevision,
+          title: 'Suit la stratégie System (révision ' + p.strategyRevision + ') : seule son activation est modifiable ; '
+            + 'dupliquer pour te détacher' }) : el('span', { class: 'badge bg-light text-dark ms-1', text: 'Détaché',
+          title: 'Preset propre à ton compte : ne reçoit pas les mises à jour de System' })),
       el('td', null, el('div', { class: 'form-check form-switch' }, toggle)),
       el('td', { text: p.analysisWindowMonths }),
       el('td', { text: usd(p.initialCapitalUsdc) }),
@@ -191,11 +193,11 @@
       el('td', { class: 'text-nowrap' },
         el('div', { class: 'btn-group btn-group-sm' },
           el('button', { type: 'button', class: 'btn btn-outline-primary', text: 'Voir', onclick: () => selectPreset(p.id) }),
-          el('button', { type: 'button', class: 'btn btn-outline-secondary', text: 'Éditer', disabled: p.system,
-            title: p.system ? 'Preset système : non modifiable' : null, onclick: () => openForm('edit', p) }),
+          el('button', { type: 'button', class: 'btn btn-outline-secondary', text: 'Éditer', disabled: p.followsStrategy,
+            title: p.followsStrategy ? 'Suit la stratégie System : non modifiable (dupliquer pour te détacher)' : null, onclick: () => openForm('edit', p) }),
           el('button', { type: 'button', class: 'btn btn-outline-secondary', text: 'Dupliquer', onclick: () => openForm('duplicate', p) }),
-          el('button', { type: 'button', class: 'btn btn-outline-danger', text: 'Supprimer', disabled: p.system,
-            title: p.system ? 'Preset système : non supprimable' : null, onclick: () => openDelete(p) }))));
+          el('button', { type: 'button', class: 'btn btn-outline-danger', text: 'Supprimer', disabled: p.followsStrategy,
+            title: p.followsStrategy ? 'Suit la stratégie System : non supprimable' : null, onclick: () => openDelete(p) }))));
   }
 
   /** Bascule rapide actif/inactif (seule modification permise sur un preset système). */
@@ -396,6 +398,7 @@
   function openForm(mode, p, kind) {
     state.formMode = mode === 'edit' ? 'edit' : 'create';
     state.formPreset = p || null;
+    state.formSource = mode === 'duplicate' ? p : null;
     state.formKind = p ? (isTrend(p) ? 'TREND_MIX' : 'FIXED') : (kind || 'FIXED');
     buildForm(state.formKind);
     const asset = p ? p.assetSymbol : state.asset;
@@ -403,13 +406,14 @@
     $('rl-form-title').textContent = mode === 'edit' ? 'Éditer « ' + p.name + ' »'
       : (mode === 'duplicate' ? 'Dupliquer « ' + p.name + ' »' : 'Nouveau ' + label + ' — ' + asset);
     $('rl-form-banner').classList.toggle('d-none', mode !== 'edit');
+    $('rl-form-detach-warning').classList.toggle('d-none', !(mode === 'duplicate' && p.followsStrategy));
     $('rl-form-error').classList.add('d-none');
     $('rl-f-asset').value = asset;
     if (p) {
       const d = formData(p);
       if (mode === 'duplicate') {
         const prefix = state.defaults.systemPrefix;
-        d.preset.name = (p.system && p.name.startsWith(prefix) ? p.name.slice(prefix.length) : p.name) + ' (copie)';
+        d.preset.name = (p.followsStrategy && p.name.startsWith(prefix) ? p.name.slice(prefix.length) : p.name) + ' (copie)';
       }
       fillForm(d);
     } else {
@@ -499,7 +503,8 @@
       } else {
         saved = await api('POST', '/presets', Object.assign({ assetSymbol: $('rl-f-asset').value, name: d.preset.name,
           enabled: d.preset.enabled, analysisWindowMonths: d.preset.analysisWindowMonths,
-          initialCapitalUsdc: d.preset.initialCapitalUsdc, mode: state.formKind }, specific));
+          initialCapitalUsdc: d.preset.initialCapitalUsdc, mode: state.formKind,
+          duplicatedFromId: state.formSource ? state.formSource.id : null }, specific));
       }
       bootstrap.Modal.getOrCreateInstance($('rl-form-modal')).hide();
       hideAlert();

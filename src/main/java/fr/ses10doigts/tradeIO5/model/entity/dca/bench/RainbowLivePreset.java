@@ -52,9 +52,13 @@ public class RainbowLivePreset {
 
     private boolean enabled;
 
-    /** Copie d'un template système : ni modifiable ni supprimable, seul {@code enabled} change. */
-    @Column(name = "system_preset", nullable = false)
-    private boolean system;
+    /**
+     * Stratégie Actif suivie : config, fenêtre et réglages Trend viennent de la stratégie à chaque passe (ni modifiable
+     * ni supprimable, seul {@code enabled} change). {@code null} = preset propre à l'utilisateur.
+     */
+    @ManyToOne
+    @JoinColumn(name = "asset_strategy_id")
+    private RainbowAssetStrategy assetStrategy;
 
     /** Mode de calcul ; {@code null} (lignes historiques) = {@link RainbowLiveMode#FIXED}. */
     @Enumerated(EnumType.STRING)
@@ -76,6 +80,10 @@ public class RainbowLivePreset {
     /** Paramètres Tuning + Globals (dont {@code baseAmount}). */
     @Embedded
     private RainbowAtrConfig config;
+
+    public boolean isFollowingStrategy() {
+        return assetStrategy != null;
+    }
 
     public boolean isTrendMix() {
         return mode == RainbowLiveMode.TREND_MIX;

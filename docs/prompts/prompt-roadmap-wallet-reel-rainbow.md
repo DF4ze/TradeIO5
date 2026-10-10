@@ -23,7 +23,7 @@ Séquence le chantier ; les décisions et l'architecture vivent dans [`../etudes
 
 ## Étape 1 — Connecteurs (L0, L1, L2)
 - **L0** : supprimer `ProviderApiService#buy/#sell` (0 appelant) ; `@ToString.Exclude` sur `apiKey`/`secretKey`/`passphrase` (`ApiCredential`, et `Wallet#credential`) ; test d'architecture « aucune méthode `buy|sell|placeOrder|newOrder` exposée par `service.connector` ».
-- **L1** : `WebProviderCode.OKX` + `WebProvider` (initializer, `https://www.okx.com`), colonne `passphrase` sur `ApiCredential`, `ReadOnlyBalanceReader` (interface, lève `BalanceUnavailableException`, jamais de map vide en cas d'erreur) et `OkxBalanceReader` (`GET /api/v5/account/balance`, compte trading, solde **disponible** ; signature HMAC-SHA256, en-têtes `OK-ACCESS-*`, passphrase). Tests `MockWebServer` (signature, parsing, erreur API).
+- **L1** : `WebProviderCode.OKX` + `WebProvider` (initializer, `https://eea.okx.com`), colonne `passphrase` sur `ApiCredential`, `ReadOnlyBalanceReader` (interface, lève `BalanceUnavailableException`, jamais de map vide en cas d'erreur) et `OkxBalanceReader` (`GET /api/v5/account/balance`, compte trading, solde **disponible** ; signature HMAC-SHA256, en-têtes `OK-ACCESS-*`, passphrase). Tests `MockWebServer` (signature, parsing, erreur API).
 - **L2** : Kraken/Binance en `ReadOnlyBalanceReader` : exceptions propagées (plus de `{}` mis en cache), normalisation des assets (XBT→BTC, XETH→ETH, `.F/.S`), solde disponible, `BalanceCacheManager` sur `DomainClock`. Vérifier PAXG/USDC côté Kraken en réel.
 - Critères : build vert, aucun secret dans `toString`, lecture réelle OKX/Kraken validée par Clem (BTC/ETH/PAXG/USDC), 0 appel d'ordre possible.
 - **Point**.

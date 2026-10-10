@@ -55,7 +55,7 @@ import static org.mockito.Mockito.when;
  * {@code base} (50 USDC) par jour ; série finale en hausse => SELL.
  */
 @DataJpaTest
-@Import({RainbowLivePresetService.class, RainbowLivePresetTemplateService.class, RainbowLiveRunService.class,
+@Import({RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class, RainbowLivePresetService.class, RainbowAssetStrategyService.class, RainbowLiveRunService.class,
         RainbowLiveExecutionService.class, RainbowTrendLiveService.class, RainbowAthService.class,
         MockPortfolioSource.class, RainbowLiveRealCashTest.ClockConfig.class})
 @DisplayName("Bench Rainbow : preset live sur vrai cash (ledger, blocage, indisponibilité, rejeu, 00:05)")

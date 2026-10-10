@@ -7,11 +7,11 @@ Vérifié le : 2026-10-09 (code + décisions de Clem). Objectif n°1 du projet :
 | Brique | État |
 |---|---|
 | Moteur Rainbow ATR (pine v4 = source de vérité, port Java) | fait — découpé en couches L1 bornes / L2 `step` pur + `RainbowAtrState` / L3 `AthReference` / L4 `Sizer` (référence seulement) ; état et ATH persistés pour les presets `TREND_MIX` du bench (`RainbowLiveEngineState`, `RainbowAthReference`) — [`04-market-data.md`](../architecture/04-market-data.md) |
-| Paramétrage par actif et par trend (Bull / Bear) | fait pour BTC, ETH, PAXG : presets `<ACTIF> Perso Bear/Bull` du pine v4 repris en Java ; templates de presets système (copiés par user, inactifs) = jeu global du bench + Trend Mix aux réglages par défaut. Réglages PAXG ajustés à la main par Clem |
+| Paramétrage par actif et par trend (Bull / Bear) | fait pour BTC, ETH, PAXG : presets `<ACTIF> Perso Bear/Bull` du pine v4 repris en Java ; stratégies Actif (une Trend Mix par actif, pilotées par System, suivies par les presets des users, inactifs au départ) aux réglages par défaut. Réglages PAXG ajustés à la main par Clem |
 | Trend simple (`TrendAnalyzer`, UP/DOWN/RANGE) | fait — [`09-trend.md`](../architecture/09-trend.md) |
 | Branchement Trend → jeu de paramètres | fait : Trend Mix (`TrendMixCalculator` = méga-pine `rainbow_trend_dca_v1.pine`, vérifié par Clem Java vs pine) choisit Bull/Bear à chaque bougie (`RainbowSetSelector`) ; état de la machine et ATH persistés ; branché au dry-run quotidien (presets `TREND_MIX`, [`08`](../architecture/08-rainbow-bench-grandeur-nature.md)), pas à une exécution réelle |
 | Bench grandeur nature (dry-run quotidien, wallet fictif, page web) | fait, tourne chaque jour sur le VPS (résultats de tous les presets en base) — [`08`](../architecture/08-rainbow-bench-grandeur-nature.md) |
-| Recréation d'une base (Flyway + initializers) | fait : `V1__init.sql` généré (non activé), défauts créés par les initializers, presets système par templates — [`operations/flyway.md`](../operations/flyway.md). données historiques (`candle`, `etf_flow_snapshot`) sauvegardées chaque semaine et rechargées au démarrage. **Ouvert** : sauvegarde récurrente de la branche décisionnelle (branche en pause) |
+| Recréation d'une base (Flyway + initializers) | fait : `V1__init.sql` généré (non activé), défauts créés par les initializers, stratégies Actif pilotées par System (presets qui les suivent) — [`operations/flyway.md`](../operations/flyway.md). données historiques (`candle`, `etf_flow_snapshot`) sauvegardées chaque semaine et rechargées au démarrage. **Ouvert** : sauvegarde récurrente de la branche décisionnelle (branche en pause) |
 | Curseur d'exposition | non fait — [spec V1 §2](../etudes/spec-rainbow-v1-trend-global-exposition-risque-macro.md) |
 | Risque macro (`riskCursor`) | non fait — spec V1 §3 |
 | Wallet réel (lecture seule) branché au preset live | code et page faits (connecteurs, bindings, moteur sur vrai cash, page) — **vérification réelle OKX/Kraken à faire**, cf. §5 ; `WalletSnapshot` (branche décisionnelle) non branché — [`decision-to-order-gap.md`](decision-to-order-gap.md) |
@@ -45,14 +45,23 @@ Hors Rainbow : branchement `WalletSnapshot`, sizing réel, composant d'exécutio
 - **Clôture du lot** : après le « Point » avec Clem, la roadmap `wallet-reel` reste en `docs/prompts/` (trace de la réflexion) ; les prompts d'implémentation exécutés sont déjà supprimés.
 - **Hors lot** (plus tard) : Fee Test, token d'exchange, découverte automatique du wallet, alerte % de liquidité (§7), compte Funding OKX / Earn.
 
+## 5b. Pages, navigation, charte graphique et saisie des credentials (non fait)
+
+Ordre voulu : d'abord boucler le fonctionnel du back, puis :
+- **Architecture des pages** : définir les pages, leur organisation, les menus.
+- **Charte graphique** à définir.
+- **Page de saisie des credentials d'exchange** (et des wallets) : indispensable, car elles sont rattachées à l'utilisateur et ne doivent pas vivre dans les `application-*.properties` (il faudrait les modifier pour chaque user). Aujourd'hui seul `ApiCredentialInitializer` (propriétés → base, pour OKlm, au démarrage, si absente) ou le SQL direct permettent de les renseigner ; l'application ne peut pas tourner sans ces credentials pour les tests fonctionnels de dev.
+
 ## 6. Preset Bull PAXG
 
 Constat du 2026-10-05 : trop de ventes, le bag ne gonfle pas. Réglage manuel par Clem (pas de chantier de code).
 
-## 6b. Config par défaut pilotable par System (non fait)
+## 6b. Stratégies Actif : gestion System et Stratégie Wallet (reste à faire)
 
-Constat (code, 2026-10-09) : les presets système sont des **copies** d'un template, faites une fois par utilisateur (`RainbowLivePresetService#ensureSystemPresets`), jamais recréées ni modifiées ; le template est immuable et un défaut changé dans le code n'altère pas la base. Changer la config par défaut ne change donc rien chez les utilisateurs existants.
-Besoin (Clem) : une config par défaut **pilotable par le compte System** et qui s'applique à tous les utilisateurs ayant choisi d'utiliser la config par défaut (au lieu d'une copie figée). Piste à étudier : preset de l'utilisateur en mode « suit le défaut » (référence au template/preset System, pas de copie des paramètres), template modifiable par System avec effet immédiat sur les runs suivants, historique des runs conservant le snapshot de config (`configHash`/`changedParams` déjà en place). Questions : le wallet mock et l'historique restent propres à chaque user (oui ?) ; un user peut-il « détacher » (copie éditable) ; effet sur les runs déjà écrits ; interaction avec Flyway/initializers (le défaut vit en base, plus dans le code). Analyse à mener avant tout code.
+Fait : la config par défaut est pilotée par System via la stratégie Actif (cf. [`architecture/08`](../architecture/08-rainbow-bench-grandeur-nature.md)). Reste :
+- **Création de stratégies** : aujourd'hui seul l'Initializer en crée (une Trend Mix par actif). Prévoir un endpoint System de création (nouvel actif / nouvelle stratégie) et une **page de gestion admin** dédiée (édition des jeux Bear/Bull et Trend, vue des révisions).
+- **Stratégie Wallet** : niveau portefeuille avec vue globale des actifs (capital commun, priorités, exposition) — aujourd'hui portés par les bindings (`priority`, `bagPercent`) et le `CashLedger`.
+- **Page** : afficher l'historique des switchs (`GET /preset-events`) ; l'API existe, pas d'écran.
 
 ## 7. Interface utilisateur : modes et alertes (intentions, pas de code)
 

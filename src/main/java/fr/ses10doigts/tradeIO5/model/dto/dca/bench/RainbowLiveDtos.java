@@ -42,9 +42,10 @@ public final class RainbowLiveDtos {
     public record TrendConfigDto(TrendMixCalculator.Params trend, String rangeMapping, ConfigDto bear, ConfigDto bull) {
     }
 
-    /** Template de preset système (lecture seule) ; {@code trendConfig} nul pour un template FIXED. */
-    public record TemplateDto(Long id, String assetSymbol, String name, String mode, int analysisWindowMonths,
-                              double initialCapitalUsdc, ConfigDto config, TrendConfigDto trendConfig) {
+    /** Stratégie Actif (lecture seule côté user) ; {@code trendConfig} nul pour une stratégie FIXED. */
+    public record StrategyDto(Long id, String assetSymbol, String name, String mode, int revision, Instant updatedAt,
+                              int analysisWindowMonths, double initialCapitalUsdc, ConfigDto config,
+                              TrendConfigDto trendConfig) {
     }
 
     /** Activation / désactivation d'un preset. */
@@ -68,7 +69,13 @@ public final class RainbowLiveDtos {
                             double initialCapitalUsdc, Instant createdAt, Instant updatedAt,
                             RainbowAtrTuning tuning, RainbowAtrGlobals globals, WalletDto wallet,
                             long runCount, LocalDate firstRunDay, LastRunDto lastRun, String mode, TrendConfigDto trendConfig,
-                            boolean system) {
+                            boolean followsStrategy, Integer strategyRevision) {
+    }
+
+    /** Événement de l'historique des switchs de preset. */
+    public record PresetEventDto(Long id, String assetSymbol, String type, Long presetBeforeId, String presetBeforeName,
+                                 Long presetAfterId, String presetAfterName, Integer strategyRevision, Instant occurredAt,
+                                 String reason) {
     }
 
     public record BlockDto(Double close, Double sma, Double atr, Double boundDown2, Double boundDown1, Double boundUp1,

@@ -31,6 +31,7 @@ public class RainbowLiveRunService {
     private final RainbowLiveRunRepository runRepository;
     private final RainbowLiveMockWalletRepository walletRepository;
     private final DomainClock clock;
+    private final RainbowLivePresetConfigResolver configResolver;
 
     /**
      * @param result résultat de la passe fourni par l'appelant (moteur) ; {@code computedAt}, {@code configHash}
@@ -46,7 +47,7 @@ public class RainbowLiveRunService {
                 .orElseGet(() -> RainbowLiveRun.builder()
                         .preset(preset).user(preset.getUser()).assetSymbol(preset.getAssetSymbol()).day(day).build());
 
-        run.setConfig(copyOf(preset));
+        run.setConfig(copyOf(configResolver.config(preset)));
         run.setConfigHash(run.getConfig().hash());
         result.setConfigHash(run.getConfigHash());
         result.setComputedAt(now);
@@ -105,7 +106,7 @@ public class RainbowLiveRunService {
         return v;
     }
 
-    private static RainbowAtrConfig copyOf(RainbowLivePreset preset) {
-        return RainbowAtrConfig.of(preset.getConfig().toTuning(), preset.getConfig().toGlobals());
+    private static RainbowAtrConfig copyOf(RainbowAtrConfig config) {
+        return RainbowAtrConfig.of(config.toTuning(), config.toGlobals());
     }
 }

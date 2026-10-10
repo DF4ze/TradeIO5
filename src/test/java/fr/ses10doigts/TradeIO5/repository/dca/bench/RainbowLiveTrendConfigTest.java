@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest
-@Import({RainbowLivePresetService.class, RainbowLiveTrendConfigTest.ClockConfig.class})
+@Import({RainbowLivePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService.class, RainbowLiveTrendConfigTest.ClockConfig.class})
 @DisplayName("Bench Rainbow : réglages Trend Mix par preset et mode d'affichage utilisateur")
 class RainbowLiveTrendConfigTest {
 

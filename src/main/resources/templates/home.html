@@ -98,6 +98,7 @@
 					        },
 					        error: function (err) {
 					            console.error("Erreur lors du chargement des avoirs", err);
+					            $('#assetOverviewBody').html('<tr><td colspan="10" class="text-danger">Chargement des avoirs impossible ('+ (err.status||'?') +')</td></tr>');
 					        }
 					    });
 					});

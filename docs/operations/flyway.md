@@ -10,7 +10,7 @@ Flyway est **préparé mais non activé** : dépendances `flyway-core` + `flyway
 
 - Le schéma de référence est celui des **entités JPA**, jamais celui d'une base existante.
 - `V1__init.sql` recrée le schéma complet sur une base vide (MySQL/MariaDB). Pas de baseline : l'environnement cible est une base créée de zéro.
-- Les valeurs par défaut de l'application (assets, providers, rôles, templates de presets…) ne sont **pas** dans les migrations : elles sont créées au démarrage par les initializers (cf. règle ci-dessous).
+- Les valeurs par défaut de l'application (assets, providers, rôles, stratégies Actif Rainbow…) ne sont **pas** dans les migrations : elles sont créées au démarrage par les initializers (cf. règle ci-dessous).
 
 ## Générer / contrôler V1 (avant activation)
 
@@ -41,7 +41,7 @@ Relire `V1__init.sql` avant l'activation (types, `enum` MySQL natifs des `@Enume
 
 Tout nouveau « défaut » de l'application (donnée de paramétrage devant exister au premier démarrage) est créé par un **initializer** (`configuration/initializer/`, `CommandLineRunner` + `@Order`), de façon **idempotente et élément par élément** : chaque élément absent est inséré, un élément existant n'est jamais écrasé (seuls les champs de synchronisation explicitement documentés peuvent l'être, ex. `AssetInitializer` pour `AssetProvider`). Pas de test global du type `count() == 0`.
 
-Initializers existants : `AssetInitializer` (1), `RoleInitializer` (10), `UserInitializer` (20), `HistoricalDataInitializer` (5, recharge `candle` et `etf_flow_snapshot` depuis les fichiers de backup si la table est vide), `ApiCredentialInitializer` (40, tous profils : clés du user System (CoinStats, Coinalyze, Twelve Data, Finnhub, SoSoValue) et clés Binance/Kraken/OKX d'OKlm lues dans les propriétés `tradeio.<fournisseur>.apiKey|secretKey` (+ `tradeio.okx.passphrase`) des `application-*.properties` (gitignorés) ; clé absente => warning, rien semé), `WalletInitializer` (45), `WebProviderInitializer` (dont OKX, `https://www.okx.com`), `ContentSourceInitializer` (50), `RainbowLivePresetTemplateInitializer` (60, templates de presets Rainbow ; chaque utilisateur en reçoit une copie à sa première utilisation, cf. [`../architecture/08-rainbow-bench-grandeur-nature.md`](../architecture/08-rainbow-bench-grandeur-nature.md)).
+Initializers existants : `AssetInitializer` (1), `RoleInitializer` (10), `UserInitializer` (20), `HistoricalDataInitializer` (5, recharge `candle` et `etf_flow_snapshot` depuis les fichiers de backup si la table est vide), `ApiCredentialInitializer` (40, tous profils : clés du user System (CoinStats, Coinalyze, Twelve Data, Finnhub, SoSoValue) et clés Binance/Kraken/OKX d'OKlm lues dans les propriétés `tradeio.<fournisseur>.apiKey|secretKey` (+ `tradeio.okx.passphrase`) des `application-*.properties` (gitignorés) ; clé absente => warning, rien semé), `WalletInitializer` (45), `WebProviderInitializer` (dont OKX, `https://www.okx.com`), `ContentSourceInitializer` (50), `RainbowAssetStrategyInitializer` (60, stratégies Actif Rainbow, jamais écrasées ensuite : System les modifie en base ; chaque utilisateur reçoit un preset qui la suit à sa première utilisation, cf. [`../architecture/08-rainbow-bench-grandeur-nature.md`](../architecture/08-rainbow-bench-grandeur-nature.md)).
 
 ## Données non recréées par les initializers
 

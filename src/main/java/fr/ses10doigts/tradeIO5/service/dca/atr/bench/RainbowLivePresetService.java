@@ -10,11 +10,12 @@ import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveUserSettingsRepos
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMockWallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMode;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePresetTemplate;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAssetStrategy;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePresetEventType;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveMockWalletRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLivePresetRepository;
-import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLivePresetTemplateRepository;
+import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowAssetStrategyRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrGlobals;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrTuning;
@@ -40,15 +41,25 @@ public class RainbowLivePresetService {
     private final RainbowLivePresetRepository presetRepository;
     private final RainbowLiveMockWalletRepository walletRepository;
     private final RainbowLiveBindingRepository bindingRepository;
-    private final RainbowLivePresetTemplateRepository templateRepository;
+    private final RainbowAssetStrategyRepository strategyRepository;
     private final RainbowLiveTrendConfigRepository trendConfigRepository;
+    private final RainbowLivePresetConfigResolver configResolver;
+    private final RainbowLivePresetEventService eventService;
     private final RainbowLiveUserSettingsRepository settingsRepository;
     private final DomainClock clock;
 
     /** Création : actif, nom et capital initial sont fixés ici (non modifiables ensuite). */
     public record CreateRequest(String assetSymbol, String name, boolean enabled, int analysisWindowMonths,
                                 double initialCapitalUsdc, RainbowAtrTuning tuning, RainbowAtrGlobals globals,
-                                String mode, TrendConfigDto trendConfig) {
+                                String mode, TrendConfigDto trendConfig, Long duplicatedFromId) {
+        /** Création sans provenance (pas une duplication). */
+        public CreateRequest(String assetSymbol, String name, boolean enabled, int analysisWindowMonths,
+                             double initialCapitalUsdc, RainbowAtrTuning tuning, RainbowAtrGlobals globals,
+                             String mode, TrendConfigDto trendConfig) {
+            this(assetSymbol, name, enabled, analysisWindowMonths, initialCapitalUsdc, tuning, globals, mode,
+                    trendConfig, null);
+        }
+
         /** Preset FIXED (tuning/globals propres). */
         public CreateRequest(String assetSymbol, String name, boolean enabled, int analysisWindowMonths,
                              double initialCapitalUsdc, RainbowAtrTuning tuning, RainbowAtrGlobals globals) {
@@ -71,10 +82,18 @@ public class RainbowLivePresetService {
             throw new IllegalArgumentException("Le préfixe « " + RainbowLiveDefaultPresets.SYSTEM_PREFIX
                     + "» est réservé aux presets système");
         }
-        return doCreate(user, req, false);
+        RainbowLivePreset source = req.duplicatedFromId() == null ? null : owned(user, req.duplicatedFromId());
+        RainbowLivePreset created = doCreate(user, req, null);
+        if (source != null && source.isFollowingStrategy()) {
+            eventService.record(user, created.getAssetSymbol(), RainbowLivePresetEventType.DETACH, source, created,
+                    source.getAssetStrategy().getRevision(), "Détaché de la stratégie « "
+                            + source.getAssetStrategy().getName() + " » (révision "
+                            + source.getAssetStrategy().getRevision() + ")");
+        }
+        return created;
     }
 
-    private RainbowLivePreset doCreate(User user, CreateRequest req, boolean system) {
+    private RainbowLivePreset doCreate(User user, CreateRequest req, RainbowAssetStrategy strategy) {
         requireAllowedAsset(req.assetSymbol());
         boolean trend = RainbowLiveMode.TREND_MIX.name().equals(req.mode());
         if (req.mode() != null && !trend && !RainbowLiveMode.FIXED.name().equals(req.mode())) {
@@ -96,7 +115,7 @@ public class RainbowLivePresetService {
                 .assetSymbol(req.assetSymbol())
                 .name(req.name())
                 .enabled(req.enabled())
-                .system(system)
+                .assetStrategy(strategy)
                 .analysisWindowMonths(req.analysisWindowMonths())
                 .initialCapitalUsdc(req.initialCapitalUsdc())
                 .createdAt(now)
@@ -104,7 +123,7 @@ public class RainbowLivePresetService {
                 .config(RainbowAtrConfig.of(tuning, globals))
                 .mode(trend ? RainbowLiveMode.TREND_MIX : null)
                 .build());
-        if (trend) {
+        if (trend && strategy == null) {
             saveTrendConfig(preset, resolved);
         }
         walletRepository.save(RainbowLiveMockWallet.builder()
@@ -125,7 +144,7 @@ public class RainbowLivePresetService {
     @Transactional
     public RainbowLivePreset update(User user, Long presetId, UpdateRequest req) {
         RainbowLivePreset preset = owned(user, presetId);
-        requireNotSystem(preset);
+        requireNotFollowing(preset);
         if (req.name() != null && req.name().startsWith(RainbowLiveDefaultPresets.SYSTEM_PREFIX)) {
             throw new IllegalArgumentException("Le préfixe « " + RainbowLiveDefaultPresets.SYSTEM_PREFIX
                     + "» est réservé aux presets système");
@@ -163,7 +182,7 @@ public class RainbowLivePresetService {
     @Transactional
     public void delete(User user, Long presetId) {
         RainbowLivePreset preset = owned(user, presetId);
-        requireNotSystem(preset);
+        requireNotFollowing(preset);
         if (bindingRepository.existsByPreset(preset)) {
             throw new IllegalArgumentException("Preset live d'un binding : le délier ou le remplacer avant suppression");
         }
@@ -193,47 +212,49 @@ public class RainbowLivePresetService {
     @Transactional
     public RainbowLivePreset setEnabled(User user, Long presetId, boolean enabled) {
         RainbowLivePreset preset = owned(user, presetId);
+        boolean changed = preset.isEnabled() != enabled;
         preset.setEnabled(enabled);
         preset.setUpdatedAt(clock.now());
         RainbowLivePreset saved = presetRepository.save(preset);
+        if (changed) {
+            eventService.record(user, saved.getAssetSymbol(),
+                    enabled ? RainbowLivePresetEventType.ENABLE : RainbowLivePresetEventType.DISABLE, saved, saved,
+                    saved.isFollowingStrategy() ? saved.getAssetStrategy().getRevision() : null, null);
+        }
         log.info("Preset bench id={} user={} enabled={}", saved.getId(), user.getId(), enabled);
         return saved;
     }
 
     /**
-     * Première utilisation d'un user : copie de chaque template système dont il n'a pas encore la copie (un à un,
-     * clé : actif + nom préfixé). Copies créées inactives, non modifiables, non supprimables (wallet mock et runs
-     * propres). Idempotent : une copie existante n'est jamais recréée ni modifiée.
+     * Première utilisation d'un user : un preset par stratégie Actif existante, qui la SUIT (aucune copie de la config),
+     * s'il n'en a pas déjà un (clé : actif + nom préfixé). Créé inactif, non modifiable, non supprimable (wallet mock
+     * et runs propres). Idempotent : un preset existant n'est jamais recréé ni modifié.
      *
      * @return les presets créés (vide si rien à faire)
      */
     @Transactional
-    public List<RainbowLivePreset> ensureSystemPresets(User user) {
+    public List<RainbowLivePreset> ensureStrategyPresets(User user) {
         List<RainbowLivePreset> created = new ArrayList<>();
-        for (RainbowLivePresetTemplate template : templateRepository.findAllByOrderByAssetSymbolAscNameAsc()) {
-            String name = RainbowLiveDefaultPresets.SYSTEM_PREFIX + template.getName();
-            if (presetRepository.findByUserAndAssetSymbolAndName(user, template.getAssetSymbol(), name).isPresent()) {
+        for (RainbowAssetStrategy strategy : strategyRepository.findAllByOrderByAssetSymbolAscNameAsc()) {
+            String name = RainbowLiveDefaultPresets.SYSTEM_PREFIX + strategy.getName();
+            if (presetRepository.findByUserAndAssetSymbolAndName(user, strategy.getAssetSymbol(), name).isPresent()) {
                 continue;
             }
-            created.add(copyTemplate(user, template, name));
+            created.add(followStrategy(user, strategy, name));
         }
         if (!created.isEmpty()) {
-            log.info("Presets système copiés pour user={} : {} preset(s) créé(s)", user.getId(), created.size());
+            log.info("Presets de stratégie créés pour user={} : {} preset(s)", user.getId(), created.size());
         }
         return created;
     }
 
-    private RainbowLivePreset copyTemplate(User user, RainbowLivePresetTemplate t, String name) {
-        CreateRequest req;
-        if (t.getMode() == RainbowLiveMode.TREND_MIX) {
-            req = new CreateRequest(t.getAssetSymbol(), name, false, t.getAnalysisWindowMonths(),
-                    t.getInitialCapitalUsdc(), null, null, RainbowLiveMode.TREND_MIX.name(),
-                    RainbowLiveTrendConfigs.fromJson(t.getTrendConfigJson()));
-        } else {
-            req = new CreateRequest(t.getAssetSymbol(), name, false, t.getAnalysisWindowMonths(),
-                    t.getInitialCapitalUsdc(), t.getConfig().toTuning(), t.getConfig().toGlobals());
-        }
-        return doCreate(user, req, true);
+    private RainbowLivePreset followStrategy(User user, RainbowAssetStrategy t, String name) {
+        boolean trend = t.getMode() == RainbowLiveMode.TREND_MIX;
+        CreateRequest req = new CreateRequest(t.getAssetSymbol(), name, false, t.getAnalysisWindowMonths(),
+                t.getInitialCapitalUsdc(), trend ? null : t.getConfig().toTuning(), trend ? null : t.getConfig().toGlobals(),
+                trend ? RainbowLiveMode.TREND_MIX.name() : null,
+                trend ? RainbowLiveTrendConfigs.fromJson(t.getTrendConfigJson()) : null);
+        return doCreate(user, req, t);
     }
 
     /**
@@ -247,11 +268,10 @@ public class RainbowLivePresetService {
                 null, null, RainbowLiveMode.TREND_MIX.name(), null));
     }
 
-    /** Réglages résolus d'un preset (défauts du code si aucune ligne). */
+    /** Réglages Trend résolus d'un preset (stratégie suivie ou ligne propre, défauts du code sinon). */
     @Transactional(readOnly = true)
     public RainbowLiveTrendConfigs.Resolved trendConfig(RainbowLivePreset preset) {
-        return RainbowLiveTrendConfigs.resolve(trendConfigRepository.findByPreset(preset).orElse(null),
-                preset.getAssetSymbol());
+        return configResolver.trendConfig(preset);
     }
 
     private void saveTrendConfig(RainbowLivePreset preset, RainbowLiveTrendConfigs.Resolved resolved) {
@@ -288,8 +308,8 @@ public class RainbowLivePresetService {
                 .orElseThrow(() -> new RainbowLivePresetNotFoundException(presetId));
     }
 
-    private static void requireNotSystem(RainbowLivePreset preset) {
-        if (preset.isSystem()) {
+    private static void requireNotFollowing(RainbowLivePreset preset) {
+        if (preset.isFollowingStrategy()) {
             throw new RainbowLivePresetLockedException(preset.getId());
         }
     }

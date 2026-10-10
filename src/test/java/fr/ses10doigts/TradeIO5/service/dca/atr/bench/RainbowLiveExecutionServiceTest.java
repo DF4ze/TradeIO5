@@ -58,7 +58,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @DataJpaTest
-@Import({RainbowLivePresetService.class, RainbowLivePresetTemplateService.class, RainbowLiveRunService.class, RainbowLiveExecutionService.class,
+@Import({RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class, RainbowLivePresetService.class, RainbowAssetStrategyService.class, RainbowLiveRunService.class, RainbowLiveExecutionService.class,
         RainbowTrendLiveService.class, MockPortfolioSource.class, RainbowAthService.class,
         RainbowLiveExecutionServiceTest.ClockConfig.class})
 @DisplayName("Bench grandeur nature Rainbow : service d'exécution (passes 23:55 / 00:05)")
@@ -104,7 +104,7 @@ class RainbowLiveExecutionServiceTest {
     @MockBean private fr.ses10doigts.tradeIO5.service.calibration.BinanceDailyCandleFetcher binanceDailyCandleFetcher;
     @Autowired private RainbowLiveExecutionService service;
     @Autowired private RainbowLivePresetService presetService;
-    @Autowired private RainbowLivePresetTemplateService templateService;
+    @Autowired private RainbowAssetStrategyService strategyService;
     @Autowired private RainbowLivePresetRepository presetRepository;
     @Autowired private RainbowLiveMockWalletRepository walletRepository;
     @Autowired private RainbowLiveRunRepository runRepository;
@@ -550,9 +550,9 @@ class RainbowLiveExecutionServiceTest {
     // ---------------------------------------------------------------- presets / users
 
     @Test
-    @DisplayName("Copie des templates système pour les users actifs (inactifs donc non joués) ; preset disabled ignoré ; user désactivé ignoré")
+    @DisplayName("Presets qui suivent les stratégies pour les users actifs (inactifs donc non joués) ; preset disabled ignoré ; user désactivé ignoré")
     void presetsAndUsers() {
-        templateService.ensureTemplates();
+        strategyService.ensureStrategies();
         User disabledUser = user("carol", false);
         for (String a : RainbowLiveDefaultPresets.ASSETS) {
             serve(a, flat(N, 100));
@@ -563,12 +563,12 @@ class RainbowLiveExecutionServiceTest {
 
         PassSummary s = service.runPass(RainbowLivePass.T2355, ASOF_2355);
 
-        assertEquals(3, presetService.list(alice, "BTC").size(), "BTC : le preset désactivé + 2 copies système");
-        assertEquals(2, presetService.list(alice, "ETH").size(), "copies système ETH créées par le job");
-        assertEquals(2, presetService.list(alice, "PAXG").size(), "copies système PAXG créées par le job");
-        assertEquals(0, presetService.list(disabledUser).size(), "aucune copie pour un user désactivé");
+        assertEquals(2, presetService.list(alice, "BTC").size(), "BTC : le preset désactivé + le preset de stratégie");
+        assertEquals(1, presetService.list(alice, "ETH").size(), "preset de stratégie ETH créé par le job");
+        assertEquals(1, presetService.list(alice, "PAXG").size(), "preset de stratégie PAXG créé par le job");
+        assertEquals(0, presetService.list(disabledUser).size(), "aucun preset pour un user désactivé");
         assertEquals(0, runRepository.countByPreset(off));
-        assertEquals(0, s.processed(), "copies système inactives : rien n'est joué");
+        assertEquals(0, s.processed(), "presets de stratégie inactifs : rien n'est joué");
     }
 
     @Test

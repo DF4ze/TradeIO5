@@ -59,6 +59,10 @@ public class RainbowLiveEngineState {
     private boolean moonActive;
     private Double moonPeak;
 
+    /** Hash de la config effective (jeux Bear/Bull + réglages Trend + fenêtre) avec laquelle l'état a été calculé. */
+    @Column(length = 64)
+    private String configHash;
+
     public RainbowAtrState toState() {
         return new RainbowAtrState(buyArmed, sellArmed, buyLocked, nan(lowestSinceArmed), nan(highestSinceArmed),
                 buyArmedDays, sellArmedDays, cooldown, reserveQty,

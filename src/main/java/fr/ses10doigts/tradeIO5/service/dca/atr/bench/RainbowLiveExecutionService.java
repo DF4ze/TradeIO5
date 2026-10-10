@@ -73,6 +73,7 @@ public class RainbowLiveExecutionService {
     private final MarketDatasetEngine datasetEngine;
     private final UserRepository userRepository;
     private final RainbowLivePresetService presetService;
+    private final RainbowLivePresetConfigResolver configResolver;
     private final RainbowLiveMockWalletRepository walletRepository;
     private final RainbowLiveRunRepository runRepository;
     private final RainbowLiveRunService runService;
@@ -140,7 +141,7 @@ public class RainbowLiveExecutionService {
         Map<Long, List<RainbowLivePreset>> byUser = new LinkedHashMap<>();
         for (User user : userRepository.findByEnabledTrueAndArchivedAtIsNull()) {
             try {
-                presetService.ensureSystemPresets(user);
+                presetService.ensureStrategyPresets(user);
                 List<RainbowLivePreset> enabled = presetService.list(user).stream().filter(RainbowLivePreset::isEnabled).toList();
                 if (!enabled.isEmpty()) {
                     byUser.put(user.getId(), enabled);
@@ -248,7 +249,7 @@ public class RainbowLiveExecutionService {
         if (preset.isTrendMix()) {
             return runTrendPreset(pass, day, preset, series, slot, ledgers);
         }
-        RainbowAtrConfig config = preset.getConfig();
+        RainbowAtrConfig config = configResolver.config(preset);
         RainbowAtrTuning tuning = config.toTuning();
         RainbowAtrGlobals globals = config.toGlobals();
         RainbowAtrDataset ds = series.dataset();
@@ -260,7 +261,7 @@ public class RainbowLiveExecutionService {
                     preset.getId(), preset.getAssetSymbol(), endIdx + 1, warmup);
             return false;
         }
-        int startIdx = Math.max(warmup, firstIndexOnOrAfter(ds, day.minusMonths(preset.getAnalysisWindowMonths())));
+        int startIdx = Math.max(warmup, firstIndexOnOrAfter(ds, day.minusMonths(configResolver.analysisWindowMonths(preset))));
         startIdx = Math.min(startIdx, endIdx);
 
         RainbowAtrResult result = RainbowAtrEngine.simulate(ds, globals, new RainbowAtrTuning[]{tuning}, null,

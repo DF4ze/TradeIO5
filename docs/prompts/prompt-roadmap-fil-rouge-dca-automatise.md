@@ -23,8 +23,8 @@ Trace de la réflexion du 2026-10-04 (suite de `prompt-analyse-fil-rouge-dca-aut
 | # | Étape | Statut |
 |---|---|---|
 | 1 | Étude de compatibilité + socle moteur (L1/L2/L3, contrat `RainbowSignal`, Sizer de référence) | codée + testée (2026-10-04), point avec Clem à faire |
-| 2 | Trend → Bull/Bear + rejeu Java sur plage + graphique HTML (CSV) vs pine v4 | codée (2026-10-04), comparaison de Clem sous TradingView à faire |
-| 2 bis | Trend Mix (`TrendMixCalculator`) + mode `TREND_MIX` du rejeu = méga-pine `rainbow_trend_dca_v1.pine` | codée + testée (2026-10-08), comparaison de Clem sous TradingView à faire |
+| 2 | Trend → Bull/Bear + rejeu Java sur plage + graphique HTML (CSV) vs pine v4 | codée (2026-10-04), **validée (2026-10-10)** via le méga-pine (le moteur Rainbow y est embarqué) |
+| 2 bis | Trend Mix (`TrendMixCalculator`) + mode `TREND_MIX` du rejeu = méga-pine `rainbow_trend_dca_v1.pine` | codée + testée (2026-10-08), **validée par Clem (2026-10-08)** contre le méga-pine |
 | 3 | Exécution quotidienne en dry-run (presets `TREND_MIX` du bench : état persisté, `AthReference` en base, Trend → jeu) | codée + testée (2026-10-08), presets Trend Mix fournis par les templates système (copie inactive à la 1re utilisation, activation par l'utilisateur) ; point avec Clem à faire |
 
 Hors roadmap (roadmap suivante) : wallet réel (`WalletSnapshot`), sizing réel et plafonds, curseur d'exposition, risque macro, exécution réelle (dry-run obligatoire avant), paramétrage automatique d'un actif quelconque, bench du delta 23:55/00:05.

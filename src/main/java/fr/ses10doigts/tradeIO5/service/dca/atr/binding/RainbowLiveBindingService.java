@@ -3,6 +3,8 @@ package fr.ses10doigts.tradeIO5.service.dca.atr.binding;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePresetEventType;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService;
 import fr.ses10doigts.tradeIO5.repository.WalletRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
@@ -32,6 +34,7 @@ public class RainbowLiveBindingService {
     private final RainbowLivePresetService presetService;
     private final WalletRepository walletRepository;
     private final BindingCheck bindingCheck;
+    private final RainbowLivePresetEventService eventService;
 
     /** Création : {@code bagPercent} et {@code priority} nuls => défauts (100 %, rang de l'actif). */
     public record CreateRequest(String assetSymbol, Long presetId, Long walletId, Double bagPercent, Integer priority) {
@@ -59,6 +62,8 @@ public class RainbowLiveBindingService {
         RainbowLiveBinding saved = bindingRepository.save(RainbowLiveBinding.builder()
                 .user(user).assetSymbol(req.assetSymbol()).preset(preset).wallet(wallet)
                 .bagPercent(bag).priority(priority).build());
+        eventService.record(user, saved.getAssetSymbol(), RainbowLivePresetEventType.LIVE_SWITCH, null, preset,
+                strategyRevision(preset), "Preset live défini");
         log.info("Binding créé id={} user={} actif={} preset={} wallet={} bag={}% priorité={}",
                 saved.getId(), user.getId(), saved.getAssetSymbol(), preset.getId(), wallet.getId(), bag, priority);
         return new Checked(saved, bindingCheck.check(saved));
@@ -69,7 +74,13 @@ public class RainbowLiveBindingService {
     public Checked update(User user, Long id, UpdateRequest req) {
         RainbowLiveBinding binding = owned(user, id);
         if (req.presetId() != null) {
-            binding.setPreset(presetFor(user, req.presetId(), binding.getAssetSymbol()));
+            RainbowLivePreset before = binding.getPreset();
+            RainbowLivePreset after = presetFor(user, req.presetId(), binding.getAssetSymbol());
+            binding.setPreset(after);
+            if (!before.getId().equals(after.getId())) {
+                eventService.record(user, binding.getAssetSymbol(), RainbowLivePresetEventType.LIVE_SWITCH, before,
+                        after, strategyRevision(after), "Bascule du preset live");
+            }
         }
         if (req.walletId() != null) {
             binding.setWallet(walletOf(user, req.walletId()));
@@ -127,6 +138,10 @@ public class RainbowLiveBindingService {
                     + ", pas sur " + assetSymbol);
         }
         return preset;
+    }
+
+    private static Integer strategyRevision(RainbowLivePreset preset) {
+        return preset.isFollowingStrategy() ? preset.getAssetStrategy().getRevision() : null;
     }
 
     private Wallet walletOf(User user, Long walletId) {

@@ -5,7 +5,8 @@ import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.EnabledDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.PerformanceDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.PresetDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.RunDto;
-import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.TemplateDto;
+import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.PresetEventDto;
+import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.StrategyDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.UiModeDto;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
@@ -53,10 +54,16 @@ public class RainbowLiveController {
         return queryService.defaults();
     }
 
-    /** Templates de presets système (lecture seule : aucun endpoint d'écriture). */
-    @GetMapping("/templates")
-    public List<TemplateDto> templates() {
-        return queryService.templates();
+    /** Stratégies Actif (lecture seule côté user ; l'édition est réservée à System, cf. RainbowLiveAdminController). */
+    @GetMapping("/strategies")
+    public List<StrategyDto> strategies() {
+        return queryService.strategies();
+    }
+
+    /** Historique des switchs de preset du user connecté (filtre ?asset optionnel), du plus récent au plus ancien. */
+    @GetMapping("/preset-events")
+    public List<PresetEventDto> presetEvents(@RequestParam(required = false) String asset) {
+        return queryService.presetEvents(authenticationFacade.getConnectedUser(), asset);
     }
 
     /** Mode d'affichage de l'utilisateur (EXPERT par défaut). */

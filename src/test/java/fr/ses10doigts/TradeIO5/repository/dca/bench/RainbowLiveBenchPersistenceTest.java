@@ -6,8 +6,9 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMockWallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMode;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePresetEventType;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePresetTemplate;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAssetStrategy;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
@@ -18,7 +19,7 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetLockedExce
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.CreateRequest;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.UpdateRequest;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetTemplateService;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowAssetStrategyService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveRunService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveTrendConfigs;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
@@ -48,7 +49,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest
-@Import({RainbowLivePresetService.class, RainbowLivePresetTemplateService.class, RainbowLiveRunService.class, RainbowLiveBenchPersistenceTest.ClockConfig.class})
+@Import({RainbowLivePresetService.class, RainbowAssetStrategyService.class, RainbowLiveRunService.class,
+        fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver.class,
+        fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService.class, RainbowLiveBenchPersistenceTest.ClockConfig.class})
 @DisplayName("Bench grandeur nature Rainbow : persistance, presets, runs")
 class RainbowLiveBenchPersistenceTest {
 
@@ -67,8 +70,10 @@ class RainbowLiveBenchPersistenceTest {
     @Autowired private RainbowLivePresetRepository presetRepository;
     @Autowired private RainbowLiveMockWalletRepository walletRepository;
     @Autowired private RainbowLiveRunRepository runRepository;
-    @Autowired private RainbowLivePresetTemplateService templateService;
-    @Autowired private RainbowLivePresetTemplateRepository templateRepository;
+    @Autowired private RainbowAssetStrategyService strategyService;
+    @Autowired private fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver configResolver;
+    @Autowired private fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService eventService;
+    @Autowired private RainbowAssetStrategyRepository strategyRepository;
     @Autowired private RainbowLiveTrendConfigRepository trendConfigRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private EntityManager em;
@@ -309,71 +314,70 @@ class RainbowLiveBenchPersistenceTest {
         assertEquals(other.getId(), runRepository.findAll().getFirst().getPreset().getId());
     }
 
-    // --- Templates système + copie par user
+    // --- Stratégies Actif + presets qui les suivent
 
     @Test
-    @DisplayName("Templates : 2 par actif (Bench global FIXED + Trend Mix), idempotent, complète seulement les manquants")
-    void ensureTemplates() {
-        assertEquals(6, templateService.ensureTemplates().size());
-        assertTrue(templateService.ensureTemplates().isEmpty(), "2e démarrage : aucun doublon");
-        assertEquals(6, templateRepository.count());
-
-        for (String asset : RainbowLiveDefaultPresets.ASSETS) {
-            RainbowLivePresetTemplate bench = templateRepository.findAllByOrderByAssetSymbolAscNameAsc().stream()
-                    .filter(t -> t.getAssetSymbol().equals(asset) && t.getMode() == RainbowLiveMode.FIXED)
-                    .findFirst().orElseThrow();
-            assertEquals(RainbowLiveDefaultPresets.DEFAULT_NAME, bench.getName());
-            assertEquals(RainbowLiveDefaultPresets.configFor(asset), bench.getConfig(), asset);
-            assertEquals(null, bench.getTrendConfigJson());
+    @DisplayName("Stratégies : 1 TrendMix par actif (révision 1), idempotent, complète seulement les manquantes")
+    void ensureStrategies() {
+        assertEquals(3, strategyService.ensureStrategies().size());
+        assertTrue(strategyService.ensureStrategies().isEmpty(), "2e démarrage : aucun doublon");
+        assertEquals(3, strategyRepository.count());
+        for (RainbowAssetStrategy st : strategyRepository.findAll()) {
+            assertEquals(RainbowLiveDefaultPresets.TREND_MIX_NAME, st.getName());
+            assertEquals(RainbowLiveMode.TREND_MIX, st.getMode());
+            assertEquals(1, st.getRevision());
         }
 
-        // un template manquant (suppression en masse, hors callbacks) est recréé seul, les autres ne sont pas touchés
-        em.createQuery("delete from RainbowLivePresetTemplate t where t.assetSymbol = 'ETH'").executeUpdate();
+        // une stratégie manquante est recréée seule, les autres ne sont pas touchées (jamais écrasées)
+        em.createQuery("delete from RainbowAssetStrategy t where t.assetSymbol = 'ETH'").executeUpdate();
         em.clear();
-        assertEquals(2, templateService.ensureTemplates().size());
-        assertEquals(6, templateRepository.count());
+        assertEquals(1, strategyService.ensureStrategies().size());
+        assertEquals(3, strategyRepository.count());
     }
 
     @Test
-    @DisplayName("Templates : immuables (update et delete refusés par l'entité)")
-    void templatesImmutable() {
-        templateService.ensureTemplates();
+    @DisplayName("Stratégie : modifiable par System (révision +1), jamais supprimable, jamais réécrite par l'Initializer")
+    void strategyUpdatable() {
+        strategyService.ensureStrategies();
+        RainbowAssetStrategy btc = strategyRepository.findAllByOrderByAssetSymbolAscNameAsc().getFirst();
+        var dto = RainbowLiveTrendConfigs.fromJson(btc.getTrendConfigJson());
+
+        RainbowAssetStrategy updated = strategyService.update(btc.getId(),
+                new fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowAssetStrategyService.UpdateRequest(9, dto));
         em.flush();
         em.clear();
+        assertEquals(2, updated.getRevision());
+        assertEquals(9, strategyRepository.findById(btc.getId()).orElseThrow().getAnalysisWindowMonths());
 
-        RainbowLivePresetTemplate t = templateRepository.findAll().getFirst();
-        ReflectionTestUtils.setField(t, "name", "autre");
-        assertThrows(RuntimeException.class, () -> em.flush());
-        em.clear();
+        assertTrue(strategyService.ensureStrategies().isEmpty());
+        assertEquals(9, strategyRepository.findById(btc.getId()).orElseThrow().getAnalysisWindowMonths(),
+                "l'Initializer ne réécrit jamais une stratégie existante");
 
-        RainbowLivePresetTemplate t2 = templateRepository.findAll().getFirst();
-        assertThrows(RuntimeException.class, () -> templateRepository.delete(t2));
+        assertThrows(IllegalArgumentException.class, () -> strategyService.update(btc.getId(),
+                new fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowAssetStrategyService.UpdateRequest(0, dto)));
+        RainbowAssetStrategy again = strategyRepository.findById(btc.getId()).orElseThrow();
+        assertThrows(RuntimeException.class, () -> strategyRepository.delete(again));
     }
 
     @Test
-    @DisplayName("1re utilisation : copie des 6 templates (inactifs, système, nom préfixé, wallet au capital), idempotent, par user")
-    void ensureSystemPresets() {
-        templateService.ensureTemplates();
+    @DisplayName("1re utilisation : un preset par stratégie qui la SUIT (inactif, nom préfixé, wallet au capital, aucune copie de config), idempotent, par user")
+    void ensureStrategyPresets() {
+        strategyService.ensureStrategies();
 
-        List<RainbowLivePreset> created = presetService.ensureSystemPresets(alice);
-        assertEquals(6, created.size());
-        assertEquals(6, presetService.list(alice).size());
-        assertEquals(6, walletRepository.count());
+        List<RainbowLivePreset> created = presetService.ensureStrategyPresets(alice);
+        assertEquals(3, created.size());
+        assertEquals(3, presetService.list(alice).size());
+        assertEquals(3, walletRepository.count());
+        assertEquals(0, trendConfigRepository.count(), "un preset qui suit la stratégie n'a pas de ligne Trend propre");
         for (RainbowLivePreset p : created) {
-            assertTrue(p.isSystem());
-            assertFalse(p.isEnabled(), "copie créée inactive");
-            assertTrue(p.getName().startsWith(RainbowLiveDefaultPresets.SYSTEM_PREFIX), p.getName());
+            assertTrue(p.isFollowingStrategy());
+            assertTrue(p.isTrendMix());
+            assertFalse(p.isEnabled(), "créé inactif");
+            assertEquals(RainbowLiveDefaultPresets.SYSTEM_PREFIX + RainbowLiveDefaultPresets.TREND_MIX_NAME, p.getName());
             assertEquals(1000, walletRepository.findByPreset(p).orElseThrow().cash(), 0.0);
-        }
-        for (String asset : RainbowLiveDefaultPresets.ASSETS) {
-            RainbowLivePreset bench = presetService.list(alice, asset).stream().filter(p -> !p.isTrendMix()).findFirst().orElseThrow();
-            assertEquals(RainbowLiveDefaultPresets.SYSTEM_PREFIX + RainbowLiveDefaultPresets.DEFAULT_NAME, bench.getName());
-            assertEquals(RainbowLiveDefaultPresets.configFor(asset), bench.getConfig(), asset);
 
-            RainbowLivePreset trend = presetService.list(alice, asset).stream().filter(RainbowLivePreset::isTrendMix).findFirst().orElseThrow();
-            assertEquals(RainbowLiveDefaultPresets.SYSTEM_PREFIX + RainbowLiveDefaultPresets.TREND_MIX_NAME, trend.getName());
-            RainbowLiveTrendConfigs.Resolved got = RainbowLiveTrendConfigs.resolve(
-                    trendConfigRepository.findByPreset(trend).orElseThrow(), asset);
+            String asset = p.getAssetSymbol();
+            RainbowLiveTrendConfigs.Resolved got = configResolver.trendConfig(p);
             RainbowLiveTrendConfigs.Resolved expected = RainbowLiveTrendConfigs.defaults(asset);
             assertEquals(expected.trend(), got.trend(), asset);
             assertEquals(expected.range(), got.range(), asset);
@@ -381,16 +385,16 @@ class RainbowLiveBenchPersistenceTest {
             assertEquals(expected.bull().globals(), got.bull().globals(), asset);
         }
 
-        assertTrue(presetService.ensureSystemPresets(alice).isEmpty(), "2e appel : pas de doublon");
-        assertEquals(6, presetService.ensureSystemPresets(bob).size(), "bob indépendant d'alice");
-        assertEquals(12, walletRepository.count());
+        assertTrue(presetService.ensureStrategyPresets(alice).isEmpty(), "2e appel : pas de doublon");
+        assertEquals(3, presetService.ensureStrategyPresets(bob).size(), "bob indépendant d'alice");
+        assertEquals(6, walletRepository.count());
     }
 
     @Test
-    @DisplayName("Copie système : ni modifiable ni supprimable, activation seule permise ; préfixe réservé")
-    void systemPresetLocked() {
-        templateService.ensureTemplates();
-        RainbowLivePreset sys = presetService.ensureSystemPresets(alice).getFirst();
+    @DisplayName("Preset qui suit une stratégie : ni modifiable ni supprimable, activation seule permise (et historisée) ; préfixe réservé")
+    void followingPresetLocked() {
+        strategyService.ensureStrategies();
+        RainbowLivePreset sys = presetService.ensureStrategyPresets(alice).getFirst();
         RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor("BTC");
 
         assertThrows(RainbowLivePresetLockedException.class, () ->
@@ -399,20 +403,82 @@ class RainbowLiveBenchPersistenceTest {
 
         assertTrue(presetService.setEnabled(alice, sys.getId(), true).isEnabled());
         assertFalse(presetService.setEnabled(alice, sys.getId(), false).isEnabled());
-        assertEquals(6, presetService.list(alice).size());
+        presetService.setEnabled(alice, sys.getId(), false);
+        var types = eventService.list(alice, null).stream().map(e -> e.getType()).toList();
+        assertEquals(List.of(RainbowLivePresetEventType.DISABLE, RainbowLivePresetEventType.ENABLE), types,
+                "un setEnabled sans changement n'écrit rien");
+        assertEquals(3, presetService.list(alice).size());
 
         assertThrows(IllegalArgumentException.class, () -> btcPreset(alice, RainbowLiveDefaultPresets.SYSTEM_PREFIX + "perso"));
         RainbowLivePreset own = btcPreset(alice, "perso");
         assertThrows(IllegalArgumentException.class, () -> presetService.update(alice, own.getId(),
                 new UpdateRequest(RainbowLiveDefaultPresets.SYSTEM_PREFIX + "perso", true, 6, c.toTuning(), c.toGlobals())));
-        assertFalse(own.isSystem());
+        assertFalse(own.isFollowingStrategy());
     }
 
     @Test
-    @DisplayName("Sans template en base : aucune copie (le user garde ses presets perso)")
-    void noTemplateNoCopy() {
+    @DisplayName("Modification System : config effective changée pour tous ceux qui suivent, aucun effet sur un preset détaché")
+    void strategyChangeReachesFollowersNotDetached() {
+        strategyService.ensureStrategies();
+        RainbowLivePreset a = presetService.ensureStrategyPresets(alice).stream()
+                .filter(p -> p.getAssetSymbol().equals("BTC")).findFirst().orElseThrow();
+        RainbowLivePreset b = presetService.ensureStrategyPresets(bob).stream()
+                .filter(p -> p.getAssetSymbol().equals("BTC")).findFirst().orElseThrow();
+        var detached = presetService.create(alice, new CreateRequest("BTC", "perso", false, 6, 1000, null, null,
+                RainbowLiveMode.TREND_MIX.name(), RainbowLiveTrendConfigs.toDto(configResolver.trendConfig(a)), a.getId()));
+        String hashA = configResolver.effectiveHash(a);
+        String hashDetached = configResolver.effectiveHash(detached);
+
+        RainbowAssetStrategy btc = a.getAssetStrategy();
+        strategyService.update(btc.getId(), new fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowAssetStrategyService
+                .UpdateRequest(12, RainbowLiveTrendConfigs.fromJson(btc.getTrendConfigJson())));
+        em.flush();
+        em.clear();
+
+        RainbowLivePreset a2 = presetService.get(alice, a.getId());
+        RainbowLivePreset b2 = presetService.get(bob, b.getId());
+        RainbowLivePreset d2 = presetService.get(alice, detached.getId());
+        assertEquals(12, configResolver.analysisWindowMonths(a2));
+        assertEquals(12, configResolver.analysisWindowMonths(b2));
+        assertEquals(6, configResolver.analysisWindowMonths(d2));
+        assertTrue(!hashA.equals(configResolver.effectiveHash(a2)));
+        assertEquals(hashDetached, configResolver.effectiveHash(d2));
+        assertTrue(d2.getAssetStrategy() == null && !d2.isFollowingStrategy());
+    }
+
+    @Test
+    @DisplayName("Détachement = duplication d'un preset qui suit : nouveau wallet, ancien conservé, événement DETACH ; la duplication d'un preset perso n'écrit rien")
+    void detachByDuplication() {
+        strategyService.ensureStrategies();
+        RainbowLivePreset followed = presetService.ensureStrategyPresets(alice).stream()
+                .filter(p -> p.getAssetSymbol().equals("BTC")).findFirst().orElseThrow();
+        var trend = RainbowLiveTrendConfigs.toDto(configResolver.trendConfig(followed));
+
+        RainbowLivePreset copy = presetService.create(alice, new CreateRequest("BTC", "ma copie", false, 6, 1000, null, null,
+                RainbowLiveMode.TREND_MIX.name(), trend, followed.getId()));
+        assertFalse(copy.isFollowingStrategy());
+        assertTrue(walletRepository.findByPreset(copy).isPresent());
+        assertTrue(walletRepository.findByPreset(followed).isPresent(), "l'ancien preset garde son wallet");
+        assertEquals(1, trendConfigRepository.count(), "la copie porte ses propres réglages Trend");
+
+        var events = eventService.list(alice, "BTC");
+        assertEquals(1, events.size());
+        assertEquals(RainbowLivePresetEventType.DETACH, events.getFirst().getType());
+        assertEquals(followed.getId(), events.getFirst().getPresetBeforeId());
+        assertEquals(copy.getId(), events.getFirst().getPresetAfterId());
+        assertEquals(1, events.getFirst().getStrategyRevision());
+
+        presetService.create(alice, new CreateRequest("BTC", "copie de la copie", false, 6, 1000, null, null,
+                RainbowLiveMode.TREND_MIX.name(), trend, copy.getId()));
+        assertEquals(1, eventService.list(alice, "BTC").size(), "dupliquer un preset perso n'est pas un détachement");
+        assertTrue(eventService.list(bob, null).isEmpty(), "historique propre à chaque user");
+    }
+
+    @Test
+    @DisplayName("Sans stratégie en base : aucun preset créé (le user garde ses presets perso)")
+    void noStrategyNoPreset() {
         btcPreset(alice, "perso");
-        assertTrue(presetService.ensureSystemPresets(alice).isEmpty());
+        assertTrue(presetService.ensureStrategyPresets(alice).isEmpty());
         assertEquals(1, presetService.list(alice).size());
     }
 }
