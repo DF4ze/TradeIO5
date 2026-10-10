@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
+import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingCheckStatus;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveWalletDtos.LiveAssetDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveWalletDtos.LiveSnapshotDto;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
@@ -48,7 +49,9 @@ public class RainbowLiveWalletQueryService {
         return new LiveAssetDto(b.getAssetSymbol(), b.getId(), b.getPreset().getId(), b.getPreset().getName(),
                 wallet.getId(), wallet.getName(),
                 wallet.getWebProviderCode() == null ? null : wallet.getWebProviderCode().name(),
-                b.getBagPercent(), b.getPriority(), latest == null ? null : snapshotOf(latest));
+                b.getBagPercent(), b.getPriority(),
+                b.getTradability() == null ? null : b.getTradability().name(), tradabilityMessage(b),
+                b.isExecutionEnabled(), b.getFirstLiveApprovedAt() != null, b.getFirstLiveConfirmedAt() != null, latest == null ? null : snapshotOf(latest));
     }
 
     /** Bloc le plus récent portant un snapshot live (00:05 avant 23:55) ; nul si le run n'en a pas (preset pas encore joué en live). */
@@ -61,8 +64,16 @@ public class RainbowLiveWalletQueryService {
         return b2355 != null && b2355.hasLiveSnapshot() ? toSnapshot(run, RainbowLivePass.T2355, b2355) : null;
     }
 
+    /** Avertissement texte seulement quand l'exécution est bloquée (couple non tradable sans fiat). */
+    private static String tradabilityMessage(RainbowLiveBinding b) {
+        return b.getTradability() == BindingCheckStatus.NOT_TRADABLE_WITHOUT_FIAT
+                ? b.getAssetSymbol() + " non tradable sur " + b.getWallet().getWebProviderCode()
+                + " sans passer par une monnaie fiat : exécution bloquée" : null;
+    }
+
     private static LiveSnapshotDto toSnapshot(RainbowLiveRun run, RainbowLivePass pass, RainbowLivePassBlock b) {
-        return new LiveSnapshotDto(run.getDay(), pass, b.getLiveStatus(), b.getLiveFetchedAt(), b.getLiveCashUsdc(),
+        return new LiveSnapshotDto(run.getDay(), pass, b.getLiveStatus(), b.getLiveFetchedAt(), b.getLiveCashUsd(),
+                CashDetailCodec.read(b.getLiveCashDetail()),
                 b.getLivePositionQty(), b.getLiveTradableQty(), b.getLiveCashReserved(), b.getLiveBlockReason(),
                 b.getLiveActionType(), b.getLiveActionAmountUsdc(), b.getLiveActionQuantity());
     }

@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class RainbowLiveMockWalletTest {
 
     private static RainbowLiveMockWallet wallet(double cash) {
-        return RainbowLiveMockWallet.builder().assetSymbol("BTC").cashUsdc(cash).updatedAt(Instant.EPOCH).build();
+        return RainbowLiveMockWallet.builder().assetSymbol("BTC").cashUsd(cash).updatedAt(Instant.EPOCH).build();
     }
 
     @Test
@@ -33,7 +33,7 @@ class RainbowLiveMockWalletTest {
         w.applyBuy(250, 0.005);
         w.applySell(120, 0.002);
 
-        assertEquals(870, w.getCashUsdc(), 1e-9);
+        assertEquals(870, w.getCashUsd(), 1e-9);
         assertEquals(0.003, w.getPositionQuantity(), 1e-12);
     }
 
@@ -43,7 +43,7 @@ class RainbowLiveMockWalletTest {
         RainbowLiveMockWallet w = wallet(50);
 
         assertThrows(IllegalStateException.class, () -> w.applyBuy(50.01, 1));
-        assertEquals(50, w.getCashUsdc(), 0.0);
+        assertEquals(50, w.getCashUsd(), 0.0);
         assertEquals(0.0, w.getPositionQuantity(), 0.0);
     }
 

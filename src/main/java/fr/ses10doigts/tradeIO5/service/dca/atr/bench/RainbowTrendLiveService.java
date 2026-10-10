@@ -175,7 +175,7 @@ public class RainbowTrendLiveService {
     /** Cash et position AVANT l'action du jour : wallet courant (23:55), ou wallet moins l'action déjà appliquée (00:05). */
     private double[] cashAndPositionBefore(RainbowLivePass pass, LocalDate day, RainbowLivePreset preset,
                                            RainbowLiveMockWallet wallet) {
-        double cash = wallet.getCashUsdc();
+        double cash = wallet.getCashUsd();
         double pos = wallet.getPositionQuantity();
         if (pass == RainbowLivePass.T0005) {
             Optional<RainbowLiveRun> run = runRepository.findByPresetAndDay(preset, day);

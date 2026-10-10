@@ -101,7 +101,7 @@ public class RainbowLiveController {
         return queryService.getPreset(user, id);
     }
 
-    /** Activation / désactivation : seule modification permise sur un preset système. */
+    /** Activation / désactivation : seule modification permise sur un preset qui suit une stratégie Actif. */
     @PatchMapping("/presets/{id}/enabled")
     public PresetDto setEnabled(@PathVariable Long id, @RequestBody EnabledDto request) {
         User user = authenticationFacade.getConnectedUser();

@@ -9,14 +9,15 @@ Séquence le chantier ; les décisions et l'architecture vivent dans [`../etudes
 | 2 | Binding token → wallet + vérification de disponibilité | L3 | **codé et testé (2026-10-09)** ; vérification réelle OKX/Kraken à faire avec Clem |
 | 3 | Moteur sur vrai cash (port, ledger, snapshot, blocage) | L4 | **codé (2026-10-10)** ; vérification réelle avec Clem à faire |
 | 4 | Page web `userPage` | L5 | **codé et testé (2026-10-10)** ; vérification réelle avec Clem à faire |
+| A | Groupes d'actifs (USD = USDC + USDT), statuts de tradabilité, blocage sans fiat | — | **codé et testé (2026-10-10)** ; vérification réelle avec Clem à faire |
 | — | Hors lot : Fee Test, token d'exchange, découverte du wallet, alerte liquidité, compte funding OKX | — | plus tard |
 
 ## Décisions de Clem à respecter (2026-10-09)
 - Wallet agrégé multi-exchanges : OKX (BTC/ETH, compte **Trading**), Kraken (PAXG). Binance : prix/historique seulement ; wallet Binance retirable à condition de ne pas bloquer le fetch H1 (les providers market data n'utilisent ni `Wallet` ni `ApiCredential`).
 - **Un seul preset live par actif** (les autres restent simulation sur wallet mock) ; le mock du preset live est **conservé en parallèle**.
-- **Cash** : pool par wallet, USDC seul (sur OKX et Kraken) ; achat > cash ⇒ tout-ou-rien, `BLOCKED` + raison, jamais de saut silencieux.
+- **Cash** : pool par wallet, groupe USD = USDC + USDT ; achat > cash ⇒ tout-ou-rien, `BLOCKED` + raison, jamais de saut silencieux.
 - **Position** : `bagPercent` (0-100 %, défaut 100 %, **dynamique**) × position réelle ⇒ position tradable (alimente `ReferenceSizer` et le plafond de vente).
-- Périmètre : BTC, ETH, PAXG, USDC ; autres soldes ignorés et non affichés ; vérification de disponibilité des actifs sur le portefeuille dès ce lot.
+- Périmètre : BTC, ETH, PAXG, groupe USD (USDC + USDT) ; autres soldes ignorés et non affichés ; vérification de disponibilité des actifs sur le portefeuille dès ce lot.
 - Panne/cache périmé ⇒ aucune action live, trace explicite. Rejeu 23:55 : l'action d'origine est conservée.
 - Clé API OKX : « Read » uniquement, IP du VPS whitelistée, passphrase, stockée dans `application-*.properties` gitignorés (Clem la crée avant la vérification réelle de l'étape 1).
 - Style : `docs/CODING_RULES.md`, isEmpty()/getFirst(), constantes métier mutualisées, pas de variables redondantes, assertTrue/False directs, `DomainClock` (jamais `Instant.now()`).
@@ -47,7 +48,7 @@ Non faites : clé OKX Read pas encore créée/placée. Restent à lire avec Clem
 
 ## Étape 2 — Binding (L3)
 - `RainbowLiveBinding` (`rainbow_live_binding`) : user, actif, preset live (FK), wallet (FK), `bagPercent`, `priority` ; **unique (user, asset_symbol)** ; bascule = update ; API `/api/rainbow-live/bindings` (CRUD, scopée à l'user, autre user ⇒ 404).
-- `BindingCheck` (création + à chaque passe) : credential valide, soldes lisibles, instrument `<actif>/USDC` existant (endpoint public), USDC lisible (solde nul accepté ; clé absente ≠ indisponible). Statut explicite.
+- `BindingCheck` (création + à chaque passe) : credential valide, soldes lisibles, chemin spot sans fiat via le groupe USD (endpoint public : `OK`, `TRADABLE_VIA_BRIDGE`, `NOT_TRADABLE_WITHOUT_FIAT`) ; solde nul accepté, clé absente ≠ indisponible. Statut explicite, persisté sur le binding.
 - Intégrer les nouvelles tables à Flyway V1 si activé ; désactivation/ignorance du wallet Binance dans les services concernés après vérification des dépendances H1.
 - Critères : unicité en base, isolation par user, tests de vérification (OK/KO), doc `architecture/08`, `api/rest-endpoints`.
 - **Point**.

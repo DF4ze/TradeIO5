@@ -16,7 +16,8 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @Table(name = "api_credentials",
-		uniqueConstraints = @UniqueConstraint(name = "uk_credential_user_provider", columnNames = { "user_id", "web_provider_id" }))
+		uniqueConstraints = @UniqueConstraint(name = "uk_credential_user_provider_scope",
+				columnNames = { "user_id", "web_provider_id", "scope" }))
 public class ApiCredential {
 
     @Id
@@ -33,15 +34,24 @@ public class ApiCredential {
     )
 	private WebProvider webProvider;
 
+    /** Portée de la clé (défaut {@code READ}) ; unique par (utilisateur, provider, portée). */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 8)
+    private CredentialScope scope = CredentialScope.READ;
+
+    /** Clé en clair pour {@code READ} ; valeur chiffrée AES-GCM ({@code enc:v1:...}) pour {@code TRADE}. */
     @ToString.Exclude
-    @Column(nullable = false)
+    @Column(nullable = false, length = 512)
     private String apiKey;
 
     @ToString.Exclude
+    @Column(length = 512)
     private String secretKey;
 
     /** Requise par certains exchanges (OKX) ; nulle sinon. */
     @ToString.Exclude
+    @Column(length = 512)
     private String passphrase;
 
     private boolean enabled = true;

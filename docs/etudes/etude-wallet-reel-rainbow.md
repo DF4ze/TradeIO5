@@ -46,7 +46,7 @@ RainbowPortfolioSource (interface, package bench)       <- seul type connu du be
 Le wallet n'est **jamais** « tous les wallets enabled » : seul le wallet du binding est lu (évite Binance en double).
 
 ### 3.3 Cash commun
-Pool de cash = **(wallet, USDC)** : USDC OKX et USDC Kraken ne sont pas fongibles sans transfert. BTC et ETH (OKX) partagent un pool ; PAXG (Kraken) a le sien. « Capital commun » global = somme pour l'affichage/l'exposition future, **blocage décidé par pool**.
+Pool de cash = **(wallet, groupe USD = USDC + USDT)** : le cash OKX et le cash Kraken ne sont pas fongibles sans transfert. BTC et ETH (OKX) partagent un pool ; PAXG (Kraken) a le sien. « Capital commun » global = somme pour l'affichage/l'exposition future, **blocage décidé par pool**.
 Ordre de passage : le job travaille aujourd'hui par actif (`presetsByAsset`, ordre = insertion ⇒ non déterministe). Il faut un `CashLedger` par (user, pool) traversé dans l'ordre `binding.priority` (défaut BTC, ETH, PAXG) : chaque achat accepté **réserve** son montant ; le suivant voit le reste. Ventes : plafonnées à la position réelle, produit **non** crédité le même jour (prudent). Rejeu 23:55 : l'action d'origine est conservée (comportement actuel) et réserve son montant dans le ledger.
 
 ### 3.4 Lecture seule ⇒ le solde ne bouge pas quand le moteur « agit »
@@ -56,7 +56,7 @@ Aucun ordre ⇒ le réel ne reflète pas les actions recommandées (sauf achats 
 ### 3.5 Fraîcheur, panne, traçabilité
 - Lecture au début de chaque passe (une par wallet, partagée par les actifs du pool) ; cache 60 s existant OK mais à passer sur `DomainClock`. Respect de `CODING_RULES` (pas de rappel réseau en boucle) : la page lit le **dernier snapshot en base**, pas l'exchange.
 - Échec/cache périmé ⇒ `status=UNAVAILABLE` ⇒ **aucun achat ni vente** pour le live (position inconnue), `action=NONE` + raison, WARN. Le preset reste calculé (indicateurs, état) ; les autres presets (mock) ne sont pas touchés.
-- Snapshot persisté **dans chaque bloc de passe** du preset live : `live_status`, `live_wallet_id`, `live_fetched_at`, `live_cash_usdc`, `live_position_qty`, `live_cash_reserved` (déjà consommé par d'autres actifs), `live_block_reason` (`NONE`/`INSUFFICIENT_CASH`/`UNAVAILABLE`). Nouveau type d'action `BLOCKED` (ou `NONE` + raison) pour l'affichage.
+- Snapshot persisté **dans chaque bloc de passe** du preset live : `live_status`, `live_wallet_id`, `live_fetched_at`, `live_cash_usd`, `live_position_qty`, `live_cash_reserved` (déjà consommé par d'autres actifs), `live_block_reason` (`NONE`/`INSUFFICIENT_CASH`/`UNAVAILABLE`). Nouveau type d'action `BLOCKED` (ou `NONE` + raison) pour l'affichage.
 - Arrondis/pas de quantité : le bench ne les applique pas aujourd'hui ; pour du « recommandé » on garde des `double`, l'arrondi exchange appartient au futur composant d'exécution (hors lot).
 
 ### 3.6 Page `userPage`
@@ -87,7 +87,7 @@ Docs à mettre à jour (sans historique) : `architecture/08` (sources, binding, 
 - **Wallet mock du preset live** : conservé en parallèle (comparaison fictif / réel, courbes de performance inchangées). Le bloc de passe porte donc l'action fictive (mock) **et** l'action réelle plafonnée + snapshot `live_*`.
 
 - **Quote** : USDC sur OKX et Kraken (confirmé). Périmètre : BTC, ETH, PAXG + USDC uniquement ; la découverte du wallet client reste pour plus tard.
-- **Vérification de disponibilité (dans ce lot)** : à la création du binding et à chaque passe, contrôle `BindingCheck` = credential valide, lecture des soldes OK, instrument `<actif>/USDC` existant sur l'exchange (endpoint public), USDC lisible (solde 0 accepté : les soldes nuls sont absents des maps, donc ne pas conclure « indisponible » sur une clé absente). Échec ⇒ statut explicite, pas d'action live.
+- **Vérification de disponibilité (dans ce lot)** : à la création du binding et à chaque passe, contrôle `BindingCheck` = credential valide, lecture des soldes OK, chemin spot sans fiat vers l'actif via le groupe USD sur l'exchange (endpoint public), cash USD lisible (solde 0 accepté : les soldes nuls sont absents des maps, donc ne pas conclure « indisponible » sur une clé absente). Échec ⇒ statut explicite, pas d'action live.
 - **Binance** : wallet retirable à condition de ne pas bloquer le fetch H1 historique. Le fetch H1 passe par `MarketDataApiClient` (klines publics, sans `Wallet` ni `ApiCredential`) et `BinanceDailyCandleFetcher` ⇒ a priori indépendant ; **à vérifier** (grep des dépendances à `Wallet`/`ApiCredential` Binance dans `service/market`) avant suppression de `WalletInitializer` Binance.
 - **Rejeu 23:55** : l'action d'origine est conservée (comportement actuel).
 - **Fee Test** (hors lot, à documenter) : quand l'user choisit une paire sur une connexion/exchange, un « Fee Test » estime le coût (frais + spread) ; au-dessus d'un seuil ⇒ warning user. Extensible aux « Bench online », avec à terme un système qui juge les benchs utilisateur, surtout à PnL négatif. Voir [`etude-trading-stablecoin-frais-btc-eth-paxg.md`](etude-trading-stablecoin-frais-btc-eth-paxg.md).
@@ -97,7 +97,7 @@ Docs à mettre à jour (sans historique) : `architecture/08` (sources, binding, 
 
 - **OKX, comptes** : BTC/ETH/USDC dans *Trading* (confirmé) ⇒ lecture du compte trading seul ; compte *funding* possible plus tard (même interface de lecteur, second endpoint).
 - **Clé API OKX** (à créer avant L1) : Profil → API → « Create V5 API key » ; type *API trading* ; nom libre ; **passphrase** à choisir (stockée avec la clé : sera demandée à chaque requête) ; permission **Read uniquement** (jamais Trade ni Withdraw) ; **IP allowlist = IP publique du VPS** ; validation 2FA ; clé et secret affichés une seule fois. Stockage : propriétés gitignorées (`application-*.properties`) lues via `Environment`, comme les autres clés.
-- **Frais OKX** : spot de base 0,08 % maker / 0,10 % taker (palier < 500 OKB, source Bitsgap, à confirmer sur ton palier réel dans OKX). Devise du prélèvement non confirmée par les sources consultées (en général l'actif reçu) : sans effet en lecture seule, à vérifier sur un relevé d'ordre avant le Fee Test.
+- **Frais OKX** : compte OKX EEA, niveau « Utilisateur régulier » : 0,10 % maker / 0,20 % taker (confirmé dans l'interface OKX et par `trade-fee`). Devise du prélèvement non confirmée par les sources consultées (en général l'actif reçu) : sans effet en lecture seule, à vérifier sur un relevé d'ordre avant le Fee Test.
 
 - **Seuils du Fee Test** (proposition de Clem, en %, par ordre d'un seul côté, frais + spread estimé) : < 0,2 % vert ; 0,2-0,8 % warning ; > 0,8 % zone rouge. Seuils configurables, valeurs par défaut ci-dessus.
 

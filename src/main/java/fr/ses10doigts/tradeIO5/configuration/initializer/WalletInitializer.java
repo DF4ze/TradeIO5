@@ -53,7 +53,7 @@ public class WalletInitializer implements CommandLineRunner {
         WebProvider krk = exchangeKrakenOpt.get();
 
         LocalDateTime now = LocalDateTime.now();
-        List<ApiCredential> credentials = credentialRepository.findByUserAndEnabledTrue(user);
+        List<ApiCredential> credentials = credentialRepository.findReadByUserAndEnabledTrue(user);
         ApiCredential credOkx = null;
         ApiCredential credBnb_tst = null;
         ApiCredential credKrk = null;
@@ -115,6 +115,11 @@ public class WalletInitializer implements CommandLineRunner {
             walletRepository.save(krakenWallet);
         }
 
+        // Rattrapage : wallet créé avant que la credential existe (ex. restauration backup/credentials après reset DB).
+        relinkCredential(user, "OKX", credOkx);
+        relinkCredential(user, "Binance Test", credBnb_tst);
+        relinkCredential(user, "Kraken", credKrk);
+
         Optional<Wallet> ledger = walletRepository.findByUserAndName(user, "Ledger");
         if( ledger.isEmpty() ) {
             Wallet ledgerWallet = Wallet.builder()
@@ -127,5 +132,17 @@ public class WalletInitializer implements CommandLineRunner {
                     .build();
             walletRepository.save(ledgerWallet);
         }
+    }
+
+    private void relinkCredential(User user, String walletName, ApiCredential credential) {
+        if (credential == null)
+            return;
+        walletRepository.findByUserAndName(user, walletName)
+                .filter(w -> w.getCredential() == null)
+                .ifPresent(w -> {
+                    w.setCredential(credential);
+                    walletRepository.save(w);
+                    logger.info("🔗 Wallet {} relié à sa credential", walletName);
+                });
     }
 }

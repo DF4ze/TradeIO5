@@ -136,7 +136,7 @@ public class RainbowLiveExecutionService {
         return summary;
     }
 
-    /** Copie des templates système manquants puis presets {@code enabled} des utilisateurs actifs, groupés par utilisateur. */
+    /** Création des presets de stratégie manquants puis presets {@code enabled} des utilisateurs actifs, groupés par utilisateur. */
     private Map<Long, List<RainbowLivePreset>> collectPresets(Counters counters) {
         Map<Long, List<RainbowLivePreset>> byUser = new LinkedHashMap<>();
         for (User user : userRepository.findByEnabledTrueAndArchivedAtIsNull()) {

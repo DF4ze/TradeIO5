@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
+import fr.ses10doigts.tradeIO5.model.entity.currency.AssetGroup;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.BlockDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.ConfigDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.ConfigMarkerDto;
@@ -86,7 +87,7 @@ public class RainbowLiveQueryService {
         for (String asset : RainbowLiveDefaultPresets.ASSETS) {
             trendDefaults.put(asset, RainbowLiveTrendConfigs.toDto(RainbowLiveTrendConfigs.defaults(asset)));
         }
-        return new DefaultsDto(RainbowLiveDefaultPresets.ASSETS, RainbowLiveDefaultPresets.STABLECOIN,
+        return new DefaultsDto(RainbowLiveDefaultPresets.ASSETS, AssetGroup.USD,
                 RainbowLiveDefaultPresets.DEFAULT_NAME, RainbowLiveDefaultPresets.DEFAULT_ANALYSIS_WINDOW_MONTHS,
                 RainbowLiveDefaultPresets.DEFAULT_INITIAL_CAPITAL_USDC, RainbowAtrGlobals.pineDefault().baseAmount(),
                 configs, Arrays.stream(ReentryMode.values()).map(Enum::name).toList(), ZONES, trendDefaults,
@@ -191,8 +192,8 @@ public class RainbowLiveQueryService {
                                          RainbowLiveRun latest, TrendConfigDto trendConfig) {
         RainbowLivePassBlock block = latest == null ? null : latestBlock(latest);
         Double lastClose = block == null ? null : block.getClose();
-        WalletDto walletDto = wallet == null ? null : new WalletDto(wallet.getCashUsdc(), wallet.getPositionQuantity(),
-                lastClose, lastClose == null ? null : wallet.getCashUsdc() + wallet.getPositionQuantity() * lastClose);
+        WalletDto walletDto = wallet == null ? null : new WalletDto(wallet.getCashUsd(), wallet.getPositionQuantity(),
+                lastClose, lastClose == null ? null : wallet.getCashUsd() + wallet.getPositionQuantity() * lastClose);
         LastRunDto lastRun = latest == null ? null : new LastRunDto(latest.getDay(),
                 latest.getPass2355() != null ? RainbowLivePass.T2355 : RainbowLivePass.T0005,
                 block.getClose(), block.getZone(), block.getActionType(), block.getActionAmountUsdc(),

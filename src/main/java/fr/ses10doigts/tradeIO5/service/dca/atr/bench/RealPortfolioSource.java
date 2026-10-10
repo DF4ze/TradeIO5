@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
+import fr.ses10doigts.tradeIO5.model.entity.currency.AssetGroup;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
@@ -9,6 +10,7 @@ import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceUnavailableException;
 import fr.ses10doigts.tradeIO5.service.connector.balance.ReadOnlyBalanceReader;
+import fr.ses10doigts.tradeIO5.service.currency.AssetGroupService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingCheck;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingCheckResult;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
@@ -27,8 +29,8 @@ import java.util.stream.Collectors;
 
 /**
  * Portefeuille réel en LECTURE SEULE d'un preset live : {@link BindingCheck} (clé valide, soldes lisibles, paire
- * {@code <actif>/USDC}) puis soldes disponibles du wallet lié. Seul bean du bench à toucher l'exchange. Périmètre : BTC,
- * ETH, PAXG et USDC ; tout autre solde est ignoré. Panne, clé rejetée, binding KO ou lecture sans aucun solde du périmètre
+ * {@code <actif>/<membre USD>}) puis soldes disponibles du wallet lié. Seul bean du bench à toucher l'exchange. Périmètre : BTC,
+ * ETH, PAXG et les membres du groupe USD (USDC + USDT, cash sommé) ; tout autre solde est ignoré. Panne, clé rejetée, binding KO ou lecture sans aucun solde du périmètre
  * ⇒ {@code UNAVAILABLE} (jamais un 0 silencieux).
  */
 @Slf4j
@@ -38,16 +40,19 @@ public class RealPortfolioSource implements RainbowPortfolioSource {
     private final RainbowLiveBindingRepository bindingRepository;
     private final BindingCheck bindingCheck;
     private final Map<WebProviderCode, ReadOnlyBalanceReader> readers;
+    private final AssetGroupService groupService;
     private final DomainClock clock;
     private final Duration staleAfter;
 
     public RealPortfolioSource(RainbowLiveBindingRepository bindingRepository, BindingCheck bindingCheck,
-                               List<ReadOnlyBalanceReader> readers, DomainClock clock,
+                               List<ReadOnlyBalanceReader> readers, AssetGroupService groupService,
+                               DomainClock clock,
                                @Value("${" + RainbowLiveDefaultPresets.READING_STALE_AFTER_PROPERTY + ":"
                                        + RainbowLiveDefaultPresets.DEFAULT_READING_STALE_AFTER + "}") Duration staleAfter) {
         this.bindingRepository = bindingRepository;
         this.bindingCheck = bindingCheck;
         this.readers = readers.stream().collect(Collectors.toMap(ReadOnlyBalanceReader::getProviderCode, Function.identity()));
+        this.groupService = groupService;
         this.clock = clock;
         this.staleAfter = staleAfter;
     }
@@ -74,6 +79,13 @@ public class RealPortfolioSource implements RainbowPortfolioSource {
         Instant now = clock.now();
 
         BindingCheckResult check = bindingCheck.check(binding);
+        binding.recordCheck(check, now);
+        bindingRepository.save(binding);
+        if (check.isBlocked()) {
+            log.warn("Lecture live bloquée preset={} actif={} wallet={} : {}", preset.getId(), preset.getAssetSymbol(),
+                    wallet.getId(), check.message());
+            return PortfolioReading.notTradable(wallet.getId(), now);
+        }
         if (!check.isOk()) {
             log.warn("Lecture live indisponible preset={} actif={} wallet={} : {} ({})", preset.getId(),
                     preset.getAssetSymbol(), wallet.getId(), check.status(), check.message());
@@ -95,14 +107,16 @@ public class RealPortfolioSource implements RainbowPortfolioSource {
                 positions.put(asset, qty.doubleValue());
             }
         }
-        BigDecimal usdc = balances.get(RainbowLiveDefaultPresets.STABLECOIN);
-        if (positions.isEmpty() && usdc == null) {
-            log.warn("Lecture live vide suspecte preset={} actif={} wallet={} : aucun solde BTC/ETH/PAXG/USDC, ignorée",
+        Map<String, Double> cashByMember = groupService.byMember(AssetGroup.USD, balances);
+        boolean cashPresent = groupService.members(AssetGroup.USD).stream().anyMatch(balances::containsKey);
+        if (positions.isEmpty() && !cashPresent) {
+            log.warn("Lecture live vide suspecte preset={} actif={} wallet={} : aucun solde BTC/ETH/PAXG/USD, ignorée",
                     preset.getId(), preset.getAssetSymbol(), wallet.getId());
             return PortfolioReading.unavailable(wallet.getId(), now);
         }
-        PortfolioReading reading = new PortfolioReading(usdc == null ? 0.0 : usdc.doubleValue(), positions, now,
-                PortfolioStatus.OK, wallet.getId());
+        double cash = cashByMember.values().stream().mapToDouble(Double::doubleValue).sum();
+        PortfolioReading reading = new PortfolioReading(cash, cashByMember, positions, now, PortfolioStatus.OK,
+                wallet.getId());
         log.debug("Lecture live preset={} actif={} wallet={} cash={} position={}", preset.getId(), preset.getAssetSymbol(),
                 wallet.getId(), reading.cash(), reading.quantity(preset.getAssetSymbol()));
         return reading;

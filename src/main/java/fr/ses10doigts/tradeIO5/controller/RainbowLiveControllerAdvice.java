@@ -1,9 +1,14 @@
 package fr.ses10doigts.tradeIO5.controller;
 
+import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceUnavailableException;
+import fr.ses10doigts.tradeIO5.service.connector.balance.CredentialRejectedException;
+import fr.ses10doigts.tradeIO5.service.connector.instrument.InstrumentLookupException;
+import fr.ses10doigts.tradeIO5.service.dca.atr.binding.PathQuoteUnavailableException;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConflictException;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingConflictException;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingNotFoundException;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetLockedException;
+import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingStateException;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetFollowsStrategyException;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,8 +33,8 @@ public class RainbowLiveControllerAdvice {
     }
 
     /** 409 (pas 403 : le front redirige vers /login sur 401/403). */
-    @ExceptionHandler(RainbowLivePresetLockedException.class)
-    public ResponseEntity<ErrorResponse> locked(RainbowLivePresetLockedException e) {
+    @ExceptionHandler(RainbowLivePresetFollowsStrategyException.class)
+    public ResponseEntity<ErrorResponse> locked(RainbowLivePresetFollowsStrategyException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
     }
 
@@ -38,9 +43,20 @@ public class RainbowLiveControllerAdvice {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));
     }
 
-    @ExceptionHandler(RainbowLiveBindingConflictException.class)
-    public ResponseEntity<ErrorResponse> bindingConflict(RainbowLiveBindingConflictException e) {
+    @ExceptionHandler({RainbowLiveBindingConflictException.class, RainbowLiveBindingStateException.class})
+    public ResponseEntity<ErrorResponse> bindingConflict(RuntimeException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
+    }
+
+    /** Clé API rejetée par l'exchange : 409 (pas 401/403 : le front redirige vers /login). */
+    @ExceptionHandler(CredentialRejectedException.class)
+    public ResponseEntity<ErrorResponse> credentialRejected(CredentialRejectedException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
+    }
+
+    @ExceptionHandler({BalanceUnavailableException.class, InstrumentLookupException.class, PathQuoteUnavailableException.class})
+    public ResponseEntity<ErrorResponse> unavailable(RuntimeException e) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new ErrorResponse(e.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

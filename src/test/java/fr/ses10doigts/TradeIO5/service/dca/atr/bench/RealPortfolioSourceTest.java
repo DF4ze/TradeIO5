@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
+import fr.ses10doigts.tradeIO5.model.entity.currency.AssetGroup;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
@@ -13,6 +14,7 @@ import fr.ses10doigts.tradeIO5.service.connector.balance.ReadOnlyBalanceReader;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingCheck;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingCheckResult;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingCheckStatus;
+import fr.ses10doigts.tradeIO5.service.currency.AssetGroupService;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,10 +30,11 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@DisplayName("RealPortfolioSource : lecture seule du wallet lié, périmètre BTC/ETH/PAXG/USDC, jamais de 0 silencieux")
+@DisplayName("RealPortfolioSource : lecture seule du wallet lié, périmètre BTC/ETH/PAXG/USD (USDC + USDT), jamais de 0 silencieux")
 class RealPortfolioSourceTest {
 
     private static final Instant NOW = Instant.parse("2026-10-01T23:55:00Z");
@@ -42,6 +45,7 @@ class RealPortfolioSourceTest {
     private final User user = User.builder().id(1L).username("u").build();
     private final ApiCredential credential = new ApiCredential();
     private RainbowLivePreset preset;
+    private final AssetGroupService groups = mock(AssetGroupService.class);
     private RealPortfolioSource source;
 
     @BeforeEach
@@ -53,7 +57,9 @@ class RealPortfolioSourceTest {
         when(bindings.findByUserAndAssetSymbol(user, "BTC")).thenReturn(Optional.of(binding));
         when(bindingCheck.check(binding)).thenReturn(new BindingCheckResult(BindingCheckStatus.OK, "OK"));
         when(reader.getProviderCode()).thenReturn(WebProviderCode.OKX);
-        source = new RealPortfolioSource(bindings, bindingCheck, List.of(reader), new FixedDomainClock(NOW),
+        when(groups.members(AssetGroup.USD)).thenReturn(List.of("USDC", "USDT"));
+        when(groups.byMember(eq(AssetGroup.USD), any())).thenCallRealMethod();
+        source = new RealPortfolioSource(bindings, bindingCheck, List.of(reader), groups, new FixedDomainClock(NOW),
                 Duration.ofMinutes(30));
     }
 
@@ -85,6 +91,30 @@ class RealPortfolioSourceTest {
     }
 
     @Test
+    @DisplayName("Cash = USDC + USDT, détail par membre conservé")
+    void cashIsUsdGroupSum() {
+        when(reader.getAvailableBalances(credential)).thenReturn(Map.of("USDC", new BigDecimal("100"),
+                "USDT", new BigDecimal("30.5"), "BTC", new BigDecimal("0.1")));
+
+        PortfolioReading r = source.read(preset);
+
+        assertEquals(PortfolioStatus.OK, r.status());
+        assertEquals(130.5, r.cash(), 1e-12);
+        assertEquals(Map.of("USDC", 100.0, "USDT", 30.5), r.cashByMember());
+    }
+
+    @Test
+    @DisplayName("USDT seul (sans USDC ni BTC) : lecture OK, cash = USDT")
+    void usdtOnlyIsInScope() {
+        when(reader.getAvailableBalances(credential)).thenReturn(Map.of("USDT", new BigDecimal("12")));
+
+        PortfolioReading r = source.read(preset);
+
+        assertEquals(PortfolioStatus.OK, r.status());
+        assertEquals(12.0, r.cash(), 1e-12);
+    }
+
+    @Test
     @DisplayName("Panne de lecture => UNAVAILABLE")
     void outage() {
         when(reader.getAvailableBalances(credential)).thenThrow(new BalanceUnavailableException("timeout"));
@@ -112,6 +142,22 @@ class RealPortfolioSourceTest {
 
         assertEquals(PortfolioStatus.UNAVAILABLE, r.status());
         org.mockito.Mockito.verify(reader, org.mockito.Mockito.never()).getAvailableBalances(any());
+    }
+
+    @Test
+    @DisplayName("Couple non tradable sans fiat => NOT_TRADABLE, soldes non lus, statut persisté sur le binding")
+    void notTradableIsBlockedAndPersisted() {
+        when(bindingCheck.check(any(RainbowLiveBinding.class)))
+                .thenReturn(new BindingCheckResult(BindingCheckStatus.NOT_TRADABLE_WITHOUT_FIAT, "PAXG sans fiat"));
+
+        PortfolioReading r = source.read(preset);
+
+        assertEquals(PortfolioStatus.NOT_TRADABLE, r.status());
+        org.mockito.Mockito.verify(reader, org.mockito.Mockito.never()).getAvailableBalances(any());
+        org.mockito.ArgumentCaptor<RainbowLiveBinding> saved = org.mockito.ArgumentCaptor.forClass(RainbowLiveBinding.class);
+        org.mockito.Mockito.verify(bindings).save(saved.capture());
+        assertEquals(BindingCheckStatus.NOT_TRADABLE_WITHOUT_FIAT, saved.getValue().getTradability());
+        assertEquals(NOW, saved.getValue().getTradabilityCheckedAt());
     }
 
     @Test

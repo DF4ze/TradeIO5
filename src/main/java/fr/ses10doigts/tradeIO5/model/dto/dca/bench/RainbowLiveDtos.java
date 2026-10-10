@@ -25,7 +25,7 @@ public final class RainbowLiveDtos {
      * {@code reentryModes} = valeurs de l'enum {@code ReentryMode} ; {@code zones} = codes/noms/libellés des zones du
      * moteur (le front ne duplique aucune de ces constantes).
      */
-    public record DefaultsDto(List<String> assets, String stablecoin, String defaultName, int analysisWindowMonths,
+    public record DefaultsDto(List<String> assets, String cashCurrency, String defaultName, int analysisWindowMonths,
                               double initialCapitalUsdc, double baseAmount, Map<String, ConfigDto> configs,
                               List<String> reentryModes, List<ZoneDto> zones,
                               Map<String, TrendConfigDto> trendDefaults, List<String> rangeMappings,
@@ -57,7 +57,7 @@ public final class RainbowLiveDtos {
     }
 
     /** Wallet mock ; {@code lastClose}/{@code equityUsdc} nuls tant qu'aucun close n'est connu. */
-    public record WalletDto(double cashUsdc, double positionQuantity, Double lastClose, Double equityUsdc) {
+    public record WalletDto(double cashUsd, double positionQuantity, Double lastClose, Double equityUsdc) {
     }
 
     public record LastRunDto(LocalDate day, RainbowLivePass pass, Double close, Integer zone, RainbowLiveAction actionType,

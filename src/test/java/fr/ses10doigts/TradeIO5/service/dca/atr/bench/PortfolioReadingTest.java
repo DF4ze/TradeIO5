@@ -44,7 +44,7 @@ class PortfolioReadingTest {
     @DisplayName("Relecture d'un snapshot : cash du pool, position de l'actif, wallet, instant, statut")
     void fromSnapshot() {
         RainbowLivePassBlock block = RainbowLivePassBlock.builder().liveStatus(PortfolioStatus.OK).liveWalletId(7L)
-                .liveFetchedAt(T0).liveCashUsdc(120.0).livePositionQty(0.5).build();
+                .liveFetchedAt(T0).liveCashUsd(120.0).livePositionQty(0.5).build();
 
         PortfolioReading r = PortfolioReading.fromSnapshot(block, "BTC");
 

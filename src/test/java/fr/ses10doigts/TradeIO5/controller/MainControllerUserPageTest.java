@@ -104,6 +104,24 @@ class MainControllerUserPageTest {
     }
 
     @Test
+    @DisplayName("JS : panneau d'exécution réelle (kill switch, interrupteur, confirmation du 1er ordre, audit paginé, fills réels) en texte seul")
+    void executionPanelRendering() throws Exception {
+        String js = new String(getClass().getResourceAsStream("/static/assets/js/rainbow-live.js").readAllBytes(),
+                StandardCharsets.UTF_8);
+        for (String expected : new String[] {"'/execution-state'", "/events?page=", "/execution'", "/confirm-first-live'",
+                "Kill switch engagé", "Kill switch levé", "exécution réelle verrouillée", "Exécution activée pour",
+                "Confirmer le 1er ordre réel", "en attente d\\'armement", "Audit du plan", "Précédent", "Suivant",
+                "Frais réels", "Slippage réel", "Prix moyen", "Inconnue (à réconcilier)", "ordres envoyés", "non envoyé",
+                "recommandée, non exécutée"}) {
+            assertTrue(js.contains(expected), "manquant dans le JS : " + expected);
+        }
+        for (String forbidden : new String[] {"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write"}) {
+            assertTrue(!js.contains(forbidden), "interdit : " + forbidden);
+        }
+        assertTrue(js.contains("'/live-wallet'"), "lecture du snapshot en base conservée");
+    }
+
+    @Test
     @DisplayName("Contrôle d'accès de userAccess inchangé (@PreAuthorize USER/MODERATOR/ADMIN)")
     void accessControlUnchanged() throws Exception {
         Method m = MainController.class.getMethod("userAccess", org.springframework.ui.Model.class);

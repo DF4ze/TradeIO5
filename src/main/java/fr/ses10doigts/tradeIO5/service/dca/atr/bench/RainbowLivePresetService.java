@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
+import fr.ses10doigts.tradeIO5.model.entity.currency.AssetGroup;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.TrendConfigDto;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveTrendConfig;
@@ -80,7 +81,7 @@ public class RainbowLivePresetService {
     public RainbowLivePreset create(User user, CreateRequest req) {
         if (req.name() != null && req.name().startsWith(RainbowLiveDefaultPresets.SYSTEM_PREFIX)) {
             throw new IllegalArgumentException("Le préfixe « " + RainbowLiveDefaultPresets.SYSTEM_PREFIX
-                    + "» est réservé aux presets système");
+                    + "» est réservé aux presets qui suivent une stratégie Actif (System)");
         }
         RainbowLivePreset source = req.duplicatedFromId() == null ? null : owned(user, req.duplicatedFromId());
         RainbowLivePreset created = doCreate(user, req, null);
@@ -129,13 +130,13 @@ public class RainbowLivePresetService {
         walletRepository.save(RainbowLiveMockWallet.builder()
                 .preset(preset)
                 .assetSymbol(preset.getAssetSymbol())
-                .cashUsdc(preset.getInitialCapitalUsdc())
+                .cashUsd(preset.getInitialCapitalUsdc())
                 .positionQuantity(0.0)
                 .updatedAt(now)
                 .build());
         log.info("Preset bench créé id={} user={} actif={} nom='{}' capital={} {}",
                 preset.getId(), user.getId(), preset.getAssetSymbol(), preset.getName(),
-                preset.getInitialCapitalUsdc(), RainbowLiveDefaultPresets.STABLECOIN);
+                preset.getInitialCapitalUsdc(), AssetGroup.USD);
         log.debug("Preset bench id={} config={}", preset.getId(), preset.getConfig());
         return preset;
     }
@@ -147,7 +148,7 @@ public class RainbowLivePresetService {
         requireNotFollowing(preset);
         if (req.name() != null && req.name().startsWith(RainbowLiveDefaultPresets.SYSTEM_PREFIX)) {
             throw new IllegalArgumentException("Le préfixe « " + RainbowLiveDefaultPresets.SYSTEM_PREFIX
-                    + "» est réservé aux presets système");
+                    + "» est réservé aux presets qui suivent une stratégie Actif (System)");
         }
         RainbowLiveTrendConfigs.Resolved resolved = null;
         RainbowAtrTuning tuning = req.tuning();
@@ -208,7 +209,7 @@ public class RainbowLivePresetService {
         return owned(user, presetId);
     }
 
-    /** Active / désactive un preset (seul champ modifiable d'un preset système). */
+    /** Active / désactive un preset (seul champ modifiable d'un preset qui suit une stratégie Actif). */
     @Transactional
     public RainbowLivePreset setEnabled(User user, Long presetId, boolean enabled) {
         RainbowLivePreset preset = owned(user, presetId);
@@ -310,7 +311,7 @@ public class RainbowLivePresetService {
 
     private static void requireNotFollowing(RainbowLivePreset preset) {
         if (preset.isFollowingStrategy()) {
-            throw new RainbowLivePresetLockedException(preset.getId());
+            throw new RainbowLivePresetFollowsStrategyException(preset.getId());
         }
     }
 

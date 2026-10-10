@@ -7,5 +7,7 @@ public enum PortfolioStatus {
     /** Lecture trop ancienne (seuil configurable) : aucune action live. */
     STALE,
     /** Panne, clé rejetée ou lecture vide suspecte : aucune action live (jamais un 0 silencieux). */
-    UNAVAILABLE
+    UNAVAILABLE,
+    /** Couple (actif, exchange) sans chemin spot sans fiat : aucune action live, avertissement à l'utilisateur. */
+    NOT_TRADABLE
 }

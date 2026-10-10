@@ -138,12 +138,12 @@ class RainbowLiveControllerTest {
     // ---------------------------------------------------------------- defaults / liste / seed
 
     @Test
-    @DisplayName("GET /defaults : actifs, stablecoin, valeurs par défaut, config par actif (sans champ parasite)")
+    @DisplayName("GET /defaults : actifs, devise du cash, valeurs par défaut, config par actif (sans champ parasite)")
     void defaults() throws Exception {
         mvc.perform(get("/api/rainbow-live/defaults"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.assets.length()").value(3))
-                .andExpect(jsonPath("$.stablecoin").value("USDC"))
+                .andExpect(jsonPath("$.cashCurrency").value("USD"))
                 .andExpect(jsonPath("$.analysisWindowMonths").value(6))
                 .andExpect(jsonPath("$.initialCapitalUsdc").value(1000.0))
                 .andExpect(jsonPath("$.baseAmount").value(1.0))
@@ -174,7 +174,7 @@ class RainbowLiveControllerTest {
                 .andExpect(jsonPath("$[0].strategyRevision").value(1))
                 .andExpect(jsonPath("$[0].enabled").value(false))
                 .andExpect(jsonPath("$[0].mode").value("TREND_MIX"))
-                .andExpect(jsonPath("$[0].wallet.cashUsdc").value(1000.0))
+                .andExpect(jsonPath("$[0].wallet.cashUsd").value(1000.0))
                 .andExpect(jsonPath("$[0].wallet.equityUsdc").doesNotExist())
                 .andExpect(jsonPath("$[0].runCount").value(0))
                 .andExpect(jsonPath("$[0].lastRun").doesNotExist());
@@ -236,7 +236,7 @@ class RainbowLiveControllerTest {
                 .andExpect(jsonPath("$[0].lastRun.day").value("2026-10-02"))
                 .andExpect(jsonPath("$[0].lastRun.pass").value("T2355"))
                 .andExpect(jsonPath("$[0].lastRun.actionType").value("NONE"))
-                .andExpect(jsonPath("$[0].wallet.cashUsdc").value(900.0))
+                .andExpect(jsonPath("$[0].wallet.cashUsd").value(900.0))
                 .andExpect(jsonPath("$[0].wallet.positionQuantity").value(0.001))
                 .andExpect(jsonPath("$[0].wallet.lastClose").value(110_000.0))
                 .andExpect(jsonPath("$[0].wallet.equityUsdc").value(900.0 + 0.001 * 110_000));

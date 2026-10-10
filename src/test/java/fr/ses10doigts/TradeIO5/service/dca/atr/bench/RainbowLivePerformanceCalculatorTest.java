@@ -89,7 +89,7 @@ class RainbowLivePerformanceCalculatorTest {
         assertEquals(162.5 - m.fixedPnlPercent(), m.outperformancePoints(), EPS);
 
         // wallet mock : stocké par le 23:55 du dernier jour
-        assertEquals(1025, p.wallet().cashUsdc(), EPS);
+        assertEquals(1025, p.wallet().cashUsd(), EPS);
         assertEquals(0.75, p.wallet().positionQuantity(), EPS);
         assertEquals(1325, p.wallet().equityUsdc(), EPS);
         assertEquals(32.5, p.wallet().pnlPercent(), EPS);

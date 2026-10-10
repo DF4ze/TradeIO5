@@ -17,7 +17,7 @@ public class ApiCredentialService {
     private final ApiCredentialRepository apiCredentialRepository;
 
 	public Optional<ApiCredential> getFromProviderAndUser(WebProviderCode code, User user){
-		return apiCredentialRepository.findByUserAndEnabledTrueAndWebProvider_CodeAndWebProvider_EnabledTrue(user, code);
+		return apiCredentialRepository.findReadByUserAndEnabledTrueAndWebProvider_CodeAndWebProvider_EnabledTrue(user, code);
     }
 
 }

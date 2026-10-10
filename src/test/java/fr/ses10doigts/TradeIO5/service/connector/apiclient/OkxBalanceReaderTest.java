@@ -92,7 +92,7 @@ class OkxBalanceReaderTest {
     @DisplayName("Signature HMAC-SHA256 base64 de timestamp+GET+chemin (vecteur indépendant)")
     void sign_matchesReferenceVector() {
         assertEquals("M5UquMzHQxhg1IuROn8eNqeSCfmWFYnaFfuTB+UkecU=",
-                OkxBalanceReader.sign("2026-10-09T20:00:00.123Z", "GET", OkxBalanceReader.BALANCE_PATH, "", "okx-secret"));
+                OkxSignedRequests.sign("2026-10-09T20:00:00.123Z", "GET", OkxBalanceReader.BALANCE_PATH, "", "okx-secret"));
     }
 
     @Test
@@ -128,6 +128,18 @@ class OkxBalanceReaderTest {
         assertEquals(0, new BigDecimal("0.5").compareTo(balances.get("BTC")));
         assertEquals(0, new BigDecimal("2.25").compareTo(balances.get("ETH")));
         assertEquals(0, new BigDecimal("1500.10").compareTo(balances.get("USDC")));
+    }
+
+    @Test
+    @DisplayName("USDT : présent => lu tel quel ; nul => absent")
+    void parse_usdt() {
+        Map<String, BigDecimal> balances = OkxBalanceReader.parseBalances("""
+                {"code":"0","msg":"","data":[{"details":[{"ccy":"USDT","availBal":"42.5"},
+                                                        {"ccy":"USDC","availBal":"0"}]}]}
+                """);
+
+        assertEquals(0, new BigDecimal("42.5").compareTo(balances.get("USDT")));
+        assertEquals(1, balances.size());
     }
 
     @Test

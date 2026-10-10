@@ -37,7 +37,7 @@ public class MacroCredentialResolver {
     public ApiCredentialDTO resolve(WebProviderCode provider) {
         return userRepository.findByUsername(SYSTEM_USERNAME)
                 .flatMap(sysUser -> apiCredentialRepository
-                        .findByUserAndEnabledTrueAndWebProvider_CodeAndWebProvider_EnabledTrue(sysUser, provider))
+                        .findReadByUserAndEnabledTrueAndWebProvider_CodeAndWebProvider_EnabledTrue(sysUser, provider))
                 .map(cred -> new ApiCredentialDTO(
                         provider,
                         cred.getApiKey(),

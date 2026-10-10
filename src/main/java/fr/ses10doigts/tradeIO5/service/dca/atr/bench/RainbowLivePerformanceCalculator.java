@@ -35,7 +35,7 @@ public final class RainbowLivePerformanceCalculator {
     }
 
     /** Équité du wallet mock : cash + position × dernier close, vs capital initial. */
-    public record WalletMetrics(double initialCapitalUsdc, double cashUsdc, double positionQuantity,
+    public record WalletMetrics(double initialCapitalUsdc, double cashUsd, double positionQuantity,
                                 double equityUsdc, double pnlPercent) {
     }
 

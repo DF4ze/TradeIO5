@@ -1,6 +1,6 @@
 # Sécurité
 
-Vérifié le : 2026-10-09 (`security/WebSecurityConfig`, `security/apikey/ApiKeyAuthFilter`, `security/jwt/*`, controllers, `service/connector/**`, `model/entity/exchange/ApiCredential`).
+Vérifié le : 2026-10-10 (`security/WebSecurityConfig`, `security/apikey/ApiKeyAuthFilter`, `security/jwt/*`, controllers, `service/connector/**`, `model/entity/exchange/ApiCredential`).
 
 ## Deux mécanismes d'authentification, cumulables
 
@@ -32,9 +32,17 @@ Vérifié le : 2026-10-09 (`security/WebSecurityConfig`, `security/apikey/ApiKey
 
 ## Clés d'exchange (lecture seule)
 
-- Les connecteurs exchange (`KrakenApiClient`, `BinanceApiClient`, `OkxBalanceReader`, `OkxApiClient`) sont en **lecture seule** : aucune méthode d'ordre n'existe dans `service.connector` (test d'architecture `ConnectorNoOrderMethodTest`, qui échoue si une méthode `buy|sell|placeOrder|newOrder|createOrder|cancelOrder` apparaît). La vraie protection reste côté exchange : clé API **Read uniquement** (jamais Trade ni Withdraw) et **IP allowlistée** (IP publique du VPS).
-- `ApiCredential` porte `apiKey`, `secretKey` et `passphrase` (nullable ; exigée par OKX à chaque requête), stockés en clair en base. Ils sont exclus de `toString()` (`@ToString.Exclude`, idem `Wallet#credential` ; `ApiCredentialDTO#toString` masque clé et secret). Aucun secret n'est loggué ni mis dans un message d'exception.
+- Les connecteurs exchange (`KrakenApiClient`, `BinanceApiClient`, `OkxBalanceReader`, `OkxApiClient`) sont en **lecture seule** : aucune méthode d'ordre n'existe dans `service.connector` (test d'architecture `ConnectorNoOrderMethodTest`, qui échoue si une méthode `buy|sell|placeOrder|newOrder|createOrder|cancelOrder` apparaît). La vraie protection reste côté exchange : clé API **Read** pour les connecteurs de lecture, et **IP allowlistée** (IP publique du VPS).
+- `ApiCredential` porte `apiKey`, `secretKey` et `passphrase` (nullable ; exigée par OKX à chaque requête), stockés en clair en base pour la portée `READ` (chiffrement optionnel à décider). Ils sont exclus de `toString()` (`@ToString.Exclude`, idem `Wallet#credential` ; `ApiCredentialDTO#toString` masque clé et secret). Aucun secret n'est loggué ni mis dans un message d'exception.
 - Les clés d'OKlm sont semées par `ApiCredentialInitializer` depuis les propriétés gitignorées `tradeio.<binance|kraken|okx>.apiKey|secretKey` (+ `tradeio.okx.passphrase`) lues via `Environment` ; propriété absente => WARN, aucune credential, pas d'échec au démarrage.
+
+## Clés d'exchange TRADE (exécution réelle)
+
+- Portée `ApiCredential.scope = TRADE`, distincte de `READ` (unique par user, provider, portée). Côté exchange : droit **Trade uniquement, jamais Withdraw**, IP du VPS allowlistée, passphrase.
+- **Chiffrées au repos** (AES-256-GCM, `enc:v1:…`) par `SecretCipher` ; clé maître dans la variable d'environnement `TRADEIO_MASTER_KEY` du VPS (jamais en base, jamais dans Flyway, jamais en clair dans un log). Sans clé maître : création impossible et résolution vide, aucun repli en clair. Lecture uniquement via `TradeCredentialResolver` (copie détachée déchiffrée).
+- Création / rotation : API admin seule (`POST /api/admin/execution/credentials`), réponse sans secret ; aucun secret dans les logs, exceptions, DTO ni événements d'audit.
+- `ConnectorNoOrderMethodTest` inchangé : `service.connector` reste sans méthode d'ordre ; les ordres n'existent que dans `service.execution.exchange`, appelé par le seul `service.execution.run` (`ExecutionOrderArchitectureTest`). Le bean client d'ordres n'existe qu'en `LIVE` déverrouillé. Détail : [`10-execution-reelle.md`](10-execution-reelle.md).
+- Endpoints de pilotage (`/api/admin/execution/**`) : `ROLE_ADMIN` strict (test `ExecutionAdminSecurityTest`) ; interrupteur et confirmation du 1ᵉʳ ordre : propriétaire du binding seulement (autre user ⇒ 404).
 
 ## Accès propriétaire (bench Rainbow)
 

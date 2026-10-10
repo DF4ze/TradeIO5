@@ -99,7 +99,7 @@ class RainbowLiveBindingControllerTest {
         aliceWallet = wallet(alice, "OKX");
         bobWallet = wallet(bob, "OKX");
         as(alice);
-        mvc = MockMvcBuilders.standaloneSetup(new RainbowLiveBindingController(bindingService, facade))
+        mvc = MockMvcBuilders.standaloneSetup(new RainbowLiveBindingController(bindingService, mock(fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingPathQuoteService.class), facade))
                 .setControllerAdvice(new RainbowLiveControllerAdvice())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(om)).build();
     }
@@ -156,11 +156,13 @@ class RainbowLiveBindingControllerTest {
     @DisplayName("Un check KO n'empêche pas l'enregistrement et est restitué")
     void koCheckStillSaved() throws Exception {
         when(CHECK.check(any(RainbowLiveBinding.class)))
-                .thenReturn(new BindingCheckResult(BindingCheckStatus.INSTRUMENT_MISSING, "absent"));
+                .thenReturn(new BindingCheckResult(BindingCheckStatus.NOT_TRADABLE_WITHOUT_FIAT, "absent"));
         RainbowLivePreset btc = preset(alice, "BTC", "p");
         json(post("/api/rainbow-live/bindings"), createBody("BTC", btc.getId(), aliceWallet.getId(), null))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.check.status").value("INSTRUMENT_MISSING"))
+                .andExpect(jsonPath("$.check.status").value("NOT_TRADABLE_WITHOUT_FIAT"))
+                .andExpect(jsonPath("$.check.blocked").value(true))
+                .andExpect(jsonPath("$.binding.tradability").value("NOT_TRADABLE_WITHOUT_FIAT"))
                 .andExpect(jsonPath("$.check.ok").value(false));
         assertEquals(1, bindingRepository.count());
     }

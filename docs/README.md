@@ -8,7 +8,7 @@ Lis dans cet ordre :
 
 1. [`architecture/01-overview.md`](architecture/01-overview.md) — ce que l'app fait réellement, ce qu'elle ne fait PAS (point critique, mal représenté par les anciens documents).
 2. [`architecture/02-tree-pipeline.md`](architecture/02-tree-pipeline.md) — le cœur métier (Indicator → Strategy → Opinion → Scenario → Decision).
-3. Les autres fichiers de `architecture/` selon le besoin (données de marché, providers externes, veille média, sécurité, multi-utilisateur, [bench grandeur nature Rainbow](architecture/08-rainbow-bench-grandeur-nature.md), [Trend unifié](architecture/09-trend.md)).
+3. Les autres fichiers de `architecture/` selon le besoin (données de marché, providers externes, veille média, sécurité, multi-utilisateur, [bench grandeur nature Rainbow](architecture/08-rainbow-bench-grandeur-nature.md), [Trend unifié](architecture/09-trend.md), [plan d'ordres dry-run](architecture/10-execution-plan.md), [exécution réelle verrouillée](architecture/10-execution-reelle.md)).
 4. [`known-gaps/decision-to-order-gap.md`](known-gaps/decision-to-order-gap.md) — **à lire avant de supposer que l'app passe de vrais ordres.** C'est le malentendu le plus probable.
 5. `api/` et `operations/` pour les détails d'intégration (endpoints REST, tools MCP, jobs planifiés, configuration, [Flyway et règle des défauts d'initialisation](operations/flyway.md)).
 6. [`glossary.md`](glossary.md) pour les acronymes/enums utilisés partout sans être réexpliqués.

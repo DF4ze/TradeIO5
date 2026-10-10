@@ -30,6 +30,9 @@ public class BalanceCacheManager {
 
     public Map<String, BigDecimal> getBalances(Function<ApiCredential, Map<String, BigDecimal>> fetcher,
             ApiCredential credential) {
+        if (credential == null) {
+            throw new BalanceUnavailableException("Wallet sans credential API");
+        }
         String key = String.valueOf(credential.getId());
         Instant now = clock.now();
         CacheEntry entry = cacheMap.get(key);

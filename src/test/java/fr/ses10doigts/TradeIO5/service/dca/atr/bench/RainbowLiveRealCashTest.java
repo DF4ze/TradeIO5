@@ -186,7 +186,7 @@ class RainbowLiveRealCashTest {
         assertEquals(PortfolioStatus.OK, b.getLiveStatus());
         assertEquals(WALLET, b.getLiveWalletId());
         assertEquals(ASOF_2355, b.getLiveFetchedAt());
-        assertEquals(1000.0, b.getLiveCashUsdc(), 1e-12);
+        assertEquals(1000.0, b.getLiveCashUsd(), 1e-12);
         assertEquals(0.4, b.getLivePositionQty(), 1e-12);
         assertEquals(0.4, b.getLiveTradableQty(), 1e-12);
         assertEquals(0.0, b.getLiveCashReserved(), 1e-12);
@@ -196,7 +196,7 @@ class RainbowLiveRealCashTest {
         assertEquals(BASE / 100, b.getLiveActionQuantity(), 1e-12);
         // chaîne mock indépendante : le wallet mock a bien reçu l'achat fictif
         assertEquals(RainbowLiveAction.BUY, b.getActionType());
-        assertEquals(1000.0 - BASE, walletRepository.findByPreset(btc).orElseThrow().getCashUsdc(), 1e-12);
+        assertEquals(1000.0 - BASE, walletRepository.findByPreset(btc).orElseThrow().getCashUsd(), 1e-12);
     }
 
     @Test
@@ -252,7 +252,7 @@ class RainbowLiveRealCashTest {
         assertEquals(PortfolioStatus.UNAVAILABLE, b.getLiveStatus());
         assertEquals(RainbowLiveAction.NONE, b.getLiveActionType());
         assertEquals(LiveBlockReason.UNAVAILABLE, b.getLiveBlockReason());
-        assertNull(b.getLiveCashUsdc());
+        assertNull(b.getLiveCashUsd());
         assertEquals(RainbowLiveAction.BUY, b.getActionType());
     }
 
@@ -334,7 +334,7 @@ class RainbowLiveRealCashTest {
 
         RainbowLivePassBlock b = block2355(btc);
         assertEquals(RainbowLiveAction.BUY, b.getLiveActionType());
-        assertEquals(1000.0, b.getLiveCashUsdc(), 1e-12);
+        assertEquals(1000.0, b.getLiveCashUsd(), 1e-12);
         assertEquals(LiveBlockReason.NONE, b.getLiveBlockReason());
         verify(realSource, times(1)).read(any(RainbowLivePreset.class));
     }
@@ -350,7 +350,7 @@ class RainbowLiveRealCashTest {
         service.runPass(RainbowLivePass.T0005, ASOF_0005);
 
         RainbowLivePassBlock b = block0005(btc);
-        assertEquals(1000.0, b.getLiveCashUsdc(), 1e-12);
+        assertEquals(1000.0, b.getLiveCashUsd(), 1e-12);
         assertEquals(RainbowLiveAction.BUY, b.getLiveActionType());
         verify(realSource, times(1)).read(any(RainbowLivePreset.class));
 
@@ -361,7 +361,7 @@ class RainbowLiveRealCashTest {
         service.runPass(RainbowLivePass.T0005, ASOF_0005);
 
         RainbowLivePassBlock fresh = block0005(btc);
-        assertEquals(5.0, fresh.getLiveCashUsdc(), 1e-12);
+        assertEquals(5.0, fresh.getLiveCashUsd(), 1e-12);
         assertEquals(RainbowLiveAction.BLOCKED, fresh.getLiveActionType());
         verify(realSource, times(2)).read(any(RainbowLivePreset.class));
     }

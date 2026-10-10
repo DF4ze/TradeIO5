@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import fr.ses10doigts.tradeIO5.model.entity.currency.AssetGroup;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.service.WalletService;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import fr.ses10doigts.tradeIO5.model.dto.AssetOverview;
 import fr.ses10doigts.tradeIO5.service.TransactionService;
 import fr.ses10doigts.tradeIO5.service.connector.ProviderApiService;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceUnavailableException;
+import fr.ses10doigts.tradeIO5.service.currency.AssetGroupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,6 +29,7 @@ public class AssetOverviewService {
 	private final ProviderApiService apiService;
 	private final TransactionService transactionService;
 	private final WalletService walletService;
+	private final AssetGroupService groupService;
 
 	public List<AssetOverview> getUserHoldings(String quoteCurrency, Optional<String> exchangeCodeFilter) {
 
@@ -40,6 +43,7 @@ public class AssetOverviewService {
 					.toList();
 		}
 
+		Map<String, String> groups = groupService.groupBySymbol();
 		List<AssetOverview> overviews = new ArrayList<>();
 
 		BigDecimal superTotaltotalValue = BigDecimal.ZERO;
@@ -64,9 +68,12 @@ public class AssetOverviewService {
 				if (quantity.compareTo(BigDecimal.ZERO) == 0)
 					continue;
 
-				BigDecimal marketPrice = apiService.getMarketPrice(wallet, asset, quoteCurrency);
-				if (asset.endsWith("USDC"))
-					marketPrice = BigDecimal.ONE;
+				// Membre d'un groupe (USD = USDC + USDT) : valorisation nominale, pas d'appel de prix.
+				// Le fiat « USD » (ZUSD Kraken) est ignoré : son code est celui du groupe.
+				if (AssetGroup.USD.equals(asset))
+					continue;
+				BigDecimal marketPrice = groupOf(asset, groups) != null ? BigDecimal.ONE
+						: apiService.getMarketPrice(wallet, asset, quoteCurrency);
 				BigDecimal currentValue = marketPrice.multiply(quantity);
 				superTotaltotalValue = superTotaltotalValue.add(currentValue);
 
@@ -106,7 +113,7 @@ public class AssetOverviewService {
 			}
 		}
 
-		List<AssetOverview> aggOverviews = aggregateAssets(overviews);
+		List<AssetOverview> aggOverviews = aggregateAssets(overviews, groups);
 
 		//@formatter:off
 		AssetOverview overview = AssetOverview.builder()
@@ -126,17 +133,27 @@ public class AssetOverviewService {
 		return aggOverviews;
 	}
 
-	public List<AssetOverview> aggregateAssets(List<AssetOverview> assets) {
+	/** Code du groupe de l'actif (LD* Binance résolu vers l'actif nu), ou {@code null} s'il n'est pas membre d'un groupe. */
+	private static String groupOf(String asset, Map<String, String> groups) {
+		String group = groups.get(asset);
+		if (group == null && asset.startsWith("LD") && asset.length() > 3)
+			group = groups.get(asset.substring(2));
+		return group;
+	}
+
+	public List<AssetOverview> aggregateAssets(List<AssetOverview> assets, Map<String, String> groups) {
 		Map<String, String> assetAliases = Map.of(
 				"XBT", "BTC",
-				"LDUSDC", "USDC",
-				"LDBNB", "BNB",
+								"LDBNB", "BNB",
 				"LDXRP", "XRP",
 				"LDETH", "ETH"
 		);
 
 		Map<String, AssetOverview> groupedMap = assets.stream()
 				.collect(Collectors.groupingBy(asset -> {
+					String group = groupOf(asset.getAsset(), groups);
+					if (group != null)
+						return group;
 					String alias = assetAliases.getOrDefault(asset.getAsset(), asset.getAsset());
 					if( alias.startsWith("LD") && alias.length() > 3 )
 						alias = alias.replace("LD", "");
@@ -144,7 +161,8 @@ public class AssetOverviewService {
 				}, Collectors.collectingAndThen(Collectors.toList(), groupedList -> {
 					AssetOverview result = new AssetOverview();
 					String asset = groupedList.get(0).getAsset();
-					result.setAsset(assetAliases.getOrDefault(asset, asset));
+					String group = groupOf(asset, groups);
+					result.setAsset(group != null ? group : assetAliases.getOrDefault(asset, asset));
 					result.setQuoteCurrency(groupedList.get(0).getQuoteCurrency());
 
 					BigDecimal totalQuantity = BigDecimal.ZERO;

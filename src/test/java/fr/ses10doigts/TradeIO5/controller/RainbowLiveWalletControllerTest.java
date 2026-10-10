@@ -113,7 +113,7 @@ class RainbowLiveWalletControllerTest {
     private RainbowLivePassBlock live(PortfolioStatus status, LiveBlockReason reason, RainbowLiveAction action,
                                       Double amount, Double quantity) {
         return RainbowLivePassBlock.builder().liveStatus(status).liveWalletId(1L).liveFetchedAt(FETCHED)
-                .liveCashUsdc(500.0).livePositionQty(0.02).liveTradableQty(0.01).liveCashReserved(50.0)
+                .liveCashUsd(500.0).liveCashDetail("{\"USDC\":450.0,\"USDT\":50.0}").livePositionQty(0.02).liveTradableQty(0.01).liveCashReserved(50.0)
                 .liveBlockReason(reason).liveActionType(action).liveActionAmountUsdc(amount)
                 .liveActionQuantity(quantity).actionType(RainbowLiveAction.BUY).actionAmountUsdc(999.0).build();
     }
@@ -139,7 +139,9 @@ class RainbowLiveWalletControllerTest {
                 .andExpect(jsonPath("$[0].snapshot.status").value("OK"))
                 .andExpect(jsonPath("$[0].snapshot.pass").value("T2355"))
                 .andExpect(jsonPath("$[0].snapshot.fetchedAt").exists())
-                .andExpect(jsonPath("$[0].snapshot.cashUsdc").value(500.0))
+                .andExpect(jsonPath("$[0].snapshot.cashUsd").value(500.0))
+                .andExpect(jsonPath("$[0].snapshot.cashByMember.USDC").value(450.0))
+                .andExpect(jsonPath("$[0].snapshot.cashByMember.USDT").value(50.0))
                 .andExpect(jsonPath("$[0].snapshot.positionQty").value(0.02))
                 .andExpect(jsonPath("$[0].snapshot.tradableQty").value(0.01))
                 .andExpect(jsonPath("$[0].snapshot.cashReserved").value(50.0))

@@ -1,10 +1,23 @@
 # Flyway et défauts d'initialisation
 
-Vérifié le : 2026-10-08 (`pom.xml`, `application.properties`, `src/main/resources/db/migration/V1__init.sql`, `src/test/.../flyway/FlywaySchemaTest`, `configuration/initializer/*`).
+Vérifié le : 2026-10-10 (`pom.xml`, `application.properties`, `src/main/resources/db/migration/V1__init.sql`, `src/test/.../flyway/FlywaySchemaTest`, `configuration/initializer/*`).
 
 ## État
 
 Flyway est **préparé mais non activé** : dépendances `flyway-core` + `flyway-mysql` (versions du BOM Spring Boot), `spring.flyway.enabled=false` (`application.properties` et propriétés de test), `V1__init.sql` généré depuis les entités. Le schéma reste géré par `spring.jpa.hibernate.ddl-auto` (`update` en dev/prod, `create-drop` en test). L'activation attend que les entités se stabilisent : tant qu'elle n'est pas faite, **aucune migration à écrire**.
+
+Tables du plan d'ordres dry-run (`rainbow_live_order_plan`, `rainbow_live_order_plan_asset`, `rainbow_live_order_step`, FK `ON DELETE CASCADE`) et colonne `rainbow_live_binding.execution_enabled` : créées par `ddl-auto=update` tant que Flyway est inactif, présentes dans `V1__init.sql` (cf. [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md)). Défaut `execution_enabled = false` porté par la colonne (donnée utilisateur, pas un défaut d'initializer).
+
+Lot d'exécution réelle (cf. [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md)) : tables `execution_control` et `rainbow_live_order_event`, colonnes d'exécution des étapes et des plans, `rainbow_live_binding.first_live_{approved,confirmed}_at`, `transaction.fee_currency`, `api_credentials.scope` (+ contrainte `uk_credential_user_provider_scope`), toutes dans `V1__init.sql`.
+
+**Base existante en `ddl-auto=update` : `ApiCredential.scope` demande un SQL manuel, une seule fois, avant le déploiement** (Hibernate n'ajoute pas de défaut à la colonne et ne supprime jamais l'ancien index unique, qui interdirait une clé `TRADE` à côté de la clé `READ`) :
+
+```sql
+ALTER TABLE api_credentials ADD COLUMN scope ENUM('READ','TRADE') NOT NULL DEFAULT 'READ';
+ALTER TABLE api_credentials DROP INDEX uk_credential_user_provider;
+ALTER TABLE api_credentials ADD CONSTRAINT uk_credential_user_provider_scope UNIQUE (user_id, web_provider_id, scope);
+ALTER TABLE api_credentials MODIFY api_key VARCHAR(512) NOT NULL, MODIFY secret_key VARCHAR(512), MODIFY passphrase VARCHAR(512);
+```
 
 ## Principe
 
@@ -41,7 +54,9 @@ Relire `V1__init.sql` avant l'activation (types, `enum` MySQL natifs des `@Enume
 
 Tout nouveau « défaut » de l'application (donnée de paramétrage devant exister au premier démarrage) est créé par un **initializer** (`configuration/initializer/`, `CommandLineRunner` + `@Order`), de façon **idempotente et élément par élément** : chaque élément absent est inséré, un élément existant n'est jamais écrasé (seuls les champs de synchronisation explicitement documentés peuvent l'être, ex. `AssetInitializer` pour `AssetProvider`). Pas de test global du type `count() == 0`.
 
-Initializers existants : `AssetInitializer` (1), `RoleInitializer` (10), `UserInitializer` (20), `HistoricalDataInitializer` (5, recharge `candle` et `etf_flow_snapshot` depuis les fichiers de backup si la table est vide), `ApiCredentialInitializer` (40, tous profils : clés du user System (CoinStats, Coinalyze, Twelve Data, Finnhub, SoSoValue) et clés Binance/Kraken/OKX d'OKlm lues dans les propriétés `tradeio.<fournisseur>.apiKey|secretKey` (+ `tradeio.okx.passphrase`) des `application-*.properties` (gitignorés) ; clé absente => warning, rien semé), `WalletInitializer` (45), `WebProviderInitializer` (dont OKX, `https://www.okx.com`), `ContentSourceInitializer` (50), `RainbowAssetStrategyInitializer` (60, stratégies Actif Rainbow, jamais écrasées ensuite : System les modifie en base ; chaque utilisateur reçoit un preset qui la suit à sa première utilisation, cf. [`../architecture/08-rainbow-bench-grandeur-nature.md`](../architecture/08-rainbow-bench-grandeur-nature.md)).
+Tables de cache de données publiques (non seedées par un initializer) : `exchange_instrument` (catalogue des paires, rempli à la demande par `InstrumentCatalog`).
+
+Initializers existants : `AssetInitializer` (1), `AssetGroupInitializer` (2, groupe `USD` = USDC + USDT), `RoleInitializer` (10), `UserInitializer` (20), `HistoricalDataInitializer` (5, recharge `candle` et `etf_flow_snapshot` depuis les fichiers de backup si la table est vide), `ApiCredentialInitializer` (40, tous profils : clés du user System (CoinStats, Coinalyze, Twelve Data, Finnhub, SoSoValue) et clés Binance/Kraken/OKX d'OKlm lues dans les propriétés `tradeio.<fournisseur>.apiKey|secretKey` (+ `tradeio.okx.passphrase`) des `application-*.properties` (gitignorés) ; clé absente => warning, rien semé), `WalletInitializer` (45), `WebProviderInitializer` (dont OKX, `https://www.okx.com`), `ContentSourceInitializer` (50), `RainbowAssetStrategyInitializer` (60, stratégies Actif Rainbow, jamais écrasées ensuite : System les modifie en base ; chaque utilisateur reçoit un preset qui la suit à sa première utilisation, cf. [`../architecture/08-rainbow-bench-grandeur-nature.md`](../architecture/08-rainbow-bench-grandeur-nature.md)).
 
 ## Données non recréées par les initializers
 

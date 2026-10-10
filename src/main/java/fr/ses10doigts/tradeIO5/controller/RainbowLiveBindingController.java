@@ -1,10 +1,12 @@
 package fr.ses10doigts.tradeIO5.controller;
 
+import fr.ses10doigts.tradeIO5.model.dto.dca.bench.PathQuoteDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveBindingDtos.BindingDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveBindingDtos.CheckDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveBindingDtos.CheckedBindingDto;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
+import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingPathQuoteService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingService.CreateRequest;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingService.UpdateRequest;
@@ -19,8 +21,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -35,6 +39,7 @@ import java.util.List;
 public class RainbowLiveBindingController {
 
     private final RainbowLiveBindingService bindingService;
+    private final BindingPathQuoteService pathQuoteService;
     private final IAuthenticationFacade authenticationFacade;
 
     @GetMapping
@@ -58,6 +63,21 @@ public class RainbowLiveBindingController {
         return CheckedBindingDto.of(bindingService.update(authenticationFacade.getConnectedUser(), id, request));
     }
 
+    public record ExecutionRequest(boolean enabled) {
+    }
+
+    /** Interrupteur d'exécution du binding (défaut éteint). */
+    @PutMapping("/{id}/execution")
+    public BindingDto setExecution(@PathVariable Long id, @RequestBody ExecutionRequest request) {
+        return BindingDto.of(bindingService.setExecution(authenticationFacade.getConnectedUser(), id, request.enabled()));
+    }
+
+    /** Confirmation du 1ᵉʳ ordre réel (après armement admin). */
+    @PostMapping("/{id}/confirm-first-live")
+    public BindingDto confirmFirstLive(@PathVariable Long id) {
+        return BindingDto.of(bindingService.confirmFirstLive(authenticationFacade.getConnectedUser(), id));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         bindingService.delete(authenticationFacade.getConnectedUser(), id);
@@ -68,5 +88,15 @@ public class RainbowLiveBindingController {
     @GetMapping("/{id}/check")
     public CheckDto check(@PathVariable Long id) {
         return CheckDto.of(bindingService.check(authenticationFacade.getConnectedUser(), id));
+    }
+
+    /**
+     * Devis à la demande du chemin d'achat (frais réels du compte, carnet public, Fee Test) pour {@code amount} USD.
+     * Lecture seule : un seul calcul, aucun ordre, aucune écriture.
+     */
+    @GetMapping("/{id}/path-quote")
+    public PathQuoteDto pathQuote(@PathVariable Long id, @RequestParam BigDecimal amount,
+                                  @RequestParam(required = false) String preferredQuote) {
+        return PathQuoteDto.of(pathQuoteService.quote(authenticationFacade.getConnectedUser(), id, amount, preferredQuote));
     }
 }

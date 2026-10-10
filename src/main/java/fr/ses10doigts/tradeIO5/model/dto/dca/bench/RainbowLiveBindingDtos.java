@@ -11,18 +11,24 @@ public final class RainbowLiveBindingDtos {
     }
 
     public record BindingDto(Long id, String assetSymbol, Long presetId, String presetName, Long walletId,
-                             String walletName, String exchange, double bagPercent, int priority) {
+                             String walletName, String exchange, double bagPercent, int priority,
+                             String tradability, String quoteMember, String bridgePair,
+                             boolean executionEnabled, boolean firstLiveArmed, boolean firstLiveConfirmed) {
         public static BindingDto of(RainbowLiveBinding b) {
             return new BindingDto(b.getId(), b.getAssetSymbol(), b.getPreset().getId(), b.getPreset().getName(),
                     b.getWallet().getId(), b.getWallet().getName(),
                     b.getWallet().getWebProviderCode() == null ? null : b.getWallet().getWebProviderCode().name(),
-                    b.getBagPercent(), b.getPriority());
+                    b.getBagPercent(), b.getPriority(),
+                    b.getTradability() == null ? null : b.getTradability().name(), b.getQuoteMember(), b.getBridgePair(),
+                    b.isExecutionEnabled(), b.getFirstLiveApprovedAt() != null, b.getFirstLiveConfirmedAt() != null);
         }
     }
 
-    public record CheckDto(String status, String message, boolean ok) {
+    public record CheckDto(String status, String message, boolean ok, boolean executable, boolean blocked,
+                           String quoteMember, String bridgePair) {
         public static CheckDto of(BindingCheckResult r) {
-            return new CheckDto(r.status().name(), r.message(), r.isOk());
+            return new CheckDto(r.status().name(), r.message(), r.isOk(), r.isExecutable(), r.isBlocked(),
+                    r.quoteMember(), r.bridgePair());
         }
     }
 

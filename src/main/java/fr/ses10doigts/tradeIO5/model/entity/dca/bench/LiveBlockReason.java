@@ -6,5 +6,7 @@ public enum LiveBlockReason {
     /** Achat voulu supérieur au cash restant du pool (tout-ou-rien). */
     INSUFFICIENT_CASH,
     /** Lecture du portefeuille réel indisponible ou périmée. */
-    UNAVAILABLE
+    UNAVAILABLE,
+    /** Couple (actif, exchange) non tradable sans passer par une monnaie fiat : exécution bloquée. */
+    NOT_TRADABLE_WITHOUT_FIAT
 }

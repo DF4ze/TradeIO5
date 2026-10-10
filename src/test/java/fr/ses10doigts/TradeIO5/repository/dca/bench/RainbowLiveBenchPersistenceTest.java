@@ -15,7 +15,7 @@ import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrGlobals;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrTuning;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetLockedException;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetFollowsStrategyException;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.CreateRequest;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.UpdateRequest;
@@ -185,7 +185,7 @@ class RainbowLiveBenchPersistenceTest {
 
         assertEquals(1, runRepository.countByPreset(p));
         RainbowLiveMockWallet w = walletRepository.findByPreset(p).orElseThrow();
-        assertEquals(900, w.getCashUsdc(), 1e-9);
+        assertEquals(900, w.getCashUsd(), 1e-9);
         assertEquals(0.001, w.getPositionQuantity(), 1e-12);
         RainbowLiveRun run = runRepository.findByPresetAndDay(p, DAY).orElseThrow();
         assertEquals(100_500, run.getPass2355().getClose(), 0.0); // indicateurs rejoués
@@ -214,7 +214,7 @@ class RainbowLiveBenchPersistenceTest {
         assertEquals(101_200, run.getPass0005().getClose(), 0.0);
         assertNull(run.getPass0005().getCashAfter());
         assertTrue(run.deltaActionDiffers());
-        assertEquals(900, walletRepository.findByPreset(p).orElseThrow().getCashUsdc(), 1e-9);
+        assertEquals(900, walletRepository.findByPreset(p).orElseThrow().getCashUsd(), 1e-9);
     }
 
     @Test
@@ -241,7 +241,7 @@ class RainbowLiveBenchPersistenceTest {
         assertNull(run.getPass2355());
         assertNotNull(run.getPass0005());
         assertFalse(run.deltaActionDiffers());
-        assertEquals(1000, walletRepository.findByPreset(p).orElseThrow().getCashUsdc(), 0.0);
+        assertEquals(1000, walletRepository.findByPreset(p).orElseThrow().getCashUsd(), 0.0);
     }
 
     @Test
@@ -251,7 +251,7 @@ class RainbowLiveBenchPersistenceTest {
 
         assertThrows(IllegalStateException.class, () ->
                 runService.upsertPass(p, DAY, RainbowLivePass.T2355, block(RainbowLiveAction.BUY, 5000.0, 0.05, 100_000)));
-        assertEquals(1000, walletRepository.findByPreset(p).orElseThrow().getCashUsdc(), 0.0);
+        assertEquals(1000, walletRepository.findByPreset(p).orElseThrow().getCashUsd(), 0.0);
     }
 
     @Test
@@ -264,7 +264,7 @@ class RainbowLiveBenchPersistenceTest {
 
         assertEquals(2, runRepository.findByPresetOrderByDayAsc(p).size());
         RainbowLiveMockWallet w = walletRepository.findByPreset(p).orElseThrow();
-        assertEquals(960, w.getCashUsdc(), 1e-9);
+        assertEquals(960, w.getCashUsd(), 1e-9);
         assertEquals(0.0004, w.getPositionQuantity(), 1e-12);
     }
 
@@ -290,7 +290,7 @@ class RainbowLiveBenchPersistenceTest {
         assertEquals(hashBefore, run.getConfigHash());
         assertEquals(50, run.getConfig().getSmaPeriod());
         assertNotEquals(edited.getConfig().hash(), run.getConfigHash());
-        assertEquals(900, walletRepository.findByPreset(p).orElseThrow().getCashUsdc(), 1e-9);
+        assertEquals(900, walletRepository.findByPreset(p).orElseThrow().getCashUsd(), 1e-9);
         assertEquals(1000, edited.getInitialCapitalUsdc(), 0.0);
     }
 
@@ -392,14 +392,14 @@ class RainbowLiveBenchPersistenceTest {
 
     @Test
     @DisplayName("Preset qui suit une stratégie : ni modifiable ni supprimable, activation seule permise (et historisée) ; préfixe réservé")
-    void followingPresetLocked() {
+    void followingPresetReadOnly() {
         strategyService.ensureStrategies();
         RainbowLivePreset sys = presetService.ensureStrategyPresets(alice).getFirst();
         RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor("BTC");
 
-        assertThrows(RainbowLivePresetLockedException.class, () ->
+        assertThrows(RainbowLivePresetFollowsStrategyException.class, () ->
                 presetService.update(alice, sys.getId(), new UpdateRequest("x", true, 6, c.toTuning(), c.toGlobals())));
-        assertThrows(RainbowLivePresetLockedException.class, () -> presetService.delete(alice, sys.getId()));
+        assertThrows(RainbowLivePresetFollowsStrategyException.class, () -> presetService.delete(alice, sys.getId()));
 
         assertTrue(presetService.setEnabled(alice, sys.getId(), true).isEnabled());
         assertFalse(presetService.setEnabled(alice, sys.getId(), false).isEnabled());

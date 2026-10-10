@@ -1,0 +1,73 @@
+{
+  "info": {
+    "name": "TradeIO - chemin d'achat (lecture seule)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost:8080"},
+    {"key": "userName", "value": "CHANGE_ME"},
+    {"key": "password", "value": "CHANGE_ME"},
+    {"key": "presetId", "value": "1"},
+    {"key": "walletId", "value": "1"},
+    {"key": "bindingId", "value": "1"},
+    {"key": "amount", "value": "1000"}
+  ],
+  "item": [
+    {
+      "name": "1 Login (cookie JWT)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/x-www-form-urlencoded"}],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {"key": "userName", "value": "{{userName}}"},
+            {"key": "password", "value": "{{password}}"}
+          ]
+        },
+        "url": {"raw": "{{baseUrl}}/api/auth/signinForm", "host": ["{{baseUrl}}"], "path": ["api", "auth", "signinForm"]}
+      }
+    },
+    {
+      "name": "2 Presets (trouver presetId)",
+      "request": {
+        "method": "GET",
+        "url": {"raw": "{{baseUrl}}/api/rainbow-live/presets", "host": ["{{baseUrl}}"], "path": ["api", "rainbow-live", "presets"]}
+      }
+    },
+    {
+      "name": "3 Creer binding PAXG",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"assetSymbol\": \"PAXG\",\n  \"presetId\": {{presetId}},\n  \"walletId\": {{walletId}},\n  \"bagPercent\": 100\n}"
+        },
+        "url": {"raw": "{{baseUrl}}/api/rainbow-live/bindings", "host": ["{{baseUrl}}"], "path": ["api", "rainbow-live", "bindings"]}
+      }
+    },
+    {
+      "name": "4 Lister bindings",
+      "request": {
+        "method": "GET",
+        "url": {"raw": "{{baseUrl}}/api/rainbow-live/bindings", "host": ["{{baseUrl}}"], "path": ["api", "rainbow-live", "bindings"]}
+      }
+    },
+    {
+      "name": "5 Path-quote",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/rainbow-live/bindings/{{bindingId}}/path-quote?amount={{amount}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "rainbow-live", "bindings", "{{bindingId}}", "path-quote"],
+          "query": [
+            {"key": "amount", "value": "{{amount}}"},
+            {"key": "preferredQuote", "value": "USDT", "disabled": true}
+          ]
+        }
+      }
+    }
+  ]
+}

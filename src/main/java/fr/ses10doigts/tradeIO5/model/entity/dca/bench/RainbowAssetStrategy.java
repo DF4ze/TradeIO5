@@ -47,7 +47,7 @@ public class RainbowAssetStrategy {
     @Column(name = "asset_symbol", nullable = false, length = 16)
     private String assetSymbol;
 
-    /** Nom du template (la copie user porte le préfixe système devant ce nom). */
+    /** Nom de la stratégie (le preset user qui la suit porte le préfixe système devant ce nom). */
     @Column(nullable = false, length = 64)
     private String name;
 
@@ -72,7 +72,7 @@ public class RainbowAssetStrategy {
     @Embedded
     private RainbowAtrConfig config;
 
-    /** Réglages Trend Mix sérialisés ({@code TrendConfigDto} en JSON) ; null pour un template FIXED. */
+    /** Réglages Trend Mix sérialisés ({@code TrendConfigDto} en JSON) ; null pour une stratégie FIXED. */
     @Lob
     @Column(name = "trend_config_json", columnDefinition = "longtext")
     private String trendConfigJson;

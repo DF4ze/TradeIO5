@@ -134,10 +134,10 @@ public class WebProviderInitializer implements CommandLineRunner {
             providerRepository.findByCode(wp.getCode())
                     .or(() -> {
                         providerRepository.save(wp);
-                        logger.info("🏦 WebProvider initialisé : {}", wp.getCode());
+                        logger.info("🏦 Trade-Provider initialisé : {}", wp.getCode());
                         return Optional.of(wp);
                     });
         }
-        logger.info("🏦 Tous les WebProvider sont initialisés.");
+        logger.info("🏦 Tous les Trade-Providers sont initialisés.");
     }
 }

@@ -267,7 +267,7 @@ class RainbowLiveExecutionServiceTest {
         assertEquals(0.01, b.getActionQuantity(), 1e-12);
         assertEquals(999.0, b.getCashAfter(), 1e-12);
         assertEquals(0.01, b.getPositionAfter(), 1e-12);
-        assertEquals(999.0, wallet(p).getCashUsdc(), 1e-12);
+        assertEquals(999.0, wallet(p).getCashUsd(), 1e-12);
     }
 
     @Test
@@ -306,7 +306,7 @@ class RainbowLiveExecutionServiceTest {
         assertEquals(0.005, b.getActionQuantity(), 1e-12);
         assertEquals(0.005 * 150, b.getActionAmountUsdc(), 1e-9);
         assertEquals(0.0, wallet(p).getPositionQuantity(), 1e-12);
-        assertEquals(1000 + 0.005 * 150, wallet(p).getCashUsdc(), 1e-9);
+        assertEquals(1000 + 0.005 * 150, wallet(p).getCashUsd(), 1e-9);
     }
 
     @Test
@@ -382,7 +382,7 @@ class RainbowLiveExecutionServiceTest {
         RainbowLivePreset p = preset(alice, "BTC", "cash", FLAT, globals(false, 5.0));
         serve("BTC", closes);
         RainbowLiveMockWallet w = wallet(p);
-        w.setCashUsdc(2.0);
+        w.setCashUsd(2.0);
         walletRepository.save(w);
 
         PassSummary s = service.runPass(RainbowLivePass.T2355, ASOF_2355);
@@ -392,14 +392,14 @@ class RainbowLiveExecutionServiceTest {
         assertEquals(RainbowLiveAction.BUY, b.getActionType());
         assertEquals(2.0, b.getActionAmountUsdc(), 1e-12);
         assertEquals(0.02, b.getActionQuantity(), 1e-12);
-        assertEquals(0.0, wallet(p).getCashUsdc(), 1e-12);
+        assertEquals(0.0, wallet(p).getCashUsd(), 1e-12);
 
         // lendemain : cash 0 => NONE
         serve("BTC", concat(closes, 100));
         service.runPass(RainbowLivePass.T2355, ASOF_2355.plusSeconds(86_400));
         RainbowLivePassBlock next = run(p, LAST_DAY.plusDays(1)).getPass2355();
         assertEquals(RainbowLiveAction.NONE, next.getActionType());
-        assertEquals(0.0, wallet(p).getCashUsdc(), 1e-12);
+        assertEquals(0.0, wallet(p).getCashUsd(), 1e-12);
     }
 
     // ---------------------------------------------------------------- double passe / idempotence
@@ -413,7 +413,7 @@ class RainbowLiveExecutionServiceTest {
             serve(a, c2355);
         }
         service.runPass(RainbowLivePass.T2355, ASOF_2355);
-        double cashAfter2355 = wallet(p).getCashUsdc();
+        double cashAfter2355 = wallet(p).getCashUsd();
         assertEquals(999.0, cashAfter2355, 1e-12);
 
         // 00:05 : vraie clôture du jour (101) + 1re bougie du nouveau jour (60) qui doit être ignorée
@@ -432,13 +432,13 @@ class RainbowLiveExecutionServiceTest {
         assertEquals(RainbowLiveAction.BUY, r.getPass0005().getActionType());
         assertNull(r.getPass0005().getCashAfter());
         assertTrue(r.deltaActionDiffers(), "quantité 1/100 vs 1/101");
-        assertEquals(cashAfter2355, wallet(p).getCashUsdc(), 1e-12);
+        assertEquals(cashAfter2355, wallet(p).getCashUsd(), 1e-12);
         assertEquals(1, runRepository.countByPreset(p), "pas de run pour le nouveau jour");
 
         // rejeu des deux passes : même état
         service.runPass(RainbowLivePass.T0005, ASOF_0005);
         service.runPass(RainbowLivePass.T2355, ASOF_2355);
-        assertEquals(cashAfter2355, wallet(p).getCashUsdc(), 1e-12);
+        assertEquals(cashAfter2355, wallet(p).getCashUsd(), 1e-12);
         assertEquals(1, runRepository.countByPreset(p));
         assertEquals(RainbowLiveAction.BUY, run(p, LAST_DAY).getPass2355().getActionType());
     }
@@ -455,7 +455,7 @@ class RainbowLiveExecutionServiceTest {
         RainbowLiveRun r = run(p, LAST_DAY);
         assertNull(r.getPass2355());
         assertNotNull(r.getPass0005());
-        assertEquals(1000.0, wallet(p).getCashUsdc(), 1e-12);
+        assertEquals(1000.0, wallet(p).getCashUsd(), 1e-12);
         assertFalse(r.deltaActionDiffers());
     }
 
@@ -587,8 +587,8 @@ class RainbowLiveExecutionServiceTest {
         assertNotEquals(run(pa, LAST_DAY).getId(), run(pb, LAST_DAY).getId());
         assertEquals(alice.getId(), run(pa, LAST_DAY).getUser().getId());
         assertEquals(bob.getId(), run(pb, LAST_DAY).getUser().getId());
-        assertEquals(999.0, wallet(pa).getCashUsdc(), 1e-12);
-        assertEquals(999.0, wallet(pb).getCashUsdc(), 1e-12);
+        assertEquals(999.0, wallet(pa).getCashUsd(), 1e-12);
+        assertEquals(999.0, wallet(pb).getCashUsd(), 1e-12);
     }
 
     @Test

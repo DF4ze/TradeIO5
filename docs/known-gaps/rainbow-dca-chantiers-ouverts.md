@@ -52,6 +52,14 @@ Ordre voulu : d'abord boucler le fonctionnel du back, puis :
 - **Charte graphique** à définir.
 - **Page de saisie des credentials d'exchange** (et des wallets) : indispensable, car elles sont rattachées à l'utilisateur et ne doivent pas vivre dans les `application-*.properties` (il faudrait les modifier pour chaque user). Aujourd'hui seul `ApiCredentialInitializer` (propriétés → base, pour OKlm, au démarrage, si absente) ou le SQL direct permettent de les renseigner ; l'application ne peut pas tourner sans ces credentials pour les tests fonctionnels de dev.
 
+## 5c. Chemin d'achat via passerelle USDT et groupes d'actifs (vérifié le 2026-10-10)
+
+- **Constat** : PAXG n'a aucune paire spot en USDC/USDT sur Kraken (seulement USD, EUR, XBT, ETH) ⇒ non tradable sans passer par une monnaie fiat, refusé (taxation). Sur OKX : `PAXG-USDC` absente, `PAXG-USDT` et `USDC-USDT` existent ⇒ achat via une passerelle USDT.
+- **Déjà en place** (groupes d'actifs, cf. [`../architecture/08-rainbow-bench-grandeur-nature.md`](../architecture/08-rainbow-bench-grandeur-nature.md)) : cash = USDC + USDT, Home agrégée, statuts `OK` / `TRADABLE_VIA_BRIDGE` / `NOT_TRADABLE_WITHOUT_FIAT` persistés sur le binding, `ExecutionGuard`. Attendu en réel : Kraken PAXG ⇒ `NOT_TRADABLE_WITHOUT_FIAT`, OKX PAXG ⇒ `TRADABLE_VIA_BRIDGE`, BTC/ETH ⇒ `OK` (à confirmer avec Clem).
+- **Lot B, étape a faite** (catalogue d'instruments, frais réels `trade-fee`, carnet, `PathFinder`, Fee Test, `GET …/bindings/{id}/path-quote` ; cf. [`../architecture/08-rainbow-bench-grandeur-nature.md`](../architecture/08-rainbow-bench-grandeur-nature.md)) : le chemin le moins coûteux est chiffré en lecture seule. 
+- **Lot B, étape b faite** : plan d'ordres dry-run enregistré et affiché (job `ExecutionPlanJob` désactivé par défaut, bilan virtuel USDC/USDT, achats + ventes, `clOrdId` déterministes, expiration 5 min, mode global `OFF|DRY_RUN`, `LIVE` refusé au démarrage) — [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md). 
+- **Lots C1 (back-end) et C2 (panneau d'exécution sur la page) faits** : clé TRADE chiffrée, port d'ordres + client OKX (inactif par défaut), exécuteur avec réconciliation, audit append-only, kill switch, plafonds, double validation du 1ᵉʳ ordre — [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md). **Aucun ordre réel envoyé, `LIVE` verrouillé.** **Reste** (roadmap `docs/prompts/prompt-roadmap-chemin-achat-execution.md`) : étape d (création de la clé OKX Trade, déverrouillage avec Clem, 1ᵉʳ ordre minimal), étape e ; chiffrement optionnel des clés READ ; stock USDT conservé à la vente pour les achats suivants.
+
 ## 6. Preset Bull PAXG
 
 Constat du 2026-10-05 : trop de ventes, le bag ne gonfle pas. Réglage manuel par Clem (pas de chantier de code).
@@ -70,7 +78,7 @@ Fait : la config par défaut est pilotée par System via la stratégie Actif (cf
 
 ## 8. Fee Test et jugement des benchs utilisateur (intentions, pas de code)
 
-- **Fee Test** : quand un utilisateur choisit une paire sur un exchange / une connexion, un test de frais estime leur hauteur (frais + spread) ; au-dessus d'un seuil ⇒ warning à l'utilisateur.
+- **Fee Test** : fait pour le chemin d'achat (étape a du lot B, `FeeTest` + `path-quote`) : coût total (frais réels + demi-spread + slippage) < 0,2 % GREEN, jusqu'à 0,8 % WARNING, au-delà RED. Reste à brancher : test à la sélection d'une paire dans le formulaire, extension aux autres connexions.
 - Extensible aux « Bench online » ; à terme, un système qui juge les benchs des utilisateurs, surtout ceux à PnL négatif.
 - Contexte chiffré : [`etudes/etude-trading-stablecoin-frais-btc-eth-paxg.md`](../etudes/etude-trading-stablecoin-frais-btc-eth-paxg.md).
 - **Token de l'exchange** (OKB chez OKX, KRAKEN chez Kraken…) : détenir ce token donne souvent une remise sur les frais. Le Fee Test le signale à l'utilisateur (palier actuel, économie potentielle). Option plus tard : achat automatique d'une petite quantité du token pour couvrir/réduire les frais — nécessite l'exécution réelle, donc hors lecture seule. Les remises et seuils sont à vérifier par exchange.

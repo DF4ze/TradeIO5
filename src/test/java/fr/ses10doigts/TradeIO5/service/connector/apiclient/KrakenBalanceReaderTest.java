@@ -174,6 +174,8 @@ class KrakenBalanceReaderTest {
         assertEquals("USD", KrakenAssetNames.toSymbol("ZUSD").orElseThrow());
         assertEquals("PAXG", KrakenAssetNames.toSymbol("PAXG").orElseThrow());
         assertEquals("USDC", KrakenAssetNames.toSymbol("USDC").orElseThrow());
+        assertEquals("USDT", KrakenAssetNames.toSymbol("USDT").orElseThrow());
+        assertEquals("USDT", KrakenAssetNames.toSymbol("USDT.F").orElseThrow());
         assertTrue(KrakenAssetNames.toSymbol("ETH.S").isEmpty());
         assertTrue(KrakenAssetNames.toSymbol("DOT.B").isEmpty());
         assertTrue(KrakenAssetNames.toSymbol("XBT.M").isEmpty());

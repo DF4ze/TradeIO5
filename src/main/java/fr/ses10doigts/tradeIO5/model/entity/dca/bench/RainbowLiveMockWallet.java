@@ -44,7 +44,7 @@ public class RainbowLiveMockWallet implements PortfolioView {
     @Column(name = "asset_symbol", nullable = false, length = 16)
     private String assetSymbol;
 
-    private double cashUsdc;
+    private double cashUsd;
 
     private double positionQuantity;
 
@@ -53,7 +53,7 @@ public class RainbowLiveMockWallet implements PortfolioView {
 
     @Override
     public double cash() {
-        return cashUsdc;
+        return cashUsd;
     }
 
     @Override
@@ -66,10 +66,10 @@ public class RainbowLiveMockWallet implements PortfolioView {
         if (amountUsdc <= 0 || qty <= 0) {
             throw new IllegalArgumentException("Achat invalide : montant=" + amountUsdc + " qty=" + qty);
         }
-        if (amountUsdc > cashUsdc + EPSILON) {
-            throw new IllegalStateException("Cash insuffisant : achat " + amountUsdc + " USDC > cash " + cashUsdc);
+        if (amountUsdc > cashUsd + EPSILON) {
+            throw new IllegalStateException("Cash insuffisant : achat " + amountUsdc + " USDC > cash " + cashUsd);
         }
-        cashUsdc = Math.max(0.0, cashUsdc - amountUsdc);
+        cashUsd = Math.max(0.0, cashUsd - amountUsdc);
         positionQuantity += qty;
     }
 
@@ -82,6 +82,6 @@ public class RainbowLiveMockWallet implements PortfolioView {
             throw new IllegalStateException("Position insuffisante : vente " + qty + " > position " + positionQuantity);
         }
         positionQuantity = Math.max(0.0, positionQuantity - qty);
-        cashUsdc += proceedsUsdc;
+        cashUsd += proceedsUsdc;
     }
 }

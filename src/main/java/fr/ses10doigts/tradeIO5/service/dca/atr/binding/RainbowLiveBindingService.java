@@ -10,6 +10,7 @@ import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
+import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,7 @@ public class RainbowLiveBindingService {
     private final WalletRepository walletRepository;
     private final BindingCheck bindingCheck;
     private final RainbowLivePresetEventService eventService;
+    private final DomainClock clock;
 
     /** Création : {@code bagPercent} et {@code priority} nuls => défauts (100 %, rang de l'actif). */
     public record CreateRequest(String assetSymbol, Long presetId, Long walletId, Double bagPercent, Integer priority) {
@@ -66,7 +68,7 @@ public class RainbowLiveBindingService {
                 strategyRevision(preset), "Preset live défini");
         log.info("Binding créé id={} user={} actif={} preset={} wallet={} bag={}% priorité={}",
                 saved.getId(), user.getId(), saved.getAssetSymbol(), preset.getId(), wallet.getId(), bag, priority);
-        return new Checked(saved, bindingCheck.check(saved));
+        return checked(saved);
     }
 
     /** Bascule du live = changer {@code presetId} ; l'ancien preset n'est plus lié (simulation), historique conservé. */
@@ -95,7 +97,38 @@ public class RainbowLiveBindingService {
         log.info("Binding modifié id={} user={} actif={} preset={} wallet={} bag={}% priorité={}",
                 saved.getId(), user.getId(), saved.getAssetSymbol(), saved.getPreset().getId(),
                 saved.getWallet().getId(), saved.getBagPercent(), saved.getPriority());
-        return new Checked(saved, bindingCheck.check(saved));
+        return checked(saved);
+    }
+
+    /** Interrupteur d'exécution du binding (propriétaire). Désactiver ne touche pas à la double validation déjà acquise. */
+    @Transactional
+    public RainbowLiveBinding setExecution(User user, Long id, boolean enabled) {
+        RainbowLiveBinding binding = owned(user, id);
+        binding.setExecutionEnabled(enabled);
+        log.info("Binding {} user={} executionEnabled={}", id, user.getId(), enabled);
+        return bindingRepository.save(binding);
+    }
+
+    /** Armement du 1ᵉʳ ordre réel par l'admin : remet la confirmation du propriétaire à zéro. */
+    @Transactional
+    public RainbowLiveBinding arm(Long id) {
+        RainbowLiveBinding binding = bindingRepository.findById(id).orElseThrow(() -> RainbowLiveBindingNotFoundException.binding(id));
+        binding.setFirstLiveApprovedAt(clock.now());
+        binding.setFirstLiveConfirmedAt(null);
+        log.info("Binding {} armé pour le 1er ordre réel", id);
+        return bindingRepository.save(binding);
+    }
+
+    /** Confirmation du propriétaire ; refusée (409) tant que l'admin n'a pas armé. */
+    @Transactional
+    public RainbowLiveBinding confirmFirstLive(User user, Long id) {
+        RainbowLiveBinding binding = owned(user, id);
+        if (binding.getFirstLiveApprovedAt() == null) {
+            throw new RainbowLiveBindingStateException("Le 1er ordre réel n'a pas été armé par l'administrateur");
+        }
+        binding.setFirstLiveConfirmedAt(clock.now());
+        log.info("Binding {} user={} : 1er ordre réel confirmé", id, user.getId());
+        return bindingRepository.save(binding);
     }
 
     @Transactional
@@ -116,9 +149,16 @@ public class RainbowLiveBindingService {
     }
 
     /** Revérifie à la demande (appels exchange : lecture des soldes en cache 60 s + endpoint public). */
-    @Transactional(readOnly = true)
+    @Transactional
     public BindingCheckResult check(User user, Long id) {
-        return bindingCheck.check(owned(user, id));
+        return checked(owned(user, id)).check();
+    }
+
+    /** Vérifie le binding et persiste son statut de tradabilité (lu par la passe live et par {@link ExecutionGuard}). */
+    private Checked checked(RainbowLiveBinding binding) {
+        BindingCheckResult result = bindingCheck.check(binding);
+        binding.recordCheck(result, clock.now());
+        return new Checked(bindingRepository.save(binding), result);
     }
 
     private RainbowLiveBinding owned(User user, Long id) {

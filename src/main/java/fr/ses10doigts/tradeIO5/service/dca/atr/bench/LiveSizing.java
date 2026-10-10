@@ -1,6 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.LiveBlockReason;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
 import lombok.extern.slf4j.Slf4j;
@@ -56,13 +57,15 @@ final class LiveSizing {
         block.setLiveActionType(RainbowLiveAction.NONE);
         block.setLiveBlockReason(LiveBlockReason.NONE);
         if (!reading.isOk()) {
-            block.setLiveBlockReason(LiveBlockReason.UNAVAILABLE);
+            block.setLiveBlockReason(reading.status() == PortfolioStatus.NOT_TRADABLE
+                    ? LiveBlockReason.NOT_TRADABLE_WITHOUT_FIAT : LiveBlockReason.UNAVAILABLE);
             log.warn("Bench Rainbow live : portefeuille {} pour {} (wallet {}) : aucune action", reading.status(), assetSymbol,
                     reading.walletId());
             return;
         }
         double tradable = tradablePosition();
-        block.setLiveCashUsdc(reading.cash());
+        block.setLiveCashUsd(reading.cash());
+        block.setLiveCashDetail(CashDetailCodec.write(reading.cashByMember()));
         block.setLivePositionQty(reading.quantity(assetSymbol));
         block.setLiveTradableQty(tradable);
         block.setLiveCashReserved(ledger.reserved());
@@ -85,7 +88,7 @@ final class LiveSizing {
             } else {
                 block.setLiveActionType(RainbowLiveAction.BLOCKED);
                 block.setLiveBlockReason(LiveBlockReason.INSUFFICIENT_CASH);
-                log.info("Bench Rainbow live : achat {} USDC de {} bloqué, cash restant {} USDC (wallet {})", buyAmount,
+                log.info("Bench Rainbow live : achat {} USD de {} bloqué, cash restant {} USD (wallet {})", buyAmount,
                         assetSymbol, ledger.remaining(), reading.walletId());
             }
         }

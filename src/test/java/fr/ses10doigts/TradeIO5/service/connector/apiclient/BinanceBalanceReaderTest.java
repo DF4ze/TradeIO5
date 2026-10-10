@@ -55,6 +55,19 @@ class BinanceBalanceReaderTest {
     }
 
     @Test
+    @DisplayName("USDT : présent, LDUSDT agrégé à USDT, nul/absent ignoré")
+    void parse_usdt() {
+        Map<String, BigDecimal> balances = BinanceApiClient.parseFreeBalances("""
+                {"balances":[{"asset":"USDT","free":"20","locked":"0"},
+                             {"asset":"LDUSDT","free":"5","locked":"0"},
+                             {"asset":"USDC","free":"0","locked":"0"}]}
+                """);
+
+        assertEquals(0, new BigDecimal("25").compareTo(balances.get("USDT")));
+        assertFalse(balances.containsKey("USDC"));
+    }
+
+    @Test
     @DisplayName("Credential absente ou erreur API (HTTP 401) => BalanceUnavailableException")
     void fetch_failures_throw() throws IOException {
         assertThrows(BalanceUnavailableException.class, () -> client.fetchAvailableBalances(null));

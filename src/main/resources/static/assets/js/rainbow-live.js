@@ -20,7 +20,7 @@
     defaults: null, zones: new Map(), asset: null, presets: [], selectedId: null,
     formMode: null, formKind: 'FIXED', formPreset: null, formSource: null, uiMode: 'EXPERT', deleteTarget: null,
     charts: [], perf: null, retry: null,
-    live: new Map(), liveCheck: null
+    live: new Map(), liveCheck: null, plan: null, exec: null, events: null
   };
 
   /* ------------------------------------------------------------------ utilitaires */
@@ -28,7 +28,7 @@
   const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
   const nf = (min, max) => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: min, maximumFractionDigits: max });
   const F2 = nf(2, 2); const F8 = nf(6, 8); const FVAR = nf(0, 6);
-  const usd = (v) => (isNum(v) ? F2.format(v) + ' USDC' : DASH);
+  const usd = (v) => (isNum(v) ? F2.format(v) + ' USD' : DASH);
   const qty = (v) => (isNum(v) ? F8.format(v) : DASH);
   const pct = (v) => (isNum(v) ? F2.format(v) + ' %' : DASH);
   const dec = (v) => (isNum(v) ? FVAR.format(v) : DASH);
@@ -184,7 +184,7 @@
       el('td', null, el('div', { class: 'form-check form-switch' }, toggle)),
       el('td', { text: p.analysisWindowMonths }),
       el('td', { text: usd(p.initialCapitalUsdc) }),
-      el('td', { text: w ? usd(w.cashUsdc) + ' / ' + qty(w.positionQuantity) + ' / ' + usd(w.equityUsdc) : DASH }),
+      el('td', { text: w ? usd(w.cashUsd) + ' / ' + qty(w.positionQuantity) + ' / ' + usd(w.equityUsdc) : DASH }),
       el('td', { text: p.runCount }),
       el('td', { text: p.firstRunDay || DASH }),
       el('td', null, setTrendCell(last && last.activeSet, last && last.trendRegime)),
@@ -200,7 +200,7 @@
             title: p.followsStrategy ? 'Suit la stratégie System : non supprimable' : null, onclick: () => openDelete(p) }))));
   }
 
-  /** Bascule rapide actif/inactif (seule modification permise sur un preset système). */
+  /** Bascule rapide actif/inactif (seule modification permise sur un preset qui suit une stratégie Actif). */
   async function toggleEnabled(p, input) {
     const wanted = input.checked;
     input.disabled = true;
@@ -556,13 +556,16 @@
   const LIVE_STATUS = {
     OK: ['bg-success', 'Lecture OK'],
     STALE: ['bg-warning text-dark', 'Ancien'],
-    UNAVAILABLE: ['bg-danger', 'Indisponible']
+    UNAVAILABLE: ['bg-danger', 'Indisponible'],
+    NOT_TRADABLE: ['bg-warning text-dark', 'Non tradable']
   };
-  const BLOCK_TEXT = { INSUFFICIENT_CASH: 'liquidité insuffisante', UNAVAILABLE: 'données indisponibles' };
+  const BLOCK_TEXT = { INSUFFICIENT_CASH: 'liquidité insuffisante', UNAVAILABLE: 'données indisponibles',
+    NOT_TRADABLE_WITHOUT_FIAT: 'actif non tradable sans monnaie fiat' };
   const CHECK_TEXT = {
     OK: 'OK', WALLET_DISABLED: 'Wallet désactivé', CREDENTIAL_INVALID: 'Clé API invalide ou rejetée',
     PROVIDER_UNSUPPORTED: 'Exchange non pris en charge', BALANCE_UNAVAILABLE: 'Soldes illisibles',
-    INSTRUMENT_MISSING: 'Paire <actif>/USDC absente', INSTRUMENT_UNAVAILABLE: 'Paire non vérifiable'
+    TRADABLE_VIA_BRIDGE: 'Tradable via passerelle USD', NOT_TRADABLE_WITHOUT_FIAT: 'Non tradable sans monnaie fiat',
+    INSTRUMENT_UNAVAILABLE: 'Paire non vérifiable'
   };
 
   /** Binding + dernier snapshot de chaque actif (lecture base uniquement, aucun appel exchange). Échec ⇒ pas de bloc live. */
@@ -573,7 +576,173 @@
     } catch (e) {
       state.live = new Map();
     }
+    await loadPlan();
     renderLive();
+  }
+
+  const PLAN_STATUS = { PLANNED: ['bg-primary', 'Planifié'], BLOCKED: ['bg-danger', 'Bloqué'], EXPIRED: ['bg-secondary', 'Expiré'],
+    DISABLED: ['bg-secondary', 'Exécution non activée'], EXECUTING: ['bg-info text-dark', 'En cours'],
+    EXECUTED: ['bg-success', 'Exécuté'], PARTIAL: ['bg-warning text-dark', 'Partiel'], FAILED: ['bg-danger', 'Échec'],
+    CANCELLED: ['bg-secondary', 'Annulé'] };
+  const STEP_STATUS = { PLANNED: 'Planifiée', SUBMITTED: 'Envoyée', FILLED: 'Remplie', PARTIAL: 'Partielle', REJECTED: 'Rejetée',
+    CANCELED: 'Annulée', UNKNOWN: 'Inconnue (à réconcilier)' };
+  const EXECUTED_STATUS = ['EXECUTING', 'EXECUTED', 'PARTIAL', 'FAILED'];
+  const FEE_LEVEL = { GREEN: ['bg-success', 'Fee Test vert'], WARNING: ['bg-warning text-dark', 'Fee Test orange'],
+    RED: ['bg-danger', 'Fee Test rouge'] };
+  const PLAN_REASON = { NO_PATH: 'aucun chemin chiffrable', BELOW_MIN: 'montant sous le minimum de l\'exchange',
+INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
+    NOT_TRADABLE_WITHOUT_FIAT: 'non tradable sans monnaie fiat', READING_UNAVAILABLE: 'données indisponibles' };
+
+  /** Dernier plan d'ordres (simulation) en base ; 204 ou erreur ⇒ pas de plan (le reste de la page n'en dépend pas). */
+  async function loadPlan() {
+    try {
+      state.plan = await api('GET', '/execution-plans/latest');
+    } catch (e) {
+      state.plan = null;
+    }
+    state.events = null;
+    try {
+      state.exec = await api('GET', '/execution-state');
+    } catch (e) {
+      state.exec = null;
+    }
+  }
+
+  function planSteps(steps) {
+    const head = el('tr', null, ['#', 'Paire', 'Sens', 'Taille', 'Prix plafond', 'Montant', 'Frais', 'Spread', 'Slippage', 'Statut', 'Rempli',
+      'Prix moyen', 'Frais réels', 'Slippage réel']
+      .map((h) => el('th', { text: h })));
+    const rows = steps.map((st) => el('tr', null,
+      el('td', { text: String(st.rank) }), el('td', { text: st.instId }), el('td', { text: st.side === 'BUY' ? 'Achat' : 'Vente' }),
+      el('td', { text: qty(Number(st.sz)) }), el('td', { text: dec(Number(st.px)) }), el('td', { text: dec(Number(st.quoteAmount)) }),
+      el('td', { text: pct(Number(st.feePct)) }), el('td', { text: pct(Number(st.spreadPct)) }),
+      el('td', { text: st.estimation === 'TICKER' ? 'n.c.' : pct(Number(st.slippagePct)) }),
+      el('td', { text: STEP_STATUS[st.status] || st.status || DASH, title: st.lastError || '' }),
+      el('td', { text: st.filledSz == null ? DASH : qty(Number(st.filledSz)) }),
+      el('td', { text: st.avgFillPx == null ? DASH : dec(Number(st.avgFillPx)) }),
+      el('td', { text: st.feeAmount == null ? DASH : dec(Number(st.feeAmount)) + ' ' + (st.feeCurrency || '') }),
+      el('td', { text: st.realSlippagePct == null ? DASH : pct(Number(st.realSlippagePct)) })));
+    return el('div', { class: 'table-responsive' },
+      el('table', { class: 'table table-sm mb-1' }, el('thead', null, head), el('tbody', null, rows)));
+  }
+
+  function planAssetView(a, l) {
+    if (!a) { return el('div', { class: 'text-muted', text: 'Aucune étape pour ' + l.assetSymbol + ' dans ce plan.' }); }
+    if (a.outcome === 'DISABLED') { return el('div', { class: 'text-muted', text: 'Exécution non activée pour ce binding : aucune étape.' }); }
+    if (a.outcome === 'NO_ACTION') { return el('div', { class: 'text-muted', text: 'Aucune action ce jour-là.' }); }
+    const lvl = FEE_LEVEL[a.feeTestLevel];
+    const cost = a.costPct == null ? null : el('div', { class: 'mb-1' },
+      el('span', { text: 'Coût du chemin : ' + pct(Number(a.costPct)) + ' ' }),
+      lvl ? el('span', { class: 'badge ' + lvl[0], text: lvl[1] }) : null);
+    if (a.outcome === 'BLOCKED') {
+      return el('div', null, cost, el('div', { class: 'alert alert-warning py-1 px-2 mb-0',
+        text: 'Plan bloqué : ' + (PLAN_REASON[a.blockReason] || a.blockReason) + '.' }));
+    }
+    return el('div', null, cost, planSteps(a.steps),
+      a.warning ? el('div', { class: 'small text-warning-emphasis', text: a.warning }) : null);
+  }
+
+  /** Plan d'ordres de l'actif sélectionné (simulation : rien n'est envoyé à l'exchange). */
+  function planView(l) {
+    const p = state.plan;
+    const sent = !!p && EXECUTED_STATUS.includes(p.status);
+    const head = el('div', { class: 'd-flex flex-wrap align-items-center gap-2 mb-2' },
+      el('h6', { class: 'mb-0', text: sent ? 'Plan d\'exécution (réel)' : 'Plan d\'exécution (simulation)' }),
+      el('span', { class: 'badge bg-light text-dark border', text: sent ? 'ordres envoyés' : 'non envoyé' }));
+    if (!p) {
+      return el('div', { class: 'mt-3 border-top pt-2' }, head, el('div', { class: 'text-muted fst-italic', text: 'Aucun plan enregistré.' }));
+    }
+    const st = PLAN_STATUS[p.status] || ['bg-secondary', p.status];
+    const expiry = p.status === 'EXPIRED' ? 'expiré' : 'valable jusqu\'à ' + new Date(p.expiresAt).toLocaleTimeString('fr-FR');
+    return el('div', { class: 'mt-3 border-top pt-2' }, head,
+      el('div', { class: 'small mb-2' },
+        el('span', { class: 'badge ' + st[0] + ' me-2', text: st[1] }),
+        el('span', { text: 'passe ' + p.day + ' ' + (p.pass === 'T0005' ? '00:05' : '23:55') + ' UTC · ' + expiry
+          + ' (un plan n\'est qu\'une photo, l\'exécution re-devise)' }),
+        p.executionBlockReason ? el('div', { class: 'text-warning-emphasis', text: 'Blocages : ' + p.executionBlockReason }) : null),
+      planAssetView(p.assets.find((a) => a.assetSymbol === l.assetSymbol), l));
+  }
+
+  /** Interrupteurs et état d'exécution (texte seul) : kill switch (affichage), exécution du binding, 1er ordre réel, audit. */
+  function executionView(l) {
+    const x = state.exec;
+    const kill = !x ? null : el('span', { class: 'badge ' + (x.killSwitch ? 'bg-danger' : 'bg-success') + ' me-2',
+      text: x.killSwitch ? 'Kill switch engagé' : 'Kill switch levé' });
+    const mode = !x ? null : el('span', { class: 'badge bg-light text-dark border me-2',
+      text: 'Mode ' + x.mode + (x.liveExecution ? '' : ' · exécution réelle verrouillée') });
+    const sw = el('input', { type: 'checkbox', class: 'form-check-input', role: 'switch', id: 'rl-exec-switch',
+      onchange: (ev) => setExecution(l, ev.target.checked) });
+    sw.checked = !!l.executionEnabled;
+    let first;
+    if (l.firstLiveConfirmed) {
+      first = el('span', { class: 'badge bg-success', text: '1er ordre réel validé' });
+    } else if (l.firstLiveArmed) {
+      first = el('button', { type: 'button', class: 'btn btn-sm btn-warning', id: 'rl-confirm-first',
+        text: 'Confirmer le 1er ordre réel', onclick: () => confirmFirstLive(l) });
+    } else {
+      first = el('span', { class: 'text-muted', text: '1er ordre réel : en attente d\'armement par l\'administrateur' });
+    }
+    return el('div', { class: 'mt-3 border-top pt-2', id: 'rl-exec-panel' },
+      el('h6', { class: 'mb-2', text: 'Exécution réelle' }),
+      el('div', { class: 'mb-2' }, kill, mode),
+      el('div', { class: 'form-check form-switch mb-2' }, sw,
+        el('label', { class: 'form-check-label', for: 'rl-exec-switch', text: 'Exécution activée pour ' + l.assetSymbol })),
+      el('div', { class: 'small mb-2' }, first),
+      el('div', { id: 'rl-exec-msg', class: 'small text-danger mb-1' }),
+      auditView());
+  }
+
+  /** Audit du dernier plan : liste paginée en lecture seule (aucune action). */
+  function auditView() {
+    const btn = el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', id: 'rl-audit-load',
+      text: 'Audit du plan', disabled: !state.plan, onclick: () => loadEvents(0) });
+    const ev = state.events;
+    if (!ev) { return el('div', null, btn); }
+    const rows = ev.items.map((e) => el('tr', null,
+      el('td', { text: new Date(e.createdAt).toLocaleString('fr-FR') }), el('td', { text: e.type }),
+      el('td', { text: e.clOrdId || DASH }), el('td', { class: 'text-break', text: e.payload || '' })));
+    const pages = Math.max(1, Math.ceil(ev.totalElements / ev.size));
+    return el('div', null, btn,
+      el('div', { class: 'table-responsive mt-2' }, el('table', { class: 'table table-sm mb-1', id: 'rl-audit-table' },
+        el('thead', null, el('tr', null, ['Date', 'Évènement', 'Ordre', 'Détail'].map((h) => el('th', { text: h })))),
+        el('tbody', null, rows.length ? rows : el('tr', null, el('td', { colspan: '4', class: 'text-muted', text: 'Aucun évènement.' }))))),
+      el('div', { class: 'd-flex align-items-center gap-2 small' },
+        el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', text: 'Précédent', disabled: ev.page <= 0,
+          onclick: () => loadEvents(ev.page - 1) }),
+        el('span', { text: 'Page ' + (ev.page + 1) + ' / ' + pages + ' · ' + ev.totalElements + ' évènement(s)' }),
+        el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', text: 'Suivant', disabled: ev.page + 1 >= pages,
+          onclick: () => loadEvents(ev.page + 1) })));
+  }
+
+  async function loadEvents(page) {
+    if (!state.plan) { return; }
+    try {
+      state.events = await api('GET', '/execution-plans/' + state.plan.id + '/events?page=' + page + '&size=20');
+    } catch (e) {
+      state.events = null;
+    }
+    renderLive();
+  }
+
+  async function setExecution(l, enabled) {
+    try {
+      await api('PUT', '/bindings/' + l.bindingId + '/execution', { enabled });
+    } catch (e) {
+      await loadLive();
+      const m = $('rl-exec-msg'); if (m) { m.textContent = e.message; }
+      return;
+    }
+    await loadLive();
+  }
+
+  async function confirmFirstLive(l) {
+    try {
+      await api('POST', '/bindings/' + l.bindingId + '/confirm-first-live');
+    } catch (e) {
+      const m = $('rl-exec-msg'); if (m) { m.textContent = e.message; }
+      return;
+    }
+    await loadLive();
   }
 
   function liveAction(s) {
@@ -589,7 +758,15 @@
       el('span', { class: 'badge bg-light text-dark border ms-2', text: 'recommandée, non exécutée' }));
   }
 
+  /** Avertissement (texte seul) quand l'exécution est bloquée sur ce couple (actif, exchange). */
   function liveSnapshotView(l) {
+    return el('div', null,
+      l.tradability === 'NOT_TRADABLE_WITHOUT_FIAT' && l.tradabilityMessage
+        ? el('div', { class: 'alert alert-warning py-1 px-2 mb-2', role: 'alert', text: l.tradabilityMessage }) : null,
+      liveSnapshotBody(l));
+  }
+
+  function liveSnapshotBody(l) {
     const s = l.snapshot;
     if (!s) {
       return el('div', { class: 'text-muted fst-italic', text: 'Aucune passe live enregistrée pour ce preset.' });
@@ -602,11 +779,16 @@
           + (s.fetchedAt ? new Date(s.fetchedAt).toLocaleString('fr-FR') : DASH) + ' · passe ' + s.day + ' ' + (s.pass === 'T0005' ? '00:05' : '23:55') + ' UTC'
           + (s.status === 'STALE' ? ' · ancien' : '') })),
       el('div', { class: 'row g-2' },
-        card('Cash USDC', usd(s.cashUsdc)),
+        card('Cash USD', usd(s.cashUsd), '', cashDetail(s.cashByMember)),
         card('Position réelle ' + l.assetSymbol, qty(s.positionQty)),
         card('Position tradable (' + pct(l.bagPercent) + ')', qty(s.tradableQty), '', 'Part de la position réelle offerte à la stratégie'),
         card('Cash déjà réservé', usd(s.cashReserved), '', 'Consommé par les actifs servis avant (cash commun)')),
       liveAction(s));
+  }
+
+  /** Détail du cash par membre du groupe USD (infobulle), vide si absent. */
+  function cashDetail(byMember) {
+    return byMember ? Object.keys(byMember).map((k) => k + ' ' + F2.format(byMember[k])).join(' · ') : '';
   }
 
   function liveCheckView() {
@@ -639,7 +821,9 @@
     panel.replaceChildren(
       el('div', { class: 'd-flex flex-wrap justify-content-between align-items-center gap-2 mb-2' },
         el('h5', { class: 'mb-0' }, el('span', { class: 'badge rl-badge-live me-2', text: 'LIVE' }), 'Wallet réel — ' + l.assetSymbol),
-        el('span', { class: 'small text-muted', text: 'Lecture seule : aucun ordre n\'est passé. Le wallet fictif des presets reste une simulation.' })),
+        el('span', { class: 'small text-muted', text: state.exec && state.exec.liveExecution
+          ? 'Exécution réelle déverrouillée : des ordres peuvent être envoyés selon les verrous ci-dessous. Le wallet fictif des presets reste une simulation.'
+          : 'Aucun ordre n\'est passé (exécution réelle verrouillée). Le wallet fictif des presets reste une simulation.' })),
       liveSnapshotView(l),
       el('div', { class: 'row g-2 align-items-end mt-2' },
         el('div', { class: 'col-12 col-md-5' }, el('label', { class: 'form-label small mb-0', for: 'rl-live-preset', text: 'Preset live' }), select),
@@ -649,7 +833,9 @@
           el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary ms-1', text: 'Vérifier la disponibilité',
             title: 'Relit les soldes en lecture seule chez l\'exchange', onclick: () => checkLive(l) }))),
       el('div', { id: 'rl-live-msg', class: 'small text-danger mt-1' }),
-      liveCheckView());
+      liveCheckView(),
+      planView(l),
+      executionView(l));
   }
 
   /** Bascule du preset live et/ou bagPercent via PUT /bindings/{id} ; pris en compte à la passe suivante. */
@@ -753,7 +939,7 @@
           signClass(m.outperformancePoints))),
       el('div', { class: 'fw-semibold mt-3' }, 'Wallet mock ', el('span', { class: 'rl-help', title: walletHelp, text: 'ⓘ' })),
       el('div', { class: 'row g-2' },
-        card('Capital initial', usd(w.initialCapitalUsdc)), card('Cash', usd(w.cashUsdc)),
+        card('Capital initial', usd(w.initialCapitalUsdc)), card('Cash', usd(w.cashUsd)),
         card('Position', qty(w.positionQuantity)), card('Équité', usd(w.equityUsdc), signClass(w.equityUsdc - w.initialCapitalUsdc)),
         card('PnL wallet', pct(w.pnlPercent), signClass(w.pnlPercent))));
   }

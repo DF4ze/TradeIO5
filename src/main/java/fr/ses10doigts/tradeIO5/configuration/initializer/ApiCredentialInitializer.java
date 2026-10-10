@@ -146,22 +146,22 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		WebProvider webProviderYahooFinance = wpYahooFinanceOpt.get();
 		WebProvider webProviderSosoValue = wpSosoValueOpt.get();
 
-		boolean alreadyExistsBTN = credentialRepository.findByUserAndWebProvider(user, webProviderBinanceTestnet).isPresent();
-		boolean alreadyExistsBin = credentialRepository.findByUserAndWebProvider(user, webProviderBinance).isPresent();
-		boolean alreadyExistsKraken = credentialRepository.findByUserAndWebProvider(user, webProviderKraken).isPresent();
+		boolean alreadyExistsBTN = credentialRepository.findReadByUserAndWebProvider(user, webProviderBinanceTestnet).isPresent();
+		boolean alreadyExistsBin = credentialRepository.findReadByUserAndWebProvider(user, webProviderBinance).isPresent();
+		boolean alreadyExistsKraken = credentialRepository.findReadByUserAndWebProvider(user, webProviderKraken).isPresent();
 
-		boolean alreadyExistsOkx = credentialRepository.findByUserAndWebProvider(user, webProviderOkx).isPresent();
+		boolean alreadyExistsOkx = credentialRepository.findReadByUserAndWebProvider(user, webProviderOkx).isPresent();
 
-		boolean alreadyExistsCoinstats = credentialRepository.findByUserAndWebProvider(sys, webProviderCoinstats).isPresent();
-		boolean alreadyExistsDefiLlama = credentialRepository.findByUserAndWebProvider(sys, webProviderDefiLlama).isPresent();
-		boolean alreadyExistsCoinalyze = credentialRepository.findByUserAndWebProvider(sys, webProviderCoinalyze).isPresent();
-		boolean alreadyExistsTwelveData = credentialRepository.findByUserAndWebProvider(sys, webProviderTwelveData).isPresent();
-		boolean alreadyExistsFinnhub = credentialRepository.findByUserAndWebProvider(sys, webProviderFinnhub).isPresent();
-		boolean alreadyExistsForexFactory = credentialRepository.findByUserAndWebProvider(sys, webProviderForexFactory).isPresent();
-		boolean alreadyExistsFarside = credentialRepository.findByUserAndWebProvider(sys, webProviderFarside).isPresent();
-		boolean alreadyExistsYoutube = credentialRepository.findByUserAndWebProvider(sys, webProviderYoutube).isPresent();
-		boolean alreadyExistsYahooFinance = credentialRepository.findByUserAndWebProvider(sys, webProviderYahooFinance).isPresent();
-		boolean alreadyExistsSosoValue = credentialRepository.findByUserAndWebProvider(sys, webProviderSosoValue).isPresent();
+		boolean alreadyExistsCoinstats = credentialRepository.findReadByUserAndWebProvider(sys, webProviderCoinstats).isPresent();
+		boolean alreadyExistsDefiLlama = credentialRepository.findReadByUserAndWebProvider(sys, webProviderDefiLlama).isPresent();
+		boolean alreadyExistsCoinalyze = credentialRepository.findReadByUserAndWebProvider(sys, webProviderCoinalyze).isPresent();
+		boolean alreadyExistsTwelveData = credentialRepository.findReadByUserAndWebProvider(sys, webProviderTwelveData).isPresent();
+		boolean alreadyExistsFinnhub = credentialRepository.findReadByUserAndWebProvider(sys, webProviderFinnhub).isPresent();
+		boolean alreadyExistsForexFactory = credentialRepository.findReadByUserAndWebProvider(sys, webProviderForexFactory).isPresent();
+		boolean alreadyExistsFarside = credentialRepository.findReadByUserAndWebProvider(sys, webProviderFarside).isPresent();
+		boolean alreadyExistsYoutube = credentialRepository.findReadByUserAndWebProvider(sys, webProviderYoutube).isPresent();
+		boolean alreadyExistsYahooFinance = credentialRepository.findReadByUserAndWebProvider(sys, webProviderYahooFinance).isPresent();
+		boolean alreadyExistsSosoValue = credentialRepository.findReadByUserAndWebProvider(sys, webProviderSosoValue).isPresent();
 
 		if (alreadyExistsBTN) {
 			logger.debug("🔑 Clé API " + webProviderBinanceTestnet.getName() + " déjà présente pour l'utilisateur OKlm.");

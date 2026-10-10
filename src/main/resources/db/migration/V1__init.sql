@@ -8,9 +8,10 @@
         id bigint not null auto_increment,
         user_id bigint not null,
         web_provider_id bigint not null,
-        api_key varchar(255) not null,
-        passphrase varchar(255),
-        secret_key varchar(255),
+        api_key varchar(512) not null,
+        passphrase varchar(512),
+        secret_key varchar(512),
+        scope enum ('READ','TRADE') not null,
         primary key (id)
     ) engine=InnoDB;
 
@@ -19,6 +20,22 @@
         id bigint not null auto_increment,
         name varchar(255),
         symbol varchar(255),
+        primary key (id)
+    ) engine=InnoDB;
+
+    create table asset_group (
+        id bigint not null auto_increment,
+        code varchar(16) not null,
+        name varchar(64) not null,
+        valuation enum ('NOMINAL') not null,
+        primary key (id)
+    ) engine=InnoDB;
+
+    create table asset_group_member (
+        position integer not null,
+        asset_id bigint not null,
+        group_id bigint not null,
+        id bigint not null auto_increment,
         primary key (id)
     ) engine=InnoDB;
 
@@ -83,6 +100,30 @@
         target_id varchar(255),
         payload longtext,
         type enum ('DECISION','OPINION','SCENARIO'),
+        primary key (id)
+    ) engine=InnoDB;
+
+    create table exchange_instrument (
+        lot_sz decimal(38,18) not null,
+        min_sz decimal(38,18) not null,
+        tick_sz decimal(38,18) not null,
+        fetched_at datetime(6) not null,
+        id bigint not null auto_increment,
+        base varchar(20) not null,
+        quote varchar(20) not null,
+        state varchar(20) not null,
+        inst_id varchar(40) not null,
+        provider enum ('BINANCE','BINANCE_TESTNET','COINALYZE','COINSTATS','DEFILLAMA','FARSIDE','FINNHUB','FOREXFACTORY','KRAKEN','LEDGER','METAMASK','OKX','SOSOVALUE','TWELVE_DATA','YAHOO_FINANCE','YOUTUBE') not null,
+        primary key (id)
+    ) engine=InnoDB;
+
+    create table execution_control (
+        kill_switch bit not null,
+        max_day_multiplier decimal(10,4) not null,
+        max_order_multiplier decimal(10,4) not null,
+        id bigint not null,
+        updated_at datetime(6) not null,
+        updated_by varchar(64),
         primary key (id)
     ) engine=InnoDB;
 
@@ -199,12 +240,19 @@
 
     create table rainbow_live_binding (
         bag_percent float(53) not null,
+        execution_enabled bit not null,
         priority integer not null,
+        first_live_approved_at datetime(6),
+        first_live_confirmed_at datetime(6),
         id bigint not null auto_increment,
         preset_id bigint not null,
+        tradability_checked_at datetime(6),
         user_id bigint not null,
         wallet_id bigint not null,
         asset_symbol varchar(16) not null,
+        quote_member varchar(16),
+        bridge_pair varchar(32),
+        tradability enum ('BALANCE_UNAVAILABLE','CREDENTIAL_INVALID','INSTRUMENT_UNAVAILABLE','NOT_TRADABLE_WITHOUT_FIAT','OK','PROVIDER_UNSUPPORTED','TRADABLE_VIA_BRIDGE','WALLET_DISABLED'),
         primary key (id)
     ) engine=InnoDB;
 
@@ -228,12 +276,91 @@
     ) engine=InnoDB;
 
     create table rainbow_live_mock_wallet (
-        cash_usdc float(53) not null,
+        cash_usd float(53) not null,
         position_quantity float(53) not null,
         id bigint not null auto_increment,
         preset_id bigint not null,
         updated_at datetime(6) not null,
         asset_symbol varchar(16) not null,
+        primary key (id)
+    ) engine=InnoDB;
+
+    create table rainbow_live_order_event (
+        created_at datetime(6) not null,
+        id bigint not null auto_increment,
+        plan_id bigint not null,
+        step_id bigint,
+        cl_ord_id varchar(32),
+        payload varchar(1000),
+        type enum ('ALERT','BLOCKED','PARTIAL_REMAINDER','PLAN_RESULT','PLAN_STARTED','STEP_ACK','STEP_RECONCILED','STEP_REQUOTED','STEP_RESULT','STEP_SKIPPED','STEP_SUBMITTING','STEP_UNKNOWN') not null,
+        primary key (id)
+    ) engine=InnoDB;
+
+    create table rainbow_live_order_plan (
+        revision integer not null,
+        run_day date not null,
+        total_cost_pct decimal(12,6),
+        created_at datetime(6) not null,
+        execution_finished_at datetime(6),
+        execution_started_at datetime(6),
+        expires_at datetime(6) not null,
+        id bigint not null auto_increment,
+        user_id bigint not null,
+        inputs_hash varchar(64) not null,
+        execution_block_reason varchar(120),
+        block_reason varchar(255),
+        fee_test_level enum ('GREEN','RED','WARNING'),
+        mode enum ('DRY_RUN','LIVE','OFF') not null,
+        pass_code enum ('T0005','T2355') not null,
+        status enum ('BLOCKED','CANCELLED','DISABLED','EXECUTED','EXECUTING','EXPIRED','FAILED','PARTIAL','PLANNED','SUPERSEDED') not null,
+        primary key (id)
+    ) engine=InnoDB;
+
+    create table rainbow_live_order_plan_asset (
+        cost_pct decimal(12,6),
+        priority integer not null,
+        id bigint not null auto_increment,
+        plan_id bigint not null,
+        wallet_id bigint,
+        asset_symbol varchar(16) not null,
+        warning varchar(255),
+        action enum ('BLOCKED','BUY','NONE','SELL'),
+        block_reason enum ('BELOW_MIN','INSUFFICIENT_FUNDS_AFTER_FEES','NOT_TRADABLE_WITHOUT_FIAT','NO_PATH','READING_UNAVAILABLE'),
+        fee_test_level enum ('GREEN','RED','WARNING'),
+        outcome enum ('BLOCKED','DISABLED','NO_ACTION','OK') not null,
+        primary key (id)
+    ) engine=InnoDB;
+
+    create table rainbow_live_order_step (
+        avg_fill_px decimal(38,18),
+        fee_amount decimal(38,18),
+        fee_pct decimal(12,6) not null,
+        filled_sz decimal(38,18),
+        px decimal(38,18) not null,
+        quote_amount decimal(38,18) not null,
+        quote_mid decimal(38,18),
+        real_slippage_pct decimal(12,6),
+        received_amount decimal(38,18),
+        sent_sz decimal(38,18),
+        slippage_pct decimal(12,6) not null,
+        spread_pct decimal(12,6) not null,
+        step_rank integer not null,
+        sz decimal(38,18) not null,
+        finished_at datetime(6),
+        id bigint not null auto_increment,
+        plan_id bigint not null,
+        submitted_at datetime(6),
+        asset_symbol varchar(16) not null,
+        fee_currency varchar(20),
+        received_currency varchar(20),
+        cl_ord_id varchar(32) not null,
+        inst_id varchar(32) not null,
+        last_error varchar(64),
+        ord_id varchar(64),
+        estimation enum ('BOOK','TICKER') not null,
+        ord_type enum ('LIMIT_IOC') not null,
+        side enum ('BUY','SELL') not null,
+        status enum ('CANCELED','FILLED','PARTIAL','PLANNED','REJECTED','SUBMITTED','UNKNOWN') not null,
         primary key (id)
     ) engine=InnoDB;
 
@@ -352,7 +479,7 @@
         t0005_live_action_amount_usdc float(53),
         t0005_live_action_quantity float(53),
         t0005_live_cash_reserved float(53),
-        t0005_live_cash_usdc float(53),
+        t0005_live_cash_usd float(53),
         t0005_live_position_qty float(53),
         t0005_live_tradable_qty float(53),
         t0005_moon_mode bit,
@@ -381,7 +508,7 @@
         t2355_live_action_amount_usdc float(53),
         t2355_live_action_quantity float(53),
         t2355_live_cash_reserved float(53),
-        t2355_live_cash_usdc float(53),
+        t2355_live_cash_usd float(53),
         t2355_live_position_qty float(53),
         t2355_live_tradable_qty float(53),
         t2355_moon_mode bit,
@@ -406,20 +533,22 @@
         config_hash varchar(32),
         t0005_active_set varchar(255),
         t0005_config_hash varchar(255),
+        t0005_live_cash_detail varchar(255),
         t0005_trend_regime varchar(255),
         t2355_active_set varchar(255),
         t2355_config_hash varchar(255),
+        t2355_live_cash_detail varchar(255),
         t2355_trend_regime varchar(255),
         buy_reentry_mode enum ('FIXED_DELAY','IMMEDIATE','TRAILING_STOP'),
         sell_reentry_mode enum ('FIXED_DELAY','IMMEDIATE','TRAILING_STOP'),
         t0005_action_type enum ('BLOCKED','BUY','NONE','SELL'),
         t0005_live_action_type enum ('BLOCKED','BUY','NONE','SELL'),
-        t0005_live_block_reason enum ('INSUFFICIENT_CASH','NONE','UNAVAILABLE'),
-        t0005_live_status enum ('OK','STALE','UNAVAILABLE'),
+        t0005_live_block_reason enum ('INSUFFICIENT_CASH','NONE','NOT_TRADABLE_WITHOUT_FIAT','UNAVAILABLE'),
+        t0005_live_status enum ('NOT_TRADABLE','OK','STALE','UNAVAILABLE'),
         t2355_action_type enum ('BLOCKED','BUY','NONE','SELL'),
         t2355_live_action_type enum ('BLOCKED','BUY','NONE','SELL'),
-        t2355_live_block_reason enum ('INSUFFICIENT_CASH','NONE','UNAVAILABLE'),
-        t2355_live_status enum ('OK','STALE','UNAVAILABLE'),
+        t2355_live_block_reason enum ('INSUFFICIENT_CASH','NONE','NOT_TRADABLE_WITHOUT_FIAT','UNAVAILABLE'),
+        t2355_live_status enum ('NOT_TRADABLE','OK','STALE','UNAVAILABLE'),
         primary key (id)
     ) engine=InnoDB;
 
@@ -492,6 +621,7 @@
         wallet_id bigint not null,
         web_provider_id bigint not null,
         asset varchar(20) not null,
+        fee_currency varchar(20),
         external_transaction_id varchar(255) not null,
         trade_side enum ('BUY','SELL') not null,
         primary key (id)
@@ -548,7 +678,13 @@
     ) engine=InnoDB;
 
     alter table api_credentials 
-       add constraint uk_credential_user_provider unique (user_id, web_provider_id);
+       add constraint uk_credential_user_provider_scope unique (user_id, web_provider_id, scope);
+
+    alter table asset_group 
+       add constraint uk_asset_group_code unique (code);
+
+    alter table asset_group_member 
+       add constraint uk_asset_group_member_asset unique (asset_id);
 
     alter table asset_provider 
        add constraint uk_asset_provider_asset_source unique (asset_id, source);
@@ -561,6 +697,9 @@
 
     alter table etf_flow_snapshot 
        add constraint uk_etf_flow_snapshot_asset_date unique (asset, date);
+
+    alter table exchange_instrument 
+       add constraint uk_exchange_instrument_provider_inst unique (provider, inst_id);
 
     alter table indicator_parameter 
        add constraint uk_indicatorparam_param_key unique (parameter_set_id, param_key);
@@ -585,6 +724,12 @@
 
     alter table rainbow_live_mock_wallet 
        add constraint UKeapf4gshqevtl6bbfi7xjyo4y unique (preset_id);
+
+    create index ix_rainbow_live_order_event_plan 
+       on rainbow_live_order_event (plan_id);
+
+    alter table rainbow_live_order_plan 
+       add constraint uk_rainbow_live_order_plan_user_day_pass_rev unique (user_id, run_day, pass_code, revision);
 
     alter table rainbow_live_preset 
        add constraint uk_rainbow_live_preset_user_asset_name unique (user_id, asset_symbol, name);
@@ -629,6 +774,16 @@
        foreign key (web_provider_id) 
        references provider (id);
 
+    alter table asset_group_member 
+       add constraint FK8ex95pmwnu4ekg6gt83us3xij 
+       foreign key (asset_id) 
+       references asset (id);
+
+    alter table asset_group_member 
+       add constraint FK4bw3x2k7upvq0yn966hrsceyb 
+       foreign key (group_id) 
+       references asset_group (id);
+
     alter table asset_provider 
        add constraint FK89koxbjt634ic88piqwirgan8 
        foreign key (asset_id) 
@@ -669,6 +824,28 @@
        add constraint FKkp15qju5trcln3hg8e10apnyo 
        foreign key (preset_id) 
        references rainbow_live_preset (id) 
+       on delete cascade;
+
+    alter table rainbow_live_order_event 
+       add constraint FKm5tpyhe0od69dr9v4bunwspb1 
+       foreign key (plan_id) 
+       references rainbow_live_order_plan (id);
+
+    alter table rainbow_live_order_plan 
+       add constraint FK827b9uthq2wdvtmyqrrna64jh 
+       foreign key (user_id) 
+       references users (id);
+
+    alter table rainbow_live_order_plan_asset 
+       add constraint FKtnj8tujmtxmuqdv0uvnuqg6la 
+       foreign key (plan_id) 
+       references rainbow_live_order_plan (id) 
+       on delete cascade;
+
+    alter table rainbow_live_order_step 
+       add constraint FKlkqkqr5s2j4bt2innsos2pstx 
+       foreign key (plan_id) 
+       references rainbow_live_order_plan (id) 
        on delete cascade;
 
     alter table rainbow_live_preset 

@@ -63,6 +63,10 @@ public class Transaction {
 	@Column(name = "fee", precision = 30, scale = 10)
 	private BigDecimal fee;
 
+	// Devise dans laquelle les frais ont été prélevés (ex : BTC pour un achat OKX, USDT pour une vente) ; nulle si inconnue
+	@Column(name = "fee_currency", length = 20)
+	private String feeCurrency;
+
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "wallet_id", nullable = false)
 	private Wallet wallet;
