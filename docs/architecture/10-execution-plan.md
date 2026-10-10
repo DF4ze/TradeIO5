@@ -15,6 +15,8 @@ Vérifié le : 2026-10-10 (`service/execution/**`, `model/entity/execution/**`, 
 - `ExecutionPlanJob` (`service/scheduler`) : `tradeio.execution.plan-cron`, défaut `-` (désactivé), cron cible `0 58 23 * * *`, `zone = "UTC"` ; passe `T2355` du jour UTC. Il lit les runs **en base** (le bench ne dépend pas du plan).
 - Manuel : `POST /api/admin/execution/plan[?day=&pass=]` (ADMIN) ⇒ `PlanSummary{day, pass, planned, blocked, disabled, unchanged, skipped, errors}`. Une erreur sur un user n'arrête pas les autres ; pas de rattrapage des jours manquants ; user sans run du jour ⇒ ignoré.
 
+- Un plan `EXPIRED` n'est pas régénéré tant que les entrées (hash) sont identiques : la réponse est `unchanged`. `clOrdId` ne contient pas de révision. Les plafonds lisent le `baseAmount` du run du preset au `run_day` du plan (`NO_BASE_AMOUNT` sinon).
+
 ## Entrées et idempotence (`OrderPlanService`)
 
 Par user (une transaction par user) : bindings par `priority` + bloc live de la passe du run du jour (`liveStatus`, `liveActionType`, `liveActionAmountUsdc` = montant USD nominal figé au 23:55, `liveActionQuantity`, `liveCashDetail` par membre). Le **hash des entrées** (SHA-256 : bindings + blocs, jamais les données de marché) pilote l'idempotence : même hash ⇒ rien ne change (rejeu 23:55 ⇒ plan identique, mêmes `clOrdId`) ; hash différent ⇒ la révision courante passe `SUPERSEDED` (ligne d'audit conservée) et une révision `n+1` est créée.

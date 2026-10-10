@@ -39,3 +39,4 @@ Détail complet des verdicts : `docs/calibration/*.md` (non ré-audité dans ce 
 ## Tests connus en échec, sans rapport avec le pipeline de décision
 
 `DxyIndicatorCacheSharingTest` (2 tests, cache de l'indicateur DXY/Twelve Data) — signalé comme échec pré-existant au 2026-08-17, package non touché par les lots qui l'ont documenté. À reconfirmer si ce fichier de doc est lu longtemps après le 2026-09-12 (peut avoir été corrigé depuis).
+- `OkxMarketDataApiClient` : la pagination `history-candles` (100 bougies/page) n'a ni pause entre pages ni garde-fou de nombre d'appels (contrairement à Binance via `CandlePaginator`) ; un trou de plusieurs années coûte des centaines d'appels.

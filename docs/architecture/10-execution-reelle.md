@@ -1,8 +1,8 @@
 # Exécution réelle des ordres (lots C1 back-end et C2 page)
 
-Vérifié le : 2026-10-10 (`rainbow-live.js`, `service/execution/{exchange,run,credential}/**`, `service/execution/ExecutionControlService`, `model/entity/execution/**`, `controller/ExecutionAdminController`, `service/scheduler/ExecutionJob`).
+Vérifié le : 2026-10-11 (`rainbow-live.js`, `service/execution/{exchange,run,credential}/**`, `service/execution/ExecutionControlService`, `model/entity/execution/**`, `controller/ExecutionAdminController`, `service/scheduler/ExecutionJob`).
 
-**Aucun ordre réel n'a été envoyé à ce jour : `LIVE` reste verrouillé.** Le code existe, il est testé sur un exchange simulé (`FakeSpotExchange`, `src/test`) et sur un serveur HTTP local pour le client OKX. Le déverrouillage est l'étape d (avec Clem). Plan d'ordres en amont : [`10-execution-plan.md`](10-execution-plan.md).
+**`LIVE` est verrouillé par défaut** (kill switch engagé, `live-unlocked=false`, `executionEnabled=false`). Validé en réel : un achat limit IOC `BTC-USDC` de 0,0001 BTC (≈ 8 USDC) est passé, réconcilié à l'unité avec l'historique OKX (une seule `Transaction`, audit complet, relance idempotente `sent:0`). Le code est aussi testé sur un exchange simulé (`FakeSpotExchange`, `src/test`) et un serveur HTTP local pour le client OKX. Constats réels : section « Constats exchange ». Plan d'ordres en amont : [`10-execution-plan.md`](10-execution-plan.md).
 
 ## Verrous (tous requis pour qu'un ordre parte)
 
@@ -51,6 +51,15 @@ Tests de rendu : `MainControllerUserPageTest` ; audit : `OrderPlanServiceTest` (
 ## Garde-fous (tests)
 
 `ExecutionOrderArchitectureTest` (seul `service.execution.exchange` déclare des méthodes d'ordre ; seuls `exchange` et `run` référencent ce package — analyse du pool de constantes, donc ni bench, ni plan, ni contrôleurs de lecture ; bean client absent par défaut ; `LIVE` sans déverrouillage / clé maître refusé), `ExecutionPlanArchitectureTest`, `ConnectorNoOrderMethodTest` et `RainbowLiveNoExchangeDependencyTest` inchangés, `OrderExecutorTest`, `StepRunnerTest`, `OkxSpotOrderClientTest`, `SecretCipherTest`, `TradeCredentialPersistenceTest`, `ExecutionAdminSecurityTest`, `RainbowLiveBindingExecutionTest`.
+
+## Constats exchange (OKX, validés en réel)
+
+- **Conformité par compte, pas par clé** : un compte EEA reçoit `51155` sur les paires USDT (ex. `USDC-USDT`, `PAXG-USDT`) ⇒ le pont USDT est inutilisable ; seuls BTC et ETH sont achetables, en `X-USDC`. Le catalogue public (`instruments`) ne reflète pas cette restriction (à filtrer via `/api/v5/account/instruments`). Un `51155` ⇒ étape `REJECTED`, plan `FAILED`, aucun renvoi.
+- **Frais** prélevés dans l'actif reçu à l'achat (BTC) : net reçu = rempli − frais (0,2 % taker constaté).
+- **Fills retardés** juste après l'envoi : étape `UNKNOWN` (`FILLS_UNAVAILABLE`) puis réconciliation par `clOrdId` (`POST /api/admin/execution/run?planId=`) ; le contrôle global kill switch / mode précède la réconciliation ⇒ le kill switch doit être levé pour réconcilier (aucun ordre n'est envoyé sur un plan `EXECUTING`), puis réengagé.
+- **Plafonds** : `baseAmount` lu dans le run du preset au `run_day` du plan ; absent ⇒ `NO_BASE_AMOUNT`.
+- **Tailles minimales** (`minSz`) : `BTC-USDC` 0,0001 BTC, `USDC-USDT` 1, `PAXG-USDT` 0,001.
+- **Procédure d'exécution manuelle** : kill switch engagé ⇒ plan (`/plan`) ⇒ armement admin (`/bindings/{id}/arm`) ⇒ confirmation propriétaire ⇒ levée du kill switch ⇒ `/run?planId=` ⇒ réconciliation si `UNKNOWN`/`EXECUTING` ⇒ kill switch réengagé.
 
 ## Hors périmètre (volontairement absent)
 

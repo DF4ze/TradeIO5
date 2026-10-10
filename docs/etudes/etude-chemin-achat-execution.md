@@ -8,7 +8,7 @@ Date : 2026-10-10. Statut : **analyse seule** (aucun code, aucun ordre, aucun ap
 - Flux d'achat : USDT dispo ≥ montant ? oui → achat `A/USDT` ; sinon → échange du **manque** `USDC→USDT`, puis achat `A/USDT` ; demande enregistrée.
 - Vente : produit reste en USDT (bag tampon). Cash = groupe USD, valorisé nominal 1:1.
 - Dry-run **obligatoire** avant tout ordre : le moteur enregistre/affiche un plan non envoyé. Kill switch, plafonds, audit, double validation du 1er ordre réel.
-- Cas réels : OKX PAXG (`PAXG-USDT` + `USDC-USDT`), Kraken PAXG = bloqué + warning (aucun chemin sans fiat).
+- Cas réels : OKX PAXG (`PAXG-USDT` + `USDC-USDT`) existe au catalogue mais est refusé (`51155`) sur le compte EEA de Clem ; Kraken PAXG = bloqué + warning (aucun chemin sans fiat).
 - Hors lot : token natif, découverte wallet, alerte liquidité, Funding OKX, **retrait/transfert API jamais**.
 
 ### Coquilles / ambiguïtés relevées

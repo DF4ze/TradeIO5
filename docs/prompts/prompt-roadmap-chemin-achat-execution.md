@@ -7,9 +7,9 @@ Séquence le chantier (lot B) ; analyse, architecture et constats : [`../etudes/
 | 0 | Étude (lecture seule) | **fait (2026-10-10)**, décisions validées |
 | a | Catalogue d'instruments (cache DB), frais réels (`trade-fee`, clé Read), graphe + recherche de chemin (nœuds fiat interdits, ≤ 2 sauts), coût + Fee Test. **Aucun ordre.** | **fait et validé en réel (2026-10-10)** : PAXG/OKX via USDC→USDT→PAXG |
 | b | Plan d'ordres dry-run enregistré (entités plan/étapes, bilan virtuel USDC/USDT, arrondis, `clOrdId`), job désactivé, affichage | **implémenté (2026-10-10)**, suite verte, plan réel local relu avec Clem |
-| c | `ApiCredential.scope` + chiffrement ; `SpotOrderPort` + client OKX **désactivé par défaut** (package dédié) ; faux exchange ; machine d'états, réconciliation, kill switch, plafonds ; tests d'architecture réécrits — prompt `prompt-implementation-chemin-achat-c.md` (C1) | prompt rédigé ; à lancer après validation de l'étape b |
-| d | Clé Trade créée avec Clem ; **1ᵉʳ ordre réel de montant minimal** (pont `USDC→USDT` seul), double validation — session guidée `prompt-guide-chemin-achat-d.md` ; ensuite exécution manuelle quelques jours avant tout cron | prompt rédigé ; après C |
-| e | Page : plan, coût, warnings, interrupteurs, audit — même prompt (C2, après point sur C1) | prompt rédigé ; après C1 |
+| c | `ApiCredential.scope` + chiffrement ; `SpotOrderPort` + client OKX **désactivé par défaut** (package dédié) ; faux exchange ; machine d'états, réconciliation, kill switch, plafonds ; tests d'architecture réécrits — prompt `prompt-implementation-chemin-achat-c.md` (C1) | **fait (2026-10-10)** : C1 implémenté, suite verte, `LIVE` verrouillé |
+| d | Clé Trade créée avec Clem ; **1ᵉʳ ordre réel de montant minimal**, double validation ; ensuite exécution manuelle quelques jours avant tout cron | **fait (2026-10-11)** : `BTC-USDC` 0,0001 BTC exécuté et réconcilié ; pont USDT impossible (`51155`, compte EEA) ; reste exécution manuelle avant cron |
+| e | Page : plan, coût, warnings, interrupteurs, audit — même prompt (C2, après point sur C1) | **fait (2026-10-10)** : C2 implémenté (page), suite verte |
 
 ## Décisions de Clem à respecter (2026-10-10)
 - **Fiat interdit** dans tout chemin (taxation) ; nœuds exclus configurables ; sans chemin ⇒ plan `BLOCKED` + warning, jamais d'ordre (Kraken PAXG).

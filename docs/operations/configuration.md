@@ -29,7 +29,10 @@ Vérifié le : 2026-10-03 (`configuration/**`, `RainbowLiveDefaultPresets`).
 | `tradeio.backup.historical-cron` | `0 0 4 * * SUN` | Cron du backup hebdomadaire des données historiques (`-` désactive) |
 | `tradeio.rainbow-live.pass-2355-cron` | `-` (désactivé) | Cron passe 23:55 UTC du bench Rainbow (action fictive) |
 | `tradeio.rainbow-live.pass-0005-cron` | `-` (désactivé) | Cron passe 00:05 UTC du bench Rainbow (vraie clôture, action non appliquée) |
-| `tradeio.execution.mode` | `DRY_RUN` | Mode global d'exécution `OFF\|DRY_RUN\|LIVE` ; `OFF` coupe le plan dry-run, `LIVE` fait échouer le démarrage (exécution réelle inexistante) |
+| `tradeio.execution.mode` | `DRY_RUN` | Mode global d'exécution `OFF\|DRY_RUN\|LIVE` ; `OFF` coupe le plan dry-run, `LIVE` exige `live-unlocked=true` et `TRADEIO_MASTER_KEY` (sinon échec au démarrage) |
+| `tradeio.execution.live-unlocked` | `false` | Déverrouillage de `LIVE` (avec le mode) ; à laisser `false` hors exécution réelle |
+| `TRADEIO_MASTER_KEY` (variable d'environnement) | – | Clé maître AES-256 (base64, 32 octets) chiffrant les clés TRADE ; jamais en base ni dans un fichier versionné |
+| `tradeio.okx.read.*` / `tradeio.okx.trade.*` | – | `apiKey`, `secretKey`, `passphrase` OKX semés par `ApiCredentialInitializer` (TRADE chiffré, créé si absent) ; fichier de propriétés gitignoré |
 | `tradeio.execution.plan-cron` | `-` (désactivé) | Cron (UTC) du plan d'ordres dry-run, cible `0 58 23 * * *` |
 | `tradeio.execution.plan-ttl` | `PT5M` | Durée de vie d'un plan avant `EXPIRED` |
 | `tradeio.execution.slippage-tolerance-pct` | `0.1` | Tolérance (%) appliquée au prix de référence pour le prix plafond des ordres limit IOC |

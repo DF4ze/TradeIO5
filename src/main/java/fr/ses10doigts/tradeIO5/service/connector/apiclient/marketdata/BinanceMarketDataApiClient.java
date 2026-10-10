@@ -53,10 +53,21 @@ public class BinanceMarketDataApiClient implements MarketDataApiClient {
         return MarketDataSource.BINANCE;
     }
 
+    /**
+     * Binance plafonne {@code /klines} à {@link MarketDataProviderLimits#BINANCE_KLINES_PAGE_SIZE}
+     * bougies par appel : une plage plus large est paginée par {@code startTime} (cf.
+     * {@link CandlePaginator}) jusqu'à {@code until}, sans quoi seules les 1000 premières bougies
+     * d'un trou arrivaient et le présent n'était jamais atteint.
+     */
     @Override
     public List<MarketData> getCandles(String symbol, TimeFrame timeFrame, Instant since, Instant until, int limit) {
         String interval = nativeInterval(timeFrame);
+        return CandlePaginator.paginate(since, until, limit, MarketDataProviderLimits.BINANCE_KLINES_PAGE_SIZE,
+                timeFrame, MarketDataProviderLimits.MAX_PAGES_PER_FETCH, MarketDataProviderLimits.PAGE_PAUSE_MILLIS,
+                (start, pageLimit) -> fetchPage(symbol, timeFrame, interval, start, until, pageLimit));
+    }
 
+    private List<MarketData> fetchPage(String symbol, TimeFrame timeFrame, String interval, Instant since, Instant until, int limit) {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("symbol", symbol);
         params.put("interval", interval);
@@ -70,11 +81,8 @@ public class BinanceMarketDataApiClient implements MarketDataApiClient {
             params.put("limit", limit);
         }
 
-        // Log de diagnostic (incident 2026-08-13, cf. mémoire projet) : le SpotClientImpl est
-        // construit sans timeout explicite (ni connect ni read) — un appel réseau bloqué côté
-        // Binance ne remonte donc aucune exception, il reste juste pendu ici indéfiniment. Ce
-        // log avant/après avec durée permet de confirmer que c'est bien CE point précis qui ne
-        // rend jamais la main (plutôt qu'un blocage plus haut dans la chaîne MCP -> engine).
+        // Log de diagnostic (incident 2026-08-13) : le SpotClientImpl est construit sans timeout
+        // explicite ; ce log avant/après avec durée isole un appel réseau pendu.
         long startNanos = System.nanoTime();
         logger.debug("Binance klines : appel réseau démarré pour {} {} params={}", symbol, interval, params);
         try {

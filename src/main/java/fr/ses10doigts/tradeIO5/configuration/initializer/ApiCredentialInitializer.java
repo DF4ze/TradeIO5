@@ -1,12 +1,15 @@
 package fr.ses10doigts.tradeIO5.configuration.initializer;
 
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
+import fr.ses10doigts.tradeIO5.model.entity.exchange.CredentialScope;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.repository.ApiCredentialRepository;
 import fr.ses10doigts.tradeIO5.repository.ProviderRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
+import fr.ses10doigts.tradeIO5.service.execution.credential.MasterKeyMissingException;
+import fr.ses10doigts.tradeIO5.service.execution.credential.TradeCredentialService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,9 +28,13 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
     private static final Logger logger = LoggerFactory.getLogger(ApiCredentialInitializer.class);
 
+    private static final String OKX_READ_PREFIX = "tradeio.okx.read";
+    private static final String OKX_TRADE_PREFIX = "tradeio.okx.trade";
+
     private final UserRepository userRepository;
     private final ProviderRepository providerRepository;
     private final ApiCredentialRepository credentialRepository;
+    private final TradeCredentialService tradeCredentialService;
     private final Environment environment;
 
     @Override
@@ -202,10 +209,12 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur OKlm.", webProviderOkx.getName());
 
 		} else {
-			// Clé OKX « Read » uniquement (IP du VPS allowlistée) : propriétés `tradeio.okx.apiKey` /
-			// `tradeio.okx.secretKey` / `tradeio.okx.passphrase` (la passphrase est exigée à chaque requête OKX).
-			seedUserExchangeCredential(user, webProviderOkx, "tradeio.okx", true, true);
+			// Clé OKX « Read » uniquement (IP du VPS allowlistée) : propriétés `tradeio.okx.read.apiKey` /
+			// `tradeio.okx.read.secretKey` / `tradeio.okx.read.passphrase` (la passphrase est exigée à chaque requête OKX).
+			seedUserExchangeCredential(user, webProviderOkx, OKX_READ_PREFIX, true, true);
 		}
+
+		seedOkxTradeCredential(user, webProviderOkx);
 
 		if (alreadyExistsCoinstats) {
 			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur System.", webProviderCoinstats.getName());
@@ -459,6 +468,33 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			}
 		}
     }
+
+	/**
+	 * Crée la credential OKX {@code TRADE} d'OKlm depuis {@code tradeio.okx.trade.apiKey|secretKey|passphrase}
+	 * (application-*.properties gitignorés), chiffrée par {@link TradeCredentialService} (AES-GCM, clé maître
+	 * {@code TRADEIO_MASTER_KEY}). Créée si elle n'existe pas déjà (LIVE reste verrouillé par ailleurs) ; propriétés absentes, ou clé maître
+	 * absente : WARN, rien n'est écrit en clair. Jamais de rotation ici (API admin).
+	 */
+	private void seedOkxTradeCredential(User user, WebProvider provider) {
+		if (credentialRepository.findByUserAndWebProviderAndScope(user, provider, CredentialScope.TRADE).isPresent()) {
+			logger.debug("🔑 Clé API {} TRADE déjà présente pour l'utilisateur OKlm.", provider.getName());
+			return;
+		}
+		String apiKey = environment.getProperty(OKX_TRADE_PREFIX + ".apiKey");
+		String secretKey = environment.getProperty(OKX_TRADE_PREFIX + ".secretKey");
+		String passphrase = environment.getProperty(OKX_TRADE_PREFIX + ".passphrase");
+		if (apiKey == null || apiKey.isBlank() || secretKey == null || secretKey.isBlank() || passphrase == null
+				|| passphrase.isBlank()) {
+			logger.debug("Propriétés `{}.*` absentes : aucune credential OKX TRADE créée.", OKX_TRADE_PREFIX);
+			return;
+		}
+		try {
+			tradeCredentialService.store(user, WebProviderCode.OKX, apiKey, secretKey, passphrase, true);
+			logger.info("🔑 Clé API OKX TRADE ajoutée (chiffrée) pour OKlm depuis les propriétés.");
+		} catch (MasterKeyMissingException e) {
+			logger.warn("❗ TRADEIO_MASTER_KEY absente : credential OKX TRADE non créée (rien écrit en clair).");
+		}
+	}
 
 	/**
 	 * Crée la credential exchange d'OKlm depuis les propriétés {@code <prefix>.apiKey} / {@code <prefix>.secretKey}

@@ -69,10 +69,12 @@ public class OkxMarketDataApiClient implements MarketDataApiClient {
         int effectiveLimit = limit > 0 ? limit : 100;
 
         try {
-            List<MarketData> recent = fetchCandles(CANDLES_PATH, symbol, bar, timeFrame, since, until, effectiveLimit);
+            List<MarketData> recent = fetchCandles(CANDLES_PATH, symbol, bar, timeFrame, since, until,
+                    Math.min(effectiveLimit, MarketDataProviderLimits.OKX_RECENT_CANDLES_MAX));
 
             List<MarketData> merged = mergeWithHistory(recent, since,
-                    oldest -> fetchHistoryPage(symbol, bar, timeFrame, oldest, effectiveLimit));
+                    oldest -> fetchHistoryPage(symbol, bar, timeFrame, oldest,
+                            Math.min(effectiveLimit, MarketDataProviderLimits.OKX_HISTORY_PAGE_SIZE)));
 
             List<MarketData> result = merged.stream()
                     .sorted(Comparator.comparing(MarketData::getTimestamp))
