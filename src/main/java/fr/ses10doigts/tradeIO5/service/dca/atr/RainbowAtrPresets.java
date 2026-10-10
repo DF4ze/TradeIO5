@@ -9,6 +9,7 @@ import java.util.List;
  * {@code tools/pine/rainbow_dca_v4_atr_moon.pine} (SOURCE DE VÉRITÉ, jeux trouvés à la main sous TradingView) :
  * en cas d'écart, le pine a raison. Ils diffèrent aussi par des paramètres « globaux » (modulation ATH, moon),
  * d'où le jeu complet {@link RainbowAtrParamSet}. Multiplicateurs de zone et base = défauts du pine.
+ * {@link #generic()} = preset {@code Perso Generic (tous actifs)} du même pine (jeu unique, sans Trend).
  */
 public final class RainbowAtrPresets {
 
@@ -36,10 +37,16 @@ public final class RainbowAtrPresets {
             case "PAXG" -> List.of(
                     set("PAXG Perso Bear", 24, 14, 2.7, 0, 0, 0, 1.7, 1, 10, 0.2, false, false,
                             30, 99, 0.5, 5.0, 3.0, 1.0, false, 75, 8, 50),
-                    set("PAXG Perso Bull", 36, 28, 0, 0, 2.0, 2.0, 2.5, 3, 10, 0.2, false, true,
+                    set("PAXG Perso Bull", 40, 30, 0, 0, 2.0, 2.0, 5.0, 3, 10, 0.2, false, true,
                             15, 10, 1.0, 1.0, 3.0, 0.5, true, 75, 8, 50));
             default -> throw new IllegalArgumentException("Actif sans jeux Bull/Bear : " + asset);
         };
+    }
+
+    /** Jeu unique « Perso Generic (tous actifs) » du pine v4 : référence sans Trend (baseline du bench du Trend Mix). */
+    public static RainbowAtrParamSet generic() {
+        return set("Perso Generic", 36, 14, 1.0, 0, 0, 0, 2.5, 10, 15, 0.2, false, true,
+                60, 30, 0.5, 4.0, 4.0, 1.0, true, 30, 9, 100);
     }
 
     /** Tous les presets reprennent : réentrées TRAILING_STOP, trailing achat 3 % / vente 5 %, blockBuy actif, sans cliquet. */

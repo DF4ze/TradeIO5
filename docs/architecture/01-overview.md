@@ -22,7 +22,7 @@ Concrètement, au 2026-09-12 :
 - Aucun composant du code n'émet jamais les événements `ACTION_STEP_EXECUTED`/`ACTION_STEP_FAILED` : le cycle de vie `CREATED → EXECUTED/ABORTED` d'une `Decision` existe comme modèle d'état, mais rien ne le fait progresser vers `EXECUTED` via un vrai appel `BinanceApiClient`/`KrakenApiClient`.
 - Le scheduler qui générerait des décisions en continu (`DecisionOrchestratorJob`) est **désactivé par défaut** (cron `-`), au même titre que la photo quotidienne et l'archivage — voir [`operations/scheduled-jobs.md`](../operations/scheduled-jobs.md).
 
-Seule exécution quotidienne autonome liée au DCA : le **bench grandeur nature Rainbow** ([`08`](08-rainbow-bench-grandeur-nature.md)), en simulation pure (wallet fictif, aucun appel exchange, test de garde).
+Seule exécution quotidienne autonome liée au DCA : le **bench grandeur nature Rainbow** ([`08`](08-rainbow-bench-grandeur-nature.md)), en simulation (wallet fictif ; le preset « live » d'un actif lit en plus le solde réel de l'exchange en LECTURE SEULE pour se dimensionner, aucun ordre, test de garde).
 
 Détail complet, historique et plan de comblement : [`known-gaps/decision-to-order-gap.md`](../known-gaps/decision-to-order-gap.md). **Tout agent amené à raisonner sur "que se passe-t-il quand l'app décide d'acheter" doit lire ce fichier avant de répondre.**
 

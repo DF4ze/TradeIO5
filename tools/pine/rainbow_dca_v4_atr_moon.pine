@@ -203,7 +203,7 @@ else if presetSel == "PAXG Perso Bear"
     p_athOn := true, p_athRefDdBuy := 30.0, p_athRefDdSell := 99.0, p_athBuyMin := 0.5, p_athBuyMax := 5.0, p_athSellMax := 3.0, p_athSellMin := 1.0
     p_moonOn := false, p_moonReservePct := 75.0, p_moonReserveRatchet := false, p_moonTrailingStopPct := 8.0, p_moonStopSellPct := 50.0
 else if presetSel == "PAXG Perso Bull"
-    p_smaPeriod := 36, p_atrPeriod := 28, p_down2 := 0.0, p_down1 := 0.0, p_up1 := 2.0, p_up2 := 2.0, p_up3 := 2.5
+    p_smaPeriod := 40, p_atrPeriod := 30, p_down2 := 0.0, p_down1 := 0.0, p_up1 := 2.0, p_up2 := 2.0, p_up3 := 5.0
     p_buyReentry := "TRAILING_STOP", p_sellReentry := "TRAILING_STOP", p_trailingBuy := 3.0, p_trailingSell := 5.0, p_cooldown := 3, p_fixedDelay := 10, p_sellFraction := 0.2
     p_allowSellCd := false, p_cooldownAfterSellOn := true, p_blockBuy := true
     p_athOn := true, p_athRefDdBuy := 15.0, p_athRefDdSell := 10.0, p_athBuyMin := 1.0, p_athBuyMax := 1.0, p_athSellMax := 3.0, p_athSellMin := 0.5

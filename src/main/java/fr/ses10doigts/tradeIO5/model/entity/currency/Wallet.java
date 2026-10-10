@@ -10,6 +10,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -46,6 +47,7 @@ public class Wallet {
     @JoinColumn(name = "web_provider_id")
     private WebProvider webProvider;
 
+    @ToString.Exclude
     @ManyToOne
     @JoinColumn(name = "credential_id")
     private ApiCredential credential;

@@ -214,7 +214,7 @@ public class DecisionScenarioRestoreService {
         bestScenarioIdByKey.forEach((key, scenarioId) ->
                 restored.add(scenarioFromEvent(scenarioId, bestEventByKey.get(key))));
 
-        log.info("DecisionScenarioRestoreService: {} scénario(s) restauré(s) ({} depuis photo, {} création(s) nouvelle(s)){}.",
+        log.debug("DecisionScenarioRestoreService: {} scénario(s) restauré(s) ({} depuis photo, {} création(s) nouvelle(s)){}.",
                 restored.size(), snapshotEntities.size(), restored.size() - snapshotEntities.size(),
                 ownerFilter.map(o -> " pour owner " + o.getId()).orElse(""));
 
@@ -344,7 +344,7 @@ public class DecisionScenarioRestoreService {
             }
         });
 
-        log.info("DecisionScenarioRestoreService: {} décision(s) restaurée(s) ({} depuis photo, {} création(s) nouvelle(s)){}.",
+        log.debug("DecisionScenarioRestoreService: {} décision(s) restaurée(s) ({} depuis photo, {} création(s) nouvelle(s)){}.",
                 restored.size(), snapshotEntities.size(), restored.size() - snapshotEntities.size(),
                 ownerFilter.map(o -> " pour owner " + o.getId()).orElse(""));
 

@@ -1,6 +1,6 @@
 # Le trou décision → ordre réel
 
-Vérifié le : 2026-09-12, en croisant le code (`service/tree/decision/**`, `model/dto/tree/{UserProfile,WalletSnapshot}`, `service/tree/api/mcp/TreeAnalysisFacade`) avec `docs/suivi/point-avancement-2026-08-10.md` (archivé, § 6). **C'est le malentendu le plus probable pour un agent qui lit ce projet superficiellement — à lire avant toute affirmation sur la capacité de l'app à trader réellement.**
+Vérifié le : 2026-09-12 (connecteurs d'exchange revérifiés le 2026-10-09), en croisant le code (`service/tree/decision/**`, `model/dto/tree/{UserProfile,WalletSnapshot}`, `service/tree/api/mcp/TreeAnalysisFacade`) avec `docs/suivi/point-avancement-2026-08-10.md` (archivé, § 6). **C'est le malentendu le plus probable pour un agent qui lit ce projet superficiellement — à lire avant toute affirmation sur la capacité de l'app à trader réellement.**
 
 ## Constat
 
@@ -14,7 +14,7 @@ TradeIO5 calcule des signaux et produit des `Decision`/`ActionStep` en base. Il 
 - `UserProfile` (DTO : `riskProfile`, `exitingMarket`, `reinforcementActive`, `maxAllocationPerAsset`, `minCashReserve`).
 - `WalletSnapshot` (DTO : `balances`, `openPositions`, `totalValue`, `investedValue`).
 - `OpinionContext` transporte déjà ces deux DTO jusqu'à `AbstractAdvisor`.
-- Infra de lecture de balances réelles : entité `Wallet`, `BalanceCacheManager`, `ProviderApiService#getUserBalance` (déjà multi-provider Binance/Kraken).
+- Lecture **seule** et fiable des soldes réels : entité `Wallet`, interface `ReadOnlyBalanceReader` (`KrakenApiClient`, `BinanceApiClient`, `OkxBalanceReader` ; soldes disponibles, Earn automatique inclus (Kraken `.F`, Binance `LD*`), symboles standard ; toute panne lève `BalanceUnavailableException`, jamais une map vide ; cache 60 s via `BalanceCacheManager`, échecs non mis en cache). `ProviderApiService#getUserBalance`/`getAllBalances` s'appuient sur ces clients (une panne Kraken se propage désormais comme celle de Binance). Aucun composant de `service.connector` ne déclare de méthode d'ordre (test `ConnectorNoOrderMethodTest` ; les anciens stubs `ProviderApiService#buy/#sell` sont supprimés).
 - `Decision`/`ActionStep`/`ActionStepExecutedCause` modélisent un cycle de vie `CREATED → EXECUTED/ABORTED` piloté par événements.
 
 ## Ce qui manque (vérifié, pas supposé)
@@ -23,7 +23,7 @@ TradeIO5 calcule des signaux et produit des `Decision`/`ActionStep` en base. Il 
 2. **`AbstractAdvisor#userProfileBlock`/`#walletBlock` sont stubbés à `return ""`** — même si les DTO étaient peuplés, ce contexte ne serait pas encore transmis au prompt de l'advisor LLM.
 3. **`User` n'a aucun champ de profil de risque persistant.** (Un curseur de risque continu 0-10, distinct, existe et est persisté via `UserTradingSettingsController`/`Service` — sa consommation réelle en aval du calcul de sizing n'est pas vérifiée dans ce lot.)
 4. **La quantité d'un `ActionStep` est un placeholder constant** (`BigDecimal.ONE`, `PLACEHOLDER_QUANTITY` dans `DefaultMarketScenario`) — pas de règle de sizing réelle (proportionnelle au solde disponible, plafonnée par `maxAllocationPerAsset`, respectant `minCashReserve`). La formule de traduction `RiskProfile` → fraction de portefeuille reste une question ouverte, non tranchée avec Clem au 2026-08-10.
-5. **Aucun composant n'émet `ACTION_STEP_EXECUTED`/`ACTION_STEP_FAILED`.** Personne ne transforme un `ActionStep` validé en appel réel à `BinanceApiClient`/`KrakenApiClient` (ou au provider résolu via `asset_provider`). Le cycle de vie de `Decision` reste un stub d'état.
+5. **Aucun composant n'émet `ACTION_STEP_EXECUTED`/`ACTION_STEP_FAILED`.** Personne ne transforme un `ActionStep` validé en appel réel à un exchange — et aucun chemin d'ordre n'existe dans le code des clients (lecture seule). Le cycle de vie de `Decision` reste un stub d'état.
 6. **Le scheduler de génération continue de décisions (`DecisionOrchestratorJob`) reste désactivé par défaut**, volontairement, pour ne pas brancher un déclenchement automatique sur une mécanique de sizing/exécution encore incomplète (voir [`operations/scheduled-jobs.md`](../operations/scheduled-jobs.md)).
 
 ## Ordre de priorité proposé (tel qu'arrêté avec Clem au 2026-08-10, statut à reconfirmer)

@@ -4,6 +4,7 @@ public enum WebProviderCode {
     BINANCE,
     BINANCE_TESTNET,
     KRAKEN,
+    OKX,
     LEDGER,
     COINSTATS, METAMASK,
     DEFILLAMA,

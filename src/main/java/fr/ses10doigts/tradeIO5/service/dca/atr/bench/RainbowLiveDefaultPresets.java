@@ -41,6 +41,10 @@ public final class RainbowLiveDefaultPresets {
     public static final String PASS_2355_CRON = "${" + PASS_2355_CRON_PROPERTY + ":-}";
     public static final String PASS_0005_CRON = "${" + PASS_0005_CRON_PROPERTY + ":-}";
 
+    /** Âge maximal d'une lecture du portefeuille réel au-delà duquel elle est {@code STALE} (durée ISO-8601). */
+    public static final String READING_STALE_AFTER_PROPERTY = "tradeio.rainbow-live.reading-stale-after";
+    public static final String DEFAULT_READING_STALE_AFTER = "PT30M";
+
     private static final RainbowAtrGlobals PINE = RainbowAtrGlobals.pineDefault();
 
     /** BTC : « Jeu global recommandé BTC » (centre des plateaux), moon OFF. */

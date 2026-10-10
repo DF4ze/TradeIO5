@@ -67,7 +67,7 @@ public class RainbowLivePresetTemplate {
 
     /** Réglages Trend Mix sérialisés ({@code TrendConfigDto} en JSON) ; null pour un template FIXED. */
     @Lob
-    @Column(name = "trend_config_json")
+    @Column(name = "trend_config_json", columnDefinition = "longtext")
     private String trendConfigJson;
 
     @PreUpdate

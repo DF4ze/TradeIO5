@@ -37,6 +37,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		Optional<WebProvider> wpBinanceTestNetOpt = providerRepository.findByCode(WebProviderCode.BINANCE_TESTNET);
 		Optional<WebProvider> wpBinanceOpt = providerRepository.findByCode(WebProviderCode.BINANCE);
 		Optional<WebProvider> wpKrakenOpt = providerRepository.findByCode(WebProviderCode.KRAKEN);
+		Optional<WebProvider> wpOkxOpt = providerRepository.findByCode(WebProviderCode.OKX);
 		Optional<WebProvider> wpCoinStatsOpt = providerRepository.findByCode(WebProviderCode.COINSTATS);
 		Optional<WebProvider> wpDefiLlamaOpt = providerRepository.findByCode(WebProviderCode.DEFILLAMA);
 		Optional<WebProvider> wpCoinalyzeOpt = providerRepository.findByCode(WebProviderCode.COINALYZE);
@@ -70,6 +71,11 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 		if (wpKrakenOpt.isEmpty()) {
 			logger.warn("❗ Impossible d’ajouter la clé API : provider Kraken manquant.");
+			return;
+		}
+
+		if (wpOkxOpt.isEmpty()) {
+			logger.warn("❗ Impossible d’ajouter la clé API : provider OKX manquant.");
 			return;
 		}
 
@@ -128,6 +134,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		WebProvider webProviderBinanceTestnet = wpBinanceTestNetOpt.get();
 		WebProvider webProviderBinance = wpBinanceOpt.get();
 		WebProvider webProviderKraken = wpKrakenOpt.get();
+		WebProvider webProviderOkx = wpOkxOpt.get();
 		WebProvider webProviderCoinstats = wpCoinStatsOpt.get();
 		WebProvider webProviderDefiLlama = wpDefiLlamaOpt.get();
 		WebProvider webProviderCoinalyze = wpCoinalyzeOpt.get();
@@ -142,6 +149,8 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		boolean alreadyExistsBTN = credentialRepository.findByUserAndWebProvider(user, webProviderBinanceTestnet).isPresent();
 		boolean alreadyExistsBin = credentialRepository.findByUserAndWebProvider(user, webProviderBinance).isPresent();
 		boolean alreadyExistsKraken = credentialRepository.findByUserAndWebProvider(user, webProviderKraken).isPresent();
+
+		boolean alreadyExistsOkx = credentialRepository.findByUserAndWebProvider(user, webProviderOkx).isPresent();
 
 		boolean alreadyExistsCoinstats = credentialRepository.findByUserAndWebProvider(sys, webProviderCoinstats).isPresent();
 		boolean alreadyExistsDefiLlama = credentialRepository.findByUserAndWebProvider(sys, webProviderDefiLlama).isPresent();
@@ -178,7 +187,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		} else {
 			// Clé API-utilisateur (compte trading réel d'OKlm), lue dans les propriétés (gitignorées)
 			// `tradeio.binance.apiKey` / `tradeio.binance.secretKey` ; absentes ⇒ aucune credential, à saisir en DB.
-			seedUserExchangeCredential(user, webProviderBinance, "tradeio.binance", true);
+			seedUserExchangeCredential(user, webProviderBinance, "tradeio.binance", true, false);
         }
 
 		if (alreadyExistsKraken) {
@@ -186,7 +195,16 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 		} else {
 			// Même principe que BINANCE ci-dessus : propriétés `tradeio.kraken.apiKey` / `tradeio.kraken.secretKey`.
-			seedUserExchangeCredential(user, webProviderKraken, "tradeio.kraken", true);
+			seedUserExchangeCredential(user, webProviderKraken, "tradeio.kraken", true, false);
+		}
+
+		if (alreadyExistsOkx) {
+			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur OKlm.", webProviderOkx.getName());
+
+		} else {
+			// Clé OKX « Read » uniquement (IP du VPS allowlistée) : propriétés `tradeio.okx.apiKey` /
+			// `tradeio.okx.secretKey` / `tradeio.okx.passphrase` (la passphrase est exigée à chaque requête OKX).
+			seedUserExchangeCredential(user, webProviderOkx, "tradeio.okx", true, true);
 		}
 
 		if (alreadyExistsCoinstats) {
@@ -444,16 +462,20 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 	/**
 	 * Crée la credential exchange d'OKlm depuis les propriétés {@code <prefix>.apiKey} / {@code <prefix>.secretKey}
-	 * (fichiers {@code application-*.properties}, gitignorés). Propriétés absentes ou vides : aucune credential n'est
-	 * créée (WARN) et la clé reste à saisir directement en DB. Appelé uniquement quand la credential n'existe pas encore.
+	 * (et {@code <prefix>.passphrase} si {@code requirePassphrase}), fichiers {@code application-*.properties}
+	 * gitignorés. Propriétés absentes ou vides : aucune credential n'est créée (WARN, jamais d'échec au démarrage) et la
+	 * clé reste à saisir directement en DB. Appelé uniquement quand la credential n'existe pas encore.
 	 */
-	private void seedUserExchangeCredential(User user, WebProvider provider, String prefix, boolean enabled) {
+	private void seedUserExchangeCredential(User user, WebProvider provider, String prefix, boolean enabled,
+			boolean requirePassphrase) {
 		String apiKey = environment.getProperty(prefix + ".apiKey");
 		String secretKey = environment.getProperty(prefix + ".secretKey");
-		if (apiKey == null || apiKey.isBlank() || secretKey == null || secretKey.isBlank()) {
-			logger.warn("❗ `{}.apiKey` / `{}.secretKey` absentes : aucune credential {} créée pour OKlm "
+		String passphrase = environment.getProperty(prefix + ".passphrase");
+		if (apiKey == null || apiKey.isBlank() || secretKey == null || secretKey.isBlank()
+				|| (requirePassphrase && (passphrase == null || passphrase.isBlank()))) {
+			logger.warn("❗ `{}.apiKey` / `{}.secretKey`{} absentes : aucune credential {} créée pour OKlm "
 					+ "(à renseigner dans application-*.properties ou directement en DB, table api_credentials).",
-					prefix, prefix, provider.getName());
+					prefix, prefix, requirePassphrase ? " / `" + prefix + ".passphrase`" : "", provider.getName());
 			return;
 		}
 		credentialRepository.save(ApiCredential.builder()
@@ -461,6 +483,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 				.webProvider(provider)
 				.apiKey(apiKey)
 				.secretKey(secretKey)
+				.passphrase(requirePassphrase ? passphrase : null)
 				.enabled(enabled)
 				.createdAt(LocalDateTime.now())
 				.build());

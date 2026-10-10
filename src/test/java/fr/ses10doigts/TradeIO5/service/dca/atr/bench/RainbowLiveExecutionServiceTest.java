@@ -59,7 +59,7 @@ import static org.mockito.Mockito.when;
 
 @DataJpaTest
 @Import({RainbowLivePresetService.class, RainbowLivePresetTemplateService.class, RainbowLiveRunService.class, RainbowLiveExecutionService.class,
-        RainbowTrendLiveService.class, RainbowAthService.class,
+        RainbowTrendLiveService.class, MockPortfolioSource.class, RainbowAthService.class,
         RainbowLiveExecutionServiceTest.ClockConfig.class})
 @DisplayName("Bench grandeur nature Rainbow : service d'exécution (passes 23:55 / 00:05)")
 class RainbowLiveExecutionServiceTest {
@@ -99,6 +99,8 @@ class RainbowLiveExecutionServiceTest {
     }
 
     @MockBean private MarketDatasetEngine datasetEngine;
+    /** Aucun binding : tous les presets restent en simulation (liveSlots vide). */
+    @MockBean private RealPortfolioSource realPortfolioSource;
     @MockBean private fr.ses10doigts.tradeIO5.service.calibration.BinanceDailyCandleFetcher binanceDailyCandleFetcher;
     @Autowired private RainbowLiveExecutionService service;
     @Autowired private RainbowLivePresetService presetService;

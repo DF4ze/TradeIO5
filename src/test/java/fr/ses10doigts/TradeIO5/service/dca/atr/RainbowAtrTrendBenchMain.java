@@ -198,31 +198,12 @@ public final class RainbowAtrTrendBenchMain {
         }
     }
 
-    /** Pivots zigzag (retournement ≥ ZIGZAG) sur [si, ei] : {index, +1 haut / -1 bas}. Causalité non requise (mesure a posteriori). */
+    /** Pivots zigzag (retournement ≥ ZIGZAG) sur [si, ei] : {index, +1 haut / -1 bas}, cf. {@link ZigZag}. */
     static List<int[]> zigzag(double[] c, int si, int ei) {
-        List<int[]> p = new ArrayList<>();
-        int ext = si; boolean up = true; boolean decided = false;
-        int hi = si, lo = si;
-        for (int i = si; i <= ei; i++) {
-            if (!decided) {
-                if (c[i] > c[hi]) hi = i;
-                if (c[i] < c[lo]) lo = i;
-                if (c[i] >= c[lo] * (1 + ZIGZAG) && lo < i) { p.add(new int[]{lo, -1}); up = true; ext = i; decided = true; }
-                else if (c[i] <= c[hi] * (1 - ZIGZAG) && hi < i) { p.add(new int[]{hi, 1}); up = false; ext = i; decided = true; }
-                continue;
-            }
-            if (up) {
-                if (c[i] > c[ext]) ext = i;
-                else if (c[i] <= c[ext] * (1 - ZIGZAG)) { p.add(new int[]{ext, 1}); up = false; ext = i; }
-            } else {
-                if (c[i] < c[ext]) ext = i;
-                else if (c[i] >= c[ext] * (1 + ZIGZAG)) { p.add(new int[]{ext, -1}); up = true; ext = i; }
-            }
-        }
-        return p;
+        return ZigZag.pivots(c, si, ei, ZIGZAG);
     }
 
-    private static List<MarketData> load(Path csv, String asset) throws IOException {
+    static List<MarketData> load(Path csv, String asset) throws IOException {
         List<MarketData> out = new ArrayList<>();
         for (String line : Files.readAllLines(csv)) {
             String[] p = line.split(",");

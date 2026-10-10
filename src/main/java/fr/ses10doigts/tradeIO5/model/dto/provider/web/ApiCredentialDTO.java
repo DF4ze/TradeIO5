@@ -7,4 +7,9 @@ public record ApiCredentialDTO(
         String apiKey,
         String secretKey,
         String baseUrl
-) {}
+) {
+    @Override
+    public String toString() {
+        return "ApiCredentialDTO[provider=" + provider + ", baseUrl=" + baseUrl + "]";
+    }
+}

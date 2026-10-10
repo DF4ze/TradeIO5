@@ -15,9 +15,14 @@ Vérifié le : 2026-10-04.
 - **DomainClock** — abstraction d'horloge injectée partout dans le projet à la place d'`Instant.now()` en dur (convention systématique, y compris dans le code le plus récent).
 - **asset_provider** — table pilotant la résolution en cascade des providers de marché par asset (priorité + `maxHorizonDays`), distincte du chemin plus ancien basé sur l'enum `MarketDataSource`.
 - **CachingEtfFlowClient / CachingMarketDataApiClient** — décorateurs de cache DB au-dessus des clients bruts (SoSoValue / Binance-Kraken-OKX), posés par `EtfFlowCachingConfig` / `MarketDataCachingConfig`.
+- **ReadOnlyBalanceReader** — contrat de lecture seule des soldes disponibles d'un exchange (Kraken, Binance, OKX) ; toute panne lève `BalanceUnavailableException` (une map vide = compte sans solde). Cf. [`architecture/07-security.md`](architecture/07-security.md).
 - **ROLE_API_AGENT** — rôle attribué uniquement par `ApiKeyAuthFilter` (clé statique `X-Api-Key`), jamais persisté en base, limité aux endpoints de lecture `/scenarios`/`/decisions`.
 - **Rainbow ATR** — DCA à bornes `SMA ± ATR × multiplicateur` (zones DOWN2…UP3), avec machines d'achat/vente ARMÉ, modulation par distance à l'ATH et mode « To the moon ». Moteur pur en couches `service/dca/atr/` (L1 bornes, L2 machine `RainbowAtrStrategy#step`, L3 `AthReference`, L4 `Sizer`), rejeu `RainbowAtrEngine`, port du pine `tools/pine/rainbow_dca_v4_atr_moon.pine` (source de vérité).
 - **Preset (bench)** — jeu de paramètres Rainbow ATR nommé, par utilisateur et par actif, rejoué chaque jour par le bench grandeur nature.
 - **Bench grandeur nature** — exécution quotidienne fictive (wallet mock USDC, aucun ordre) des presets Rainbow ATR, résultats en base ; double passe 23:55 / 00:05 UTC.
+- **Binding (Rainbow live)** — lien unique (user, actif) entre le preset « live » et un wallet réel lu en lecture seule, avec `bagPercent` (part dynamique de la position réelle offerte à la stratégie) et `priority` (ordre de passage du cash). Cf. [`architecture/08`](architecture/08-rainbow-bench-grandeur-nature.md).
+- **BLOCKED (action live)** — achat voulu par le moteur mais refusé faute de cash dans le pool du wallet (tout-ou-rien, raison `INSUFFICIENT_CASH`) ; jamais exécuté.
+- **CashLedger** — pool de cash USDC d'un (user, wallet) pour une passe : les actifs le parcourent par `priority`, chaque achat accepté réserve son montant.
+- **BindingCheck** — vérification de disponibilité d'un binding : credential valide, soldes lisibles, paire `<actif>/USDC` existante ; statut explicite (`OK`, `CREDENTIAL_INVALID`, `BALANCE_UNAVAILABLE`, `INSTRUMENT_MISSING`…).
 - **TrendRegime** — `UP` / `DOWN` / `RANGE`, sortie du Trend unifié ([`architecture/09-trend.md`](architecture/09-trend.md)).
 - **Bull / Bear (Rainbow)** — les deux jeux de paramètres Rainbow visés par actif (pas de Sideways) ; sélection manuelle dans le pine aujourd'hui.

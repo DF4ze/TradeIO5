@@ -11,6 +11,7 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMockWallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMode;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePresetTemplate;
+import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveMockWalletRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLivePresetRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLivePresetTemplateRepository;
@@ -38,6 +39,7 @@ public class RainbowLivePresetService {
 
     private final RainbowLivePresetRepository presetRepository;
     private final RainbowLiveMockWalletRepository walletRepository;
+    private final RainbowLiveBindingRepository bindingRepository;
     private final RainbowLivePresetTemplateRepository templateRepository;
     private final RainbowLiveTrendConfigRepository trendConfigRepository;
     private final RainbowLiveUserSettingsRepository settingsRepository;
@@ -162,6 +164,9 @@ public class RainbowLivePresetService {
     public void delete(User user, Long presetId) {
         RainbowLivePreset preset = owned(user, presetId);
         requireNotSystem(preset);
+        if (bindingRepository.existsByPreset(preset)) {
+            throw new IllegalArgumentException("Preset live d'un binding : le délier ou le remplacer avant suppression");
+        }
         presetRepository.delete(preset);
         presetRepository.flush();
         log.info("Preset bench supprimé id={} user={} actif={} nom='{}' (wallet mock + runs en cascade)",

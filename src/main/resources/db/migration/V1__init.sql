@@ -9,6 +9,7 @@
         user_id bigint not null,
         web_provider_id bigint not null,
         api_key varchar(255) not null,
+        passphrase varchar(255),
         secret_key varchar(255),
         primary key (id)
     ) engine=InnoDB;
@@ -135,7 +136,7 @@
         id bigint not null auto_increment,
         name varchar(100) not null,
         api_base_url varchar(255),
-        code enum ('BINANCE','BINANCE_TESTNET','COINALYZE','COINSTATS','DEFILLAMA','FARSIDE','FINNHUB','FOREXFACTORY','KRAKEN','LEDGER','METAMASK','SOSOVALUE','TWELVE_DATA','YAHOO_FINANCE','YOUTUBE') not null,
+        code enum ('BINANCE','BINANCE_TESTNET','COINALYZE','COINSTATS','DEFILLAMA','FARSIDE','FINNHUB','FOREXFACTORY','KRAKEN','LEDGER','METAMASK','OKX','SOSOVALUE','TWELVE_DATA','YAHOO_FINANCE','YOUTUBE') not null,
         primary key (id)
     ) engine=InnoDB;
 
@@ -144,6 +145,17 @@
         ref_day date not null,
         ath_time_millis bigint not null,
         id bigint not null auto_increment,
+        asset_symbol varchar(16) not null,
+        primary key (id)
+    ) engine=InnoDB;
+
+    create table rainbow_live_binding (
+        bag_percent float(53) not null,
+        priority integer not null,
+        id bigint not null auto_increment,
+        preset_id bigint not null,
+        user_id bigint not null,
+        wallet_id bigint not null,
         asset_symbol varchar(16) not null,
         primary key (id)
     ) engine=InnoDB;
@@ -267,7 +279,7 @@
         buy_reentry_mode enum ('FIXED_DELAY','IMMEDIATE','TRAILING_STOP'),
         mode enum ('FIXED','TREND_MIX') not null,
         sell_reentry_mode enum ('FIXED_DELAY','IMMEDIATE','TRAILING_STOP'),
-        trend_config_json tinytext,
+        trend_config_json longtext,
         primary key (id)
     ) engine=InnoDB;
 
@@ -319,6 +331,12 @@
         t0005_cash_after float(53),
         t0005_close float(53),
         t0005_cooldown_remaining integer,
+        t0005_live_action_amount_usdc float(53),
+        t0005_live_action_quantity float(53),
+        t0005_live_cash_reserved float(53),
+        t0005_live_cash_usdc float(53),
+        t0005_live_position_qty float(53),
+        t0005_live_tradable_qty float(53),
         t0005_moon_mode bit,
         t0005_moon_reserve_qty float(53),
         t0005_position_after float(53),
@@ -342,6 +360,12 @@
         t2355_cash_after float(53),
         t2355_close float(53),
         t2355_cooldown_remaining integer,
+        t2355_live_action_amount_usdc float(53),
+        t2355_live_action_quantity float(53),
+        t2355_live_cash_reserved float(53),
+        t2355_live_cash_usdc float(53),
+        t2355_live_position_qty float(53),
+        t2355_live_tradable_qty float(53),
         t2355_moon_mode bit,
         t2355_moon_reserve_qty float(53),
         t2355_position_after float(53),
@@ -354,7 +378,11 @@
         id bigint not null auto_increment,
         preset_id bigint not null,
         t0005_computed_at datetime(6),
+        t0005_live_fetched_at datetime(6),
+        t0005_live_wallet_id bigint,
         t2355_computed_at datetime(6),
+        t2355_live_fetched_at datetime(6),
+        t2355_live_wallet_id bigint,
         user_id bigint not null,
         asset_symbol varchar(16) not null,
         config_hash varchar(32),
@@ -366,8 +394,14 @@
         t2355_trend_regime varchar(255),
         buy_reentry_mode enum ('FIXED_DELAY','IMMEDIATE','TRAILING_STOP'),
         sell_reentry_mode enum ('FIXED_DELAY','IMMEDIATE','TRAILING_STOP'),
-        t0005_action_type enum ('BUY','NONE','SELL'),
-        t2355_action_type enum ('BUY','NONE','SELL'),
+        t0005_action_type enum ('BLOCKED','BUY','NONE','SELL'),
+        t0005_live_action_type enum ('BLOCKED','BUY','NONE','SELL'),
+        t0005_live_block_reason enum ('INSUFFICIENT_CASH','NONE','UNAVAILABLE'),
+        t0005_live_status enum ('OK','STALE','UNAVAILABLE'),
+        t2355_action_type enum ('BLOCKED','BUY','NONE','SELL'),
+        t2355_live_action_type enum ('BLOCKED','BUY','NONE','SELL'),
+        t2355_live_block_reason enum ('INSUFFICIENT_CASH','NONE','UNAVAILABLE'),
+        t2355_live_status enum ('OK','STALE','UNAVAILABLE'),
         primary key (id)
     ) engine=InnoDB;
 
@@ -491,7 +525,7 @@
         name varchar(100) not null,
         description varchar(255),
         source enum ('BANK_ACCOUNT','EXCHANGE','NON_CUSTODIAL','OTHER') not null,
-        web_provider_code enum ('BINANCE','BINANCE_TESTNET','COINALYZE','COINSTATS','DEFILLAMA','FARSIDE','FINNHUB','FOREXFACTORY','KRAKEN','LEDGER','METAMASK','SOSOVALUE','TWELVE_DATA','YAHOO_FINANCE','YOUTUBE'),
+        web_provider_code enum ('BINANCE','BINANCE_TESTNET','COINALYZE','COINSTATS','DEFILLAMA','FARSIDE','FINNHUB','FOREXFACTORY','KRAKEN','LEDGER','METAMASK','OKX','SOSOVALUE','TWELVE_DATA','YAHOO_FINANCE','YOUTUBE'),
         primary key (id)
     ) engine=InnoDB;
 
@@ -521,6 +555,9 @@
 
     alter table rainbow_ath_reference 
        add constraint uk_rainbow_ath_reference_asset_day unique (asset_symbol, ref_day);
+
+    alter table rainbow_live_binding 
+       add constraint uk_rainbow_live_binding_user_asset unique (user_id, asset_symbol);
 
     alter table rainbow_live_engine_state 
        add constraint uk_rainbow_live_engine_state_preset_day unique (preset_id, state_day);
@@ -585,6 +622,21 @@
        add constraint FKaawwq1abtmd8sk0yq7cnpubo5 
        foreign key (video_content_id) 
        references video_contents (id);
+
+    alter table rainbow_live_binding 
+       add constraint FK8tc0bup9xpf2lbwwkl252gak3 
+       foreign key (preset_id) 
+       references rainbow_live_preset (id);
+
+    alter table rainbow_live_binding 
+       add constraint FKswhsbufw25y92hiq33ulgo4bj 
+       foreign key (user_id) 
+       references users (id);
+
+    alter table rainbow_live_binding 
+       add constraint FKd6ymsdvc4qgdfq1koso6b4jh6 
+       foreign key (wallet_id) 
+       references wallet (id);
 
     alter table rainbow_live_engine_state 
        add constraint FKhnwwgjks321auqn1xmejlwig8 

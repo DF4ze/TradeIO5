@@ -37,14 +37,6 @@ public class ProviderApiService {
 		return client.getBalance(assetSymbol, wallet.getCredential());
     }
 
-    public boolean buy(Wallet wallet, BigDecimal amount, String asset) {
-        return true;
-    }
-
-    public boolean sell(Wallet wallet, BigDecimal amount, String asset) {
-        return true;
-    }
-
     public Map<String, BigDecimal> getAllBalances(Wallet wallet) {
         ProviderApiClient client = getClient(wallet);
         return client.getAllBalances(wallet.getCredential());
@@ -67,5 +59,4 @@ public class ProviderApiService {
     }
 
 
-    // autres méthodes : getAllBalances, getMarketPrice, passer des ordres, etc.
 }

@@ -15,6 +15,9 @@
 
     <ul class="nav nav-tabs" id="rl-asset-tabs" role="tablist"></ul>
 
+    <!-- Wallet réel du preset live de l'actif (affiché seulement si un binding existe ; rendu par rainbow-live.js) -->
+    <div id="rl-live-panel" class="rl-live-panel d-none my-3"></div>
+
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 my-3">
       <h5 class="mb-0">Presets de l'actif <span id="rl-asset-label" class="fw-bold"></span></h5>
       <div class="d-flex flex-wrap align-items-center gap-2">
@@ -33,7 +36,7 @@
           <tr>
             <th>Nom</th><th>Type</th><th title="Bascule rapide : le preset est joué (ou non) à chaque passe quotidienne">Actif</th>
             <th>Fenêtre (mois)</th><th>Capital initial</th>
-            <th>Wallet mock (cash / position / équité)</th>
+            <th title="Wallet fictif du preset (simulation), distinct du wallet réel">Wallet fictif (mock) : cash / position / équité</th>
             <th>Runs</th><th>1er run</th><th title="Jeu actif et régime de Trend du dernier run (Trend Mix)">Jeu · Trend</th><th>Dernier run</th><th></th>
           </tr>
         </thead>

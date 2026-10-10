@@ -346,7 +346,7 @@ f_preset(name) =>
         aOn := true, rB := 30.0, rS := 99.0, bMin := 0.5, bMax := 5.0, sMax := 3.0, sMin := 1.0
         mOn := false, mRes := 75.0, mRat := false, mTr := 8.0, mStop := 50.0
     else if name == "PAXG Perso Bull"
-        smaP := 36, atrP := 28, d2 := 0.0, d1 := 0.0, u1 := 2.0, u2 := 2.0, u3 := 2.5
+        smaP := 40, atrP := 30, d2 := 0.0, d1 := 0.0, u1 := 2.0, u2 := 2.0, u3 := 5.0
         bRe := "TRAILING_STOP", sRe := "TRAILING_STOP", trB := 3.0, trS := 5.0, cd := 3, fd := 10, sf := 0.2
         alCd := false, cdOn := true, blk := true
         aOn := true, rB := 15.0, rS := 10.0, bMin := 1.0, bMax := 1.0, sMax := 3.0, sMin := 0.5

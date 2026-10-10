@@ -8,7 +8,9 @@ import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceCacheManager;
-import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceProvider;
+import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceUnavailableException;
+import fr.ses10doigts.tradeIO5.service.connector.balance.ReadOnlyBalanceReader;
+import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.tool.StringTool;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -23,17 +25,19 @@ import java.time.ZoneOffset;
 import java.util.*;
 
 @Component
-public class BinanceApiClient implements ProviderApiClient, BalanceProvider {
+public class BinanceApiClient implements ProviderApiClient, ReadOnlyBalanceReader {
 
 	private static final Logger logger = LoggerFactory.getLogger(BinanceApiClient.class);
 
 	private static final String USDC = "USDC";
 	private static final String USDT = "USDT";
+	private static final String LD_PREFIX = "LD";
+	private static final String LIDO_DAO = "LDO";
 
 	private final BalanceCacheManager balanceCacheManager;
 
-	public BinanceApiClient() {
-		this.balanceCacheManager = new BalanceCacheManager();
+	public BinanceApiClient(DomainClock clock) {
+		this.balanceCacheManager = new BalanceCacheManager(clock);
 	}
 
     @Override
@@ -110,13 +114,41 @@ public class BinanceApiClient implements ProviderApiClient, BalanceProvider {
 			return new HashMap<>();
 		}
 
-		return balanceCacheManager.getBalances(this, credential);
+		return getAvailableBalances(credential);
     }
-    
-    @Override
-    public Map<String, BigDecimal> fetchAllBalances(ApiCredential credential) {
 
-		String response = getClient(credential).createTrade().account(new HashMap<>());
+    @Override
+    public Map<String, BigDecimal> getAvailableBalances(ApiCredential credential) {
+		return balanceCacheManager.getBalances(this::fetchAvailableBalances, credential);
+    }
+
+    /** Soldes {@code free} (disponibles). Toute panne lève {@link BalanceUnavailableException}. */
+    @Override
+    public Map<String, BigDecimal> fetchAvailableBalances(ApiCredential credential) {
+		if (credential == null) {
+			throw new BalanceUnavailableException("Binance : credential absente");
+		}
+
+		Map<String, BigDecimal> result;
+		try {
+			String response = getClient(credential).createTrade().account(new HashMap<>());
+			result = parseFreeBalances(response);
+		} catch (BalanceUnavailableException e) {
+			throw e;
+		} catch (RuntimeException e) {
+			throw new BalanceUnavailableException("Binance : lecture des soldes impossible (" + e.getClass().getSimpleName() + ")", e);
+		}
+
+        logger.info("\uD83D\uDCE6 [{}] {} balances récupérées pour {}", credential.getWebProvider().getCode(), result.size(), credential.getUser().getUsername());
+        return result;
+    }
+
+    /**
+     * Soldes {@code free}. Les jetons {@code LD<ACTIF>} (Simple Earn flexible, souscription automatique, rachetable à la
+     * demande) sont agrégés à l'actif nu ; {@code LDO} (Lido DAO) est un vrai actif, pas un LD.
+     * Package-private pour les tests.
+     */
+    static Map<String, BigDecimal> parseFreeBalances(String response) {
         JSONArray balances = new JSONObject(response).getJSONArray("balances");
 
         Map<String, BigDecimal> result = new HashMap<>();
@@ -124,12 +156,16 @@ public class BinanceApiClient implements ProviderApiClient, BalanceProvider {
             JSONObject bal = balances.getJSONObject(i);
             BigDecimal free = new BigDecimal(bal.getString("free"));
             if (free.compareTo(BigDecimal.ZERO) > 0) {
-                result.put(bal.getString("asset"), free);
+                result.merge(toBaseAsset(bal.getString("asset")), free, BigDecimal::add);
             }
         }
-
-        logger.info("\uD83D\uDCE6 [{}] {} balances récupérées pour {}", credential.getWebProvider().getCode(), result.size(), credential.getUser().getUsername());
         return result;
+    }
+
+    private static String toBaseAsset(String asset) {
+        return asset.length() > LD_PREFIX.length() && asset.startsWith(LD_PREFIX) && !LIDO_DAO.equals(asset)
+                ? asset.substring(LD_PREFIX.length())
+                : asset;
     }
 
 	private SpotClientImpl getClient(ApiCredential credential) {

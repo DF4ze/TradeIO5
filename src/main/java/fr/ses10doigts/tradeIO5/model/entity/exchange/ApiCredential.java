@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 import java.time.LocalDateTime;
 
@@ -32,10 +33,16 @@ public class ApiCredential {
     )
 	private WebProvider webProvider;
 
+    @ToString.Exclude
     @Column(nullable = false)
     private String apiKey;
 
+    @ToString.Exclude
     private String secretKey;
+
+    /** Requise par certains exchanges (OKX) ; nulle sinon. */
+    @ToString.Exclude
+    private String passphrase;
 
     private boolean enabled = true;
 

@@ -36,7 +36,7 @@ public class RainbowLiveRunService {
      * @param result résultat de la passe fourni par l'appelant (moteur) ; {@code computedAt}, {@code configHash}
      *               et, pour 23:55, {@code cashAfter}/{@code positionAfter} sont renseignés ici.
      *               Rejeu de 23:55 : indicateurs remplacés, mais action et état du wallet d'origine conservés
-     *               (ils correspondent à ce qui a été appliqué au wallet).
+     *               (ils correspondent à ce qui a été appliqué au wallet), ainsi que le snapshot et l'action live.
      */
     @Transactional
     public RainbowLiveRun upsertPass(RainbowLivePreset preset, LocalDate day, RainbowLivePass pass,
@@ -64,6 +64,9 @@ public class RainbowLiveRunService {
                 result.setActionPrice(previous.getActionPrice());
                 result.setCashAfter(previous.getCashAfter());
                 result.setPositionAfter(previous.getPositionAfter());
+                if (previous.hasLiveSnapshot()) {
+                    result.copyLiveFrom(previous);
+                }
                 run.setPass2355(result);
             }
         } else {

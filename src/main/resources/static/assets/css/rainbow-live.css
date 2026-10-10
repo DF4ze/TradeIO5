@@ -35,3 +35,8 @@ body > .modal-backdrop { z-index: 10040; }
 #rainbow-live .rl-tag-up { background: #198754; } #rainbow-live .rl-tag-down { background: #dc3545; } #rainbow-live .rl-tag-range { background: #6c757d; }
 
 #rainbow-live .rl-chart-multi { height: 680px; }
+
+/* Wallet réel du preset live */
+#rainbow-live .rl-live-panel { border: 1px solid #198754; border-left-width: 4px; border-radius: 6px; padding: 10px 14px; background: #f6fbf8; }
+#rainbow-live .rl-live-panel .rl-live-meta { font-size: 13px; color: #6c757d; }
+#rainbow-live .rl-badge-live { background: #198754; letter-spacing: .05em; }

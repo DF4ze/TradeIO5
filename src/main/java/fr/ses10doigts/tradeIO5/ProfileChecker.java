@@ -23,7 +23,7 @@ public class ProfileChecker implements ApplicationRunner {
 			logger.error("❌ Aucun profil Spring actif. Veuillez définir -Dspring.profiles.active=dev, prod, test...");
             System.exit(1);
         } else {
-			logger.debug("✅ Profil actif : " + String.join(", ", activeProfiles));
+            logger.info("✅ Profil actif : {}", String.join(", ", activeProfiles));
         }
     }
 }

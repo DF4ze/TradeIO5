@@ -41,48 +41,47 @@ public class WalletInitializer implements CommandLineRunner {
             throw new RuntimeException("Base user OKlm isn't set");
 
         Optional<WebProvider> exchangeBinanceTestNetOpt = providerRepository.findByCode(WebProviderCode.BINANCE_TESTNET);
-        Optional<WebProvider> exchangeBinanceOpt = providerRepository.findByCode(WebProviderCode.BINANCE);
+        Optional<WebProvider> exchangeOkxOpt = providerRepository.findByCode(WebProviderCode.OKX);
         Optional<WebProvider> exchangeKrakenOpt = providerRepository.findByCode(WebProviderCode.KRAKEN);
 
-        if( exchangeBinanceOpt.isEmpty() || exchangeKrakenOpt.isEmpty() || exchangeBinanceTestNetOpt.isEmpty() )
+        if( exchangeOkxOpt.isEmpty() || exchangeKrakenOpt.isEmpty() || exchangeBinanceTestNetOpt.isEmpty() )
             throw new RuntimeException("Missing Exchange...");
 
         User user = userOpt.get();
-        WebProvider bnb = exchangeBinanceOpt.get();
+        WebProvider okx = exchangeOkxOpt.get();
         WebProvider bnb_tst = exchangeBinanceTestNetOpt.get();
         WebProvider krk = exchangeKrakenOpt.get();
 
         LocalDateTime now = LocalDateTime.now();
         List<ApiCredential> credentials = credentialRepository.findByUserAndEnabledTrue(user);
-        ApiCredential credBnb = null;
+        ApiCredential credOkx = null;
         ApiCredential credBnb_tst = null;
         ApiCredential credKrk = null;
 
         for (ApiCredential credential : credentials){
             switch (credential.getWebProvider().getCode() ){
-                case BINANCE :            credBnb = credential; break;
+                case OKX :                credOkx = credential; break;
                 case BINANCE_TESTNET :    credBnb_tst = credential; break;
                 case KRAKEN :             credKrk = credential; break;
                 default: logger.warn("Credential unaffected : {}", credential.getWebProvider().getName());
             };
         }
 
-        Optional<Wallet> binance = walletRepository.findByUserAndName(user, "Binance");
-        if( binance.isEmpty() ) {
-            Wallet binanceWallet = Wallet.builder()
-                    .name("Binance")
+        // Pas de wallet Binance : Binance ne sert qu'aux prix / historique (candles publiques, sans Wallet ni ApiCredential).
+        Optional<Wallet> okxWallet = walletRepository.findByUserAndName(user, "OKX");
+        if( okxWallet.isEmpty() ) {
+            walletRepository.save(Wallet.builder()
+                    .name("OKX")
                     .enabled(true)
                     .source(WalletSource.EXCHANGE)
-                    .webProviderCode(WebProviderCode.BINANCE)
-                    .description("Real Binance account!")
-                    .webProvider(bnb)
+                    .webProviderCode(WebProviderCode.OKX)
+                    .description("Real OKX account (Trading, lecture seule)")
+                    .webProvider(okx)
                     .user(user)
                     .creationDate(now)
-                    .credential(credBnb)
-                    .build();
-            walletRepository.save(binanceWallet);
+                    .credential(credOkx)
+                    .build());
         }
-
 
         Optional<Wallet> binanceTst = walletRepository.findByUserAndName(user, "Binance Test");
         if( binanceTst.isEmpty() ) {

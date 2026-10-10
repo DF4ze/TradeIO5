@@ -49,6 +49,13 @@ public class WebProviderInitializer implements CommandLineRunner {
                         .createdAt(LocalDateTime.now())
                         .build(),
                 WebProvider.builder()
+                        .code(WebProviderCode.OKX)
+                        .name("OKX")
+                        .apiBaseUrl("https://www.okx.com")
+                        .enabled(true)
+                        .createdAt(LocalDateTime.now())
+                        .build(),
+                WebProvider.builder()
                         .code(WebProviderCode.COINSTATS)
                         .name("CoinStats")
                         .apiBaseUrl("https://openapiv1.coinstats.app")

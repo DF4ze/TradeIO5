@@ -4,5 +4,7 @@ package fr.ses10doigts.tradeIO5.model.entity.dca.bench;
 public enum RainbowLiveAction {
     BUY,
     SELL,
-    NONE
+    NONE,
+    /** Live uniquement : achat voulu mais refusé faute de cash (cf. {@link LiveBlockReason#INSUFFICIENT_CASH}). */
+    BLOCKED
 }

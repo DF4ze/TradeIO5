@@ -19,7 +19,8 @@
   const state = {
     defaults: null, zones: new Map(), asset: null, presets: [], selectedId: null,
     formMode: null, formKind: 'FIXED', formPreset: null, uiMode: 'EXPERT', deleteTarget: null,
-    charts: [], perf: null, retry: null
+    charts: [], perf: null, retry: null,
+    live: new Map(), liveCheck: null
   };
 
   /* ------------------------------------------------------------------ utilitaires */
@@ -132,7 +133,8 @@
     $('rl-asset-label').textContent = asset;
     $('rl-detail').classList.add('d-none');
     destroyCharts();
-    return loadPresets();
+    state.liveCheck = null;
+    return Promise.all([loadLive(), loadPresets()]);
   }
 
   async function loadPresets() {
@@ -151,9 +153,11 @@
     $('rl-presets-table').classList.toggle('d-none', empty);
     $('rl-presets-empty').classList.toggle('d-none', !empty);
     body.replaceChildren(...state.presets.map((p) => presetRow(p)));
+    renderLive();
   }
 
   const isTrend = (p) => p.mode === 'TREND_MIX';
+  const isLivePreset = (p) => { const l = state.live.get(p.assetSymbol); return !!l && l.presetId === p.id; };
 
   /** « Bear · DOWN » (badge de régime coloré) ; tiret si non applicable. */
   function setTrendCell(set, regime) {
@@ -170,7 +174,8 @@
     toggle.checked = p.enabled;
     toggle.addEventListener('change', () => toggleEnabled(p, toggle));
     return el('tr', { class: p.id === state.selectedId ? 'table-active' : '' },
-      el('td', { text: p.name }),
+      el('td', null, el('span', { text: p.name }), isLivePreset(p) ? el('span', { class: 'badge rl-badge-live ms-1', text: 'LIVE',
+        title: 'Preset live : lié à un wallet réel (action recommandée, jamais exécutée)' }) : null),
       el('td', null, el('span', { class: 'badge ' + (isTrend(p) ? 'bg-primary' : 'bg-secondary'), text: isTrend(p) ? 'Trend Mix' : 'Fixe' }),
         p.system ? el('span', { class: 'badge bg-dark ms-1', text: 'Système',
           title: 'Preset système : seule son activation est modifiable' }) : null),
@@ -538,6 +543,134 @@
       box.classList.remove('d-none');
     } finally {
       btn.disabled = false;
+    }
+  }
+
+  /* ------------------------------------------------------------------ wallet réel (preset live) */
+
+  const LIVE_STATUS = {
+    OK: ['bg-success', 'Lecture OK'],
+    STALE: ['bg-warning text-dark', 'Ancien'],
+    UNAVAILABLE: ['bg-danger', 'Indisponible']
+  };
+  const BLOCK_TEXT = { INSUFFICIENT_CASH: 'liquidité insuffisante', UNAVAILABLE: 'données indisponibles' };
+  const CHECK_TEXT = {
+    OK: 'OK', WALLET_DISABLED: 'Wallet désactivé', CREDENTIAL_INVALID: 'Clé API invalide ou rejetée',
+    PROVIDER_UNSUPPORTED: 'Exchange non pris en charge', BALANCE_UNAVAILABLE: 'Soldes illisibles',
+    INSTRUMENT_MISSING: 'Paire <actif>/USDC absente', INSTRUMENT_UNAVAILABLE: 'Paire non vérifiable'
+  };
+
+  /** Binding + dernier snapshot de chaque actif (lecture base uniquement, aucun appel exchange). Échec ⇒ pas de bloc live. */
+  async function loadLive() {
+    try {
+      const list = await api('GET', '/live-wallet');
+      state.live = new Map(list.map((l) => [l.assetSymbol, l]));
+    } catch (e) {
+      state.live = new Map();
+    }
+    renderLive();
+  }
+
+  function liveAction(s) {
+    if (s.status !== 'OK') {
+      return el('div', { class: 'alert alert-secondary py-1 mb-0 mt-2', text: 'Données indisponibles, aucune action.' });
+    }
+    if (s.liveActionType === 'BLOCKED') {
+      return el('div', { class: 'alert alert-warning py-1 mb-0 mt-2',
+        text: 'Achat bloqué : ' + (BLOCK_TEXT[s.blockReason] || 'liquidité insuffisante') + '.' });
+    }
+    return el('div', { class: 'mt-2' }, el('span', { class: 'fw-semibold', text: 'Action réelle : ' }),
+      el('span', { text: actionText(s.liveActionType, s.liveActionAmountUsdc, s.liveActionQuantity) }),
+      el('span', { class: 'badge bg-light text-dark border ms-2', text: 'recommandée, non exécutée' }));
+  }
+
+  function liveSnapshotView(l) {
+    const s = l.snapshot;
+    if (!s) {
+      return el('div', { class: 'text-muted fst-italic', text: 'Aucune passe live enregistrée pour ce preset.' });
+    }
+    const st = LIVE_STATUS[s.status] || ['bg-secondary', s.status];
+    return el('div', null,
+      el('div', { class: 'rl-live-meta mb-2' },
+        el('span', { class: 'badge ' + st[0] + ' me-2', text: st[1] }),
+        el('span', { text: 'Wallet réel : ' + l.walletName + ' (' + (l.exchange || DASH) + ') · lu le '
+          + (s.fetchedAt ? new Date(s.fetchedAt).toLocaleString('fr-FR') : DASH) + ' · passe ' + s.day + ' ' + (s.pass === 'T0005' ? '00:05' : '23:55') + ' UTC'
+          + (s.status === 'STALE' ? ' · ancien' : '') })),
+      el('div', { class: 'row g-2' },
+        card('Cash USDC', usd(s.cashUsdc)),
+        card('Position réelle ' + l.assetSymbol, qty(s.positionQty)),
+        card('Position tradable (' + pct(l.bagPercent) + ')', qty(s.tradableQty), '', 'Part de la position réelle offerte à la stratégie'),
+        card('Cash déjà réservé', usd(s.cashReserved), '', 'Consommé par les actifs servis avant (cash commun)')),
+      liveAction(s));
+  }
+
+  function liveCheckView() {
+    const c = state.liveCheck;
+    if (!c) { return null; }
+    return el('div', { class: 'mt-2 small' },
+      el('span', { class: 'badge ' + (c.ok ? 'bg-success' : 'bg-danger') + ' me-2', text: c.ok ? 'BindingCheck OK' : 'BindingCheck KO' }),
+      el('span', { text: (CHECK_TEXT[c.status] || c.status) + (c.message && c.message !== 'OK' ? ' — ' + c.message : '') }));
+  }
+
+  function renderLive() {
+    const panel = $('rl-live-panel');
+    const l = state.live.get(state.asset);
+    panel.classList.toggle('d-none', !l);
+    if (!l) { panel.replaceChildren(); return; }
+
+    const select = el('select', { class: 'form-select form-select-sm', id: 'rl-live-preset', 'aria-label': 'Preset live' });
+    state.presets.filter((p) => p.assetSymbol === l.assetSymbol).forEach((p) => {
+      const o = el('option', { value: String(p.id), text: p.name });
+      o.selected = p.id === l.presetId;
+      select.append(o);
+    });
+    if (!select.options.length) {
+      const o = el('option', { value: String(l.presetId), text: l.presetName }); o.selected = true; select.append(o);
+    }
+    const bag = el('input', { type: 'number', class: 'form-control form-control-sm', id: 'rl-live-bag', min: '0', max: '100',
+      step: 'any', 'aria-label': 'bagPercent' });
+    bag.value = String(l.bagPercent);
+
+    panel.replaceChildren(
+      el('div', { class: 'd-flex flex-wrap justify-content-between align-items-center gap-2 mb-2' },
+        el('h5', { class: 'mb-0' }, el('span', { class: 'badge rl-badge-live me-2', text: 'LIVE' }), 'Wallet réel — ' + l.assetSymbol),
+        el('span', { class: 'small text-muted', text: 'Lecture seule : aucun ordre n\'est passé. Le wallet fictif des presets reste une simulation.' })),
+      liveSnapshotView(l),
+      el('div', { class: 'row g-2 align-items-end mt-2' },
+        el('div', { class: 'col-12 col-md-5' }, el('label', { class: 'form-label small mb-0', for: 'rl-live-preset', text: 'Preset live' }), select),
+        el('div', { class: 'col-6 col-md-2' }, el('label', { class: 'form-label small mb-0', for: 'rl-live-bag', text: 'bagPercent (0–100)' }), bag),
+        el('div', { class: 'col-auto' },
+          el('button', { type: 'button', class: 'btn btn-sm btn-primary', text: 'Enregistrer', onclick: () => saveLive(l, select, bag) }),
+          el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary ms-1', text: 'Vérifier la disponibilité',
+            title: 'Relit les soldes en lecture seule chez l\'exchange', onclick: () => checkLive(l) }))),
+      el('div', { id: 'rl-live-msg', class: 'small text-danger mt-1' }),
+      liveCheckView());
+  }
+
+  /** Bascule du preset live et/ou bagPercent via PUT /bindings/{id} ; pris en compte à la passe suivante. */
+  async function saveLive(l, select, bag) {
+    const msg = $('rl-live-msg');
+    const bagPercent = Number(bag.value);
+    if (bag.value === '' || !Number.isFinite(bagPercent) || bagPercent < 0 || bagPercent > 100) {
+      msg.textContent = 'bagPercent doit être compris entre 0 et 100.';
+      return;
+    }
+    try {
+      const res = await api('PUT', '/bindings/' + l.bindingId, { presetId: Number(select.value), bagPercent });
+      state.liveCheck = res.check;
+      await loadLive();
+      await loadPresets();
+    } catch (e) {
+      msg.textContent = 'Enregistrement impossible : ' + e.message;
+    }
+  }
+
+  async function checkLive(l) {
+    try {
+      state.liveCheck = await api('GET', '/bindings/' + l.bindingId + '/check');
+      renderLive();
+    } catch (e) {
+      $('rl-live-msg').textContent = 'Vérification impossible : ' + e.message;
     }
   }
 

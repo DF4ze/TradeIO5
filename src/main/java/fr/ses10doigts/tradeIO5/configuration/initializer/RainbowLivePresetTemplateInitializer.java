@@ -24,6 +24,6 @@ public class RainbowLivePresetTemplateInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) {
         int created = templateService.ensureTemplates().size();
-        logger.info("🌈 Templates de presets Rainbow initialisés ({} créé(s)).", created);
+        logger.debug("🌈 Templates de presets Rainbow initialisés ({} créé(s)).", created);
     }
 }

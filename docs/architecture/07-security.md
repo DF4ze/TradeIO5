@@ -1,6 +1,6 @@
 # Sécurité
 
-Vérifié le : 2026-10-03 (`security/WebSecurityConfig`, `security/apikey/ApiKeyAuthFilter`, `security/jwt/*`, controllers).
+Vérifié le : 2026-10-09 (`security/WebSecurityConfig`, `security/apikey/ApiKeyAuthFilter`, `security/jwt/*`, controllers, `service/connector/**`, `model/entity/exchange/ApiCredential`).
 
 ## Deux mécanismes d'authentification, cumulables
 
@@ -29,6 +29,12 @@ Vérifié le : 2026-10-03 (`security/WebSecurityConfig`, `security/apikey/ApiKey
 ## Rôles
 
 `ROLE_USER` / `ROLE_MODERATOR` / `ROLE_ADMIN` (Spring Security classique, `Role`/`RoleRepository`), plus `ROLE_API_AGENT` (jamais persisté en base, attribué uniquement par `ApiKeyAuthFilter` à la volée).
+
+## Clés d'exchange (lecture seule)
+
+- Les connecteurs exchange (`KrakenApiClient`, `BinanceApiClient`, `OkxBalanceReader`) sont en **lecture seule** : aucune méthode d'ordre n'existe dans `service.connector` (test d'architecture `ConnectorNoOrderMethodTest`, qui échoue si une méthode `buy|sell|placeOrder|newOrder|createOrder|cancelOrder` apparaît). La vraie protection reste côté exchange : clé API **Read uniquement** (jamais Trade ni Withdraw) et **IP allowlistée** (IP publique du VPS).
+- `ApiCredential` porte `apiKey`, `secretKey` et `passphrase` (nullable ; exigée par OKX à chaque requête), stockés en clair en base. Ils sont exclus de `toString()` (`@ToString.Exclude`, idem `Wallet#credential` ; `ApiCredentialDTO#toString` masque clé et secret). Aucun secret n'est loggué ni mis dans un message d'exception.
+- Les clés d'OKlm sont semées par `ApiCredentialInitializer` depuis les propriétés gitignorées `tradeio.<binance|kraken|okx>.apiKey|secretKey` (+ `tradeio.okx.passphrase`) lues via `Environment` ; propriété absente => WARN, aucune credential, pas d'échec au démarrage.
 
 ## Accès propriétaire (bench Rainbow)
 

@@ -77,6 +77,33 @@ class MainControllerUserPageTest {
     }
 
     @Test
+    @DisplayName("Page : conteneur du wallet réel (masqué par défaut => page inchangée sans binding) + wallet fictif étiqueté")
+    void userPageContainsLiveWalletPanel() throws Exception {
+        String html = mvc.perform(get("/user").accept(MediaType.TEXT_HTML))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        assertTrue(html.matches("(?s).*id=\"rl-live-panel\"[^>]*class=\"[^\"]*d-none[^\"]*\".*|(?s).*class=\"[^\"]*d-none[^\"]*\"[^>]*id=\"rl-live-panel\".*"),
+                "bloc wallet réel masqué tant qu'aucun binding n'existe");
+        assertTrue(html.contains("Wallet fictif (mock)"), "wallet mock conservé et étiqueté");
+    }
+
+    @Test
+    @DisplayName("JS : rendu live en textContent uniquement (aucun innerHTML/outerHTML/insertAdjacentHTML/document.write), états OK/BLOCKED/UNAVAILABLE/STALE gérés")
+    void liveRenderingIsTextOnly() throws Exception {
+        String js = new String(getClass().getResourceAsStream("/static/assets/js/rainbow-live.js").readAllBytes(),
+                StandardCharsets.UTF_8);
+        for (String forbidden : new String[] {"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write"}) {
+            assertTrue(!js.contains(forbidden + " =") && !js.contains(forbidden + "(") && !js.contains(forbidden + "="),
+                    "interdit : " + forbidden);
+        }
+        assertTrue(js.contains("'/live-wallet'"), "lecture du snapshot en base");
+        assertTrue(js.contains("Achat bloqué") && js.contains("Données indisponibles, aucune action")
+                && js.contains("recommandée, non exécutée") && js.contains("Ancien") && js.contains("LIVE"),
+                "encarts et mentions du lot");
+    }
+
+    @Test
     @DisplayName("Contrôle d'accès de userAccess inchangé (@PreAuthorize USER/MODERATOR/ADMIN)")
     void accessControlUnchanged() throws Exception {
         Method m = MainController.class.getMethod("userAccess", org.springframework.ui.Model.class);

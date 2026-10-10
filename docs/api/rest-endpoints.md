@@ -49,6 +49,23 @@ Tous ces endpoints partagent le préfixe `/api/admin/decision`. Introduits progr
 |---|---|---|---|
 | POST | `/api/admin/rainbow-live/run?pass=T2355\|T0005[&day=YYYY-MM-DD]` | ADMIN | Exécute une passe du bench grandeur nature (tous users actifs, presets `enabled`) ; `day` (UTC) force le jour. Réponse : `{pass, day, processed, skipped, errors}`. Aucun ordre réel |
 
+## Bindings Rainbow live (utilisateur, `RainbowLiveBindingController`, `/api/rainbow-live/bindings`)
+
+Authentifié, scopé à l'user ; binding / preset / wallet d'un autre user ou inexistant ⇒ 404. Erreurs via `RainbowLiveControllerAdvice` (`{error}`). Lecture seule côté exchange, aucun ordre. Aucun solde exposé.
+
+| Méthode | Chemin | Description |
+|---|---|---|
+| GET | `` | Liste `BindingDto` `{id, assetSymbol, presetId, presetName, walletId, walletName, exchange, bagPercent, priority}` (par priorité) |
+| POST | `` | Corps `{assetSymbol, presetId, walletId, bagPercent?, priority?}` (défauts : 100, rang de l'actif) ⇒ 201 `{binding, check}` ; binding existant pour l'actif ⇒ 409 ; preset d'un autre actif / `bagPercent` hors [0,100] / actif inconnu ⇒ 400 |
+| GET | `/{id}` | `BindingDto` |
+| PUT | `/{id}` | Corps `{presetId?, walletId?, bagPercent?, priority?}` (actif immuable, champs nuls inchangés) ⇒ `{binding, check}` ; changer `presetId` = bascule du preset live |
+| DELETE | `/{id}` | 204 (le preset reste) |
+| GET | `/{id}/check` | Revérifie : `{status, message, ok}`, `status` ∈ `OK, WALLET_DISABLED, CREDENTIAL_INVALID, PROVIDER_UNSUPPORTED, BALANCE_UNAVAILABLE, INSTRUMENT_MISSING, INSTRUMENT_UNAVAILABLE` (appelle l'exchange en lecture seule) |
+
+## Wallet réel des presets live (utilisateur, `RainbowLiveWalletController`, `GET /api/rainbow-live/live-wallet`)
+
+Authentifié, scopé à l'user. Lit **uniquement la base** (bindings + dernier run du preset lié) : aucun appel exchange. Liste vide sans binding. Élément `LiveAssetDto` : `{assetSymbol, bindingId, presetId, presetName, walletId, walletName, exchange, bagPercent, priority, snapshot}` ; `snapshot` nul tant qu'aucune passe live n'est jouée, sinon `{day, pass (T0005 prioritaire sur T2355), status (OK|STALE|UNAVAILABLE), fetchedAt, cashUsdc, positionQty, tradableQty, cashReserved, blockReason (NONE|INSUFFICIENT_CASH|UNAVAILABLE), liveActionType (BUY|SELL|NONE|BLOCKED), liveActionAmountUsdc, liveActionQuantity}`. L'action live est **recommandée, non exécutée**. Ni credential, ni secret, ni solde hors périmètre.
+
 ## Bench Rainbow (utilisateur, `RainbowLiveController`, `/api/rainbow-live`)
 
 Authentifié (`@PreAuthorize("isAuthenticated()")` sur la classe), scopé à l'utilisateur connecté ; preset d'un autre user ou inexistant ⇒ 404. JSON, dates `YYYY-MM-DD` (jour UTC), enums en chaîne. Détail : [`../architecture/08-rainbow-bench-grandeur-nature.md`](../architecture/08-rainbow-bench-grandeur-nature.md).

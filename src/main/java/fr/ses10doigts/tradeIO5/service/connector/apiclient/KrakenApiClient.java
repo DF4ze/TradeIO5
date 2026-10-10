@@ -7,7 +7,10 @@ import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
 import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceCacheManager;
-import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceProvider;
+import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceUnavailableException;
+import fr.ses10doigts.tradeIO5.service.connector.balance.CredentialRejectedException;
+import fr.ses10doigts.tradeIO5.service.connector.balance.ReadOnlyBalanceReader;
+import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -29,7 +32,7 @@ import java.util.stream.Collectors;
 
 
 @Component
-public class KrakenApiClient implements ProviderApiClient, BalanceProvider {
+public class KrakenApiClient implements ProviderApiClient, ReadOnlyBalanceReader {
     private static final Logger logger = LoggerFactory.getLogger(KrakenApiClient.class);
 
     private final BalanceCacheManager balanceCacheManager;
@@ -39,8 +42,8 @@ public class KrakenApiClient implements ProviderApiClient, BalanceProvider {
 
     private static Map<String, WebClient> webClients = new HashMap<>();
 
-    public KrakenApiClient() {
-        this.balanceCacheManager = new BalanceCacheManager();
+    public KrakenApiClient(DomainClock clock) {
+        this.balanceCacheManager = new BalanceCacheManager(clock);
     }
 
     private WebClient getClient(ApiCredential credential){
@@ -68,34 +71,81 @@ public class KrakenApiClient implements ProviderApiClient, BalanceProvider {
 
     @Override
     public Map<String, BigDecimal> getAllBalances(ApiCredential credential) {
-        return balanceCacheManager.getBalances(this, credential);
+        return getAvailableBalances(credential);
     }
 
-
     @Override
-    public Map<String, BigDecimal> fetchAllBalances(ApiCredential credential) {
+    public Map<String, BigDecimal> getAvailableBalances(ApiCredential credential) {
+        return balanceCacheManager.getBalances(this::fetchAvailableBalances, credential);
+    }
+
+    /**
+     * Soldes disponibles ({@code BalanceEx} : balance + credit - credit_used - hold_trade), symboles standard.
+     * Toute panne lève {@link BalanceUnavailableException} (jamais de map vide en cas d'erreur).
+     */
+    @Override
+    public Map<String, BigDecimal> fetchAvailableBalances(ApiCredential credential) {
+        if (credential == null) {
+            throw new BalanceUnavailableException("Kraken : credential absente");
+        }
+        JsonNode response;
         try {
-            JsonNode response = privatePost("Balance", Collections.emptyMap(), credential);
-
-            if (response.has("error") && !response.get("error").isEmpty()) {
-                // FIXME meilleure gestion d'erreur
-                throw new RuntimeException("Kraken API error: " + response.get("error"));
-            }
-
-            JsonNode result = response.get("result");
-            Map<String, BigDecimal> balances = new HashMap<>();
-            result.fieldNames().forEachRemaining(asset -> {
-                BigDecimal amount = new BigDecimal(result.get(asset).asText());
-                balances.put(normalizeAsset(asset), amount);
-            });
-            return balances;
-
+            response = privatePost("BalanceEx", Collections.emptyMap(), credential);
         } catch (Exception e) {
-            //throw new RuntimeException("Failed to get balances", e);
-            logger.error("Failed to get balances {}", e.getMessage());
+            throw new BalanceUnavailableException("Kraken : appel BalanceEx impossible (" + e.getClass().getSimpleName() + ")", e);
+        }
+        Map<String, BigDecimal> balances = parseAvailableBalances(response);
+        logger.info("📦 [KRAKEN] {} soldes disponibles lus", balances.size());
+        return balances;
+    }
+
+    /** Package-private pour les tests. */
+    static Map<String, BigDecimal> parseAvailableBalances(JsonNode response) {
+        if (response == null || !response.isObject()) {
+            throw new BalanceUnavailableException("Kraken : réponse BalanceEx illisible");
+        }
+        JsonNode errors = response.path("error");
+        if (errors.isArray() && !errors.isEmpty()) {
+            String message = "Kraken : erreur API " + errors;
+            throw errors.toString().matches(".*(Invalid key|Invalid signature|Permission denied).*")
+                    ? new CredentialRejectedException(message) : new BalanceUnavailableException(message);
+        }
+        JsonNode result = response.get("result");
+        if (result == null || !result.isObject()) {
+            throw new BalanceUnavailableException("Kraken : champ result absent");
         }
 
-        return new HashMap<>();
+        Map<String, BigDecimal> balances = new HashMap<>();
+        try {
+            for (Map.Entry<String, JsonNode> entry : result.properties()) {
+                Optional<String> symbol = KrakenAssetNames.toSymbol(entry.getKey());
+                if (symbol.isEmpty()) {
+                    logger.debug("[KRAKEN] solde {} ignoré (non disponible immédiatement)", entry.getKey());
+                    continue;
+                }
+                BigDecimal available = availableOf(entry.getValue());
+                if (available.signum() > 0) {
+                    balances.merge(symbol.get(), available, BigDecimal::add);
+                }
+            }
+        } catch (NumberFormatException e) {
+            throw new BalanceUnavailableException("Kraken : solde illisible", e);
+        }
+        return balances;
+    }
+
+    private static BigDecimal availableOf(JsonNode node) {
+        if (!node.hasNonNull("balance")) {
+            throw new BalanceUnavailableException("Kraken : champ balance absent");
+        }
+        return new BigDecimal(node.get("balance").asText())
+                .add(decimalOrZero(node, "credit"))
+                .subtract(decimalOrZero(node, "credit_used"))
+                .subtract(decimalOrZero(node, "hold_trade"));
+    }
+
+    private static BigDecimal decimalOrZero(JsonNode node, String field) {
+        return node.hasNonNull(field) ? new BigDecimal(node.get(field).asText()) : BigDecimal.ZERO;
     }
 
     @Override
