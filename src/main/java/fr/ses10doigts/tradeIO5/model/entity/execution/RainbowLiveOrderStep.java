@@ -54,6 +54,10 @@ public class RainbowLiveOrderStep {
     @Column(name = "asset_symbol", nullable = false, length = 16)
     private String assetSymbol;
 
+    /** Wallet du lien (binding) servi par l'étape : un même actif peut avoir une chaîne par wallet. */
+    @Column(name = "wallet_id")
+    private Long walletId;
+
     @Column(name = "inst_id", nullable = false, length = 32)
     private String instId;
 

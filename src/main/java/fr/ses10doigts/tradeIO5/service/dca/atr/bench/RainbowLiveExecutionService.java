@@ -5,13 +5,14 @@ import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMockWallet;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveMockWalletRepository;
-import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository;
+import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrDataset;
@@ -42,14 +43,14 @@ import java.util.Set;
  * Exécution des passes quotidiennes du bench grandeur nature (23:55 / 00:05 UTC) : chargement D1, rejeu du
  * {@link RainbowAtrEngine} (inchangé, parité pine), extraction de l'action du jour, dimensionnement sur le wallet
  * mock puis persistance via {@link RainbowLiveRunService#upsertPass}. <b>Aucun ordre</b> ; seul accès à un portefeuille :
- * le port {@link RainbowPortfolioSource} (mock, ou réel en lecture seule pour le preset lié par un binding), plus la lecture
+ * le port {@link RainbowPortfolioSource} (mock, ou réel en lecture seule pour chaque lien), plus la lecture
  * de marché ({@link MarketDatasetEngine}).
  * <p>
- * Preset live : en plus de la chaîne mock (inchangée), le moteur dimensionne une action recommandée sur le portefeuille
- * réel ({@link LiveSizing}, snapshot {@code live*} du bloc). Par utilisateur, les presets live sont servis par
- * {@code priority} croissante et se partagent un {@link CashLedger} par wallet. Passe 00:05 : le snapshot de la passe 23:55
- * du jour est relu s'il est encore frais (pas de nouvel appel exchange incohérent). Rejeu 23:55 : action live d'origine
- * conservée.
+ * Simulation partagée par preset, live par lien : chaque preset produit un signal ({@link LiveDemand}) ; chaque lien
+ * (binding) le dimensionne sur son portefeuille réel ({@link LiveSizing}, snapshot enregistré dans le run du lien par
+ * {@link RainbowLiveBindingRunService}). Par utilisateur, les liens sont servis par {@code priority} croissante et se
+ * partagent un {@link CashLedger} par wallet. Passe 00:05 : le snapshot de la passe 23:55 du lien est relu s'il est encore
+ * frais (pas de nouvel appel exchange incohérent). Rejeu 23:55 : action live d'origine conservée.
  * <p>
  * Dataset D1 chargé UNE fois par (actif, passe) et partagé entre tous les presets/users. Une erreur sur un
  * (actif, preset, user) n'empêche jamais les autres. Pas de rattrapage des jours manqués.
@@ -75,8 +76,9 @@ public class RainbowLiveExecutionService {
     private final RainbowLivePresetService presetService;
     private final RainbowLivePresetConfigResolver configResolver;
     private final RainbowLiveMockWalletRepository walletRepository;
-    private final RainbowLiveRunRepository runRepository;
+    private final RainbowLiveBindingRepository bindingRepository;
     private final RainbowLiveRunService runService;
+    private final RainbowLiveBindingRunService bindingRunService;
     private final RainbowTrendLiveService trendService;
     private final MockPortfolioSource mockPortfolioSource;
     private final RealPortfolioSource realPortfolioSource;
@@ -171,22 +173,23 @@ public class RainbowLiveExecutionService {
         }
     }
 
-    /** Presets d'un utilisateur : les presets live d'abord, par {@code priority} croissante (cash commun), puis les autres. */
+    /**
+     * Utilisateur en deux temps : (1) simulation de chaque preset (signal partagé par tous ses liens, ordre sans importance) en
+     * collectant la {@link LiveDemand} ; (2) dimensionnement live de chaque lien par {@code priority} croissante, cash commun
+     * par wallet ({@link CashLedger}). Les presets sans lien restent en simulation pure.
+     */
     private void runUser(RainbowLivePass pass, Instant asOf, LocalDate day, List<RainbowLivePreset> presets,
                          Map<String, AssetSeries> seriesByAsset, Set<String> failedAssets, Counters counters) {
-        Map<Long, LiveSlot> slots = liveSlotsOf(presets.getFirst(), counters);
         List<RainbowLivePreset> ordered = new ArrayList<>(presets);
-        ordered.sort(Comparator.comparing((RainbowLivePreset p) -> slots.get(p.getId()) == null)
-                .thenComparingInt((RainbowLivePreset p) -> slots.containsKey(p.getId()) ? slots.get(p.getId()).priority() : 0)
-                .thenComparingInt(p -> RainbowLiveDefaultPresets.ASSETS.indexOf(p.getAssetSymbol())));
-        Map<Long, CashLedger> ledgers = new HashMap<>();
+        ordered.sort(Comparator.comparingInt(p -> RainbowLiveDefaultPresets.ASSETS.indexOf(p.getAssetSymbol())));
+        Map<Long, LiveDemand> demands = new HashMap<>();
         for (RainbowLivePreset preset : ordered) {
             AssetSeries series = seriesByAsset.get(preset.getAssetSymbol());
             if (series == null) {
                 continue; // déjà comptée (sautée ou en échec) par loadAsset
             }
             try {
-                if (runPreset(pass, day, preset, series, slots.get(preset.getId()), ledgers)) {
+                if (runPreset(pass, day, preset, series, demands)) {
                     counters.processed++;
                 } else {
                     counters.skipped++;
@@ -197,18 +200,36 @@ public class RainbowLiveExecutionService {
                         preset.getId(), preset.getAssetSymbol(), preset.getUser().getId(), pass, day, e);
             }
         }
+        runLinks(pass, day, presets.getFirst().getUser(), demands, counters);
     }
 
-    private Map<Long, LiveSlot> liveSlotsOf(RainbowLivePreset anyPreset, Counters counters) {
+    /** Liens live de l'utilisateur par {@code priority} croissante : cash commun par wallet, un snapshot par lien. */
+    private void runLinks(RainbowLivePass pass, LocalDate day, User user, Map<Long, LiveDemand> demands, Counters counters) {
+        List<LiveSlot> slots = liveSlotsOf(user, counters);
+        Map<Long, CashLedger> ledgers = new HashMap<>();
+        for (LiveSlot slot : slots) {
+            try {
+                runLink(pass, day, slot, demands.get(slot.presetId()), ledgers);
+            } catch (Exception e) {
+                counters.errors++;
+                log.error("Bench Rainbow : échec lien binding={} actif={} wallet={} user={} passe {} jour {}",
+                        slot.bindingId(), slot.assetSymbol(), slot.walletId(), user.getId(), pass, day, e);
+            }
+        }
+    }
+
+    private List<LiveSlot> liveSlotsOf(User user, Counters counters) {
         try {
-            Map<Long, LiveSlot> slots = new HashMap<>();
-            realPortfolioSource.liveSlots(anyPreset.getUser()).forEach(slot -> slots.put(slot.presetId(), slot));
-            return slots;
+            return realPortfolioSource.liveSlots(user).stream()
+                    .sorted(Comparator.comparingInt(LiveSlot::priority)
+                            .thenComparingInt(slot -> RainbowLiveDefaultPresets.ASSETS.indexOf(slot.assetSymbol()))
+                            .thenComparing(LiveSlot::bindingId))
+                    .toList();
         } catch (Exception e) {
             counters.errors++;
             log.error("Bench Rainbow : bindings live illisibles pour user={}, presets traités en simulation seule",
-                    anyPreset.getUser().getId(), e);
-            return Map.of();
+                    user.getId(), e);
+            return List.of();
         }
     }
 
@@ -241,13 +262,13 @@ public class RainbowLiveExecutionService {
     }
 
     /**
-     * @param slot lien live du preset (null : simulation pure) ; {@code ledgers} : pools de cash de l'utilisateur pour la passe
+     * @param demands reçoit la {@link LiveDemand} du preset (consommée ensuite par chacun de ses liens)
      * @return {@code true} si la passe a été enregistrée, {@code false} si sautée (données insuffisantes).
      */
     private boolean runPreset(RainbowLivePass pass, LocalDate day, RainbowLivePreset preset, AssetSeries series,
-                              LiveSlot slot, Map<Long, CashLedger> ledgers) {
+                              Map<Long, LiveDemand> demands) {
         if (preset.isTrendMix()) {
-            return runTrendPreset(pass, day, preset, series, slot, ledgers);
+            return runTrendPreset(pass, day, preset, series, demands);
         }
         RainbowAtrConfig config = configResolver.config(preset);
         RainbowAtrTuning tuning = config.toTuning();
@@ -272,21 +293,18 @@ public class RainbowLiveExecutionService {
         double close = ds.close(endIdx);
         WantedAction wanted = wantedAction(result, endIdx);
         sizeAction(block, wanted, close, mock, preset.getAssetSymbol());
-        LiveSizing live = liveSizing(pass, day, preset, slot, ledgers);
-        if (live != null) {
-            live.apply(block, wanted.buyAmount(), wanted.sellQty(), close);
-        }
 
         runService.upsertPass(preset, day, pass, block);
-        log.info("Bench Rainbow : preset={} actif={} jour={} passe {} action fictive={} montant={} qté={} live={}",
+        demands.put(preset.getId(), LiveDemand.fixed(wanted.buyAmount(), wanted.sellQty(), close));
+        log.info("Bench Rainbow : preset={} actif={} jour={} passe {} action fictive={} montant={} qté={}",
                 preset.getId(), preset.getAssetSymbol(), day, pass, block.getActionType(),
-                block.getActionAmountUsdc(), block.getActionQuantity(), block.getLiveActionType());
+                block.getActionAmountUsdc(), block.getActionQuantity());
         return true;
     }
 
     /** Preset {@code TREND_MIX} : un pas de la machine à partir de l'état persisté (cf. {@link RainbowTrendLiveService}). */
     private boolean runTrendPreset(RainbowLivePass pass, LocalDate day, RainbowLivePreset preset, AssetSeries series,
-                                   LiveSlot slot, Map<Long, CashLedger> ledgers) {
+                                   Map<Long, LiveDemand> demands) {
         RainbowAtrDataset ds = series.dataset();
         int endIdx = series.dayIdx();
         int warmup = TrendMixCalculator.Params.defaults().warmup();
@@ -297,33 +315,37 @@ public class RainbowLiveExecutionService {
         }
         RainbowLiveMockWallet wallet = walletRepository.findByPreset(preset)
                 .orElseThrow(() -> new IllegalStateException("Wallet mock introuvable pour le preset " + preset.getId()));
-        LiveSizing live = liveSizing(pass, day, preset, slot, ledgers);
-        RainbowTrendLiveService.Outcome outcome = trendService.run(pass, day, preset, series.candles(), ds, endIdx, wallet, live);
+        RainbowTrendLiveService.Outcome outcome = trendService.run(pass, day, preset, series.candles(), ds, endIdx, wallet);
         runService.upsertPass(preset, day, pass, outcome.block());
         outcome.commit();
+        demands.put(preset.getId(), outcome.demand());
         return true;
     }
 
     /**
-     * Portefeuille réel du preset live pour la passe, ou {@code null} (simulation pure). Rejeu 23:55 d'un snapshot existant :
-     * action d'origine conservée, son achat reste réservé dans le pool. 00:05 : snapshot de 23:55 relu s'il est encore frais ;
-     * sinon lecture (un seul accès exchange par preset, le cache de soldes mutualise les actifs d'un même wallet).
+     * Snapshot live d'un lien pour la passe. Rejeu 23:55 d'un snapshot existant : action d'origine conservée, son achat reste
+     * réservé dans le pool. 00:05 : snapshot de 23:55 relu s'il est encore frais et du même wallet ; sinon lecture (un seul
+     * accès exchange par lien, le cache de soldes mutualise les liens d'un même wallet). Sans demande du preset (preset non
+     * simulé ce jour-là), le lien n'est pas dimensionné.
      */
-    private LiveSizing liveSizing(RainbowLivePass pass, LocalDate day, RainbowLivePreset preset, LiveSlot slot,
-                                  Map<Long, CashLedger> ledgers) {
-        if (slot == null) {
-            return null;
+    private void runLink(RainbowLivePass pass, LocalDate day, LiveSlot slot, LiveDemand demand,
+                         Map<Long, CashLedger> ledgers) {
+        RainbowLiveBinding binding = bindingRepository.findById(slot.bindingId()).orElse(null);
+        if (binding == null) {
+            return;
         }
-        String asset = preset.getAssetSymbol();
-        Optional<RainbowLivePassBlock> snapshot = runRepository.findByPresetAndDay(preset, day)
-                .map(RainbowLiveRun::getPass2355).filter(RainbowLivePassBlock::hasLiveSnapshot);
+        String asset = slot.assetSymbol();
+        Optional<RainbowLiveLiveBlock> snapshot = bindingRunService.snapshotOf(binding, day, RainbowLivePass.T2355);
         if (pass == RainbowLivePass.T2355 && snapshot.isPresent()) {
-            RainbowLivePassBlock previous = snapshot.get();
+            RainbowLiveLiveBlock previous = snapshot.get();
             CashLedger ledger = ledgerOf(ledgers, slot.walletId(), PortfolioReading.fromSnapshot(previous, asset));
-            if (ledger != null && previous.getLiveActionType() == RainbowLiveAction.BUY) {
-                ledger.forceReserve(previous.getLiveActionAmountUsdc() == null ? 0.0 : previous.getLiveActionAmountUsdc());
+            if (ledger != null && previous.getActionType() == RainbowLiveAction.BUY) {
+                ledger.forceReserve(previous.getActionAmountUsdc() == null ? 0.0 : previous.getActionAmountUsdc());
             }
-            return LiveSizing.replay();
+            return;
+        }
+        if (demand == null) {
+            return;
         }
         PortfolioReading reading = null;
         if (pass == RainbowLivePass.T0005 && snapshot.isPresent()) {
@@ -333,9 +355,11 @@ public class RainbowLiveExecutionService {
             }
         }
         if (reading == null) {
-            reading = realPortfolioSource.read(preset);
+            reading = realPortfolioSource.read(binding);
         }
-        return LiveSizing.of(asset, reading, ledgerOf(ledgers, slot.walletId(), reading), slot.bagPercent());
+        RainbowLiveLiveBlock block = new RainbowLiveLiveBlock();
+        LiveSizing.of(asset, reading, ledgerOf(ledgers, slot.walletId(), reading), slot.bagPercent()).apply(block, demand);
+        bindingRunService.upsertPass(binding, day, pass, block);
     }
 
     /** Ledger du pool (créé à la première lecture {@code OK} du wallet) ; {@code null} si la lecture n'est pas exploitable. */

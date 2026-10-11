@@ -6,13 +6,13 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBindingRun;
 import fr.ses10doigts.tradeIO5.model.entity.execution.PlanStatus;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
-import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository;
+import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRunRepository;
 import fr.ses10doigts.tradeIO5.repository.execution.RainbowLiveOrderPlanRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
@@ -54,17 +54,17 @@ class OrderPlanServiceIsolationTest {
         User bob = User.builder().id(2L).username("bob").enabled(true).build();
         UserRepository users = mock(UserRepository.class);
         RainbowLiveBindingRepository bindings = mock(RainbowLiveBindingRepository.class);
-        RainbowLiveRunRepository runs = mock(RainbowLiveRunRepository.class);
+        RainbowLiveBindingRunRepository runs = mock(RainbowLiveBindingRunRepository.class);
         RainbowLiveOrderPlanRepository plans = mock(RainbowLiveOrderPlanRepository.class);
         OrderPlanner planner = mock(OrderPlanner.class);
         when(users.findByEnabledTrueAndArchivedAtIsNull()).thenReturn(List.of(alice, bob));
         for (User u : List.of(alice, bob)) {
             RainbowLiveBinding b = binding(u);
             when(bindings.findByUserOrderByPriorityAscAssetSymbolAsc(u)).thenReturn(List.of(b));
-            RainbowLivePassBlock block = RainbowLivePassBlock.builder().liveStatus(PortfolioStatus.OK)
-                    .liveActionType(RainbowLiveAction.NONE).liveCashDetail("{}").build();
-            when(runs.findByPresetAndDay(b.getPreset(), DAY)).thenReturn(Optional.of(RainbowLiveRun.builder()
-                    .preset(b.getPreset()).user(u).day(DAY).pass2355(block).build()));
+            RainbowLiveLiveBlock block = RainbowLiveLiveBlock.builder().status(PortfolioStatus.OK)
+                    .actionType(RainbowLiveAction.NONE).cashDetail("{}").build();
+            when(runs.findByBindingAndDay(b, DAY)).thenReturn(Optional.of(RainbowLiveBindingRun.builder()
+                    .binding(b).day(DAY).pass2355(block).build()));
             when(plans.findFirstByUserAndDayAndPassOrderByRevisionDesc(u, DAY, RainbowLivePass.T2355)).thenReturn(Optional.empty());
         }
         when(planner.plan(anyList())).thenThrow(new IllegalStateException("boom"))

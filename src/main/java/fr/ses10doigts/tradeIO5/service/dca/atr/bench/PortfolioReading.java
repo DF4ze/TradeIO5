@@ -2,7 +2,7 @@ package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioView;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -37,10 +37,10 @@ public record PortfolioReading(double cash, Map<String, Double> cashByMember, Ma
     }
 
     /** Relit le snapshot d'une passe : cash du pool et position réelle de l'actif (les autres actifs n'y figurent pas). */
-    public static PortfolioReading fromSnapshot(RainbowLivePassBlock block, String assetSymbol) {
-        return new PortfolioReading(nz(block.getLiveCashUsd()), CashDetailCodec.read(block.getLiveCashDetail()),
-                Map.of(assetSymbol, nz(block.getLivePositionQty())),
-                block.getLiveFetchedAt(), block.getLiveStatus(), block.getLiveWalletId());
+    public static PortfolioReading fromSnapshot(RainbowLiveLiveBlock block, String assetSymbol) {
+        return new PortfolioReading(nz(block.getCashUsd()), CashDetailCodec.read(block.getCashDetail()),
+                Map.of(assetSymbol, nz(block.getPositionQty())),
+                block.getFetchedAt(), block.getStatus(), block.getWalletId());
     }
 
     public boolean isOk() {

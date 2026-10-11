@@ -48,8 +48,8 @@ import java.util.Optional;
  *   {@link Outcome#commit()}, appelé par l'appelant une fois la passe enregistrée. La passe 00:05 recalcule sur la
  *   vraie clôture à partir du même état de la veille, sans rien écrire.</li>
  * </ul>
- * Preset live : la même machine alimente en plus l'action recommandée sur le portefeuille réel ({@link LiveSizing}), la vente
- * étant {@code fraction × position tradable} ; la chaîne mock reste inchangée.
+ * La même machine produit aussi la {@link LiveDemand} du signal (achat voulu, vente = {@code fraction × position tradable}),
+ * dimensionnée ensuite par lien sur son portefeuille réel ({@link LiveSizing}) ; la chaîne mock reste inchangée.
  * <p>
  * Limite assumée (comme le mode FIXED) : l'état amorcé par rejeu repose sur une position virtuelle, le wallet mock
  * est la vérité cumulée ; les ordres sont donc plafonnés par le cash / la position du wallet.
@@ -67,8 +67,11 @@ public class RainbowTrendLiveService {
     private final RainbowLivePresetConfigResolver configResolver;
     private final RainbowLivePresetEventService eventService;
 
-    /** Bloc à enregistrer + écritures différées (état, ATH) à valider après l'enregistrement de la passe. */
-    public record Outcome(RainbowLivePassBlock block, Runnable commitAction) {
+    /**
+     * Bloc à enregistrer + demande live du signal (dimensionnée ensuite par lien) + écritures différées (état, ATH) à
+     * valider après l'enregistrement de la passe.
+     */
+    public record Outcome(RainbowLivePassBlock block, LiveDemand demand, Runnable commitAction) {
         public void commit() {
             if (commitAction != null) {
                 commitAction.run();
@@ -77,7 +80,7 @@ public class RainbowTrendLiveService {
     }
 
     public Outcome run(RainbowLivePass pass, LocalDate day, RainbowLivePreset preset, List<MarketData> candles,
-                       RainbowAtrDataset ds, int dayIdx, RainbowLiveMockWallet wallet, LiveSizing live) {
+                       RainbowAtrDataset ds, int dayIdx, RainbowLiveMockWallet wallet) {
         String asset = preset.getAssetSymbol();
         RainbowLiveTrendConfigs.Resolved cfg = configResolver.trendConfig(preset);
         String configHash = configResolver.effectiveHash(preset);
@@ -114,13 +117,11 @@ public class RainbowTrendLiveService {
                 .size(signal, BigDecimal.valueOf(close), BigDecimal.valueOf(position));
         RainbowLivePassBlock block = buildBlock(band, close, signal, step.state());
         applyCaps(block, order, close, cash, position);
-        if (live != null) {
-            // vente live = fraction du signal x position TRADABLE réelle (bagPercent x réelle), pas la position du mock
-            double liveSell = new ReferenceSizer(BigDecimal.valueOf(base))
-                    .size(signal, BigDecimal.valueOf(close), BigDecimal.valueOf(live.tradablePosition()))
-                    .sellQuantity().doubleValue();
-            live.apply(block, order.buyAmount().doubleValue(), liveSell, close);
-        }
+        // vente live = fraction du signal x position TRADABLE réelle du lien (bagPercent x réelle), pas la position du mock
+        LiveDemand demand = new LiveDemand(order.buyAmount().doubleValue(),
+                tradable -> new ReferenceSizer(BigDecimal.valueOf(base))
+                        .size(signal, BigDecimal.valueOf(close), BigDecimal.valueOf(tradable)).sellQuantity().doubleValue(),
+                close);
 
         Runnable commit = null;
         if (pass == RainbowLivePass.T2355) {
@@ -137,7 +138,7 @@ public class RainbowTrendLiveService {
         }
         log.info("Bench Rainbow (Trend Mix) : preset={} actif={} jour={} passe {} trend={} jeu={} action={}",
                 preset.getId(), asset, day, pass, dayRegime, set.name(), block.getActionType());
-        return new Outcome(block, commit);
+        return new Outcome(block, demand, commit);
     }
 
     /**

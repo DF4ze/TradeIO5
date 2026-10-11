@@ -18,8 +18,8 @@ public interface RainbowLiveBindingRepository extends JpaRepository<RainbowLiveB
     /** Clé d'unicité : un binding par (utilisateur, actif, wallet). */
     Optional<RainbowLiveBinding> findByUserAndAssetSymbolAndWallet_Id(User user, String assetSymbol, Long walletId);
 
-    /** Un preset ne peut être le live que d'un seul binding. */
-    Optional<RainbowLiveBinding> findByPreset(RainbowLivePreset preset);
+    /** Un preset peut alimenter plusieurs liens (un par wallet). */
+    List<RainbowLiveBinding> findAllByPreset(RainbowLivePreset preset);
 
     boolean existsByPreset(RainbowLivePreset preset);
 }

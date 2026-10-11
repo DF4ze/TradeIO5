@@ -16,12 +16,13 @@
 	<ol class="list-group list-group-numbered" id="adm-steps">
 		<li class="list-group-item" id="adm-step-1">
 			<div class="d-flex flex-wrap align-items-center gap-2">
-				<strong>Planifier</strong>
+				<strong>Passe live puis plan</strong>
 				<select class="form-select form-select-sm w-auto" id="adm-plan-pass" aria-label="Passe">
 					<option value="T2355">T2355</option>
 					<option value="T0005">T0005</option>
 				</select>
 				<input type="date" class="form-control form-control-sm w-auto" id="adm-plan-day" aria-label="Jour (UTC, optionnel)">
+				<button type="button" class="btn btn-sm btn-outline-primary" id="adm-btn-pass" title="Simulation + snapshot live de tous les users, aucun ordre">Lancer la passe</button>
 				<button type="button" class="btn btn-sm btn-primary" id="adm-btn-plan">Planifier</button>
 				<span class="small" id="adm-state-1"></span>
 			</div>

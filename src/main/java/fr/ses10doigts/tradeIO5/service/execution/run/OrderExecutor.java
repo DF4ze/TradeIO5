@@ -77,7 +77,7 @@ public class OrderExecutor {
     public record RunSummary(LocalDate day, RainbowLivePass pass, int executed, int blocked, int skipped, int errors) {
     }
 
-    private record StepView(Long id, int rank, String asset, String instId, StepSide side, BigDecimal sz, BigDecimal px,
+    private record StepView(Long id, int rank, String asset, Long walletId, String instId, StepSide side, BigDecimal sz, BigDecimal px,
                             BigDecimal quoteAmount, String clOrdId, BigDecimal plannedCostPct, StepStatus status,
                             BigDecimal sentSz, BigDecimal mid) {
         boolean bridge() {
@@ -86,6 +86,19 @@ public class OrderExecutor {
     }
 
     private record AssetView(String symbol, Long walletId, BigDecimal costPct) {
+        /** Clé de blocage et de journal : un même actif peut être exécuté sur plusieurs wallets. */
+        String key() {
+            return keyOf(symbol, walletId);
+        }
+
+        /** Étape de cette chaîne (actif + wallet ; une étape sans wallet, d'avant la clé (actif, wallet), suit l'actif). */
+        boolean owns(StepView step) {
+            return symbol.equals(step.asset()) && (step.walletId() == null || step.walletId().equals(walletId));
+        }
+    }
+
+    private static String keyOf(String symbol, Long walletId) {
+        return walletId == null ? symbol : symbol + "@" + walletId;
     }
 
     private record PlanView(Long id, User user, LocalDate day, Instant expiresAt, PlanStatus status, List<AssetView> assets,
@@ -214,20 +227,20 @@ public class OrderExecutor {
 
         Run run = new Run();
         for (AssetView asset : plan.assets()) {
-            List<StepView> assetSteps = plan.steps().stream().filter(s -> s.asset().equals(asset.symbol()))
+            List<StepView> assetSteps = plan.steps().stream().filter(asset::owns)
                     .sorted(Comparator.comparingInt(StepView::rank)).toList();
             if (assetSteps.isEmpty()) {
                 continue;
             }
             if (!liveAllowed()) {
-                block(plan, run, asset.symbol(), ExecutionBlockReason.KILL_SWITCH);
+                block(plan, run, asset.key(), ExecutionBlockReason.KILL_SWITCH);
                 continue;
             }
             try {
                 runAsset(plan, asset, assetSteps, run);
             } catch (RuntimeException e) {
-                log.error("Exécution du plan {} : erreur inattendue sur {}", planId, asset.symbol(), e);
-                events.record(planId, null, null, OrderEventType.ALERT, payload("asset", asset.symbol(), "reason", "UNEXPECTED_ERROR",
+                log.error("Exécution du plan {} : erreur inattendue sur {}", planId, asset.key(), e);
+                events.record(planId, null, null, OrderEventType.ALERT, payload("asset", asset.key(), "reason", "UNEXPECTED_ERROR",
                         "error", e.getClass().getSimpleName()));
             }
         }
@@ -248,23 +261,24 @@ public class OrderExecutor {
             if (!step.status().inFlight()) {
                 continue;
             }
-            AssetView asset = plan.assets().stream().filter(a -> a.symbol().equals(step.asset())).findFirst().orElse(null);
+            AssetView asset = plan.assets().stream().filter(a -> a.owns(step)).findFirst().orElse(null);
+            String key = asset == null ? keyOf(step.asset(), step.walletId()) : asset.key();
             Wallet wallet = asset == null ? null : wallets.findById(asset.walletId()).orElse(null);
             Optional<ApiCredential> trade = wallet == null || wallet.getWebProviderCode() == null ? Optional.empty()
                     : credentials.resolve(plan.user(), wallet.getWebProviderCode());
             if (wallet != null && wallet.getWebProviderCode() != null && router.forProvider(wallet.getWebProviderCode()).isEmpty()) {
                 log.warn("Réconciliation du plan {} : aucun client d'ordres pour {} ({})", planId, wallet.getWebProviderCode(), step.clOrdId());
-                run.blocks.put(step.asset(), ExecutionBlockReason.PORT_UNAVAILABLE);
+                run.blocks.put(key, ExecutionBlockReason.PORT_UNAVAILABLE);
                 continue;
             }
             if (trade.isEmpty()) {
                 log.warn("Réconciliation du plan {} : credential TRADE indisponible pour {}", planId, step.clOrdId());
-                run.blocks.put(step.asset(), ExecutionBlockReason.CREDENTIAL_INVALID);
+                run.blocks.put(key, ExecutionBlockReason.CREDENTIAL_INVALID);
                 continue;
             }
             InstrumentInfo instrument = instrumentsOf(wallet.getWebProvider()).get(step.instId());
             if (instrument == null) {
-                run.blocks.put(step.asset(), ExecutionBlockReason.PORT_UNAVAILABLE);
+                run.blocks.put(key, ExecutionBlockReason.PORT_UNAVAILABLE);
                 continue;
             }
             stepRunner.reconcile(new StepRunner.StepContext(planId, wallet.getId(), step.id(), step.clOrdId(), step.instId(),
@@ -324,40 +338,40 @@ public class OrderExecutor {
     private void runAsset(PlanView plan, AssetView asset, List<StepView> assetSteps, Run run) {
         BindingView binding = loadBinding(plan, asset.symbol(), asset.walletId());
         if (binding == null || !asset.walletId().equals(binding.walletId()) || !binding.walletUsable()) {
-            block(plan, run, asset.symbol(), ExecutionBlockReason.NO_BINDING);
+            block(plan, run, asset.key(), ExecutionBlockReason.NO_BINDING);
             return;
         }
         if (!binding.enabled()) {
-            block(plan, run, asset.symbol(), ExecutionBlockReason.BINDING_DISABLED);
+            block(plan, run, asset.key(), ExecutionBlockReason.BINDING_DISABLED);
             return;
         }
         if (!binding.executable()) {
-            block(plan, run, asset.symbol(), ExecutionBlockReason.NOT_TRADABLE);
+            block(plan, run, asset.key(), ExecutionBlockReason.NOT_TRADABLE);
             return;
         }
         if (router.forProvider(binding.provider()).isEmpty()) {
-            blockNoPort(plan, run, asset.symbol(), binding.provider());
+            blockNoPort(plan, run, asset.key(), binding.provider());
             return;
         }
         Optional<ApiCredential> trade = credentials.resolve(plan.user(), binding.provider());
         if (trade.isEmpty()) {
-            block(plan, run, asset.symbol(), ExecutionBlockReason.CREDENTIAL_INVALID);
+            block(plan, run, asset.key(), ExecutionBlockReason.CREDENTIAL_INVALID);
             return;
         }
         if (!binding.firstLiveValidated()) {
-            block(plan, run, asset.symbol(), ExecutionBlockReason.FIRST_LIVE_NOT_VALIDATED);
+            block(plan, run, asset.key(), ExecutionBlockReason.FIRST_LIVE_NOT_VALIDATED);
             return;
         }
         Optional<ExecutionBlockReason> cap = capBlock(plan, asset, assetSteps, binding);
         if (cap.isPresent()) {
-            block(plan, run, asset.symbol(), cap.get());
+            block(plan, run, asset.key(), cap.get());
             return;
         }
         Map<String, InstrumentInfo> instruments;
         try {
             instruments = instrumentsOf(binding.webProvider());
         } catch (RuntimeException e) {
-            block(plan, run, asset.symbol(), ExecutionBlockReason.PORT_UNAVAILABLE);
+            block(plan, run, asset.key(), ExecutionBlockReason.PORT_UNAVAILABLE);
             return;
         }
         runChain(plan, asset, assetSteps, binding, trade.get(), instruments, run);
@@ -413,7 +427,7 @@ public class OrderExecutor {
             }
             if (!liveAllowed()) {
                 skip(plan, step, ExecutionBlockReason.KILL_SWITCH.name());
-                run.blocks.put(asset.symbol(), ExecutionBlockReason.KILL_SWITCH);
+                run.blocks.put(asset.key(), ExecutionBlockReason.KILL_SWITCH);
                 stop = true;
                 continue;
             }
@@ -470,7 +484,7 @@ public class OrderExecutor {
             }
             if (!liveAllowed()) {
                 skip(plan, step, ExecutionBlockReason.KILL_SWITCH.name());
-                run.blocks.put(asset.symbol(), ExecutionBlockReason.KILL_SWITCH);
+                run.blocks.put(asset.key(), ExecutionBlockReason.KILL_SWITCH);
                 stop = true;
                 continue;
             }
@@ -540,7 +554,7 @@ public class OrderExecutor {
         PlanView view = tx.execute(status -> plans.findById(planId).map(plan -> new PlanView(plan.getId(), plan.getUser(), plan.getDay(),
                 plan.getExpiresAt(), plan.getStatus(),
                 plan.getAssets().stream().map(a -> new AssetView(a.getAssetSymbol(), a.getWalletId(), a.getCostPct())).toList(),
-                plan.getSteps().stream().map(s -> new StepView(s.getId(), s.getRank(), s.getAssetSymbol(), s.getInstId(), s.getSide(),
+                plan.getSteps().stream().map(s -> new StepView(s.getId(), s.getRank(), s.getAssetSymbol(), s.getWalletId(), s.getInstId(), s.getSide(),
                         s.getSz(), s.getPx(), s.getQuoteAmount(), s.getClOrdId(),
                         s.getFeePct().add(s.getSpreadPct()).add(s.getSlippagePct()), s.getStatus(), s.getSentSz(),
                         s.getQuoteMid())).toList())).orElse(null));

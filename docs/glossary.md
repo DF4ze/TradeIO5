@@ -1,6 +1,6 @@
 # Glossaire
 
-Vérifié le : 2026-10-10.
+Vérifié le : 2026-10-11.
 
 - **ScenarioOwner** — clé d'isolation de l'état vivant (scénarios/décisions) : un utilisateur réel, ou l'owner technique `SYSTEM` (`SystemOwner`).
 - **StrategyType** — `DIRECTIONAL` (agrégé additivement au score) vs `CONFIDENCE_MODULATOR` (multiplie la confidence finale, jamais agrégé au score directionnel).
@@ -21,7 +21,7 @@ Vérifié le : 2026-10-10.
 - **Preset (bench)** — jeu de paramètres Rainbow ATR nommé, par utilisateur et par actif, rejoué chaque jour par le bench grandeur nature.
 - **Bench grandeur nature** — exécution quotidienne fictive (wallet mock USDC, aucun ordre) des presets Rainbow ATR, résultats en base ; double passe 23:55 / 00:05 UTC.
 - **Stratégie Actif (Rainbow)** — config par défaut d'un actif (« TrendMix Rainbow DCA ATR · BTC »), pilotée par le compte System (`RainbowAssetStrategy`, `revision`). Les presets des users la **suivent** (aucune copie, effet à la passe suivante) tant qu'ils ne sont pas détachés par duplication. Cf. [`architecture/08`](architecture/08-rainbow-bench-grandeur-nature.md).
-- **Binding (Rainbow live)** — lien unique (user, actif) entre le preset « live » et un wallet réel lu en lecture seule, avec `bagPercent` (part dynamique de la position réelle offerte à la stratégie) et `priority` (ordre de passage du cash). Cf. [`architecture/08`](architecture/08-rainbow-bench-grandeur-nature.md).
+- **Binding (Rainbow live)** — lien unique (user, actif, wallet) entre un preset et un wallet réel (un preset peut alimenter plusieurs liens) lu en lecture seule, avec `bagPercent` (part dynamique de la position réelle offerte à la stratégie) et `priority` (ordre de passage du cash). Cf. [`architecture/08`](architecture/08-rainbow-bench-grandeur-nature.md).
 - **BLOCKED (action live)** — achat voulu par le moteur mais refusé faute de cash dans le pool du wallet (tout-ou-rien, raison `INSUFFICIENT_CASH`) ; jamais exécuté.
 - **CashLedger** — pool de cash USDC d'un (user, wallet) pour une passe : les actifs le parcourent par `priority`, chaque achat accepté réserve son montant.
 - **BindingCheck** — vérification de disponibilité d'un binding : credential valide, soldes lisibles, chemin spot sans monnaie fiat vers l'actif via le groupe USD ; statut explicite (`OK`, `TRADABLE_VIA_BRIDGE`, `NOT_TRADABLE_WITHOUT_FIAT`, `CREDENTIAL_INVALID`, `BALANCE_UNAVAILABLE`…).
@@ -30,7 +30,7 @@ Vérifié le : 2026-10-10.
 - **Plan d'ordres (dry-run)** — photo enregistrée de ce qu'on achèterait / vendrait pour une passe (étapes `LIMIT_IOC` avec prix plafond, coût, niveau Fee Test) ; rien n'est envoyé, `EXPIRED` après 5 min ; une révision par jeu d'entrées (`SUPERSEDED` pour les anciennes). Cf. [`architecture/10-execution-plan.md`](architecture/10-execution-plan.md).
 - **Bilan virtuel** — soldes par membre du groupe USD (USDC, USDT) d'un wallet, décrémentés actif par actif pendant le calcul du plan (par `priority`) pour dimensionner les ponts ; les ventes ne le créditent pas le jour même.
 - **Pont (jambe pont)** — conversion `USDC→USDT` (ou l'inverse) limitée au manque de la cotation terminale, avant l'achat de l'actif.
-- **clOrdId** — identifiant client déterministe d'une étape (`t5` + user base 36 + actif + `yyyyMMdd` + passe + rang), ≤ 32 caractères alphanumériques.
+- **clOrdId** — identifiant client déterministe d'une étape (`t5` + user et wallet base 36 + actif + `yyyyMMdd` + passe + rang), ≤ 32 caractères alphanumériques.
 - **Fee Test** — niveau du coût total d'un chemin : GREEN < 0,2 % ≤ WARNING ≤ 0,8 % < RED (seuils configurables).
 - **Groupe d'actifs** — plusieurs actifs regroupés sous un seul (ex : `USD` = USDC + USDT), valorisation nominale 1:1, tables `asset_group` / `asset_group_member`.
 - **TrendRegime** — `UP` / `DOWN` / `RANGE`, sortie du Trend unifié ([`architecture/09-trend.md`](architecture/09-trend.md)).

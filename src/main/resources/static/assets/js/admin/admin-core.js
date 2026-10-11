@@ -197,6 +197,9 @@
     setBanner('adm-master', s.masterKeyConfigured ? 'présente' : 'ABSENTE', s.masterKeyConfigured ? 'text-success' : 'text-danger');
     const who = s.killSwitchUpdatedBy ? ' (' + s.killSwitchUpdatedBy + ', ' + fmtDate(s.killSwitchUpdatedAt) + ')' : '';
     setBanner('adm-ks', (s.killSwitch ? 'ENGAGÉ' : 'LEVÉ') + who, s.killSwitch ? 'text-success' : 'text-danger');
+    const toggle = $('adm-ks-toggle');
+    toggle.textContent = s.killSwitch ? 'Lever' : 'Engager';
+    toggle.className = 'btn btn-sm ' + (s.killSwitch ? 'btn-outline-danger' : 'btn-success');
     $('adm-caps').textContent = 'Plafonds absolus : ' + s.absoluteMaxOrderUsd + ' USD / ordre, ' + s.absoluteMaxDayUsd
       + ' USD / jour · exchanges : ' + (s.orderProviders.length ? s.orderProviders.join(', ') : 'aucun');
     $('adm-banner').className = 'alert d-flex flex-wrap align-items-center gap-3 py-2 '
@@ -220,7 +223,17 @@
     if (!tab.loaded) { tab.loaded = true; tab.load(); } else if (tab.show) { tab.show(); }
   }
 
+  /** Bascule du kill switch depuis le bandeau (tous onglets) ; levé ⇒ à réengager après le test. */
+  function bindKillSwitchToggle() {
+    const btn = $('adm-ks-toggle');
+    btn.addEventListener('click', () => run(btn, async () => {
+      await api('PUT', '/api/admin/execution/kill-switch', { engaged: !core.state.killSwitch });
+      await refreshState();
+    }));
+  }
+
   function start() {
+    bindKillSwitchToggle();
     document.querySelectorAll('[data-adm-tab]').forEach((btn) => {
       btn.addEventListener('shown.bs.tab', () => activate(btn.dataset.admTab));
     });

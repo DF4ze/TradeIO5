@@ -10,18 +10,19 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBindingRun;
 import fr.ses10doigts.tradeIO5.model.entity.execution.AssetPlanOutcome;
 import fr.ses10doigts.tradeIO5.model.entity.execution.PlanStatus;
 import fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderPlan;
+import fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderStep;
 import fr.ses10doigts.tradeIO5.model.entity.execution.StepSide;
 import fr.ses10doigts.tradeIO5.model.enumerate.WalletSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.repository.WalletRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
-import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository;
+import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRunRepository;
 import fr.ses10doigts.tradeIO5.repository.execution.RainbowLiveOrderPlanRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
@@ -89,7 +90,7 @@ class OrderPlanServiceTest {
     @Autowired private RainbowLivePresetService presetService;
     @Autowired private OrderPlanQueryService queryService;
     @Autowired private RainbowLiveBindingRepository bindingRepository;
-    @Autowired private RainbowLiveRunRepository runRepository;
+    @Autowired private RainbowLiveBindingRunRepository runRepository;
     @Autowired private RainbowLiveOrderPlanRepository planRepository;
     @Autowired private WalletRepository walletRepository;
     @Autowired private UserRepository userRepository;
@@ -121,12 +122,12 @@ class OrderPlanServiceTest {
         RainbowLivePreset preset = presetService.create(user, new CreateRequest(asset, "live", true, 6, 1000, c.toTuning(), c.toGlobals()));
         Wallet w = walletRepository.save(Wallet.builder().name("OKX " + user.getUsername()).source(WalletSource.EXCHANGE)
                 .webProviderCode(WebProviderCode.OKX).user(user).build());
-        bindingRepository.save(RainbowLiveBinding.builder().user(user).assetSymbol(asset).preset(preset).wallet(w).bagPercent(100)
+        RainbowLiveBinding binding = bindingRepository.save(RainbowLiveBinding.builder().user(user).assetSymbol(asset).preset(preset).wallet(w).bagPercent(100)
                 .priority(0).executionEnabled(enabled).build());
-        RainbowLivePassBlock block = RainbowLivePassBlock.builder().liveStatus(PortfolioStatus.OK).liveWalletId(w.getId())
-                .liveCashDetail("{\"USDC\":500.0,\"USDT\":0.0}").liveActionType(RainbowLiveAction.BUY)
-                .liveActionAmountUsdc(amount).liveActionQuantity(0.001).build();
-        runRepository.save(RainbowLiveRun.builder().preset(preset).user(user).assetSymbol(asset).day(DAY).pass2355(block).build());
+        RainbowLiveLiveBlock block = RainbowLiveLiveBlock.builder().status(PortfolioStatus.OK).walletId(w.getId())
+                .cashDetail("{\"USDC\":500.0,\"USDT\":0.0}").actionType(RainbowLiveAction.BUY)
+                .actionAmountUsdc(amount).actionQuantity(0.001).build();
+        runRepository.save(RainbowLiveBindingRun.builder().binding(binding).day(DAY).pass2355(block).build());
     }
 
     private static PlanDraft draft(String asset, PlanStatus status) {
@@ -152,8 +153,45 @@ class OrderPlanServiceTest {
         assertEquals(PlanStatus.PLANNED, plan.getStatus());
         assertEquals(NOW.plusSeconds(300), plan.getExpiresAt());
         assertEquals(1, plan.getSteps().size());
-        assertEquals(ClOrdIds.of(alice.getId(), "PAXG", DAY, RainbowLivePass.T2355, 1), plan.getSteps().getFirst().getClOrdId());
+        assertEquals(ClOrdIds.of(alice.getId(), plan.getSteps().getFirst().getWalletId(), "PAXG", DAY, RainbowLivePass.T2355, 1), plan.getSteps().getFirst().getClOrdId());
         assertEquals(64, plan.getInputsHash().length());
+    }
+
+    @Test
+    @DisplayName("Deux liens BTC (deux wallets) dans un même plan : deux chaînes distinctes, clOrdId et wallets distincts")
+    void sameAssetTwoWallets() {
+        seed(alice, "BTC", 50, true);
+        RainbowLiveBinding first = bindingRepository.findAll().getFirst();
+        Wallet kraken = walletRepository.save(Wallet.builder().name("Kraken").source(WalletSource.EXCHANGE)
+                .webProviderCode(WebProviderCode.KRAKEN).user(alice).build());
+        RainbowLiveBinding second = bindingRepository.save(RainbowLiveBinding.builder().user(alice).assetSymbol("BTC")
+                .preset(first.getPreset()).wallet(kraken).bagPercent(100).priority(1).executionEnabled(true).build());
+        runRepository.save(RainbowLiveBindingRun.builder().binding(second).day(DAY).pass2355(RainbowLiveLiveBlock.builder()
+                .status(PortfolioStatus.OK).walletId(kraken.getId()).cashDetail("{\"USDC\":300.0}")
+                .actionType(RainbowLiveAction.BUY).actionAmountUsdc(40.0).actionQuantity(0.0005).build()).build());
+        when(planner.plan(anyList())).thenAnswer(inv -> {
+            List<AssetInput> inputs = inv.getArgument(0);
+            assertEquals(2, inputs.size(), "un AssetInput par lien, même actif");
+            List<PlanDraft.AssetDraft> assets = inputs.stream().map(in -> draft("BTC", PlanStatus.PLANNED).assets().getFirst())
+                    .toList();
+            List<PlanDraft.AssetDraft> withWallets = new java.util.ArrayList<>();
+            for (int i = 0; i < inputs.size(); i++) {
+                PlanDraft.AssetDraft a = assets.get(i);
+                withWallets.add(new PlanDraft.AssetDraft(a.assetSymbol(), inputs.get(i).priority(), inputs.get(i).walletId(),
+                        a.action(), a.outcome(), a.blockReason(), a.costPct(), a.feeTestLevel(), a.warning(), a.steps()));
+            }
+            return new PlanDraft(withWallets, PlanStatus.PLANNED, new BigDecimal("0.15"), FeeTestLevel.GREEN, null);
+        });
+
+        service.planAll(DAY, RainbowLivePass.T2355);
+
+        RainbowLiveOrderPlan plan = planRepository.findFirstByUserAndDayAndPassOrderByRevisionDesc(alice, DAY, RainbowLivePass.T2355).orElseThrow();
+        assertEquals(2, plan.getAssets().size());
+        assertEquals(2, plan.getSteps().size());
+        assertEquals(2, plan.getSteps().stream().map(RainbowLiveOrderStep::getClOrdId).distinct().count());
+        assertEquals(2, plan.getSteps().stream().map(RainbowLiveOrderStep::getWalletId).distinct().count());
+        assertEquals(2, queryService.plans(alice, DAY, DAY).getFirst().assets().stream()
+                .filter(a -> a.steps().size() == 1).count(), "chaque chaîne n'expose que ses étapes");
     }
 
     @Test
@@ -176,8 +214,8 @@ class OrderPlanServiceTest {
         seed(alice, "PAXG", 50, true);
         when(planner.plan(anyList())).thenReturn(draft("PAXG", PlanStatus.PLANNED));
         service.planAll(DAY, RainbowLivePass.T2355);
-        RainbowLiveRun run = runRepository.findAll().getFirst();
-        run.getPass2355().setLiveActionAmountUsdc(75.0);
+        RainbowLiveBindingRun run = runRepository.findAll().getFirst();
+        run.getPass2355().setActionAmountUsdc(75.0);
         runRepository.saveAndFlush(run);
 
         OrderPlanService.PlanSummary again = service.planAll(DAY, RainbowLivePass.T2355);

@@ -1,6 +1,6 @@
 # Rainbow DCA ATR — chantiers ouverts
 
-Vérifié le : 2026-10-09 (code + décisions de Clem). Objectif n°1 du projet : **automatiser le DCA intelligent** (achats/ventes réels). Cette page liste ce qui sépare l'état actuel de cet objectif. Sauf mention « fait », rien ici n'est implémenté.
+Vérifié le : 2026-10-11 (code + décisions de Clem). Objectif n°1 du projet : **automatiser le DCA intelligent** (achats/ventes réels). Cette page liste ce qui sépare l'état actuel de cet objectif. Sauf mention « fait », rien ici n'est implémenté.
 
 ## État de la chaîne
 
@@ -42,7 +42,7 @@ Hors Rainbow : branchement `WalletSnapshot`, sizing réel, composant d'exécutio
 
 **Wallet réel du preset live — reste à faire** (lecture seule, aucun ordre) :
 - **Vérification réelle avec Clem** : créer la clé OKX « Read » (IP du VPS whitelistée, passphrase) dans `application-*.properties` ; lire BTC/ETH/USDC (OKX, compte Trading) et PAXG/USDC (Kraken, actifs `.F` éventuels, nom de paire `PAXGUSDC` à confirmer) ; ouvrir la page et comparer wallet réel / dernier snapshot au solde réel ; basculer le preset live et `bagPercent` et constater leur prise en compte à la passe suivante ; cas BLOCKED / UNAVAILABLE / STALE en conditions réelles.
-- **Page** : le rendu JS n'est pas testé en navigateur (tests Java : API + conteneur + absence d'`innerHTML`) ; la création d'un binding n'est possible que par l'API (pas de formulaire, pas de liste des wallets).
+- **Page** : le rendu JS n'est pas testé en navigateur (tests Java : API + conteneur + absence d'`innerHTML`) .
 - **Clôture du lot** : après le « Point » avec Clem, la roadmap `wallet-reel` reste en `docs/prompts/` (trace de la réflexion) ; les prompts d'implémentation exécutés sont déjà supprimés.
 - **Hors lot** (plus tard) : Fee Test, token d'exchange, découverte automatique du wallet, alerte % de liquidité (§7), compte Funding OKX / Earn.
 
@@ -84,3 +84,4 @@ Fait : la config par défaut est pilotée par System via la stratégie Actif (cf
 - Extensible aux « Bench online » ; à terme, un système qui juge les benchs des utilisateurs, surtout ceux à PnL négatif.
 - Contexte chiffré : [`etudes/etude-trading-stablecoin-frais-btc-eth-paxg.md`](../etudes/etude-trading-stablecoin-frais-btc-eth-paxg.md).
 - **Token de l'exchange** (OKB chez OKX, KRAKEN chez Kraken…) : détenir ce token donne souvent une remise sur les frais. Le Fee Test le signale à l'utilisateur (palier actuel, économie potentielle). Option plus tard : achat automatique d'une petite quantité du token pour couvrir/réduire les frais — nécessite l'exécution réelle, donc hors lecture seule. Les remises et seuils sont à vérifier par exchange.
+- **Liens stratégie / provider / actif : points ouverts.** Nom définitif remplaçant « binding » ; clé du lien (provider, actif) vs (wallet, actif) ; `Strategy` comme entité distincte (aujourd'hui `RainbowLivePreset.mode`) ; état moteur indépendant par lien (aujourd'hui partagé par preset). Cf. [`../etudes/etude-liens-strategie-provider-actif.md`](../etudes/etude-liens-strategie-provider-actif.md) §6.

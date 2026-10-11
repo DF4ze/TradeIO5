@@ -82,13 +82,14 @@ public class OrderPlanQueryService {
     }
 
     private static AssetDto toDto(RainbowLiveOrderPlan plan, RainbowLiveOrderPlanAsset a) {
-        List<StepDto> steps = plan.getSteps().stream().filter(s -> s.getAssetSymbol().equals(a.getAssetSymbol()))
+        List<StepDto> steps = plan.getSteps().stream().filter(s -> s.getAssetSymbol().equals(a.getAssetSymbol())
+                        && (s.getWalletId() == null || s.getWalletId().equals(a.getWalletId())))
                 .map(s -> new StepDto(s.getRank(), s.getInstId(), s.getSide(), s.getOrdType().name(), s.getSz(), s.getPx(),
                         s.getQuoteAmount(), s.getClOrdId(), s.getFeePct(), s.getSpreadPct(), s.getSlippagePct(), s.getEstimation(),
                         s.getStatus(), s.getFilledSz(), s.getAvgFillPx(), s.getFeeAmount(), s.getFeeCurrency(), s.getReceivedAmount(),
                         s.getReceivedCurrency(), s.getRealSlippagePct(), s.getLastError()))
                 .toList();
         return new AssetDto(a.getAssetSymbol(), a.getAction(), a.getOutcome(), a.getBlockReason(), a.getCostPct(),
-                a.getFeeTestLevel(), a.getWarning(), steps);
+                a.getFeeTestLevel(), a.getWarning(), steps, a.getWalletId());
     }
 }

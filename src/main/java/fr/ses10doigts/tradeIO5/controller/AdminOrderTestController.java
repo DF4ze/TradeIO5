@@ -1,6 +1,9 @@
 package fr.ses10doigts.tradeIO5.controller;
 
 import fr.ses10doigts.tradeIO5.model.dto.admin.OrderTestRequest;
+import fr.ses10doigts.tradeIO5.model.dto.admin.RealOrderRequest;
+import fr.ses10doigts.tradeIO5.model.dto.admin.RealOrderResultDto;
+import fr.ses10doigts.tradeIO5.model.dto.admin.ReconcileRequest;
 import fr.ses10doigts.tradeIO5.model.dto.admin.ValidationReportDto;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.admin.AdminOrderTestService;
@@ -11,7 +14,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Testeur d'ordre : validation seule (aucun ordre créé, aucun endpoint d'envoi). Réservé ADMIN. */
+/**
+ * Testeur d'ordre : {@code /validate} (aucun ordre créé), {@code /real} (envoi d'un ordre RÉEL, confirmation et verrous requis)
+ * et {@code /reconcile} (relecture seule). Réservé ADMIN.
+ */
 @RestController
 @RequestMapping("/api/admin/execution/order-test")
 @PreAuthorize("hasRole('ADMIN')")
@@ -24,5 +30,15 @@ public class AdminOrderTestController {
     @PostMapping("/validate")
     public ValidationReportDto validate(@RequestBody OrderTestRequest request) {
         return orderTests.validate(request, authenticationFacade.getConnectedUser().getUsername());
+    }
+
+    @PostMapping("/real")
+    public RealOrderResultDto realOrder(@RequestBody RealOrderRequest request) {
+        return orderTests.sendReal(request, authenticationFacade.getConnectedUser().getUsername());
+    }
+
+    @PostMapping("/reconcile")
+    public RealOrderResultDto reconcile(@RequestBody ReconcileRequest request) {
+        return orderTests.reconcile(request, authenticationFacade.getConnectedUser().getUsername());
     }
 }

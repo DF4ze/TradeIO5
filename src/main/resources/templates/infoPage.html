@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhml" xmlns:th="http://www.thymeleaf.org">
+    
+    <head>
+        <meta charset="UTF-8">
+        <title>TradeIO5 - Info</title>
+        
+    		<!-- Google Fonts -->
+		<link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Raleway:300,300i,400,400i,500,500i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet">
+		
+		<!-- Vendor CSS Files -->
+		<link href="assets/vendor/aos/aos.css" rel="stylesheet">
+		<link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+		<link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+		<link href="assets/vendor/boxicons/css/boxicons.min.css" rel="stylesheet">
+		<link href="assets/vendor/glightbox/css/glightbox.min.css" rel="stylesheet">
+		<link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
+		
+		<!-- Template Main CSS File -->
+		<link href="assets/css/style.css" rel="stylesheet">
+		
+		<!-- Jquery Call -->
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+    </head>
+    <body>
+    
+    
+      <!-- ======= Header ======= -->
+	<header id="header">
+	  <div class="d-flex flex-column">
+	
+	    <div class="profile">
+	    </div>
+	
+		<nav id="navbar" class="nav-menu navbar">
+			<div th:replace="~{fragments/navbar :: navbar}"></div>
+		</nav>
+	  </div>
+	</header>
+    
+    
+    
+    <main id="main">
+		<section id="about" class="about">
+		  	<div class="container">
+		    	<div class="section-title">Info — test d'un achat BTC sur Kraken depuis l'interface</div>
+
+				<div class="alert alert-warning small">
+					Le client Kraken n'a <strong>jamais</strong> passé d'ordre réel. Commence par le « Valider » du testeur d'ordre (aucun ordre créé).
+					Toutes les actions se font dans la page <a href="/admin">Administrator Page</a>.
+				</div>
+
+				<h5>0. Prérequis (hors interface)</h5>
+				<ul>
+					<li><code>application-dev.properties</code> : <code>tradeio.execution.mode=LIVE</code> et <code>tradeio.execution.live-unlocked=true</code> ; variable d'environnement <code>TRADEIO_MASTER_KEY</code> définie ; redémarrer l'application.</li>
+					<li>Bandeau Admin : mode LIVE, déverrouillé, clé maître OK, kill switch engagé, port Kraken présent.</li>
+				</ul>
+
+				<h5>1. Credentials (Admin → Credentials)</h5>
+				<ul>
+					<li>Clé TRADE Kraken présente et activée (droits « créer/annuler des ordres » uniquement, jamais de retrait).</li>
+					<li>Le catalogue Kraken doit avoir <code>native_pair</code> renseigné, sinon <code>PAIR_UNKNOWN</code> (il se remplit au prochain rafraîchissement).</li>
+				</ul>
+
+				<h5>2. Testeur d'ordre (Admin → Testeur d'ordre) — aucun ordre créé</h5>
+				<ul>
+					<li>User, exchange Kraken, paire BTC (<code>BTC-USDC</code> ou <code>BTC-USDT</code>), BUY, taille minimale (≈ 0,0001 BTC), plafond de prix au-dessus du marché, puis « Valider ».</li>
+					<li>Le testeur est soumis au kill switch : « Lever » dans le bandeau du haut avant « Valider », puis « Engager » après le test.</li>
+					<li>Attendu : contrôles locaux tous OK et <code>accepted</code>. Un <code>blockedBy</code> indique le verrou manquant.</li>
+				</ul>
+
+				<h5>2 bis. Ordre réel direct depuis le testeur (optionnel)</h5>
+				<ul>
+					<li>Même saisie qu'au point 2, kill switch levé (bandeau), puis switch rouge « Ordre RÉEL », saisie de <code>ENVOYER</code> et « Envoyer l'ordre RÉEL ». Le plafond absolu par ordre s'applique ; le kill switch est rengagé automatiquement.</li>
+					<li>Un vrai ordre limit IOC part et l'état, le prix moyen et les remplissages s'affichent. Si l'issue est inconnue (<code>UNKNOWN</code>) ou non terminée : « Réconcilier » relit l'ordre par <code>clOrdId</code>, sans jamais le renvoyer.</li>
+					<li>Cet ordre n'est pas enregistré dans la table <code>transaction</code> : contrôle côté Kraken.</li>
+				</ul>
+
+				<h5>3. Binding (Admin → Bindings)</h5>
+				<ul>
+					<li>Binding BTC sur le wallet Kraken, preset au choix, <code>bagPercent</code> faible.</li>
+					<li>Activer les presets liés dans la page Rainbow live (un preset inactif ne produit aucun snapshot), activer « Exécution » du binding, puis « Vérifier » (OK ou via passerelle).</li>
+				</ul>
+
+				<h5>4. Passe puis plan (Admin → Console, étape 1)</h5>
+				<ul>
+					<li>« Lancer la passe » (T2355, jour = hier, bougie D1 complète) puis « Planifier » (même passe, même jour).</li>
+					<li>L'action live BTC doit être <strong>BUY</strong>, sinon il n'y a aucun ordre à envoyer ce jour-là.</li>
+					<li>Contrôler dans le plan : paire, taille, plafond de prix, coût.</li>
+				</ul>
+
+				<h5>5. Armement et exécution (Admin → Console)</h5>
+				<ol>
+					<li>« Armer » (admin).</li>
+					<li>Confirmation du 1ᵉʳ ordre par le propriétaire (page Rainbow live).</li>
+					<li>« Lever » le kill switch, puis « Exécuter » : il se réengage automatiquement en sortie.</li>
+					<li>Étape <code>UNKNOWN</code> ou <code>EXECUTING</code> : « Lever » puis « Réconcilier » (relecture par <code>clOrdId</code>, aucun renvoi).</li>
+				</ol>
+
+				<h5>6. Contrôle</h5>
+				<ul>
+					<li>Console : statut FILLED/PARTIAL et audit des événements ; Journal : <code>ARM_BINDING</code>, <code>RUN</code>, <code>AUTO_REENGAGE</code>.</li>
+					<li>Côté Kraken : ordre dans l'historique, frais en cotation.</li>
+					<li>En cas de doute : <code>mode=DRY_RUN</code>, l'exécuteur n'appelle plus jamais le port. Plafond absolu par ordre toujours appliqué.</li>
+				</ul>
+		    </div>
+		</section>
+	</main>
+
+		<script src="assets/vendor/purecounter/purecounter_vanilla.js"></script>
+		<script src="assets/vendor/aos/aos.js"></script>
+		<script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+		<script src="assets/vendor/glightbox/js/glightbox.min.js"></script>
+		<script src="assets/vendor/isotope-layout/isotope.pkgd.min.js"></script>
+		<script src="assets/vendor/swiper/swiper-bundle.min.js"></script>
+		<script src="assets/vendor/typed.js/typed.min.js"></script>
+		<script src="assets/vendor/waypoints/noframework.waypoints.js"></script>
+		<script src="assets/vendor/php-email-form/validate.js"></script>
+		
+		<!-- Template Main JS File -->
+		 <script src="assets/js/main.js"></script>
+		 <script src="assets/js/perso.js"></script>
+		
+	</body>
+</html>

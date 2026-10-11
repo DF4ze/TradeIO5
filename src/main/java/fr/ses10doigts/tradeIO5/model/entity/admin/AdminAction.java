@@ -4,6 +4,10 @@ package fr.ses10doigts.tradeIO5.model.entity.admin;
 public enum AdminAction {
     KILL_SWITCH,
     ORDER_VALIDATE,
+    /** Envoi d'un ordre RÉEL depuis le testeur d'ordre. */
+    ORDER_SEND,
+    /** Relecture (lecture seule) d'un ordre du testeur. */
+    ORDER_READ,
     ARM_BINDING,
     PLAN,
     RUN,

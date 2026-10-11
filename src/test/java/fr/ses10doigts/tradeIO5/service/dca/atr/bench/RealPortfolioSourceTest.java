@@ -45,6 +45,7 @@ class RealPortfolioSourceTest {
     private final User user = User.builder().id(1L).username("u").build();
     private final ApiCredential credential = new ApiCredential();
     private RainbowLivePreset preset;
+    private RainbowLiveBinding binding;
     private final AssetGroupService groups = mock(AssetGroupService.class);
     private RealPortfolioSource source;
 
@@ -54,7 +55,7 @@ class RealPortfolioSourceTest {
         Wallet wallet = Wallet.builder().id(9L).webProviderCode(WebProviderCode.OKX).credential(credential).build();
         RainbowLiveBinding binding = RainbowLiveBinding.builder().id(3L).user(user).assetSymbol("BTC").preset(preset)
                 .wallet(wallet).bagPercent(100).priority(0).build();
-        when(bindings.findByPreset(preset)).thenReturn(Optional.of(binding));
+        this.binding = binding;
         when(bindingCheck.check(binding)).thenReturn(new BindingCheckResult(BindingCheckStatus.OK, "OK"));
         when(reader.getProviderCode()).thenReturn(WebProviderCode.OKX);
         when(groups.members(AssetGroup.USD)).thenReturn(List.of("USDC", "USDT"));
@@ -69,7 +70,7 @@ class RealPortfolioSourceTest {
         when(reader.getAvailableBalances(credential)).thenReturn(Map.of("USDC", new BigDecimal("250.5"),
                 "BTC", new BigDecimal("0.4"), "DOGE", new BigDecimal("9999")));
 
-        PortfolioReading r = source.read(preset);
+        PortfolioReading r = source.read(binding);
 
         assertEquals(PortfolioStatus.OK, r.status());
         assertEquals(250.5, r.cash(), 1e-12);
@@ -84,7 +85,7 @@ class RealPortfolioSourceTest {
     void missingUsdcIsZero() {
         when(reader.getAvailableBalances(credential)).thenReturn(Map.of("BTC", new BigDecimal("1")));
 
-        PortfolioReading r = source.read(preset);
+        PortfolioReading r = source.read(binding);
 
         assertEquals(PortfolioStatus.OK, r.status());
         assertEquals(0.0, r.cash(), 0);
@@ -96,7 +97,7 @@ class RealPortfolioSourceTest {
         when(reader.getAvailableBalances(credential)).thenReturn(Map.of("USDC", new BigDecimal("100"),
                 "USDT", new BigDecimal("30.5"), "BTC", new BigDecimal("0.1")));
 
-        PortfolioReading r = source.read(preset);
+        PortfolioReading r = source.read(binding);
 
         assertEquals(PortfolioStatus.OK, r.status());
         assertEquals(130.5, r.cash(), 1e-12);
@@ -108,7 +109,7 @@ class RealPortfolioSourceTest {
     void usdtOnlyIsInScope() {
         when(reader.getAvailableBalances(credential)).thenReturn(Map.of("USDT", new BigDecimal("12")));
 
-        PortfolioReading r = source.read(preset);
+        PortfolioReading r = source.read(binding);
 
         assertEquals(PortfolioStatus.OK, r.status());
         assertEquals(12.0, r.cash(), 1e-12);
@@ -119,17 +120,17 @@ class RealPortfolioSourceTest {
     void outage() {
         when(reader.getAvailableBalances(credential)).thenThrow(new BalanceUnavailableException("timeout"));
 
-        assertEquals(PortfolioStatus.UNAVAILABLE, source.read(preset).status());
+        assertEquals(PortfolioStatus.UNAVAILABLE, source.read(binding).status());
     }
 
     @Test
     @DisplayName("Lecture vide suspecte (aucun solde du périmètre) => UNAVAILABLE")
     void suspiciousEmpty() {
         when(reader.getAvailableBalances(credential)).thenReturn(Map.of());
-        assertEquals(PortfolioStatus.UNAVAILABLE, source.read(preset).status());
+        assertEquals(PortfolioStatus.UNAVAILABLE, source.read(binding).status());
 
         when(reader.getAvailableBalances(credential)).thenReturn(Map.of("DOGE", BigDecimal.ONE));
-        assertEquals(PortfolioStatus.UNAVAILABLE, source.read(preset).status());
+        assertEquals(PortfolioStatus.UNAVAILABLE, source.read(binding).status());
     }
 
     @Test
@@ -138,7 +139,7 @@ class RealPortfolioSourceTest {
         when(bindingCheck.check(any(RainbowLiveBinding.class)))
                 .thenReturn(new BindingCheckResult(BindingCheckStatus.CREDENTIAL_INVALID, "rejetée"));
 
-        PortfolioReading r = source.read(preset);
+        PortfolioReading r = source.read(binding);
 
         assertEquals(PortfolioStatus.UNAVAILABLE, r.status());
         org.mockito.Mockito.verify(reader, org.mockito.Mockito.never()).getAvailableBalances(any());
@@ -150,7 +151,7 @@ class RealPortfolioSourceTest {
         when(bindingCheck.check(any(RainbowLiveBinding.class)))
                 .thenReturn(new BindingCheckResult(BindingCheckStatus.NOT_TRADABLE_WITHOUT_FIAT, "PAXG sans fiat"));
 
-        PortfolioReading r = source.read(preset);
+        PortfolioReading r = source.read(binding);
 
         assertEquals(PortfolioStatus.NOT_TRADABLE, r.status());
         org.mockito.Mockito.verify(reader, org.mockito.Mockito.never()).getAvailableBalances(any());

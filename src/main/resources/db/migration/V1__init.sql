@@ -8,7 +8,7 @@
         actor varchar(64) not null,
         target varchar(120),
         payload varchar(1000),
-        action enum ('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','ORDER_VALIDATE','PLAN','RECONCILE','RUN') not null,
+        action enum ('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','ORDER_READ','ORDER_SEND','ORDER_VALIDATE','PLAN','RECONCILE','RUN') not null,
         outcome enum ('ERROR','OK','REFUSED') not null,
         primary key (id)
     ) engine=InnoDB;
@@ -270,6 +270,38 @@
         primary key (id)
     ) engine=InnoDB;
 
+    create table rainbow_live_binding_run (
+        run_day date not null,
+        t0005_action_amount_usdc float(53),
+        t0005_action_quantity float(53),
+        t0005_cash_reserved float(53),
+        t0005_cash_usd float(53),
+        t0005_position_qty float(53),
+        t0005_tradable_qty float(53),
+        t2355_action_amount_usdc float(53),
+        t2355_action_quantity float(53),
+        t2355_cash_reserved float(53),
+        t2355_cash_usd float(53),
+        t2355_position_qty float(53),
+        t2355_tradable_qty float(53),
+        binding_id bigint not null,
+        computed_at datetime(6),
+        id bigint not null auto_increment,
+        t0005_fetched_at datetime(6),
+        t0005_wallet_id bigint,
+        t2355_fetched_at datetime(6),
+        t2355_wallet_id bigint,
+        t0005_cash_detail varchar(255),
+        t2355_cash_detail varchar(255),
+        t0005_action_type enum ('BLOCKED','BUY','NONE','SELL'),
+        t0005_block_reason enum ('INSUFFICIENT_CASH','NONE','NOT_TRADABLE_WITHOUT_FIAT','UNAVAILABLE'),
+        t0005_status enum ('NOT_TRADABLE','OK','STALE','UNAVAILABLE'),
+        t2355_action_type enum ('BLOCKED','BUY','NONE','SELL'),
+        t2355_block_reason enum ('INSUFFICIENT_CASH','NONE','NOT_TRADABLE_WITHOUT_FIAT','UNAVAILABLE'),
+        t2355_status enum ('NOT_TRADABLE','OK','STALE','UNAVAILABLE'),
+        primary key (id)
+    ) engine=InnoDB;
+
     create table rainbow_live_engine_state (
         buy_armed bit not null,
         buy_armed_days integer not null,
@@ -364,6 +396,7 @@
         id bigint not null auto_increment,
         plan_id bigint not null,
         submitted_at datetime(6),
+        wallet_id bigint,
         asset_symbol varchar(16) not null,
         fee_currency varchar(20),
         received_currency varchar(20),
@@ -490,12 +523,6 @@
         t0005_cash_after float(53),
         t0005_close float(53),
         t0005_cooldown_remaining integer,
-        t0005_live_action_amount_usdc float(53),
-        t0005_live_action_quantity float(53),
-        t0005_live_cash_reserved float(53),
-        t0005_live_cash_usd float(53),
-        t0005_live_position_qty float(53),
-        t0005_live_tradable_qty float(53),
         t0005_moon_mode bit,
         t0005_moon_reserve_qty float(53),
         t0005_position_after float(53),
@@ -519,12 +546,6 @@
         t2355_cash_after float(53),
         t2355_close float(53),
         t2355_cooldown_remaining integer,
-        t2355_live_action_amount_usdc float(53),
-        t2355_live_action_quantity float(53),
-        t2355_live_cash_reserved float(53),
-        t2355_live_cash_usd float(53),
-        t2355_live_position_qty float(53),
-        t2355_live_tradable_qty float(53),
         t2355_moon_mode bit,
         t2355_moon_reserve_qty float(53),
         t2355_position_after float(53),
@@ -537,32 +558,20 @@
         id bigint not null auto_increment,
         preset_id bigint not null,
         t0005_computed_at datetime(6),
-        t0005_live_fetched_at datetime(6),
-        t0005_live_wallet_id bigint,
         t2355_computed_at datetime(6),
-        t2355_live_fetched_at datetime(6),
-        t2355_live_wallet_id bigint,
         user_id bigint not null,
         asset_symbol varchar(16) not null,
         config_hash varchar(32),
         t0005_active_set varchar(255),
         t0005_config_hash varchar(255),
-        t0005_live_cash_detail varchar(255),
         t0005_trend_regime varchar(255),
         t2355_active_set varchar(255),
         t2355_config_hash varchar(255),
-        t2355_live_cash_detail varchar(255),
         t2355_trend_regime varchar(255),
         buy_reentry_mode enum ('FIXED_DELAY','IMMEDIATE','TRAILING_STOP'),
         sell_reentry_mode enum ('FIXED_DELAY','IMMEDIATE','TRAILING_STOP'),
         t0005_action_type enum ('BLOCKED','BUY','NONE','SELL'),
-        t0005_live_action_type enum ('BLOCKED','BUY','NONE','SELL'),
-        t0005_live_block_reason enum ('INSUFFICIENT_CASH','NONE','NOT_TRADABLE_WITHOUT_FIAT','UNAVAILABLE'),
-        t0005_live_status enum ('NOT_TRADABLE','OK','STALE','UNAVAILABLE'),
         t2355_action_type enum ('BLOCKED','BUY','NONE','SELL'),
-        t2355_live_action_type enum ('BLOCKED','BUY','NONE','SELL'),
-        t2355_live_block_reason enum ('INSUFFICIENT_CASH','NONE','NOT_TRADABLE_WITHOUT_FIAT','UNAVAILABLE'),
-        t2355_live_status enum ('NOT_TRADABLE','OK','STALE','UNAVAILABLE'),
         primary key (id)
     ) engine=InnoDB;
 
@@ -736,6 +745,9 @@
     alter table rainbow_live_binding 
        add constraint uk_rainbow_live_binding_user_asset_wallet unique (user_id, asset_symbol, wallet_id);
 
+    alter table rainbow_live_binding_run 
+       add constraint uk_rainbow_live_binding_run_binding_day unique (binding_id, run_day);
+
     alter table rainbow_live_engine_state 
        add constraint uk_rainbow_live_engine_state_preset_day unique (preset_id, state_day);
 
@@ -830,6 +842,12 @@
        add constraint FKd6ymsdvc4qgdfq1koso6b4jh6 
        foreign key (wallet_id) 
        references wallet (id);
+
+    alter table rainbow_live_binding_run 
+       add constraint FKp0rmqlharqdusd4pm4322hq2u 
+       foreign key (binding_id) 
+       references rainbow_live_binding (id) 
+       on delete cascade;
 
     alter table rainbow_live_engine_state 
        add constraint FKhnwwgjks321auqn1xmejlwig8 

@@ -177,11 +177,12 @@ class RainbowLiveBindingControllerTest {
         json(post("/api/rainbow-live/bindings"), createBody("BTC", p2.getId(), aliceWallet.getId(), null))
                 .andExpect(status().isConflict());
 
-        // Même actif sur un autre wallet (autre exchange) : autorisé, avec son propre preset ; le preset déjà live reste exclusif.
+        // Même actif sur un autre wallet (autre exchange) : autorisé, avec le même preset ou un autre.
         Wallet aliceKraken = wallet(alice, "Kraken");
         json(post("/api/rainbow-live/bindings"), createBody("BTC", p1.getId(), aliceKraken.getId(), null))
-                .andExpect(status().isConflict());
-        json(post("/api/rainbow-live/bindings"), createBody("BTC", p2.getId(), aliceKraken.getId(), null))
+                .andExpect(status().isCreated());
+        Wallet aliceBinance = wallet(alice, "Binance");
+        json(post("/api/rainbow-live/bindings"), createBody("BTC", p2.getId(), aliceBinance.getId(), null))
                 .andExpect(status().isCreated());
 
         bindingRepository.saveAndFlush(RainbowLiveBinding.builder().user(bob).assetSymbol("BTC")
@@ -189,6 +190,46 @@ class RainbowLiveBindingControllerTest {
         RainbowLiveBinding dup = RainbowLiveBinding.builder().user(bob).assetSymbol("BTC")
                 .preset(preset(bob, "BTC", "b2")).wallet(bobWallet).bagPercent(100).priority(0).build();
         assertThrows(DataIntegrityViolationException.class, () -> bindingRepository.saveAndFlush(dup));
+    }
+
+    @Test
+    @DisplayName("Même preset sur deux wallets : 201 + 201 ; changement de wallet vers un couple déjà lié : 409")
+    void samePresetTwoWallets() throws Exception {
+        RainbowLivePreset btc = preset(alice, "BTC", "p");
+        Wallet kraken = wallet(alice, "Kraken");
+        Wallet binance = wallet(alice, "Binance");
+        json(post("/api/rainbow-live/bindings"), createBody("BTC", btc.getId(), aliceWallet.getId(), null))
+                .andExpect(status().isCreated());
+        Long krakenBinding = bindingService.create(alice, new RainbowLiveBindingService.CreateRequest("BTC", btc.getId(),
+                kraken.getId(), null, null)).binding().getId();
+        assertEquals(2, bindingRepository.findAllByPreset(btc).size());
+        json(put("/api/rainbow-live/bindings/" + krakenBinding), Map.of("walletId", aliceWallet.getId()))
+                .andExpect(status().isConflict());
+        json(put("/api/rainbow-live/bindings/" + krakenBinding), Map.of("walletId", binance.getId()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("candidates : presets de l'actif avec stratégie, origine et lien existant ; wallet étranger => 404")
+    void candidates() throws Exception {
+        RainbowLivePreset p1 = preset(alice, "BTC", "p1");
+        preset(alice, "BTC", "p2");
+        preset(alice, "ETH", "autre-actif");
+        Long id = bindingService.create(alice, new RainbowLiveBindingService.CreateRequest("BTC", p1.getId(),
+                aliceWallet.getId(), null, null)).binding().getId();
+        mvc.perform(get("/api/rainbow-live/bindings/candidates").param("walletId", aliceWallet.getId().toString())
+                        .param("asset", "BTC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].name").value("p1"))
+                .andExpect(jsonPath("$[0].mode").value("FIXED"))
+                .andExpect(jsonPath("$[0].origin").value("CUSTOM"))
+                .andExpect(jsonPath("$[0].alreadyLinkedBindingId").value(id))
+                .andExpect(jsonPath("$[1].alreadyLinkedBindingId").doesNotExist());
+        mvc.perform(get("/api/rainbow-live/bindings/candidates").param("walletId", bobWallet.getId().toString())
+                .param("asset", "BTC")).andExpect(status().isNotFound());
+        mvc.perform(get("/api/rainbow-live/bindings/candidates").param("walletId", aliceWallet.getId().toString())
+                .param("asset", "SOL")).andExpect(status().isBadRequest());
     }
 
     @Test

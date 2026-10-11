@@ -7,14 +7,14 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBindingRun;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun;
 import fr.ses10doigts.tradeIO5.model.enumerate.WalletSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.repository.WalletRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
-import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository;
+import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRunRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
@@ -74,7 +74,7 @@ class RainbowLiveWalletControllerTest {
     @Autowired private RainbowLivePresetService presetService;
     @Autowired private RainbowLiveWalletQueryService queryService;
     @Autowired private RainbowLiveBindingRepository bindingRepository;
-    @Autowired private RainbowLiveRunRepository runRepository;
+    @Autowired private RainbowLiveBindingRunRepository runRepository;
     @Autowired private WalletRepository walletRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private jakarta.persistence.EntityManager em;
@@ -110,16 +110,17 @@ class RainbowLiveWalletControllerTest {
                 .wallet(w).bagPercent(bag).priority(priority).build());
     }
 
-    private RainbowLivePassBlock live(PortfolioStatus status, LiveBlockReason reason, RainbowLiveAction action,
+    private RainbowLiveLiveBlock live(PortfolioStatus status, LiveBlockReason reason, RainbowLiveAction action,
                                       Double amount, Double quantity) {
-        return RainbowLivePassBlock.builder().liveStatus(status).liveWalletId(1L).liveFetchedAt(FETCHED)
-                .liveCashUsd(500.0).liveCashDetail("{\"USDC\":450.0,\"USDT\":50.0}").livePositionQty(0.02).liveTradableQty(0.01).liveCashReserved(50.0)
-                .liveBlockReason(reason).liveActionType(action).liveActionAmountUsdc(amount)
-                .liveActionQuantity(quantity).actionType(RainbowLiveAction.BUY).actionAmountUsdc(999.0).build();
+        return RainbowLiveLiveBlock.builder().status(status).walletId(1L).fetchedAt(FETCHED)
+                .cashUsd(500.0).cashDetail("{\"USDC\":450.0,\"USDT\":50.0}").positionQty(0.02).tradableQty(0.01).cashReserved(50.0)
+                .blockReason(reason).actionType(action).actionAmountUsdc(amount)
+                .actionQuantity(quantity).build();
     }
 
-    private void run(User user, RainbowLivePreset preset, LocalDate day, RainbowLivePassBlock b2355, RainbowLivePassBlock b0005) {
-        runRepository.save(RainbowLiveRun.builder().preset(preset).user(user).assetSymbol(preset.getAssetSymbol())
+    /** Run du lien (unique) du preset. */
+    private void run(User user, RainbowLivePreset preset, LocalDate day, RainbowLiveLiveBlock b2355, RainbowLiveLiveBlock b0005) {
+        runRepository.save(RainbowLiveBindingRun.builder().binding(bindingRepository.findAllByPreset(preset).getFirst())
                 .day(day).pass2355(b2355).pass0005(b0005).build());
     }
 
@@ -198,7 +199,7 @@ class RainbowLiveWalletControllerTest {
 
         RainbowLivePreset fresh = preset(alice, "PAXG", "fresh");
         bind(alice, "PAXG", fresh, 100.0, 2);
-        run(alice, fresh, LocalDate.of(2026, 10, 9), RainbowLivePassBlock.builder().close(1.0).build(), null);
+        run(alice, fresh, LocalDate.of(2026, 10, 9), RainbowLiveLiveBlock.builder().build(), null);
         mvc.perform(get(URL)).andExpect(jsonPath("$[1].assetSymbol").value("PAXG"))
                 .andExpect(jsonPath("$[1].snapshot").doesNotExist());
     }

@@ -58,7 +58,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @DataJpaTest
-@Import({RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class, RainbowLivePresetService.class, RainbowAssetStrategyService.class, RainbowLiveRunService.class, RainbowLiveExecutionService.class,
+@Import({RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class, RainbowLivePresetService.class, RainbowAssetStrategyService.class, RainbowLiveRunService.class, RainbowLiveBindingRunService.class, RainbowLiveExecutionService.class,
         RainbowTrendLiveService.class, MockPortfolioSource.class, RainbowAthService.class,
         RainbowLiveExecutionServiceTest.ClockConfig.class})
 @DisplayName("Bench grandeur nature Rainbow : service d'exécution (passes 23:55 / 00:05)")

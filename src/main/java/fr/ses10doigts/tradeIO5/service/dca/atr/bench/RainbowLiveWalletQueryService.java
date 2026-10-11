@@ -5,11 +5,10 @@ import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveWalletDtos.LiveAss
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveWalletDtos.LiveSnapshotDto;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBindingRun;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
-import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository;
+import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRunRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,7 +20,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Affichage du wallet réel des presets live : lit uniquement la base (bindings + dernier run du preset lié). Aucune
+ * Affichage du wallet réel des presets live : lit uniquement la base (bindings + dernier run de chaque lien). Aucune
  * dépendance exchange, lecteur de soldes ni {@code BindingCheck} : l'affichage ne déclenche jamais d'appel réseau.
  */
 @Service
@@ -29,7 +28,7 @@ import java.util.stream.Collectors;
 public class RainbowLiveWalletQueryService {
 
     private final RainbowLiveBindingRepository bindingRepository;
-    private final RainbowLiveRunRepository runRepository;
+    private final RainbowLiveBindingRunRepository runRepository;
 
     /** Un élément par binding de l'utilisateur (ordre de priorité) ; liste vide sans binding. */
     @Transactional(readOnly = true)
@@ -38,13 +37,12 @@ public class RainbowLiveWalletQueryService {
         if (bindings.isEmpty()) {
             return List.of();
         }
-        List<RainbowLivePreset> presets = bindings.stream().map(RainbowLiveBinding::getPreset).toList();
-        Map<Long, RainbowLiveRun> latest = runRepository.latestByPresets(presets).stream()
-                .collect(Collectors.toMap(r -> r.getPreset().getId(), Function.identity()));
-        return bindings.stream().map(b -> toDto(b, latest.get(b.getPreset().getId()))).toList();
+        Map<Long, RainbowLiveBindingRun> latest = runRepository.latestByBindings(bindings).stream()
+                .collect(Collectors.toMap(r -> r.getBinding().getId(), Function.identity()));
+        return bindings.stream().map(b -> toDto(b, latest.get(b.getId()))).toList();
     }
 
-    private static LiveAssetDto toDto(RainbowLiveBinding b, RainbowLiveRun latest) {
+    private static LiveAssetDto toDto(RainbowLiveBinding b, RainbowLiveBindingRun latest) {
         var wallet = b.getWallet();
         return new LiveAssetDto(b.getAssetSymbol(), b.getId(), b.getPreset().getId(), b.getPreset().getName(),
                 wallet.getId(), wallet.getName(),
@@ -55,12 +53,12 @@ public class RainbowLiveWalletQueryService {
     }
 
     /** Bloc le plus récent portant un snapshot live (00:05 avant 23:55) ; nul si le run n'en a pas (preset pas encore joué en live). */
-    private static LiveSnapshotDto snapshotOf(RainbowLiveRun run) {
-        RainbowLivePassBlock b0005 = run.getPass0005();
+    private static LiveSnapshotDto snapshotOf(RainbowLiveBindingRun run) {
+        RainbowLiveLiveBlock b0005 = run.getPass0005();
         if (b0005 != null && b0005.hasLiveSnapshot()) {
             return toSnapshot(run, RainbowLivePass.T0005, b0005);
         }
-        RainbowLivePassBlock b2355 = run.getPass2355();
+        RainbowLiveLiveBlock b2355 = run.getPass2355();
         return b2355 != null && b2355.hasLiveSnapshot() ? toSnapshot(run, RainbowLivePass.T2355, b2355) : null;
     }
 
@@ -71,10 +69,10 @@ public class RainbowLiveWalletQueryService {
                 + " sans passer par une monnaie fiat : exécution bloquée" : null;
     }
 
-    private static LiveSnapshotDto toSnapshot(RainbowLiveRun run, RainbowLivePass pass, RainbowLivePassBlock b) {
-        return new LiveSnapshotDto(run.getDay(), pass, b.getLiveStatus(), b.getLiveFetchedAt(), b.getLiveCashUsd(),
-                CashDetailCodec.read(b.getLiveCashDetail()),
-                b.getLivePositionQty(), b.getLiveTradableQty(), b.getLiveCashReserved(), b.getLiveBlockReason(),
-                b.getLiveActionType(), b.getLiveActionAmountUsdc(), b.getLiveActionQuantity());
+    private static LiveSnapshotDto toSnapshot(RainbowLiveBindingRun run, RainbowLivePass pass, RainbowLiveLiveBlock b) {
+        return new LiveSnapshotDto(run.getDay(), pass, b.getStatus(), b.getFetchedAt(), b.getCashUsd(),
+                CashDetailCodec.read(b.getCashDetail()),
+                b.getPositionQty(), b.getTradableQty(), b.getCashReserved(), b.getBlockReason(),
+                b.getActionType(), b.getActionAmountUsdc(), b.getActionQuantity());
     }
 }

@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -43,8 +43,8 @@ class PortfolioReadingTest {
     @Test
     @DisplayName("Relecture d'un snapshot : cash du pool, position de l'actif, wallet, instant, statut")
     void fromSnapshot() {
-        RainbowLivePassBlock block = RainbowLivePassBlock.builder().liveStatus(PortfolioStatus.OK).liveWalletId(7L)
-                .liveFetchedAt(T0).liveCashUsd(120.0).livePositionQty(0.5).build();
+        RainbowLiveLiveBlock block = RainbowLiveLiveBlock.builder().status(PortfolioStatus.OK).walletId(7L)
+                .fetchedAt(T0).cashUsd(120.0).positionQty(0.5).build();
 
         PortfolioReading r = PortfolioReading.fromSnapshot(block, "BTC");
 

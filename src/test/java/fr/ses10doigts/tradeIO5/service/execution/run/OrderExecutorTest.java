@@ -72,7 +72,9 @@ class OrderExecutorTest {
     private final User user = User.builder().id(1L).build();
     private final ExecutionControl control = ExecutionControl.initial(NOW);
     private final Map<Long, RainbowLiveOrderStep> stepsById = new HashMap<>();
+    /** Clé {@code actif@walletId}. */
     private final Map<String, RainbowLiveBinding> bindingsByAsset = new HashMap<>();
+    private final Map<Long, Wallet> walletsById = new HashMap<>();
     private final WebProvider okx = WebProvider.builder().code(WebProviderCode.OKX).apiBaseUrl("http://unused").build();
     private final InstrumentInfo btcUsdc = new InstrumentInfo("BTC-USDC", "BTC", "USDC", new BigDecimal("0.00001"),
             new BigDecimal("0.00000001"), new BigDecimal("0.1"));
@@ -108,27 +110,32 @@ class OrderExecutorTest {
     }
 
     private void addAsset(String symbol, InstrumentInfo instrument, String quoteAmount, long stepId) {
-        RainbowLiveOrderPlanAsset asset = RainbowLiveOrderPlanAsset.builder().assetSymbol(symbol).walletId(10L)
+        addAsset(symbol, 10L, instrument, quoteAmount, stepId);
+    }
+
+    private void addAsset(String symbol, long walletId, InstrumentInfo instrument, String quoteAmount, long stepId) {
+        RainbowLiveOrderPlanAsset asset = RainbowLiveOrderPlanAsset.builder().assetSymbol(symbol).walletId(walletId)
                 .costPct(new BigDecimal("0.10")).build();
         plan.getAssets().add(asset);
         BigDecimal quote = new BigDecimal(quoteAmount);
-        RainbowLiveOrderStep step = RainbowLiveOrderStep.builder().id(stepId).plan(plan).rank(1).assetSymbol(symbol)
+        RainbowLiveOrderStep step = RainbowLiveOrderStep.builder().id(stepId).plan(plan).rank(1).assetSymbol(symbol).walletId(walletId)
                 .instId(instrument.instId()).side(StepSide.BUY).ordType(StepOrderType.LIMIT_IOC).px(new BigDecimal("100000"))
                 .sz(quote.divide(new BigDecimal("100000"), 8, java.math.RoundingMode.DOWN)).quoteAmount(quote)
                 .clOrdId("tio" + stepId + "abc").feePct(new BigDecimal("0.05")).spreadPct(new BigDecimal("0.03"))
                 .slippagePct(new BigDecimal("0.02")).status(StepStatus.PLANNED).build();
         plan.getSteps().add(step);
         stepsById.put(stepId, step);
-        Wallet wallet = Wallet.builder().id(10L).name("w").source(WalletSource.EXCHANGE).enabled(true)
+        Wallet wallet = Wallet.builder().id(walletId).name("w").source(WalletSource.EXCHANGE).enabled(true)
                 .credential(ApiCredential.builder().enabled(true).build()).webProviderCode(WebProviderCode.OKX).webProvider(okx).build();
-        bindingsByAsset.put(symbol, RainbowLiveBinding.builder().user(user).assetSymbol(symbol)
+        walletsById.put(walletId, wallet);
+        bindingsByAsset.put(symbol + "@" + walletId, RainbowLiveBinding.builder().user(user).assetSymbol(symbol)
                 .preset(RainbowLivePreset.builder().id(1L).build()).wallet(wallet).tradability(BindingCheckStatus.OK)
                 .executionEnabled(true).firstLiveApprovedAt(NOW).firstLiveConfirmedAt(NOW).build());
     }
 
     private OrderExecutor executor(String mode) {
         RainbowLiveBindingRepository bindings = mock(RainbowLiveBindingRepository.class);
-        when(bindings.findByUserAndAssetSymbolAndWallet_Id(any(), any(), any())).thenAnswer(i -> Optional.ofNullable(bindingsByAsset.get(i.getArgument(1))));
+        when(bindings.findByUserAndAssetSymbolAndWallet_Id(any(), any(), any())).thenAnswer(i -> Optional.ofNullable(bindingsByAsset.get(i.getArgument(1) + "@" + i.getArgument(2))));
         when(bindings.findByUserOrderByPriorityAscAssetSymbolAsc(any())).thenAnswer(i -> new ArrayList<>(bindingsByAsset.values()));
         RainbowLiveRunRepository runs = mock(RainbowLiveRunRepository.class);
         when(runs.findByPresetAndDay(any(), any())).thenAnswer(i -> Optional.of(RainbowLiveRun.builder()
@@ -139,7 +146,7 @@ class OrderExecutorTest {
         when(controlService.current()).thenAnswer(i -> control);
         SpotOrderRouter ports = router;
         WalletRepository wallets = mock(WalletRepository.class);
-        when(wallets.findById(anyLong())).thenAnswer(i -> Optional.of(bindingsByAsset.values().iterator().next().getWallet()));
+        when(wallets.findById(anyLong())).thenAnswer(i -> Optional.ofNullable(walletsById.get(i.getArgument(0, Long.class))));
         PlatformTransactionManager tm = mock(PlatformTransactionManager.class);
         OrderEventLog events = mock(OrderEventLog.class);
         boolean live = "LIVE".equals(mode);
@@ -189,7 +196,7 @@ class OrderExecutorTest {
         router = new SpotOrderRouter(List.of(kraken));
         addAsset("BTC", btcUsdc, "4", 100L);
         ExecutionResult r = runLive();
-        assertEquals(ExecutionBlockReason.PORT_UNAVAILABLE, r.blocked().get("BTC"));
+        assertEquals(ExecutionBlockReason.PORT_UNAVAILABLE, r.blocked().get("BTC@10"));
         assertEquals(0, r.sent());
         assertEquals(0, kraken.totalCalls());
         assertEquals(0, exchange.totalCalls());
@@ -223,18 +230,18 @@ class OrderExecutorTest {
     @DisplayName("Binding non activé, 1er ordre non validé (armé seul), credential absente, non tradable : bloqué, zéro appel")
     void assetGates() {
         addAsset("BTC", btcUsdc, "4", 100L);
-        RainbowLiveBinding b = bindingsByAsset.get("BTC");
+        RainbowLiveBinding b = bindingsByAsset.get("BTC@10");
         b.setExecutionEnabled(false);
-        assertEquals(ExecutionBlockReason.BINDING_DISABLED, runLive().blocked().get("BTC"));
+        assertEquals(ExecutionBlockReason.BINDING_DISABLED, runLive().blocked().get("BTC@10"));
         b.setExecutionEnabled(true);
         b.setFirstLiveConfirmedAt(null);
-        assertEquals(ExecutionBlockReason.FIRST_LIVE_NOT_VALIDATED, runLive().blocked().get("BTC"));
+        assertEquals(ExecutionBlockReason.FIRST_LIVE_NOT_VALIDATED, runLive().blocked().get("BTC@10"));
         b.setFirstLiveConfirmedAt(NOW);
         when(credentials.resolve(any(), any())).thenReturn(Optional.empty());
-        assertEquals(ExecutionBlockReason.CREDENTIAL_INVALID, runLive().blocked().get("BTC"));
+        assertEquals(ExecutionBlockReason.CREDENTIAL_INVALID, runLive().blocked().get("BTC@10"));
         when(credentials.resolve(any(), any())).thenReturn(Optional.of(new ApiCredential()));
         b.setTradability(BindingCheckStatus.NOT_TRADABLE_WITHOUT_FIAT);
-        assertEquals(ExecutionBlockReason.NOT_TRADABLE, runLive().blocked().get("BTC"));
+        assertEquals(ExecutionBlockReason.NOT_TRADABLE, runLive().blocked().get("BTC@10"));
         assertEquals(0, exchange.totalCalls());
     }
 
@@ -242,17 +249,17 @@ class OrderExecutorTest {
     @DisplayName("Plafonds : par ordre (× baseAmount), absolu par ordre, par jour (absolu)")
     void caps() {
         addAsset("BTC", btcUsdc, "6", 100L);
-        assertEquals(ExecutionBlockReason.CAP_ORDER, runLive().blocked().get("BTC"));
+        assertEquals(ExecutionBlockReason.CAP_ORDER, runLive().blocked().get("BTC@10"));
         plan.setStatus(PlanStatus.PLANNED);
         stepsById.get(100L).setQuoteAmount(new BigDecimal("12"));
         baseAmount = new BigDecimal("20");
-        assertEquals(ExecutionBlockReason.CAP_ABSOLUTE_ORDER, runLive().blocked().get("BTC"));
+        assertEquals(ExecutionBlockReason.CAP_ABSOLUTE_ORDER, runLive().blocked().get("BTC@10"));
         plan.setStatus(PlanStatus.PLANNED);
         stepsById.get(100L).setQuoteAmount(new BigDecimal("8"));
         RainbowLiveOrderStep earlier = RainbowLiveOrderStep.builder().id(7L).assetSymbol("BTC").instId("BTC-USDC")
                 .quoteAmount(new BigDecimal("45")).status(StepStatus.FILLED).build();
         when(steps.findSentSince(any(), any(), any())).thenReturn(List.of(earlier));
-        assertEquals(ExecutionBlockReason.CAP_ABSOLUTE_DAY, runLive().blocked().get("BTC"));
+        assertEquals(ExecutionBlockReason.CAP_ABSOLUTE_DAY, runLive().blocked().get("BTC@10"));
         assertEquals(0, exchange.totalCalls());
     }
 
@@ -262,7 +269,7 @@ class OrderExecutorTest {
         addAsset("BTC", btcUsdc, "4", 100L);
         when(steps.findSentSince(any(), any(), any())).thenReturn(List.of(RainbowLiveOrderStep.builder().id(7L)
                 .assetSymbol("BTC").instId("BTC-USDC").quoteAmount(new BigDecimal("6")).status(StepStatus.FILLED).build()));
-        assertEquals(ExecutionBlockReason.CAP_DAY, runLive().blocked().get("BTC"));
+        assertEquals(ExecutionBlockReason.CAP_DAY, runLive().blocked().get("BTC@10"));
         assertEquals(0, exchange.totalCalls());
     }
 
@@ -274,7 +281,7 @@ class OrderExecutorTest {
         exchange.onSubmit(r -> control.setKillSwitch(true));
         ExecutionResult r = runLive();
         assertEquals(1, exchange.submitCount());
-        assertEquals(ExecutionBlockReason.KILL_SWITCH, r.blocked().get("ETH"));
+        assertEquals(ExecutionBlockReason.KILL_SWITCH, r.blocked().get("ETH@10"));
         assertEquals(StepStatus.PLANNED, stepsById.get(200L).getStatus());
         assertEquals(PlanStatus.PARTIAL, r.status());
     }
@@ -325,5 +332,20 @@ class OrderExecutorTest {
         stepsById.get(100L).setStatus(StepStatus.PLANNED);
         runLive();
         assertEquals(0, exchange.submitCount());
+    }
+
+    @Test
+    @DisplayName("Deux liens BTC (wallets 10 et 11) : deux chaînes distinctes ; le blocage de l'un est sans effet sur l'autre")
+    void sameAssetTwoWallets() {
+        addAsset("BTC", 10L, btcUsdc, "4", 100L);
+        addAsset("BTC", 11L, btcUsdc, "4", 101L);
+        bindingsByAsset.get("BTC@11").setExecutionEnabled(false);
+
+        ExecutionResult r = runLive();
+
+        assertEquals(1, r.sent(), "seule la chaîne du wallet 10 part");
+        assertEquals(ExecutionBlockReason.BINDING_DISABLED, r.blocked().get("BTC@11"));
+        assertNull(r.blocked().get("BTC@10"));
+        assertEquals(StepStatus.PLANNED, stepsById.get(101L).getStatus());
     }
 }

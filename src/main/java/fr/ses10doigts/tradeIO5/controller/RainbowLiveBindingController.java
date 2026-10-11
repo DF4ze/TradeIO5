@@ -47,6 +47,12 @@ public class RainbowLiveBindingController {
         return bindingService.list(authenticationFacade.getConnectedUser()).stream().map(BindingDto::of).toList();
     }
 
+    /** Presets de l'utilisateur pour l'actif (choix stratégie -> preset du formulaire) ; wallet d'un autre user => 404. */
+    @GetMapping("/candidates")
+    public List<RainbowLiveBindingService.Candidate> candidates(@RequestParam Long walletId, @RequestParam String asset) {
+        return bindingService.candidates(authenticationFacade.getConnectedUser(), walletId, asset);
+    }
+
     @GetMapping("/{id}")
     public BindingDto get(@PathVariable Long id) {
         return BindingDto.of(bindingService.get(authenticationFacade.getConnectedUser(), id));

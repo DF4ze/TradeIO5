@@ -3,8 +3,8 @@ package fr.ses10doigts.tradeIO5.service.execution.plan;
 import fr.ses10doigts.tradeIO5.model.dto.execution.PathEstimation;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBindingRun;
 import fr.ses10doigts.tradeIO5.model.entity.execution.PlanStatus;
 import fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderPlan;
 import fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderPlanAsset;
@@ -13,7 +13,7 @@ import fr.ses10doigts.tradeIO5.model.entity.execution.StepOrderType;
 import fr.ses10doigts.tradeIO5.model.entity.execution.StepStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
-import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository;
+import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRunRepository;
 import fr.ses10doigts.tradeIO5.repository.execution.RainbowLiveOrderPlanRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.PortfolioReading;
@@ -29,11 +29,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -54,7 +52,7 @@ public class OrderPlanService {
 
     private final UserRepository userRepository;
     private final RainbowLiveBindingRepository bindingRepository;
-    private final RainbowLiveRunRepository runRepository;
+    private final RainbowLiveBindingRunRepository runRepository;
     private final RainbowLiveOrderPlanRepository planRepository;
     private final OrderPlanner planner;
     private final ExecutionSettings settings;
@@ -62,7 +60,7 @@ public class OrderPlanService {
     private final TransactionTemplate transaction;
 
     public OrderPlanService(UserRepository userRepository, RainbowLiveBindingRepository bindingRepository,
-                            RainbowLiveRunRepository runRepository, RainbowLiveOrderPlanRepository planRepository,
+                            RainbowLiveBindingRunRepository runRepository, RainbowLiveOrderPlanRepository planRepository,
                             OrderPlanner planner, ExecutionSettings settings, DomainClock clock,
                             PlatformTransactionManager transactionManager) {
         this.userRepository = userRepository;
@@ -101,19 +99,11 @@ public class OrderPlanService {
         List<RainbowLiveBinding> bindings = bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(user);
         List<AssetInput> inputs = new ArrayList<>();
         boolean anyRun = false;
-        Set<String> plannedAssets = new HashSet<>();
         for (RainbowLiveBinding binding : bindings) {
-            // Étapes, clOrdId et exécuteur sont indexés par actif : un seul binding par actif est planifié (le plus prioritaire),
-            // les autres wallets du même actif restent en lecture live seule (cf. known-gaps).
-            if (!plannedAssets.add(binding.getAssetSymbol())) {
-                log.warn("Plan d'ordres : binding {} ({} sur le wallet {}) ignoré, un autre binding du même actif est déjà planifié",
-                        binding.getId(), binding.getAssetSymbol(), binding.getWallet().getId());
-                continue;
-            }
-            Optional<RainbowLiveRun> run = runRepository.findByPresetAndDay(binding.getPreset(), day);
+            Optional<RainbowLiveBindingRun> run = runRepository.findByBindingAndDay(binding, day);
             anyRun |= run.isPresent();
             inputs.add(inputOf(binding, run.map(r -> pass == RainbowLivePass.T2355 ? r.getPass2355() : r.getPass0005())
-                    .filter(RainbowLivePassBlock::hasLiveSnapshot).orElse(null)));
+                    .filter(RainbowLiveLiveBlock::hasLiveSnapshot).orElse(null)));
         }
         if (!anyRun) {
             log.debug("Plan d'ordres : aucun run live pour user={} jour {} passe {}, ignoré", user.getId(), day, pass);
@@ -139,7 +129,8 @@ public class OrderPlanService {
                     .costPct(a.costPct()).feeTestLevel(a.feeTestLevel()).warning(a.warning()).build());
             a.steps().forEach(s -> plan.addStep(RainbowLiveOrderStep.builder().rank(s.rank()).assetSymbol(s.assetSymbol())
                     .instId(s.instId()).side(s.side()).ordType(StepOrderType.LIMIT_IOC).sz(s.sz()).px(s.px())
-                    .quoteAmount(s.quoteAmount()).clOrdId(ClOrdIds.of(user.getId(), s.assetSymbol(), day, pass, s.rank()))
+                    .quoteAmount(s.quoteAmount()).walletId(a.walletId())
+                    .clOrdId(ClOrdIds.of(user.getId(), a.walletId(), s.assetSymbol(), day, pass, s.rank()))
                     .feePct(s.feePct()).spreadPct(s.spreadPct()).slippagePct(s.slippagePct()).status(StepStatus.PLANNED)
                     .estimation(s.estimation() == null ? PathEstimation.BOOK : s.estimation()).build()));
         });
@@ -159,7 +150,7 @@ public class OrderPlanService {
         };
     }
 
-    private static AssetInput inputOf(RainbowLiveBinding binding, RainbowLivePassBlock block) {
+    private static AssetInput inputOf(RainbowLiveBinding binding, RainbowLiveLiveBlock block) {
         if (block == null) {
             return new AssetInput(binding.getAssetSymbol(), binding.getPriority(), binding.isExecutionEnabled(),
                     binding.getWallet().getId(), binding.getWallet().getWebProviderCode(), binding.getWallet().getCredential(),
@@ -167,12 +158,12 @@ public class OrderPlanService {
         }
         return new AssetInput(binding.getAssetSymbol(), binding.getPriority(), binding.isExecutionEnabled(),
                 binding.getWallet().getId(), binding.getWallet().getWebProviderCode(), binding.getWallet().getCredential(),
-                block.getLiveStatus(), block.getLiveActionType(), decimal(block.getLiveActionAmountUsdc()),
-                decimal(block.getLiveActionQuantity()), cashOf(binding, block));
+                block.getStatus(), block.getActionType(), decimal(block.getActionAmountUsdc()),
+                decimal(block.getActionQuantity()), cashOf(binding, block));
     }
 
-    private static Map<String, BigDecimal> cashOf(RainbowLiveBinding binding, RainbowLivePassBlock block) {
-        return block.getLiveStatus() == PortfolioStatus.OK
+    private static Map<String, BigDecimal> cashOf(RainbowLiveBinding binding, RainbowLiveLiveBlock block) {
+        return block.getStatus() == PortfolioStatus.OK
                 ? PortfolioReading.fromSnapshot(block, binding.getAssetSymbol()).cashByMember().entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> BigDecimal.valueOf(e.getValue())))
                 : Map.of();

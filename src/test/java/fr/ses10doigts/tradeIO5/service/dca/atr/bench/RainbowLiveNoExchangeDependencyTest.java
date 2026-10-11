@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 @DisplayName("Bench grandeur nature : aucun accès exchange / ordre")
 class RainbowLiveNoExchangeDependencyTest {
 
-    private static final List<Class<?>> BEANS = List.of(RainbowLivePresetService.class, RainbowLiveRunService.class,
+    private static final List<Class<?>> BEANS = List.of(RainbowLivePresetService.class, RainbowLiveRunService.class, RainbowLiveBindingRunService.class,
             RainbowLiveExecutionService.class, RainbowLivePass2355Job.class, RainbowLivePass0005Job.class,
             RainbowLiveAdminController.class);
 

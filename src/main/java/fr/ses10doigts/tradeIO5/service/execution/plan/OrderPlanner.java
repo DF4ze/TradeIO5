@@ -125,9 +125,14 @@ public class OrderPlanner {
         }
     }
 
+    /** Ordre de passage du cash : priorité du lien, puis actif, puis wallet. */
+    private static final Comparator<AssetInput> INPUT_ORDER = Comparator.comparingInt(AssetInput::priority)
+            .thenComparing(AssetInput::assetSymbol)
+            .thenComparing(AssetInput::walletId, Comparator.nullsFirst(Comparator.naturalOrder()));
+
     public PlanDraft plan(List<AssetInput> inputs) {
         List<AssetInput> ordered = inputs.stream()
-                .sorted(Comparator.comparingInt(AssetInput::priority).thenComparing(AssetInput::assetSymbol)).toList();
+                .sorted(INPUT_ORDER).toList();
         Map<Long, WalletContext> contexts = new HashMap<>();
         Map<Long, Map<String, BigDecimal>> pools = new HashMap<>();
         List<PlanDraft.AssetDraft> drafts = new ArrayList<>();
@@ -390,7 +395,7 @@ public class OrderPlanner {
     /** Hash SHA-256 (hex) des entrées du plan, indépendant des données de marché : sert l'idempotence. */
     public static String inputsHash(List<AssetInput> inputs) {
         StringBuilder canonical = new StringBuilder();
-        inputs.stream().sorted(Comparator.comparingInt(AssetInput::priority).thenComparing(AssetInput::assetSymbol)).forEach(i -> {
+        inputs.stream().sorted(INPUT_ORDER).forEach(i -> {
             canonical.append(i.assetSymbol()).append('|').append(i.priority()).append('|').append(i.executionEnabled()).append('|')
                     .append(i.walletId()).append('|').append(i.status()).append('|').append(i.action()).append('|')
                     .append(plain(i.amountUsd())).append('|').append(plain(i.quantity())).append('|');

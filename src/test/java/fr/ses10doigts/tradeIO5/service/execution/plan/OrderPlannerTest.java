@@ -311,13 +311,26 @@ class OrderPlannerTest {
     }
 
     @Test
-    @DisplayName("clOrdId : déterministe, alphanumérique, 32 caractères maximum")
+    @DisplayName("clOrdId : déterministe, alphanumérique, 32 caractères maximum, distinct par wallet")
     void clOrdId() {
-        String id = ClOrdIds.of(1234567L, "PAXG", LocalDate.of(2026, 10, 9), fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass.T2355, 2);
+        var t2355 = fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass.T2355;
+        LocalDate day = LocalDate.of(2026, 10, 9);
+        String id = ClOrdIds.of(1234567L, 12L, "PAXG", day, t2355, 2);
 
-        assertEquals(id, ClOrdIds.of(1234567L, "PAXG", LocalDate.of(2026, 10, 9), fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass.T2355, 2));
-        assertEquals("t5qgljpaxg20261009102", id);
+        assertEquals(id, ClOrdIds.of(1234567L, 12L, "PAXG", day, t2355, 2));
+        assertEquals("t54qglj1cpaxg20261009102", id);
         assertTrue(id.length() <= 32 && id.matches("[a-z0-9]+"));
-        assertNotEquals(id, ClOrdIds.of(1234567L, "PAXG", LocalDate.of(2026, 10, 9), fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass.T2355, 1));
+        assertNotEquals(id, ClOrdIds.of(1234567L, 12L, "PAXG", day, t2355, 1));
+        assertNotEquals(id, ClOrdIds.of(1234567L, 13L, "PAXG", day, t2355, 2), "un autre wallet donne un autre identifiant");
+        assertNotEquals(ClOrdIds.of(1L, 11L, "BTC", day, t2355, 1), ClOrdIds.of(11L, 1L, "BTC", day, t2355, 1),
+                "userId/walletId non ambigus");
+    }
+
+    @Test
+    @DisplayName("clOrdId : longueur maximale avec des identifiants réalistes (user 6 chiffres, wallet 6 chiffres, PAXG)")
+    void clOrdIdMaxLength() {
+        String id = ClOrdIds.of(999_999L, 999_999L, "PAXG", LocalDate.of(2026, 12, 31),
+                fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass.T0005, 99);
+        assertTrue(id.length() <= ClOrdIds.MAX_LENGTH, id);
     }
 }

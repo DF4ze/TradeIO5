@@ -111,4 +111,16 @@ public class MainController {
 
 		return "adminPage";
     }
+
+    /** Procédure d'un achat réel de test depuis l'interface (texte statique, aucun appel exchange). */
+    @GetMapping("/info")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String infoAccess(Model model) {
+		model.addAttribute("name", authenticationFacade.getAuthentication().getName());
+		model.addAttribute("loggued", true);
+
+		model.addAttribute("page", "info");
+
+		return "infoPage";
+    }
 }

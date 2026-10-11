@@ -26,7 +26,8 @@ public final class OrderPlanDtos {
     }
 
     public record AssetDto(String assetSymbol, RainbowLiveAction action, AssetPlanOutcome outcome, PlanBlockReason blockReason,
-                           BigDecimal costPct, FeeTestLevel feeTestLevel, String warning, List<StepDto> steps) {
+                           BigDecimal costPct, FeeTestLevel feeTestLevel, String warning, List<StepDto> steps,
+                           Long walletId) {
     }
 
     public record StepDto(int rank, String instId, StepSide side, String ordType, BigDecimal sz, BigDecimal px,

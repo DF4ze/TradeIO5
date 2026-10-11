@@ -1,6 +1,5 @@
 package fr.ses10doigts.tradeIO5.model.entity.dca.bench;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -64,53 +63,7 @@ public class RainbowLivePassBlock {
     private Double cashAfter;
     private Double positionAfter;
 
-    /**
-     * Snapshot du portefeuille réel (preset live uniquement, null sinon) : statut de la lecture, wallet, instant de
-     * lecture, cash USD du pool (groupe USDC + USDT), position réelle de l'actif, position tradable ({@code bagPercent} x réelle), cash déjà
-     * réservé par les actifs servis avant, raison d'un blocage.
-     */
-    @Enumerated(EnumType.STRING)
-    private PortfolioStatus liveStatus;
-    private Long liveWalletId;
-    private Instant liveFetchedAt;
-    private Double liveCashUsd;
-    /** Détail du cash par membre du groupe USD, JSON {@code {"USDC":..,"USDT":..}}. */
-    @Column(length = 255)
-    private String liveCashDetail;
-    private Double livePositionQty;
-    private Double liveTradableQty;
-    private Double liveCashReserved;
-    @Enumerated(EnumType.STRING)
-    private LiveBlockReason liveBlockReason;
-
-    /** Action live recommandée (plafonnée sur le réel, jamais exécutée) ; {@code actionType} reste l'action du wallet mock. */
-    @Enumerated(EnumType.STRING)
-    private RainbowLiveAction liveActionType;
-    private Double liveActionAmountUsdc;
-    private Double liveActionQuantity;
-
     /** Hash de la config avec laquelle la passe a été calculée. */
     private String configHash;
     private Instant computedAt;
-
-    /** Vrai si la passe porte un snapshot live (preset lié à un wallet réel). */
-    public boolean hasLiveSnapshot() {
-        return liveStatus != null;
-    }
-
-    /** Recopie le snapshot et l'action live de {@code other} (rejeu 23:55 : l'action d'origine est conservée). */
-    public void copyLiveFrom(RainbowLivePassBlock other) {
-        liveStatus = other.liveStatus;
-        liveWalletId = other.liveWalletId;
-        liveFetchedAt = other.liveFetchedAt;
-        liveCashUsd = other.liveCashUsd;
-        liveCashDetail = other.liveCashDetail;
-        livePositionQty = other.livePositionQty;
-        liveTradableQty = other.liveTradableQty;
-        liveCashReserved = other.liveCashReserved;
-        liveBlockReason = other.liveBlockReason;
-        liveActionType = other.liveActionType;
-        liveActionAmountUsdc = other.liveActionAmountUsdc;
-        liveActionQuantity = other.liveActionQuantity;
-    }
 }

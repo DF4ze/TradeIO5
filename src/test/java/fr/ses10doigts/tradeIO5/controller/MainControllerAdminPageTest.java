@@ -96,6 +96,20 @@ class MainControllerAdminPageTest {
     }
 
     @Test
+    @DisplayName("GET /info : procédure de test d'achat Kraken, lien navbar, accès ADMIN, aucune injection HTML")
+    void infoPage() throws Exception {
+        String html = mvc.perform(get("/info").accept(MediaType.TEXT_HTML)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertTrue(html.contains("achat BTC sur Kraken") && html.contains("Lancer la passe"), "procédure");
+        assertTrue(html.contains("href=\"/info\""), "lien dans le menu");
+        Method m = MainController.class.getMethod("infoAccess", org.springframework.ui.Model.class);
+        assertEquals("hasRole('ADMIN')", m.getAnnotation(PreAuthorize.class).value());
+        for (String forbidden : FORBIDDEN) {
+            assertFalse(html.contains(forbidden), "contient " + forbidden);
+        }
+    }
+
+    @Test
     @DisplayName("Contrôle d'accès de adminAccess inchangé (@PreAuthorize ADMIN)")
     void accessControlUnchanged() throws Exception {
         Method m = MainController.class.getMethod("adminAccess", org.springframework.ui.Model.class);

@@ -1,6 +1,9 @@
 package fr.ses10doigts.tradeIO5.service.execution.run;
 
 import fr.ses10doigts.tradeIO5.model.dto.admin.OrderTestRequest;
+import fr.ses10doigts.tradeIO5.model.dto.admin.RealOrderResultDto;
+import fr.ses10doigts.tradeIO5.model.dto.admin.RealOrderResultDto.FillDto;
+import fr.ses10doigts.tradeIO5.model.dto.admin.ReconcileRequest;
 import fr.ses10doigts.tradeIO5.model.dto.admin.ValidationReportDto;
 import fr.ses10doigts.tradeIO5.model.dto.admin.ValidationReportDto.LocalCheck;
 import fr.ses10doigts.tradeIO5.model.dto.admin.ValidationReportDto.Limits;
@@ -21,7 +24,13 @@ import fr.ses10doigts.tradeIO5.service.execution.credential.SecretCipher;
 import fr.ses10doigts.tradeIO5.service.execution.credential.TradeCredentialResolver;
 import fr.ses10doigts.tradeIO5.service.execution.credential.TradeCredentialService;
 import fr.ses10doigts.tradeIO5.service.execution.exchange.ExchangeUnavailableException;
+import fr.ses10doigts.tradeIO5.service.execution.exchange.Fill;
+import fr.ses10doigts.tradeIO5.service.execution.exchange.OrderAck;
+import fr.ses10doigts.tradeIO5.service.execution.exchange.OrderNotFoundException;
+import fr.ses10doigts.tradeIO5.service.execution.exchange.OrderRejectedException;
 import fr.ses10doigts.tradeIO5.service.execution.exchange.OrderRequest;
+import fr.ses10doigts.tradeIO5.service.execution.exchange.OrderState;
+import fr.ses10doigts.tradeIO5.service.execution.exchange.SpotOrderPort;
 import fr.ses10doigts.tradeIO5.service.execution.exchange.SpotOrderValidator;
 import fr.ses10doigts.tradeIO5.service.execution.exchange.TradeCredentialRejectedException;
 import fr.ses10doigts.tradeIO5.service.execution.exchange.ValidationReport;
@@ -46,8 +55,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Testeur d'ordre : <b>valide</b> un ordre limit IOC sans jamais l'envoyer ; seul appelant du {@link SpotOrderValidator}
- * (contrôleurs -> service admin -> ce service -> {@code exchange}). Il n'appelle jamais {@code SpotOrderPort.submit}.
+ * Testeur d'ordre : <b>valide</b> un ordre limit IOC ({@link #validate}, aucun envoi) ; seul appelant du {@link SpotOrderValidator}
+ * (contrôleurs -> service admin -> ce service -> {@code exchange}). L'envoi d'un ordre réel de test ({@link #sendReal}) exige en
+ * plus une confirmation explicite, passe par les mêmes verrous (kill switch levé inclus) et par les mêmes plafonds absolus ; la
+ * relecture ({@link #reconcileOrder}) est en lecture seule.
  * <ol>
  *   <li>construit l'ordre : arrondis au lot (taille, vers le bas) et au tick (prix : BUY vers le bas, SELL vers le haut,
  *       jamais plus défavorable que la saisie) ;</li>
@@ -100,6 +111,14 @@ public class OrderTestService {
      * @throws IllegalArgumentException demande incohérente, utilisateur ou exchange inconnu
      */
     public ValidationReportDto validate(OrderTestRequest request) {
+        return prepare(request).report();
+    }
+
+    /** Résultat de la préparation : verdict, ordre normalisé (nul si inexploitable) et clé Trade (nulle si verrou ou clé absente). */
+    private record Prepared(ValidationReportDto report, OrderRequest order, ApiCredential trade) {
+    }
+
+    private Prepared prepare(OrderTestRequest request) {
         requireWellFormed(request);
         User user = users.findById(request.userId()).orElseThrow(() -> new IllegalArgumentException("Utilisateur inconnu : " + request.userId()));
         WebProvider webProvider = providers.findByCode(request.provider())
@@ -122,24 +141,110 @@ public class OrderTestService {
             order = n.order(clock);
         }
 
-        Optional<ExecutionBlockReason> blocked = lockBlock(request.provider());
+        Optional<ExecutionBlockReason> blocked = lockBlock(request.provider(), true);
         Optional<ApiCredential> trade = blocked.isPresent() ? Optional.empty() : credentials.resolve(user, request.provider());
         if (blocked.isEmpty() && trade.isEmpty()) {
             blocked = Optional.of(ExecutionBlockReason.CREDENTIAL_INVALID);
         }
         if (blocked.isPresent()) {
             log.info("Testeur d'ordre : bloqué ({}) user={} {} {}", blocked.get(), user.getId(), request.provider(), request.instId());
-            return new ValidationReportDto(false, blocked.get().name(), checks, normalized, null, null, null, limits);
+            return new Prepared(new ValidationReportDto(false, blocked.get().name(), checks, normalized, null, null, null, limits), order, null);
         }
         boolean structural = checks.stream().filter(c -> !c.ok()).map(LocalCheck::name).noneMatch(STRUCTURAL::contains);
         if (order == null || !structural) {
-            return new ValidationReportDto(false, null, checks, normalized, null,
-                    "Contrôles locaux en échec : aucun appel à l'exchange.", null, limits);
+            return new Prepared(new ValidationReportDto(false, null, checks, normalized, null,
+                    "Contrôles locaux en échec : aucun appel à l'exchange.", null, limits), order, trade.get());
         }
         ValidationReport report = callValidator(request.provider(), trade.get(), order);
         boolean localOk = checks.stream().allMatch(LocalCheck::ok);
-        return new ValidationReportDto(report.accepted() && localOk, null, checks, normalized, report.exchangeCode(), report.message(),
-                report.rawFiltered(), limits);
+        return new Prepared(new ValidationReportDto(report.accepted() && localOk, null, checks, normalized, report.exchangeCode(),
+                report.message(), report.rawFiltered(), limits), order, trade.get());
+    }
+
+    // ------------------------------------------------------------------ envoi réel et relecture
+
+    /** Texte exact à saisir pour autoriser l'envoi d'un ordre réel depuis le testeur. */
+    public static final String REAL_CONFIRMATION = "ENVOYER";
+
+    /**
+     * Envoie un VRAI ordre limit IOC (testeur). Préalables : confirmation exacte, mêmes verrous qu'un ordre du plan (mode LIVE,
+     * déverrouillage, clé maître, kill switch levé, port, clé Trade), validation locale et par l'exchange {@code accepted}
+     * (plafond absolu par ordre inclus). Aucun ordre au marché possible ({@link OrderRequest}).
+     *
+     * @throws IllegalArgumentException confirmation absente ou demande incohérente
+     */
+    public RealOrderResultDto sendReal(OrderTestRequest request, String confirmation) {
+        if (!REAL_CONFIRMATION.equals(confirmation)) {
+            throw new IllegalArgumentException("Confirmation requise : saisir « " + REAL_CONFIRMATION + " » pour envoyer un ordre réel");
+        }
+        Prepared prepared = prepare(request);
+        ValidationReportDto report = prepared.report();
+        if (report.blockedBy() != null) {
+            return new RealOrderResultDto("BLOCKED", report, null, null, null, null, null, List.of(), "Verrou non levé : " + report.blockedBy());
+        }
+        if (!report.accepted() || prepared.order() == null || prepared.trade() == null) {
+            return new RealOrderResultDto("REFUSED", report, null, null, null, null, null, List.of(),
+                    "Ordre non accepté par les contrôles : rien n'est envoyé.");
+        }
+        OrderRequest order = prepared.order();
+        SpotOrderPort port = router.forProvider(request.provider()).orElseThrow(() -> new IllegalStateException("Port d'ordres absent"));
+        log.warn("Testeur d'ordre : ENVOI RÉEL {} {} sz={} px={} clOrdId={}", request.provider(), order.instId(), order.sz(), order.px(),
+                order.clOrdId());
+        OrderAck ack;
+        try {
+            ack = port.submit(prepared.trade(), order);
+        } catch (OrderRejectedException e) {
+            return new RealOrderResultDto("REJECTED", report, order.clOrdId(), null, null, null, null, List.of(), e.getMessage());
+        } catch (TradeCredentialRejectedException e) {
+            return new RealOrderResultDto("REJECTED", report, order.clOrdId(), null, null, null, null, List.of(),
+                    "Clé Trade refusée : " + e.getMessage());
+        } catch (ExchangeUnavailableException e) {
+            return new RealOrderResultDto("UNKNOWN", report, order.clOrdId(), null, null, null, null, List.of(),
+                    "Issue inconnue (l'ordre a pu partir) : relire par clOrdId. " + e.getMessage());
+        }
+        return outcome("SENT", report, port, prepared.trade(), order.instId(), ack.clOrdId(), ack.ordId());
+    }
+
+    /**
+     * Relit un ordre du testeur par son {@code clOrdId} (état, remplissages) ; lecture seule, kill switch non requis, jamais d'envoi.
+     *
+     * @throws IllegalArgumentException demande incohérente ou utilisateur inconnu
+     */
+    public RealOrderResultDto reconcileOrder(ReconcileRequest request) {
+        if (request == null || request.userId() == null || request.provider() == null || request.instId() == null
+                || request.instId().isBlank() || request.clOrdId() == null || request.clOrdId().isBlank()) {
+            throw new IllegalArgumentException("userId, provider, instId et clOrdId sont requis");
+        }
+        User user = users.findById(request.userId()).orElseThrow(() -> new IllegalArgumentException("Utilisateur inconnu : " + request.userId()));
+        Optional<ExecutionBlockReason> blocked = lockBlock(request.provider(), false);
+        if (blocked.isPresent()) {
+            return new RealOrderResultDto("BLOCKED", null, request.clOrdId(), null, null, null, null, List.of(), "Verrou non levé : " + blocked.get());
+        }
+        Optional<ApiCredential> trade = credentials.resolve(user, request.provider());
+        if (trade.isEmpty()) {
+            return new RealOrderResultDto("BLOCKED", null, request.clOrdId(), null, null, null, null, List.of(),
+                    "Verrou non levé : " + ExecutionBlockReason.CREDENTIAL_INVALID);
+        }
+        SpotOrderPort port = router.forProvider(request.provider()).orElseThrow(() -> new IllegalStateException("Port d'ordres absent"));
+        return outcome("RECONCILED", null, port, trade.get(), request.instId().toUpperCase(), request.clOrdId(), null);
+    }
+
+    /** État et remplissages d'un ordre ; échec de lecture => {@code UNKNOWN} (à relire), jamais de renvoi. */
+    private RealOrderResultDto outcome(String status, ValidationReportDto report, SpotOrderPort port, ApiCredential trade,
+                                       String instId, String clOrdId, String knownOrdId) {
+        try {
+            OrderState state = port.query(trade, instId, clOrdId);
+            String ordId = state.ordId() != null ? state.ordId() : knownOrdId;
+            List<Fill> fills = ordId == null ? List.of() : port.fills(trade, instId, ordId);
+            List<FillDto> dtos = fills.stream().map(f -> new FillDto(f.tradeId(), f.px(), f.sz(), f.fee(), f.feeCcy())).toList();
+            return new RealOrderResultDto(status, report, clOrdId, ordId, state.phase().name(), state.accFillSz(), state.avgPx(), dtos,
+                    state.terminal() ? "Ordre terminé." : "Ordre non terminé : relire.");
+        } catch (OrderNotFoundException e) {
+            return new RealOrderResultDto("NOT_FOUND", report, clOrdId, knownOrdId, null, null, null, List.of(), "Aucun ordre avec ce clOrdId.");
+        } catch (ExchangeUnavailableException | TradeCredentialRejectedException e) {
+            return new RealOrderResultDto("UNKNOWN", report, clOrdId, knownOrdId, null, null, null, List.of(),
+                    "Lecture impossible : relire plus tard. " + e.getMessage());
+        }
     }
 
     /** Contrôles dont l'échec empêche de construire un ordre exploitable : on ne les envoie pas à l'exchange. */
@@ -148,7 +253,7 @@ public class OrderTestService {
 
     // ------------------------------------------------------------------ verrous
 
-    private Optional<ExecutionBlockReason> lockBlock(WebProviderCode provider) {
+    private Optional<ExecutionBlockReason> lockBlock(WebProviderCode provider, boolean killSwitchMatters) {
         if (!settings.liveExecution()) {
             return Optional.of(ExecutionBlockReason.MODE_NOT_LIVE);
         }
@@ -158,7 +263,7 @@ public class OrderTestService {
         if (!cipher.isConfigured()) {
             return Optional.of(ExecutionBlockReason.MASTER_KEY_MISSING);
         }
-        if (control.current().isKillSwitch()) {
+        if (killSwitchMatters && control.current().isKillSwitch()) {
             return Optional.of(ExecutionBlockReason.KILL_SWITCH);
         }
         if (router.forProvider(provider).isEmpty() || !validators.containsKey(provider)) {

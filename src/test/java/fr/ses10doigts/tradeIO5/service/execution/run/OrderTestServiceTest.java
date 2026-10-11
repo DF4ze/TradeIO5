@@ -1,5 +1,14 @@
 package fr.ses10doigts.tradeIO5.service.execution.run;
 
+import fr.ses10doigts.tradeIO5.service.execution.exchange.OrderState;
+import fr.ses10doigts.tradeIO5.service.execution.exchange.OrderRejectedException;
+import fr.ses10doigts.tradeIO5.service.execution.exchange.OrderPhase;
+import fr.ses10doigts.tradeIO5.service.execution.exchange.OrderNotFoundException;
+import fr.ses10doigts.tradeIO5.service.execution.exchange.OrderAck;
+import fr.ses10doigts.tradeIO5.service.execution.exchange.Fill;
+import fr.ses10doigts.tradeIO5.model.entity.execution.StepOrderType;
+import fr.ses10doigts.tradeIO5.model.dto.admin.ReconcileRequest;
+import fr.ses10doigts.tradeIO5.model.dto.admin.RealOrderResultDto;
 import fr.ses10doigts.tradeIO5.model.dto.admin.OrderTestRequest;
 import fr.ses10doigts.tradeIO5.model.dto.admin.ValidationReportDto;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
@@ -39,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -195,5 +205,72 @@ class OrderTestServiceTest {
         for (var c : ValidationReportDto.class.getRecordComponents()) {
             assertFalse(c.getName().toLowerCase().matches(".*(secret|key|passphrase|signature|nonce).*"), c.getName());
         }
+    }
+
+    private static final OrderState FILLED = new OrderState("c", "o-1", OrderPhase.FILLED, new BigDecimal("0.0001"), new BigDecimal("60000"));
+
+    @Test
+    @DisplayName("Envoi réel : confirmation exacte requise, sinon IllegalArgumentException et rien n'est envoyé")
+    void realNeedsConfirmation() {
+        assertThrows(IllegalArgumentException.class, () -> service(live()).sendReal(request("BTC-USDC", "0.0001", "60000"), null));
+        assertThrows(IllegalArgumentException.class, () -> service(live()).sendReal(request("BTC-USDC", "0.0001", "60000"), "oui"));
+        verify(port, never()).submit(any(), any());
+    }
+
+    @Test
+    @DisplayName("Envoi réel bloqué (kill switch engagé) ou refusé (plafond absolu) : aucun envoi")
+    void realBlockedOrRefused() {
+        when(controlState.isKillSwitch()).thenReturn(true);
+        RealOrderResultDto blocked = service(live()).sendReal(request("BTC-USDC", "0.0001", "60000"), OrderTestService.REAL_CONFIRMATION);
+        assertEquals("BLOCKED", blocked.status());
+        when(controlState.isKillSwitch()).thenReturn(false);
+        RealOrderResultDto refused = service(live()).sendReal(request("BTC-USDC", "0.001", "60000"), OrderTestService.REAL_CONFIRMATION);
+        assertEquals("REFUSED", refused.status());
+        verify(port, never()).submit(any(), any());
+    }
+
+    @Test
+    @DisplayName("Envoi réel accepté : submit une seule fois (limit IOC), état et remplissages relus")
+    void realSent() {
+        when(port.submit(any(), any())).thenAnswer(i -> new OrderAck(((OrderRequest) i.getArgument(1)).clOrdId(), "o-1"));
+        when(port.query(any(), any(), any())).thenReturn(FILLED);
+        when(port.fills(any(), any(), any())).thenReturn(List.of(new Fill("t-1", "o-1", "c", "BTC-USDC", StepSide.BUY,
+                new BigDecimal("60000"), new BigDecimal("0.0001"), new BigDecimal("0.01"), "USDC", Instant.parse("2026-10-10T00:00:01Z"))));
+        RealOrderResultDto r = service(live()).sendReal(request("BTC-USDC", "0.0001", "60000"), OrderTestService.REAL_CONFIRMATION);
+        assertEquals("SENT", r.status());
+        assertEquals("FILLED", r.phase());
+        assertEquals(1, r.fills().size());
+        ArgumentCaptor<OrderRequest> sent = ArgumentCaptor.forClass(OrderRequest.class);
+        verify(port, times(1)).submit(any(), sent.capture());
+        assertEquals(StepOrderType.LIMIT_IOC, sent.getValue().ordType());
+        assertTrue(r.clOrdId().startsWith("t5test"));
+        assertFalse(r.toString().contains("k-secret") || r.toString().contains("s-secret"));
+    }
+
+    @Test
+    @DisplayName("Envoi réel : rejet certain => REJECTED ; issue inconnue => UNKNOWN avec clOrdId à relire, jamais de second envoi")
+    void realRejectedOrUnknown() {
+        when(port.submit(any(), any())).thenThrow(new OrderRejectedException("EOrder:Insufficient funds", "insufficient"));
+        assertEquals("REJECTED", service(live()).sendReal(request("BTC-USDC", "0.0001", "60000"), OrderTestService.REAL_CONFIRMATION).status());
+        doThrow(new ExchangeUnavailableException("timeout")).when(port).submit(any(), any());
+        RealOrderResultDto unknown = service(live()).sendReal(request("BTC-USDC", "0.0001", "60000"), OrderTestService.REAL_CONFIRMATION);
+        assertEquals("UNKNOWN", unknown.status());
+        assertTrue(unknown.clOrdId().startsWith("t5test"));
+        verify(port, times(2)).submit(any(), any());
+    }
+
+    @Test
+    @DisplayName("Relecture : lecture seule (kill switch non requis), jamais submit ; introuvable => NOT_FOUND ; verrou => BLOCKED")
+    void reconcile() {
+        when(controlState.isKillSwitch()).thenReturn(true);
+        when(port.query(any(), any(), any())).thenReturn(FILLED);
+        when(port.fills(any(), any(), any())).thenReturn(List.of());
+        ReconcileRequest req = new ReconcileRequest(1L, WebProviderCode.KRAKEN, "BTC-USDC", "t5testabc");
+        assertEquals("RECONCILED", service(live()).reconcileOrder(req).status());
+        when(port.query(any(), any(), any())).thenThrow(new OrderNotFoundException("t5testabc"));
+        assertEquals("NOT_FOUND", service(live()).reconcileOrder(req).status());
+        assertEquals("BLOCKED", service(new ExecutionSettings()).reconcileOrder(req).status());
+        verify(port, never()).submit(any(), any());
+        assertThrows(IllegalArgumentException.class, () -> service(live()).reconcileOrder(new ReconcileRequest(1L, WebProviderCode.KRAKEN, "BTC-USDC", " ")));
     }
 }

@@ -1,6 +1,6 @@
 # Plan d'ordres dry-run (lot B, étape b)
 
-Vérifié le : 2026-10-10 (`service/execution/**`, `model/entity/execution/**`, `repository/execution/**`, `service/scheduler/ExecutionPlanJob`, `controller/{ExecutionPlanAdminController,RainbowLiveExecutionPlanController}`, `rainbow-live.js`).
+Vérifié le : 2026-10-11 (`service/execution/**`, `model/entity/execution/**`, `repository/execution/**`, `service/scheduler/ExecutionPlanJob`, `controller/{ExecutionPlanAdminController,RainbowLiveExecutionPlanController}`, `rainbow-live.js`).
 
 **Le plan n'envoie rien.** Il calcule et enregistre ce qu'on achèterait / vendrait, par quel chemin et à quel coût ; les classes de `service.execution.plan` et le job de plan ne dépendent d'aucun port d'ordre. L'exécution réelle (re-devis, envoi, audit) est un composant séparé, verrouillé : [`10-execution-reelle.md`](10-execution-reelle.md). Chemin d'achat chiffré (catalogue, frais, carnet, `PathFinder`, Fee Test) : [`08-rainbow-bench-grandeur-nature.md`](08-rainbow-bench-grandeur-nature.md) §Chemin d'achat chiffré.
 
@@ -19,7 +19,7 @@ Vérifié le : 2026-10-10 (`service/execution/**`, `model/entity/execution/**`, 
 
 ## Entrées et idempotence (`OrderPlanService`)
 
-Par user (une transaction par user) : bindings par `priority` + bloc live de la passe du run du jour (`liveStatus`, `liveActionType`, `liveActionAmountUsdc` = montant USD nominal figé au 23:55, `liveActionQuantity`, `liveCashDetail` par membre). Le **hash des entrées** (SHA-256 : bindings + blocs, jamais les données de marché) pilote l'idempotence : même hash ⇒ rien ne change (rejeu 23:55 ⇒ plan identique, mêmes `clOrdId`) ; hash différent ⇒ la révision courante passe `SUPERSEDED` (ligne d'audit conservée) et une révision `n+1` est créée.
+Par user (une transaction par user) : bindings par `priority` + bloc live de la passe du `RainbowLiveBindingRun` du jour pour chaque binding (`status`, `actionType`, `actionAmountUsdc` = montant USD nominal figé au 23:55, `actionQuantity`, `cashDetail` par membre). Un même actif peut avoir plusieurs bindings (un par wallet) : chacun donne son propre actif de plan, planifié et exécuté indépendamment. Le **hash des entrées** (SHA-256 : bindings + blocs, jamais les données de marché) pilote l'idempotence : même hash ⇒ rien ne change (rejeu 23:55 ⇒ plan identique, mêmes `clOrdId`) ; hash différent ⇒ la révision courante passe `SUPERSEDED` (ligne d'audit conservée) et une révision `n+1` est créée.
 
 ## Planner (`OrderPlanner`, `service/execution/plan`)
 
@@ -39,11 +39,11 @@ Pas de persistance, pas d'écriture, aucune dépendance à un port d'ordre ; lec
 | `rainbow_live_order_plan` | user, `run_day`, `pass_code`, `revision` (unique avec les 3 précédents), `status` (`PLANNED|BLOCKED|DISABLED|SUPERSEDED|EXECUTING|EXECUTED|PARTIAL|FAILED|CANCELLED` persistés ; les quatre derniers de l'exécution réelle), `mode`, coût, niveau Fee Test, `block_reason`, `inputs_hash`, `created_at`, `expires_at` |
 | `rainbow_live_order_plan_asset` | par actif : priorité, wallet, action voulue, `outcome` (`OK|BLOCKED|DISABLED|NO_ACTION`), raison, coût, niveau, avertissement (FK plan, `ON DELETE CASCADE`) |
 | `rainbow_live_order_event` | audit **append-only** de l'exécution (plan, étape, `clOrdId`, type, charge JSON) ; `execution_control` : ligne unique (kill switch, multiplicateurs) |
-| `rainbow_live_order_step` | `step_rank`, actif, `inst_id`, `side`, `ord_type` (`LIMIT_IOC`), `sz`, `px` (plafond), `quote_amount`, `cl_ord_id`, frais / spread / slippage %, `status` (`PLANNED|SUBMITTED|FILLED|PARTIAL|REJECTED|CANCELED|UNKNOWN`), `estimation` (`BOOK|TICKER`), et après exécution : `ord_id`, tailles envoyée / remplie, prix moyen, frais (+ devise), quantité reçue, mid du re-devis, slippage réel, horodatages, dernière erreur (FK plan, `ON DELETE CASCADE`) |
+| `rainbow_live_order_step` | `step_rank`, actif, `wallet_id`, `inst_id`, `side`, `ord_type` (`LIMIT_IOC`), `sz`, `px` (plafond), `quote_amount`, `cl_ord_id`, frais / spread / slippage %, `status` (`PLANNED|SUBMITTED|FILLED|PARTIAL|REJECTED|CANCELED|UNKNOWN`), `estimation` (`BOOK|TICKER`), et après exécution : `ord_id`, tailles envoyée / remplie, prix moyen, frais (+ devise), quantité reçue, mid du re-devis, slippage réel, horodatages, dernière erreur (FK plan, `ON DELETE CASCADE`) |
 
 `EXPIRED` n'est jamais persisté : le statut effectif est dérivé à la lecture (`PLANNED` dont `expires_at` est atteint). Un plan expiré n'est pas recalculé à entrées identiques.
 
-`clOrdId` (`ClOrdIds`) : `t5` + userId (base 36) + actif + `yyyyMMdd` + passe (1 = 23:55, 2 = 00:05) + rang sur 2 chiffres ; alphanumérique, ≤ 32 caractères, déterministe.
+`clOrdId` (`ClOrdIds`) : `t5` + userId et walletId (base 36, préfixés de leur longueur) + actif + `yyyyMMdd` + passe (1 = 23:55, 2 = 00:05) + rang sur 2 chiffres ; alphanumérique, ≤ 32 caractères, déterministe.
 
 ## Lecture utilisateur et page
 

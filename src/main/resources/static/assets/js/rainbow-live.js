@@ -157,7 +157,10 @@
   }
 
   const isTrend = (p) => p.mode === 'TREND_MIX';
-  const isLivePreset = (p) => { const l = state.live.get(p.assetSymbol); return !!l && l.presetId === p.id; };
+  /** Liens (bindings) actifs d'un actif ; plusieurs si l'actif est suivi sur plusieurs providers. */
+  const livesOf = (asset) => state.live.get(asset) || [];
+  const presetLinks = (p) => livesOf(p.assetSymbol).filter((l) => l.presetId === p.id);
+  const isLivePreset = (p) => presetLinks(p).length > 0;
 
   /** « Bear · DOWN » (badge de régime coloré) ; tiret si non applicable. */
   function setTrendCell(set, regime) {
@@ -175,7 +178,7 @@
     toggle.addEventListener('change', () => toggleEnabled(p, toggle));
     return el('tr', { class: p.id === state.selectedId ? 'table-active' : '' },
       el('td', null, el('span', { text: p.name }), isLivePreset(p) ? el('span', { class: 'badge rl-badge-live ms-1', text: 'LIVE',
-        title: 'Preset live : lié à un wallet réel (action recommandée, jamais exécutée)' }) : null),
+        title: 'Preset live : lié à ' + presetLinks(p).map((l) => l.walletName + ' (' + (l.exchange || DASH) + ')').join(', ') }) : null),
       el('td', null, el('span', { class: 'badge ' + (isTrend(p) ? 'bg-primary' : 'bg-secondary'), text: isTrend(p) ? 'Trend Mix' : 'Fixe' }),
         p.followsStrategy ? el('span', { class: 'badge bg-dark ms-1', text: 'Stratégie · rév. ' + p.strategyRevision,
           title: 'Suit la stratégie System (révision ' + p.strategyRevision + ') : seule son activation est modifiable ; '
@@ -572,7 +575,8 @@
   async function loadLive() {
     try {
       const list = await api('GET', '/live-wallet');
-      state.live = new Map(list.map((l) => [l.assetSymbol, l]));
+      state.live = new Map();
+      list.forEach((l) => { state.live.set(l.assetSymbol, livesOf(l.assetSymbol).concat(l)); });
     } catch (e) {
       state.live = new Map();
     }
@@ -660,7 +664,7 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
         el('span', { text: 'passe ' + p.day + ' ' + (p.pass === 'T0005' ? '00:05' : '23:55') + ' UTC · ' + expiry
           + ' (un plan n\'est qu\'une photo, l\'exécution re-devise)' }),
         p.executionBlockReason ? el('div', { class: 'text-warning-emphasis', text: 'Blocages : ' + p.executionBlockReason }) : null),
-      planAssetView(p.assets.find((a) => a.assetSymbol === l.assetSymbol), l));
+      planAssetView(p.assets.find((a) => a.assetSymbol === l.assetSymbol && a.walletId === l.walletId), l));
   }
 
   /** Interrupteurs et état d'exécution (texte seul) : kill switch (affichage), exécution du binding, 1er ordre réel, audit. */
@@ -688,7 +692,7 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
       el('div', { class: 'form-check form-switch mb-2' }, sw,
         el('label', { class: 'form-check-label', for: 'rl-exec-switch', text: 'Exécution activée pour ' + l.assetSymbol })),
       el('div', { class: 'small mb-2' }, first),
-      el('div', { id: 'rl-exec-msg', class: 'small text-danger mb-1' }),
+      el('div', { id: 'rl-exec-msg-' + l.bindingId, class: 'small text-danger mb-1' }),
       auditView());
   }
 
@@ -729,7 +733,7 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
       await api('PUT', '/bindings/' + l.bindingId + '/execution', { enabled });
     } catch (e) {
       await loadLive();
-      const m = $('rl-exec-msg'); if (m) { m.textContent = e.message; }
+      const m = $('rl-exec-msg-' + l.bindingId); if (m) { m.textContent = e.message; }
       return;
     }
     await loadLive();
@@ -739,7 +743,7 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
     try {
       await api('POST', '/bindings/' + l.bindingId + '/confirm-first-live');
     } catch (e) {
-      const m = $('rl-exec-msg'); if (m) { m.textContent = e.message; }
+      const m = $('rl-exec-msg-' + l.bindingId); if (m) { m.textContent = e.message; }
       return;
     }
     await loadLive();
@@ -791,9 +795,9 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
     return byMember ? Object.keys(byMember).map((k) => k + ' ' + F2.format(byMember[k])).join(' · ') : '';
   }
 
-  function liveCheckView() {
+  function liveCheckView(l) {
     const c = state.liveCheck;
-    if (!c) { return null; }
+    if (!c || c.bindingId !== l.bindingId) { return null; }
     return el('div', { class: 'mt-2 small' },
       el('span', { class: 'badge ' + (c.ok ? 'bg-success' : 'bg-danger') + ' me-2', text: c.ok ? 'BindingCheck OK' : 'BindingCheck KO' }),
       el('span', { text: (CHECK_TEXT[c.status] || c.status) + (c.message && c.message !== 'OK' ? ' — ' + c.message : '') }));
@@ -801,11 +805,14 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
 
   function renderLive() {
     const panel = $('rl-live-panel');
-    const l = state.live.get(state.asset);
-    panel.classList.toggle('d-none', !l);
-    if (!l) { panel.replaceChildren(); return; }
+    const links = livesOf(state.asset);
+    panel.classList.toggle('d-none', !links.length);
+    panel.replaceChildren(...links.map(liveSection));
+  }
 
-    const select = el('select', { class: 'form-select form-select-sm', id: 'rl-live-preset', 'aria-label': 'Preset live' });
+  /** Un bloc par lien (actif, wallet/provider) : snapshot, preset lié, plan et exécution de ce lien. */
+  function liveSection(l) {
+    const select = el('select', { class: 'form-select form-select-sm', id: 'rl-live-preset-' + l.bindingId, 'aria-label': 'Preset live' });
     state.presets.filter((p) => p.assetSymbol === l.assetSymbol).forEach((p) => {
       const o = el('option', { value: String(p.id), text: p.name });
       o.selected = p.id === l.presetId;
@@ -814,33 +821,33 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
     if (!select.options.length) {
       const o = el('option', { value: String(l.presetId), text: l.presetName }); o.selected = true; select.append(o);
     }
-    const bag = el('input', { type: 'number', class: 'form-control form-control-sm', id: 'rl-live-bag', min: '0', max: '100',
+    const bag = el('input', { type: 'number', class: 'form-control form-control-sm', id: 'rl-live-bag-' + l.bindingId, min: '0', max: '100',
       step: 'any', 'aria-label': 'bagPercent' });
     bag.value = String(l.bagPercent);
 
-    panel.replaceChildren(
+    return el('div', { class: 'mb-3' },
       el('div', { class: 'd-flex flex-wrap justify-content-between align-items-center gap-2 mb-2' },
-        el('h5', { class: 'mb-0' }, el('span', { class: 'badge rl-badge-live me-2', text: 'LIVE' }), 'Wallet réel — ' + l.assetSymbol),
+        el('h5', { class: 'mb-0' }, el('span', { class: 'badge rl-badge-live me-2', text: 'LIVE' }), 'Wallet réel — ' + l.assetSymbol + ' · ' + l.walletName + ' (' + (l.exchange || DASH) + ')'),
         el('span', { class: 'small text-muted', text: state.exec && state.exec.liveExecution
           ? 'Exécution réelle déverrouillée : des ordres peuvent être envoyés selon les verrous ci-dessous. Le wallet fictif des presets reste une simulation.'
           : 'Aucun ordre n\'est passé (exécution réelle verrouillée). Le wallet fictif des presets reste une simulation.' })),
       liveSnapshotView(l),
       el('div', { class: 'row g-2 align-items-end mt-2' },
-        el('div', { class: 'col-12 col-md-5' }, el('label', { class: 'form-label small mb-0', for: 'rl-live-preset', text: 'Preset live' }), select),
-        el('div', { class: 'col-6 col-md-2' }, el('label', { class: 'form-label small mb-0', for: 'rl-live-bag', text: 'bagPercent (0–100)' }), bag),
+        el('div', { class: 'col-12 col-md-5' }, el('label', { class: 'form-label small mb-0', for: 'rl-live-preset-' + l.bindingId, text: 'Preset live' }), select),
+        el('div', { class: 'col-6 col-md-2' }, el('label', { class: 'form-label small mb-0', for: 'rl-live-bag-' + l.bindingId, text: 'bagPercent (0–100)' }), bag),
         el('div', { class: 'col-auto' },
           el('button', { type: 'button', class: 'btn btn-sm btn-primary', text: 'Enregistrer', onclick: () => saveLive(l, select, bag) }),
           el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary ms-1', text: 'Vérifier la disponibilité',
             title: 'Relit les soldes en lecture seule chez l\'exchange', onclick: () => checkLive(l) }))),
-      el('div', { id: 'rl-live-msg', class: 'small text-danger mt-1' }),
-      liveCheckView(),
+      el('div', { id: 'rl-live-msg-' + l.bindingId, class: 'small text-danger mt-1' }),
+      liveCheckView(l),
       planView(l),
       executionView(l));
   }
 
   /** Bascule du preset live et/ou bagPercent via PUT /bindings/{id} ; pris en compte à la passe suivante. */
   async function saveLive(l, select, bag) {
-    const msg = $('rl-live-msg');
+    const msg = $('rl-live-msg-' + l.bindingId);
     const bagPercent = Number(bag.value);
     if (bag.value === '' || !Number.isFinite(bagPercent) || bagPercent < 0 || bagPercent > 100) {
       msg.textContent = 'bagPercent doit être compris entre 0 et 100.';
@@ -848,7 +855,7 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
     }
     try {
       const res = await api('PUT', '/bindings/' + l.bindingId, { presetId: Number(select.value), bagPercent });
-      state.liveCheck = res.check;
+      state.liveCheck = Object.assign({ bindingId: l.bindingId }, res.check);
       await loadLive();
       await loadPresets();
     } catch (e) {
@@ -858,10 +865,10 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
 
   async function checkLive(l) {
     try {
-      state.liveCheck = await api('GET', '/bindings/' + l.bindingId + '/check');
+      state.liveCheck = Object.assign({ bindingId: l.bindingId }, await api('GET', '/bindings/' + l.bindingId + '/check'));
       renderLive();
     } catch (e) {
-      $('rl-live-msg').textContent = 'Vérification impossible : ' + e.message;
+      $('rl-live-msg-' + l.bindingId).textContent = 'Vérification impossible : ' + e.message;
     }
   }
 

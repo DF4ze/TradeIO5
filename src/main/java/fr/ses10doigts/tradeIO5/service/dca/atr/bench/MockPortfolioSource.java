@@ -18,7 +18,7 @@ public class MockPortfolioSource implements RainbowPortfolioSource {
     private final RainbowLiveMockWalletRepository walletRepository;
     private final DomainClock clock;
 
-    @Override
+    /** Lecture du wallet fictif qui dimensionne le preset. */
     public PortfolioReading read(RainbowLivePreset preset) {
         RainbowLiveMockWallet wallet = walletRepository.findByPreset(preset)
                 .orElseThrow(() -> new IllegalStateException("Wallet mock introuvable pour le preset " + preset.getId()));

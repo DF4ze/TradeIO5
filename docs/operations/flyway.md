@@ -1,6 +1,6 @@
 # Flyway et défauts d'initialisation
 
-Vérifié le : 2026-10-10 (`pom.xml`, `application.properties`, `src/main/resources/db/migration/V1__init.sql`, `src/test/.../flyway/FlywaySchemaTest`, `configuration/initializer/*`).
+Vérifié le : 2026-10-11 (`pom.xml`, `application.properties`, `src/main/resources/db/migration/V1__init.sql`, `src/test/.../flyway/FlywaySchemaTest`, `configuration/initializer/*`).
 
 ## État
 
@@ -19,10 +19,77 @@ ALTER TABLE api_credentials ADD CONSTRAINT uk_credential_user_provider_scope UNI
 ALTER TABLE api_credentials MODIFY api_key VARCHAR(512) NOT NULL, MODIFY secret_key VARCHAR(512), MODIFY passphrase VARCHAR(512);
 ```
 
-Catalogue : colonnes `exchange_instrument.cost_min`, `native_pair`, `fee_currency` (nullables) ajoutées par `ddl-auto=update`, présentes dans `V1__init.sql`. **Base existante : `admin_action_log.action` est un `ENUM` MySQL natif, Hibernate n'y ajoute pas la valeur `ORDER_VALIDATE`** ⇒ SQL manuel avant le déploiement :
+**Base existante : unicité du binding `(user_id, asset_symbol, wallet_id)`** : Hibernate crée la nouvelle contrainte mais garde l'ancienne (qui interdit un 2ᵉ binding du même actif). Le `DROP` direct échoue (index requis par la FK `user_id`) ⇒ créer la nouvelle d'abord si elle n'existe pas :
 
 ```sql
-ALTER TABLE admin_action_log MODIFY action ENUM('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','ORDER_VALIDATE','PLAN','RECONCILE','RUN') NOT NULL;
+ALTER TABLE rainbow_live_binding ADD CONSTRAINT uk_rainbow_live_binding_user_asset_wallet UNIQUE (user_id, asset_symbol, wallet_id);
+ALTER TABLE rainbow_live_binding DROP INDEX uk_rainbow_live_binding_user_asset;
+```
+
+**Base existante : snapshots live par lien** (`rainbow_live_binding_run`, créée par `ddl-auto=update`) : les anciens snapshots live portés par `rainbow_live_run` (`t2355_live_*` / `t0005_live_*`) ne sont pas migrés par Hibernate (colonnes laissées en place, ignorées). Copie optionnelle, une seule fois, avant le déploiement (un snapshot par binding actuel du preset) :
+
+```sql
+INSERT INTO rainbow_live_binding_run (binding_id, run_day, computed_at,
+  t2355_status,
+  t2355_wallet_id,
+  t2355_fetched_at,
+  t2355_cash_usd,
+  t2355_cash_detail,
+  t2355_position_qty,
+  t2355_tradable_qty,
+  t2355_cash_reserved,
+  t2355_block_reason,
+  t2355_action_type,
+  t2355_action_amount_usdc,
+  t2355_action_quantity,
+  t0005_status,
+  t0005_wallet_id,
+  t0005_fetched_at,
+  t0005_cash_usd,
+  t0005_cash_detail,
+  t0005_position_qty,
+  t0005_tradable_qty,
+  t0005_cash_reserved,
+  t0005_block_reason,
+  t0005_action_type,
+  t0005_action_amount_usdc,
+  t0005_action_quantity)
+SELECT b.id, r.run_day, NOW(6),
+  r.t2355_live_status,
+  r.t2355_live_wallet_id,
+  r.t2355_live_fetched_at,
+  r.t2355_live_cash_usd,
+  r.t2355_live_cash_detail,
+  r.t2355_live_position_qty,
+  r.t2355_live_tradable_qty,
+  r.t2355_live_cash_reserved,
+  r.t2355_live_block_reason,
+  r.t2355_live_action_type,
+  r.t2355_live_action_amount_usdc,
+  r.t2355_live_action_quantity,
+  r.t0005_live_status,
+  r.t0005_live_wallet_id,
+  r.t0005_live_fetched_at,
+  r.t0005_live_cash_usd,
+  r.t0005_live_cash_detail,
+  r.t0005_live_position_qty,
+  r.t0005_live_tradable_qty,
+  r.t0005_live_cash_reserved,
+  r.t0005_live_block_reason,
+  r.t0005_live_action_type,
+  r.t0005_live_action_amount_usdc,
+  r.t0005_live_action_quantity
+FROM rainbow_live_run r
+JOIN rainbow_live_binding b ON b.preset_id = r.preset_id
+WHERE r.t2355_live_status IS NOT NULL OR r.t0005_live_status IS NOT NULL;
+```
+
+`rainbow_live_order_step.wallet_id` (nullable) est ajoutée par `ddl-auto=update` ; les étapes existantes restent à `NULL`. Le format de `clOrdId` change (il encode le wallet) : un plan non exécuté est simplement re-planifié (TTL 5 min), un plan déjà exécuté garde ses anciens identifiants.
+
+Catalogue : colonnes `exchange_instrument.cost_min`, `native_pair`, `fee_currency` (nullables) ajoutées par `ddl-auto=update`, présentes dans `V1__init.sql`. **Base existante : `admin_action_log.action` est un `ENUM` MySQL natif, Hibernate n'y ajoute pas les valeurs `ORDER_VALIDATE`, `ORDER_SEND` et `ORDER_READ`** ⇒ SQL manuel avant le déploiement :
+
+```sql
+ALTER TABLE admin_action_log MODIFY action ENUM('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','ORDER_READ','ORDER_SEND','ORDER_VALIDATE','PLAN','RECONCILE','RUN') NOT NULL;
 ``` Le catalogue se remplit à nouveau au prochain rafraîchissement (ou `refresh(provider)`) : tant que `native_pair` est nul, Kraken ne peut recevoir aucun ordre (`PAIR_UNKNOWN`).
 
 ## Principe

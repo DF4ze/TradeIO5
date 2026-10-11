@@ -28,17 +28,39 @@
 			<input type="text" inputmode="decimal" class="form-control" id="adm-ot-size" required>
 		</div>
 		<div class="col-6 col-md-3">
-			<label class="form-label" for="adm-ot-px">Plafond de prix (BUY) / plancher (SELL)</label>
+			<label class="form-label" for="adm-ot-px" id="adm-ot-px-label">Plafond de prix (BUY) / plancher (SELL)</label>
 			<input type="text" inputmode="decimal" class="form-control" id="adm-ot-px" required>
+			<div class="form-text">Ordre limit IOC : il s'exécute tout de suite aux prix égaux ou meilleurs que cette limite, le reste est annulé. BUY : prix maximal accepté — mets le dernier prix (ticker) + 0,5 à 1 %. SELL : prix minimal accepté — dernier prix − 0,5 à 1 %. Trop serré : rien n'est exécuté ; trop large : tu acceptes un prix moins bon. L'exécution se fait au meilleur prix du carnet, pas à la limite. Le prix est arrondi au tick ; le plafond absolu par ordre (bandeau) s'applique au montant.</div>
 		</div>
 		<div class="col-12 col-md-6 d-flex align-items-end">
 			<div class="small text-muted" id="adm-ot-limits"></div>
 		</div>
 		<div class="col-12">
+			<div class="border border-danger rounded p-2">
+				<div class="form-check form-switch">
+					<input class="form-check-input" type="checkbox" role="switch" id="adm-ot-real">
+					<label class="form-check-label text-danger fw-bold" for="adm-ot-real">Ordre RÉEL : envoie un vrai ordre à l'exchange (argent réel)</label>
+				</div>
+				<div id="adm-ot-real-box" class="d-none mt-2 align-items-center gap-2 flex-wrap">
+					<label class="small" for="adm-ot-confirm">Saisir <code>ENVOYER</code> pour confirmer :</label>
+					<input type="text" class="form-control form-control-sm w-auto" id="adm-ot-confirm" autocomplete="off">
+					<span class="small text-muted">Kill switch levé requis (rengagé automatiquement après l'envoi), plafond absolu par ordre appliqué, ordre limit IOC uniquement.</span>
+				</div>
+			</div>
+		</div>
+		<div class="col-12">
 			<button type="submit" class="btn btn-primary" id="adm-ot-submit">Valider</button>
-			<span class="small ms-2 text-muted">Aucun ordre n'est créé.</span>
+			<span class="small ms-2 text-muted" id="adm-ot-hint">Aucun ordre n'est créé.</span>
 		</div>
 	</form>
+
+	<div id="adm-ot-sent" class="mt-3 d-none border border-danger rounded p-2">
+		<h6 class="text-danger">Ordre réel</h6>
+		<div class="small" id="adm-ot-sent-text"></div>
+		<ul class="small" id="adm-ot-sent-fills"></ul>
+		<button type="button" class="btn btn-sm btn-outline-danger" id="adm-ot-reconcile">Réconcilier (relire l'ordre)</button>
+		<span class="small text-muted ms-2">Lecture seule : aucun ordre n'est renvoyé.</span>
+	</div>
 
 	<div id="adm-ot-result" class="mt-3 d-none">
 		<div id="adm-ot-verdict" class="alert" role="status"></div>

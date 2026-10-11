@@ -9,7 +9,7 @@
   const { el, api, run, byId } = core;
 
   const BINDINGS = '/api/rainbow-live/bindings';
-  const local = { rows: [], presets: [], wallets: [], editing: null };
+  const local = { rows: [], wallets: [], editing: null };
 
   const firstLive = (b) => (b.firstLiveArmed && b.firstLiveConfirmed ? 'validé'
     : (b.firstLiveArmed ? 'armé, confirmation attendue' : 'non armé'));
@@ -53,9 +53,19 @@
     select.replaceChildren(...items.map((i) => el('option', { value: i.id, text: label(i), selected: String(i.id) === String(selected) })));
   }
 
-  function renderPresets(selected) {
+  const ORIGIN = { SYSTEM: 'système', CUSTOM: 'custom' };
+
+  /* Presets proposés = candidats de l'actif pour le wallet choisi (stratégie · origine). */
+  async function renderPresets(selected) {
     const asset = byId('adm-bind-asset').value;
-    fillSelect(byId('adm-bind-preset'), local.presets.filter((p) => p.assetSymbol === asset), (p) => p.name, selected);
+    const walletId = byId('adm-bind-wallet').value;
+    const select = byId('adm-bind-preset');
+    if (!asset || !walletId) { select.replaceChildren(); return; }
+    const list = await api('GET', BINDINGS + '/candidates?walletId=' + encodeURIComponent(walletId)
+      + '&asset=' + encodeURIComponent(asset));
+    fillSelect(select, list, (c) => c.name + ' · ' + c.mode + ' · ' + ORIGIN[c.origin]
+      + (c.alreadyLinkedBindingId && !(local.editing && local.editing.id === c.alreadyLinkedBindingId)
+        ? ' (déjà lié)' : ''), selected);
   }
 
   function resetForm() {
@@ -67,7 +77,7 @@
     byId('adm-bind-bag').value = 100;
     byId('adm-bind-prio').value = '';
     byId('adm-bind-enabled').checked = false;
-    renderPresets(null);
+    run(null, () => renderPresets(null));
   }
 
   function startEdit(b) {
@@ -77,8 +87,8 @@
     byId('adm-bind-cancel').classList.remove('d-none');
     byId('adm-bind-asset').value = b.assetSymbol;
     byId('adm-bind-asset').disabled = true;
-    renderPresets(b.presetId);
     byId('adm-bind-wallet').value = b.walletId;
+    run(null, () => renderPresets(b.presetId));
     byId('adm-bind-bag').value = b.bagPercent;
     byId('adm-bind-prio').value = b.priority;
     byId('adm-bind-enabled').checked = b.executionEnabled;
@@ -111,10 +121,9 @@
   /* ------------------------------------------------------------------ chargement */
 
   async function load() {
-    const [rows, presets, wallets] = await Promise.all([api('GET', '/api/admin/bindings'),
-      api('GET', '/api/rainbow-live/presets'), api('GET', '/api/rainbow-live/wallets')]);
+    const [rows, wallets] = await Promise.all([api('GET', '/api/admin/bindings'),
+      api('GET', '/api/rainbow-live/wallets')]);
     local.rows = rows;
-    local.presets = presets;
     local.wallets = wallets;
     renderTable();
     fillSelect(byId('adm-bind-wallet'), wallets, (w) => w.name + (w.exchange ? ' (' + w.exchange + ')' : ''), null);
@@ -123,12 +132,13 @@
       const fresh = rows.find((r) => r.id === local.editing.id);
       if (fresh) { startEdit(fresh); } else { resetForm(); }
     } else {
-      renderPresets(null);
+      await renderPresets(null);
     }
   }
 
   byId('adm-bind-form').addEventListener('submit', submit);
-  byId('adm-bind-asset').addEventListener('change', () => renderPresets(null));
+  byId('adm-bind-asset').addEventListener('change', () => run(null, () => renderPresets(null)));
+  byId('adm-bind-wallet').addEventListener('change', () => run(null, () => renderPresets(null)));
   byId('adm-bind-cancel').addEventListener('click', resetForm);
   core.register('bindings', { load: () => run(null, load), show: () => run(null, load) });
 })();

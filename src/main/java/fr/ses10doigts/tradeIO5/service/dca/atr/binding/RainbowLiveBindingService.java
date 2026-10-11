@@ -2,6 +2,7 @@ package fr.ses10doigts.tradeIO5.service.dca.atr.binding;
 
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMode;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePresetEventType;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService;
@@ -19,7 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * CRUD des bindings (preset live + wallet réel par actif et par wallet : un même actif peut avoir un binding par exchange), scopé à l'utilisateur. Aucun ordre, aucun branchement moteur.
+ * CRUD des liens/bindings (preset + wallet réel ; unicité {@code (utilisateur, actif, wallet)}, le preset est un attribut hors
+ * unicité et peut alimenter plusieurs liens), scopé à l'utilisateur. Aucun ordre, aucun branchement moteur.
  * Création et modification exécutent {@link BindingCheck} et en retournent le résultat sans le persister (un KO n'empêche
  * pas d'enregistrer le lien : il est revérifié à chaque passe).
  */
@@ -46,6 +48,16 @@ public class RainbowLiveBindingService {
     public record UpdateRequest(Long presetId, Long walletId, Double bagPercent, Integer priority) {
     }
 
+    /** Origine d'un preset candidat : suit la stratégie système, ou détaché/créé par l'utilisateur. */
+    public enum PresetOrigin { SYSTEM, CUSTOM }
+
+    /**
+     * Preset de l'utilisateur pour un actif, proposé au choix « stratégie puis preset » ; {@code alreadyLinkedBindingId} =
+     * lien du wallet demandé qui utilise déjà ce preset (nul sinon).
+     */
+    public record Candidate(Long id, String name, String mode, PresetOrigin origin, Long alreadyLinkedBindingId) {
+    }
+
     /** Binding + résultat de la vérification de disponibilité. */
     public record Checked(RainbowLiveBinding binding, BindingCheckResult check) {
     }
@@ -58,7 +70,6 @@ public class RainbowLiveBindingService {
             throw new RainbowLiveBindingConflictException(req.assetSymbol(), wallet.getId(), existing.getId());
         });
         RainbowLivePreset preset = presetFor(user, req.presetId(), req.assetSymbol());
-        requirePresetFree(preset, null);
         double bag = req.bagPercent() == null ? DEFAULT_BAG_PERCENT : requireBagPercent(req.bagPercent());
         int priority = req.priority() == null ? defaultPriority(req.assetSymbol()) : req.priority();
 
@@ -79,7 +90,6 @@ public class RainbowLiveBindingService {
         if (req.presetId() != null) {
             RainbowLivePreset before = binding.getPreset();
             RainbowLivePreset after = presetFor(user, req.presetId(), binding.getAssetSymbol());
-            requirePresetFree(after, binding.getId());
             binding.setPreset(after);
             if (!before.getId().equals(after.getId())) {
                 eventService.record(user, binding.getAssetSymbol(), RainbowLivePresetEventType.LIVE_SWITCH, before,
@@ -150,6 +160,21 @@ public class RainbowLiveBindingService {
         return bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(user);
     }
 
+    /** Presets de l'utilisateur sur {@code asset}, pour le choix stratégie -> preset du lien (aucun appel exchange). */
+    @Transactional
+    public List<Candidate> candidates(User user, Long walletId, String asset) {
+        requireAllowedAsset(asset);
+        Wallet wallet = walletOf(user, walletId);
+        presetService.ensureStrategyPresets(user);
+        return presetService.list(user).stream().filter(p -> p.getAssetSymbol().equals(asset))
+                .map(p -> new Candidate(p.getId(), p.getName(), p.isTrendMix() ? RainbowLiveMode.TREND_MIX.name()
+                        : RainbowLiveMode.FIXED.name(), p.isFollowingStrategy() ? PresetOrigin.SYSTEM : PresetOrigin.CUSTOM,
+                        bindingRepository.findByUserAndAssetSymbolAndWallet_Id(user, asset, wallet.getId())
+                                .filter(b -> b.getPreset().getId().equals(p.getId())).map(RainbowLiveBinding::getId)
+                                .orElse(null)))
+                .toList();
+    }
+
     /** Wallets actifs de l'utilisateur, pour le formulaire de binding. */
     @Transactional(readOnly = true)
     public List<Wallet> wallets(User user) {
@@ -191,13 +216,6 @@ public class RainbowLiveBindingService {
                     + ", pas sur " + assetSymbol);
         }
         return preset;
-    }
-
-    /** Un preset alimente au plus un binding (la lecture live retrouve le binding par son preset). */
-    private void requirePresetFree(RainbowLivePreset preset, Long bindingId) {
-        bindingRepository.findByPreset(preset).filter(other -> !other.getId().equals(bindingId)).ifPresent(other -> {
-            throw new RainbowLiveBindingConflictException(preset.getId(), other.getId());
-        });
     }
 
     private static Integer strategyRevision(RainbowLivePreset preset) {
