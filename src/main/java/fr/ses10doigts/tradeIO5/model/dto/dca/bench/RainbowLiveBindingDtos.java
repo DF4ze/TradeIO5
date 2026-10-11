@@ -10,6 +10,12 @@ public final class RainbowLiveBindingDtos {
     private RainbowLiveBindingDtos() {
     }
 
+    public record WalletOptionDto(Long id, String name, String exchange) {
+        public static WalletOptionDto of(fr.ses10doigts.tradeIO5.model.entity.currency.Wallet w) {
+            return new WalletOptionDto(w.getId(), w.getName(), w.getWebProviderCode() == null ? null : w.getWebProviderCode().name());
+        }
+    }
+
     public record BindingDto(Long id, String assetSymbol, Long presetId, String presetName, Long walletId,
                              String walletName, String exchange, double bagPercent, int priority,
                              String tradability, String quoteMember, String bridgePair,

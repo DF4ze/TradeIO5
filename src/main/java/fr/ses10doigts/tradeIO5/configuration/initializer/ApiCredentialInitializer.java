@@ -30,6 +30,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
     private static final String OKX_READ_PREFIX = "tradeio.okx.read";
     private static final String OKX_TRADE_PREFIX = "tradeio.okx.trade";
+    private static final String KRAKEN_TRADE_PREFIX = "tradeio.kraken.trade";
 
     private final UserRepository userRepository;
     private final ProviderRepository providerRepository;
@@ -215,6 +216,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		}
 
 		seedOkxTradeCredential(user, webProviderOkx);
+		seedKrakenTradeCredential(user, webProviderKraken);
 
 		if (alreadyExistsCoinstats) {
 			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur System.", webProviderCoinstats.getName());
@@ -476,23 +478,32 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 	 * absente : WARN, rien n'est écrit en clair. Jamais de rotation ici (API admin).
 	 */
 	private void seedOkxTradeCredential(User user, WebProvider provider) {
+		seedTradeCredential(user, provider, OKX_TRADE_PREFIX, true);
+	}
+
+	/** Même principe pour Kraken : {@code tradeio.kraken.trade.apiKey|secretKey} (pas de passphrase). */
+	private void seedKrakenTradeCredential(User user, WebProvider provider) {
+		seedTradeCredential(user, provider, KRAKEN_TRADE_PREFIX, false);
+	}
+
+	private void seedTradeCredential(User user, WebProvider provider, String prefix, boolean requirePassphrase) {
 		if (credentialRepository.findByUserAndWebProviderAndScope(user, provider, CredentialScope.TRADE).isPresent()) {
 			logger.debug("🔑 Clé API {} TRADE déjà présente pour l'utilisateur OKlm.", provider.getName());
 			return;
 		}
-		String apiKey = environment.getProperty(OKX_TRADE_PREFIX + ".apiKey");
-		String secretKey = environment.getProperty(OKX_TRADE_PREFIX + ".secretKey");
-		String passphrase = environment.getProperty(OKX_TRADE_PREFIX + ".passphrase");
-		if (apiKey == null || apiKey.isBlank() || secretKey == null || secretKey.isBlank() || passphrase == null
-				|| passphrase.isBlank()) {
-			logger.debug("Propriétés `{}.*` absentes : aucune credential OKX TRADE créée.", OKX_TRADE_PREFIX);
+		String apiKey = environment.getProperty(prefix + ".apiKey");
+		String secretKey = environment.getProperty(prefix + ".secretKey");
+		String passphrase = requirePassphrase ? environment.getProperty(prefix + ".passphrase") : null;
+		if (apiKey == null || apiKey.isBlank() || secretKey == null || secretKey.isBlank()
+				|| (requirePassphrase && (passphrase == null || passphrase.isBlank()))) {
+			logger.debug("Propriétés `{}.*` absentes : aucune credential {} TRADE créée.", prefix, provider.getName());
 			return;
 		}
 		try {
-			tradeCredentialService.store(user, WebProviderCode.OKX, apiKey, secretKey, passphrase, true);
-			logger.info("🔑 Clé API OKX TRADE ajoutée (chiffrée) pour OKlm depuis les propriétés.");
+			tradeCredentialService.store(user, provider.getCode(), apiKey, secretKey, passphrase, true);
+			logger.info("🔑 Clé API {} TRADE ajoutée (chiffrée) pour OKlm depuis les propriétés.", provider.getName());
 		} catch (MasterKeyMissingException e) {
-			logger.warn("❗ TRADEIO_MASTER_KEY absente : credential OKX TRADE non créée (rien écrit en clair).");
+			logger.warn("❗ TRADEIO_MASTER_KEY absente : credential {} TRADE non créée (rien écrit en clair).", provider.getName());
 		}
 	}
 

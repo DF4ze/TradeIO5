@@ -218,7 +218,7 @@ public class PathFinder {
         BigDecimal cost = market.feePct().add(halfSpread).add(market.slippagePct()).setScale(PCT_SCALE, RoundingMode.HALF_UP);
         BigDecimal price = side == LegSide.BUY ? market.ask() : market.bid();
         BigDecimal refPrice = roundToStep(price, i.tickSz(), side == LegSide.BUY ? RoundingMode.UP : RoundingMode.DOWN);
-        boolean belowMin = sz.signum() == 0 || sz.compareTo(i.minSz()) < 0;
+        boolean belowMin = sz.signum() == 0 || sz.compareTo(i.minSz()) < 0 || i.belowCostMin(sz.multiply(refPrice));
         return new PathLeg(i.instId(), side, sz, refPrice, market.feePct(), halfSpread, market.slippagePct(), cost, belowMin);
     }
 

@@ -20,25 +20,29 @@ Le cout a comparer n'est pas uniquement le fee schedule affiche : pour un ordre 
 cout_total = frais_trading + spread_effectif + slippage + frais_conversion_stablecoin + frais_depot/retrait eventuels
 ```
 
-## Synthese provisoire au 2026-10-09
+## Synthese provisoire au 2026-10-11
 
-Nouvelle contrainte utilisateur du 2026-10-09 : **Binance est exclu**. Les chiffres Binance restent dans cette etude comme benchmark et pour comprendre le manque a gagner, mais ils ne doivent plus piloter la decision cible.
+Nouvelle contrainte utilisateur du 2026-10-09 : **Binance est exclu**. Correction majeure du 2026-10-11 : **la route cible doit d'abord etre filtree par disponibilite France/MiCA**. Les chiffres Binance/KuCoin/Bitget/OKX global restent dans cette etude comme benchmark et pour comprendre le manque a gagner, mais ils ne doivent plus piloter la decision cible France.
+
+Point cle : en France/EEE regulee, **USDT n'est plus une base de travail fiable**. OKX Europe explique explicitement que USDT n'est pas tradable pour les utilisateurs UE/EEE ; Gate Europe indique aussi que USDT n'est plus tradable et ne sert qu'a une migration one-way vers USDC ; Kraken a deliste USDT pour les clients EEA ; Bitget a mis fin a ses services pour les utilisateurs francais ; KuCoin global a mis fin a ses services France. Donc les routes `PAXG/USDT` qui etaient economiquement bonnes deviennent **non retenues pour le profil France**.
 
 La decision actuelle se resume ainsi :
 
 | Profil | Stablecoin de reserve | Route BTC/ETH | Route PAXG | Verdict |
 |---|---|---|---|---|
-| Sans Binance, USDT accepte | USDT pour execution, USDC possible pour parking | OKX `BTC/USDT`, `ETH/USDT` | KuCoin/OKX/Bitget `PAXG/USDT` selon devis | Meilleur chemin non-Binance chiffre aujourd'hui ; cout spot autour de 10-11 bps hors retraits, mais risque MiCA/USDT a accepter explicitement. |
-| Sans Binance, USDT refuse / MiCA strict | USDC/EURC | OKX `BTC/USDC`, `ETH/USDC` ou fiat regule | Aucun PAXG stablecoin competitif prouve ; Kraken utile si PAXG deja detenu | Le point bloquant est l'achat PAXG depuis stablecoin : Gemini `PAXG/USDC` existe mais spread prohibitif ; Bitpanda Fusion doit etre teste avec cle API. |
+| France/MiCA strict | USDC/EUR | OKX/Coinbase/Kraken/Bybit/Gate Europe selon fees compte et paires USDC/EUR | Kraken/Coinbase/Bitpanda/Bitstamp/Gemini a retester, mais probablement pas en stablecoin direct low-cost | C'est le profil cible par defaut : moins optimal sur PAXG, mais realiste legalement. |
+| France + PAXG deja sur Kraken | PAXG existant + USDC/EUR pour nouveaux achats | Acheter BTC/ETH ailleurs selon cout ; garder PAXG sur Kraken | Garder/revendre PAXG sur Kraken ; ne pas transferer juste pour optimiser | Le PAXG deja detenu change la strategie : ne pas payer des frais/risques pour le bouger sans raison. |
 | Wrapped/on-chain accepte | USDC on-chain, idealement Base/Solana | `cbBTC` sur Base/Solana ou `WETH` sur Base si l'exposition wrapped est acceptable | PAXG officiel sur Solana via routeur, a valider par quote | Piste la plus interessante pour contourner les frais CEX/retrait, surtout BTC ; ajoute risque issuer/bridge/smart-contract et demande des quotes routeur juste avant ordre. |
+| Non-France / hors perimetre regule | USDT | OKX/KuCoin/Bitget/Gate global | `PAXG/USDT` | Economiquement bon dans les snapshots, mais **hors route cible France**. |
 | Retrait systematique apres chaque achat | USDC ou actif final | A recalculer avec frais de retrait | A recalculer avec frais de retrait | Impossible de conclure sans devis retrait authentifie ; les frais reseau peuvent dominer un petit DCA. |
 
 Decision courte a ce stade :
 
-- **Sans Binance, le meilleur cout complet spot passe probablement par USDT**, car PAXG n'a pas de route USDC liquide hors Binance.
-- **Si USDT est accepte : OKX pour BTC/ETH, puis KuCoin/OKX/Bitget pour PAXG selon le carnet juste avant ordre.**
-- **Si USDT est refuse : il faut soit tester Bitpanda Fusion avec cle API, soit relacher "stablecoin" vers USD/EUR regules sur Kraken/Coinbase, soit accepter un cout Gemini PAXG/USDC tres eleve.**
-- **USDC reste le meilleur stablecoin de reserve prudent**, mais sans Binance il ne suffit pas a executer PAXG a bas cout.
+- **Pour la France, la short-list doit commencer par les plateformes PSCA/MiCA effectivement accessibles**, pas par les meilleurs carnets mondiaux.
+- **BTC/ETH : OKX Europe, Coinbase, Kraken, Bybit EU, Gate Europe et potentiellement Crypto.com/Bitstamp sont a comparer en USDC/EUR.**
+- **PAXG : le point dur reste entier.** Kraken est pertinent car le PAXG y est deja detenu ; pour du nouveau PAXG, il faut comparer Kraken/Coinbase/Bitpanda/Bitstamp/Gemini, puis l'alternative PAXG Solana.
+- **KuCoin/Bitget ne doivent plus etre proposes comme routes France tant que l'acces compte n'est pas confirme.** KuCoin EU existe cote MiCA, mais l'ancienne route KuCoin global `PAXG/USDT` n'est pas valable pour un resident France.
+- **USDC devient le stablecoin de reserve/execution par defaut France.** USDG peut etre a surveiller, surtout chez OKX/Gate, mais USDC reste plus universel.
 - **Si du PAXG est deja chez Kraken : ne pas le bouger par defaut.** Kraken devient pertinent comme custody/revente fiat ou PAXG existant, meme s'il n'est pas optimal pour acheter du nouveau PAXG depuis stablecoin.
 - **La piste wrapped/on-chain est reelle, surtout `USDC -> cbBTC` sur Base/Solana.** Pour PAXG, le signal le plus interessant n'est pas un wrapped non officiel : c'est le PAXG officiel Paxos sur Solana, avec frais reseau faibles mais liquidite encore a surveiller.
 
@@ -89,6 +93,77 @@ Snapshot rejoue le 2026-10-09 a 00:01 Europe/Paris, apres exclusion de Binance :
 | USDC strict hors Binance | OKX `BTC/USDC` 10,006 / 10,006 bps | OKX `ETH/USDC` 10,412 / 10,800 bps | Gemini `PAXG/USDC` : impact marche seul ~34,916 bps avant frais | Gemini `PAXG/USDC` : impact marche seul ~34,916 bps avant frais | Pas competitif pour PAXG ; a eviter sauf absence totale d'autre choix. |
 
 Conclusion sans Binance : la meilleure solution economique actuelle n'est plus "USDC partout". C'est **USDT comme stablecoin d'execution pour PAXG**, avec une reserve USDC possible seulement si TradeIO5 accepte de convertir ponctuellement, en sachant que la conversion double presque le cout PAXG. Si la contrainte MiCA interdit USDT, le meilleur chantier restant est Bitpanda Fusion avec une cle API, car les carnets publics non-USDT ne donnent pas de route PAXG acceptable.
+
+### Tour France/MiCA des exchanges
+
+Mise a jour du 2026-10-11 : pour un resident France, la premiere question n'est plus "quel carnet est le moins cher ?", mais "quelle entite a le droit et la capacite pratique de servir le compte ?". La periode transitoire MiCA France s'est terminee le 1er juillet 2026 ; l'AMF rappelle que les prestataires sans autorisation MiCA ne peuvent plus continuer a fournir des services crypto en France.
+
+Lecture pratique pour TradeIO5 :
+
+| Plateforme / entite | Statut France observe | Stablecoins utilisables | PAXG utile ? | Decision recherche |
+|---|---|---|---|---|
+| Kraken / Payward Europe Solutions Limited | PSCA/MiCA passeporte Irlande, autorise en France. | USDT deliste EEA ; utiliser EUR/USD/USDC selon paires disponibles. | Oui : `PAXG/EUR`, `PAXG/USD`, `PAXG/XBT`, `PAXG/ETH` ; frais Pro corriges competitifs. | **A garder** surtout parce que Clem a deja du PAXG sur Kraken. |
+| Coinbase Luxembourg S.A. | PSCA/MiCA passeporte Luxembourg, autorise en France. | USDC/EURC propres ; USDT restreint pour MiCA. | Oui en fiat/USD selon catalogue ; route cbBTC interessante. | **A tester** pour BTC/cbBTC et PAXG fiat, pas comme route PAXG stablecoin prouvee. |
+| OKX Europe / OKCoin Europe Limited | PSCA/MiCA Malte, autorise en France. | USDT non tradable en Europe ; OKX annonce USDC et USDG. | Liste France OKX consultee : BTC/ETH/USDC/WBTC presents, PAXG absent de la liste France 2024/2026. | **Bon candidat BTC/ETH USDC/EUR**, mais probablement pas PAXG France. |
+| Bitpanda GmbH / Bitpanda Fusion | PSCA/MiCA Autriche/Allemagne, autorise en France. | USDC/EUR selon offre ; Fusion via API authentifiee. | PAXG/or token gold a verifier par devis Fusion. | **Candidat prioritaire a tester** si cle API disponible. |
+| Bitstamp Europe S.A. | PSCA/MiCA Luxembourg, autorise en France. | EUR/USD/USDC selon paires. | PAXG existe en fiat mais liquidite faible dans les snapshots. | **Fallback regule**, pas favori cout. |
+| Crypto.com / Foris DAX MT Limited | PSCA/MiCA Malte, autorise en France. | USDT deliste/restrictif EEA ; utiliser USDC/EUR si disponible. | PAXG trouve sur exchange global, mais route Europe/France a verifier. | **A verifier compte/API**, frais retail souvent eleves. |
+| Gemini Intergalactic EU Ltd | PSCA/MiCA Malte, autorise en France selon liste blanche. | USDC/RLUSD/GUSD selon catalogue. | `PAXG/USDC` existe mais spread/impact prohibitif dans les snapshots. | **Dernier recours PAXG stablecoin**, pas favori. |
+| Bybit EU GmbH | PSCA/MiCA Autriche, autorise en France. | Spot EU surtout USDC/EUR/PLN selon sources ; pas USDT. | PAXG non confirme dans la collecte. | **A tester pour BTC/ETH**, pas encore PAXG. |
+| Gate Europe / Gate Technology Ltd | MiCA Malte, notifie France selon annonce Gate. | USDT non tradable ; one-way USDT -> USDC. | PAXG global en USDT, mais route Europe/USDC non prouvee. | **Watchlist**, pas encore route PAXG. |
+| KuCoin global | Services France termines en 2025, trading desactive pour residents France. | Non retenu. | Ancienne route `PAXG/USDT` invalide France. | **Exclu du plan France**. |
+| KuCoin EU Exchange GmbH | PSCA/MiCA Autriche sur liste AMF, mais offre/service a confirmer ; docs KuCoin EU consultes parlent notamment de custody/admin. | A confirmer. | A confirmer ; ne pas reutiliser les carnets KuCoin global. | **Watchlist seulement** tant que compte/API non confirme. |
+| Bitget | Annonce officielle : fin de tous les services France au 31 mars 2026. | Non retenu. | Ancienne route `PAXG/USDT` invalide France. | **Exclu du plan France**. |
+| Binance | Pas de route cible France/MiCA dans cette etude. | Non retenu. | Benchmarks historiques uniquement. | **Exclu**. |
+| MEXC / autres globaux non MiCA | Pas de preuve PSCA/MiCA France suffisante pour construire dessus. | Non retenu. | Non retenu. | **Exclu par defaut**. |
+
+Conclusion France/MiCA : la liste courte exploitable pour TradeIO5 devient **Kraken, Bitvavo, Coinbase, OKX Europe, Bitpanda/Fusion, Bitstamp, Crypto.com, Gemini, Bybit EU, Gate Europe**, avec **Paymium, Bit2Me, Coinhouse, WhiteBIT, bitFlyer** en watchlist selon profondeur/API/paires. La recherche cout doit repartir de cette liste, et non des meilleurs carnets globaux. Pour PAXG, les routes `PAXG/USDT` qui donnaient 10-11 bps doivent etre traitees comme **non disponibles France** tant que le compte cible ne prouve pas explicitement le contraire.
+
+### Recalcul France/MiCA sans USDT
+
+Snapshot rejoue le 2026-10-11 a 11:27 Europe/Paris avec `python tools/research/france_mica_trade_cost_snapshot.py --sizes 100,500,1000,5000`. Hypotheses : Binance, Bitget, KuCoin global et USDT sont exclus ; les lignes marquees `*` utilisent des carnets publics/proxy et doivent etre confirmees par un compte/API France avant execution. Les carnets changent a chaque tick ; les chiffres ci-dessous doivent etre lus comme un snapshot de routage, pas comme une garantie de prix futur.
+
+Correction importante du 2026-10-11 : la grille Kraken Pro publie un taker spot de base a **0,080 %**, soit **8 bps** et non 80 bps. Kraken redevient donc tres competitif, surtout pour PAXG.
+
+| Perimetre | BTC | ETH | PAXG | Lecture |
+|---|---|---|---|---|
+| France/MiCA strict, venues deja utilisables dans la liste courte | Bitvavo `BTC/USDC` : 6,627 bps a 1k ; 7,576 bps a 5k | Bitvavo `ETH/USDC` : 6,781 bps a 1k ; 6,965 bps a 5k | Kraken `PAXG/USD` : 8,588 bps a 1k ; 8,995 bps a 5k | Nouveau meilleur snapshot strict avec API obligatoire. Bitvavo gagne BTC/ETH ; Kraken gagne PAXG. |
+| France/MiCA sans ouvrir nouveau compte | Kraken `BTC/EUR` : 8,007 bps a 1k/5k | Kraken `ETH/EUR` : 8,022 bps a 1k/5k | Kraken `PAXG/USD` : 8,588 bps a 1k ; 8,995 bps a 5k | Si Clem a deja Kraken, c'est la meilleure route pragmatique globale : faible friction, API, PAXG deja la. |
+| France/MiCA avec watchlist/proxy a confirmer | Gate Europe* `BTC/USDC` : 11,348 bps a 1k ; 13,178 bps a 5k | Gate Europe* `ETH/USDC` : 12,138 bps a 1k ; 14,897 bps a 5k | Kraken `PAXG/USD` reste devant | Gate Europe reste interessant, mais moins prioritaire apres correction Kraken/Bitvavo. |
+| Bitstamp apres friction fiscale | Bitstamp `BTC/EUR` : 16,025 bps a 1k ; 16,132 bps a 5k | Bitstamp `ETH/EUR` : 16,202 bps a 1k/5k | Bitstamp `PAXG/USD` : 19,638 bps a 1k ; 20,700 bps a 5k | Plus besoin d'en faire la priorite si l'ouverture de compte demande le numero fiscal. |
+| Coinbase alternatif regule | Coinbase `BTC/USD` : 60,001 bps a 1k | Coinbase `ETH/USD` : 60,020 bps a 1k ; 60,020 bps a 5k | Coinbase `PAXG/USD` : 62,099 bps a 1k ; 63,411 bps a 5k | Plus cher que Bitstamp/Gate, mais bon fallback regule et API robuste. |
+| Wrapped/on-chain | cbBTC/USDC Base/Solana : liquidites observees de plusieurs millions USD selon pool | WETH/USDC Base : utilisable, mais ce n'est plus l'actif CEX natif | PAXG/USDC Solana : pool observee seulement ~131 kUSD et volume 24h ~4,9 kUSD | cbBTC peut etre une vraie piste "light fees" si Clem accepte le risque wrapper ; PAXG Solana est trop fin pour etre route par defaut. |
+
+Paires non utilisables au snapshot : OKX Europe* `PAXG/USDC` et `PAXG/EUR` avaient un carnet vide/indisponible ; Bitvavo `PAXG/USDC` et `PAXG/EUR` n'existent pas dans les marches publics testes ; Bybit EU* `PAXG/USDC` vide ; Gate Europe* `PAXG/USDC` non disponible via l'API testee ; Crypto.com* `BTC/USDC` et `ETH/USDC` vides via l'API publique ; Gemini `PAXG/USDC` ressort autour de 162 bps et n'est donc pas competitif.
+
+Decision provisoire depuis cette liste :
+
+- **BTC** : meilleur cout strict = Bitvavo `BTC/USDC` autour de 6,6-7,6 bps. Meilleure route sans ouvrir de nouveau compte = Kraken `BTC/EUR` autour de 8,0 bps.
+- **ETH** : meilleur cout strict = Bitvavo `ETH/USDC` autour de 6,8-7,0 bps. Meilleure route sans ouvrir de nouveau compte = Kraken `ETH/EUR` autour de 8,0 bps.
+- **PAXG** : meilleur snapshot = Kraken `PAXG/USD` autour de 8,6-9,0 bps. C'est aussi coherent avec le fait que Clem a deja du PAXG sur Kraken.
+- **Bitpanda Fusion** : reste l'inconnu prioritaire. Sans cle API/devis authentifie, impossible de chiffrer proprement ; avec une cle, c'est le prochain test a lancer sur BTC/ETH/PAXG.
+
+### Tableau exchanges API France
+
+Lecture : les frais/slippage sont des ordres de grandeur pour 1k-5k de notional quand un carnet public est mesurable. La complexite d'inscription est une estimation operationnelle pour un particulier France ; elle doit etre verifiee au moment de l'onboarding.
+
+| Exchange | API TradeIO5 ? | Actifs utiles | Cout estime BTC/ETH/PAXG | Complexite inscription | Points positifs | Points negatifs | Verdict TradeIO5 |
+|---|---|---|---|---|---|---|---|
+| Kraken / Kraken Pro | Oui, REST/WebSocket, ordres spot | BTC, ETH, PAXG | BTC/ETH ~8,0-8,5 bps ; PAXG ~8,6-9,0 bps | Moyenne si compte deja ouvert ; faible pour Clem | PAXG deja chez Clem, API solide, paires PAXG fiat, bon cout apres correction fee | Pas toujours le meilleur BTC/ETH vs Bitvavo ; USD/EUR selon paires | **Choix pragmatique n°1 global**, surtout pour PAXG |
+| Bitvavo | Oui, REST/WebSocket | BTC, ETH ; pas PAXG observe | BTC/USDC ~6,6-7,6 bps ; ETH/USDC ~6,8-7,0 bps | Moyenne | Frais USDC tres bas, API simple, bon candidat DCA BTC/ETH | Pas de PAXG public ; USDC comme quote implique gestion stablecoin | **Meilleur cout BTC/ETH** si onboarding acceptable |
+| Bitpanda Fusion | Oui, Fusion API | BTC, ETH, PAXG a verifier | Non chiffre sans cle ; fee level 1 public 25 bps, baisse jusqu'a 2 bps gros volume | Moyenne a elevee | Liquidite agregee 12+ venues, API/MCP, peut resoudre PAXG si devis bon | Broker/agregateur, devis a tester en compte, cout reel opaque avant quote | **Test prioritaire avec cle API** |
+| Bitstamp | Oui, REST/WebSocket | BTC, ETH, PAXG | BTC/ETH ~16 bps ; PAXG/USD ~20 bps | Elevee pour Clem si numero fiscal demande | Regule, API mature, PAXG disponible | Onboarding lourd, cout moins bon depuis correction Kraken, PAXG peu profond | **Fallback PAXG**, plus priorite |
+| Gate Europe | API probable, a confirmer compte EU | BTC, ETH ; PAXG non prouve | BTC/USDC ~11-13 bps ; ETH/USDC ~12-15 bps | Moyenne a elevee | Frais VIP0 bas, bonne piste USDC | Carnet public proxy global, PAXG/USDC absent, compte France a verifier | Watchlist, pas besoin avant Kraken/Bitvavo |
+| OKX Europe | Oui | BTC, ETH ; PAXG absent observe | BTC/ETH ~20 bps avec hypothese prudente | Moyenne | Exchange serieux, USDC/EUR, API robuste | USDT non tradable Europe, PAXG non disponible France observe | Fallback BTC/ETH |
+| Bybit EU | Oui | BTC, ETH ; PAXG absent observe | BTC/ETH ~25 bps | Moyenne | API connue, liquidite BTC/ETH correcte | Plus cher que Kraken/Bitvavo, PAXG absent | Fallback seulement |
+| Coinbase Advanced | Oui | BTC, ETH, PAXG | BTC/ETH ~60 bps ; PAXG ~61-63 bps avec hypothese publique | Moyenne | Onboarding connu, API robuste, regule, PAXG | Frais compte retail souvent hauts/variables, USD dominant | Fallback robuste mais cher |
+| Crypto.com Exchange | Oui, mais disponibilite France a confirmer | PAXG/USD observe ; BTC/ETH USDC vides via API publique | PAXG ~50-51 bps ; BTC/ETH non chiffres | Moyenne | Large acteur, API | Frais plus hauts, paires utiles pas toutes confirmees France/API | Watchlist |
+| Gemini | Oui | BTC, ETH, PAXG/USDC | PAXG/USDC ~162 bps ; BTC/ETH chers selon fee retenu | Moyenne | PAXG/USDC existe | Spread PAXG prohibitif, fees retail a verifier | A eviter pour cout |
+| Paymium | Oui | BTC/EUR surtout | Fee 60 bps taker retail ; slippage non chiffre ici | Faible a moyenne, acteur FR | Tres clair fiscalement/France, API documentee | Pas ETH/PAXG utile, marche limite | Hors scope sauf BTC simple |
+| Bit2Me Pro | API a verifier pour trading avance ; docs fees publiques | BTC/ETH probables ; PAXG a verifier | 60 bps taker base jusqu'a 2k EUR, puis 30 bps ; wallet instant peut monter ~2,15 % | Moyenne | MiCA Espagne, offre large, interface simple | Cher au petit volume, spread wallet eleve, API TradeIO5 a valider | Watchlist, pas premier choix |
+| Coinhouse | API non retenue pour trading bot a ce stade | BTC/ETH possibles ; PAXG a verifier | Achat SEPA ~99 bps ; swap ~79 bps ; stablecoin swap ~19 bps | Faible a moyenne, acteur FR | Tres franco-francais, accompagnement, fiscalement lisible | Pas oriente carnet/API trading, frais broker | Pas adapte TradeIO5 |
+| WhiteBIT | API oui | BTC/ETH/PAXG a verifier France | Fee spot public 10 bps, slippage non chiffre ici | Moyenne a elevee | Frais faibles, API | Autorisation France/entite/service a confirmer proprement, API publique bloquee en test | Watchlist seulement |
+| bitFlyer Europe | API oui | BTC surtout, ETH selon offre | Non chiffre ici ; a mesurer | Moyenne | Regule UE, API | Offre souvent plus limitee, PAXG absent probable | Watchlist BTC seulement |
 
 ## Questions ouvertes pour Clem
 
@@ -248,6 +323,20 @@ Collecte realisee le 2026-10-08 vers 18:24-18:29 Europe/Paris via APIs publiques
 - Jupiter Swap API : https://api.jup.ag/swap/v1/quote
 - ESMA stablecoins non-MiCA, 2026-10-08 : https://www.esma.europa.eu/press-news/esma-news/esma-sets-out-supervisory-expectations-services-related-unauthorised
 - AMF fin de periode transitoire MiCA France : https://www.amf-france.org/en/news-publications/news/amf-reminds-digital-asset-service-providers-transitional-period-allowing-them-continue-providing
+- AMF liste blanche PSCA/CASP : https://www.amf-france.org/fr/espace-epargnants/proteger-son-epargne/listes-blanches
+- AMF Coinbase Luxembourg S.A. : https://www.amf-france.org/fr/espace-epargnants/proteger-son-epargne/listes-blanches/psca/coinbase-luxembourg-sa
+- AMF Kraken / Payward Europe Solutions Limited : https://www.amf-france.org/fr/espace-epargnants/proteger-son-epargne/listes-blanches/psca/payward-europe-solutions-limited-kraken-digital-asset-exchange-kraken
+- AMF OKCoin Europe Limited / OKX : https://www.amf-france.org/fr/espace-epargnants/proteger-son-epargne/listes-blanches/psanpsca/okcoin-europe-limited
+- AMF Bitpanda GmbH : https://www.amf-france.org/fr/espace-epargnants/proteger-son-epargne/listes-blanches/psanpsca/bitpanda-gmbh-0
+- AMF Bitstamp Europe S.A. : https://www.amf-france.org/fr/espace-epargnants/proteger-son-epargne/listes-blanches/psanpsca/bitstamp-europe-sa
+- AMF Crypto.com / Foris DAX MT Limited : https://www.amf-france.org/fr/espace-epargnants/proteger-son-epargne/listes-blanches/psca/foris-dax-mt-limited
+- AMF Bybit EU GmbH : https://www.amf-france.org/fr/espace-epargnants/proteger-son-epargne/listes-blanches/psanpsca/bybit-eu-gmbh
+- AMF KuCoin EU Exchange GmbH : https://www.amf-france.org/fr/espace-epargnants/proteger-son-epargne/listes-blanches/psca/kucoin-eu-exchange-gmbh
+- OKX Europe restriction USDT : https://www.okx.com/en-eu/learn/usdt-not-tradeable-okx-europe-stablecoin-guide
+- Gate Europe lancement/MiCA France : https://www.gate.com/fr/news/detail/gate-europe-compliant-platform-officially-launched-eea-users-need-to-start-22223236
+- Gate Europe migration USDT vers USDC : https://www.gate.com/en-eu/announcements/article/228081
+- Bitget suspension France : https://www.bitget.com/fr/support/articles/12560603848109
+- KuCoin cessation services France : https://www.kucoin.com/fr/announcement/fr-important-notice-regarding-service-termination-for-french-users
 - Binance MiCA Europe update : https://www.binance.com/fr/blog/all/4457979419755346760
 
 ### Fee schedules observes
@@ -257,7 +346,7 @@ Collecte realisee le 2026-10-08 vers 18:24-18:29 Europe/Paris via APIs publiques
 | Binance | Regular 0,100 % maker / 0,100 % taker ; avec paiement BNB 0,075 % / 0,075 %. Colonne USDC : taker 0,095 % hors BNB, 0,07125 % avec BNB, maker indique "Standard". | API Spot mature, endpoint `POST /api/v3/order`, deja proche du code existant du projet. |
 | OKX EEA avec compte derivatives ouvert | Regular 0,0800 % maker / 0,1000 % taker. | API v5 propre, endpoint `POST /api/v5/trade/order`. |
 | OKX EEA spot-only apres 2026-09-25 | Regular "All pairs" 0,100 % maker / 0,200 % taker ; stablecoins 0,000 % maker / 0,050 % taker. | Le statut du compte change fortement le cout. |
-| Kraken Pro | Tier 1 spot crypto 0,40 % maker / 0,80 % taker ; stablecoin/FX 0,20 % / 0,20 %. | API robuste, mais frais retail trop hauts pour l'objectif sauf volume/AoP important. |
+| Kraken Pro | Grille observee au 2026-10-11 : spot crypto base 0,000 % maker / 0,080 % taker, soit 0 / 8 bps. | API robuste ; apres correction, Kraken est competitif et devient prioritaire pour PAXG. |
 | Coinbase Advanced | Jusqu'a 0,4 % maker / 0,6 % taker selon aide publique. | API disponible, mais frais de depart et paires stablecoin faibles. |
 | KuCoin | VIP 0 Class A 0,1 % maker / 0,1 % taker ; remise KCS 20 %. | API spot disponible. |
 | Bybit | Toutes paires spot : 0,1 % maker / 0,1 % taker. | API spot OK, mais PAXG non trouve dans la collecte. |
@@ -308,7 +397,7 @@ Metrices :
 | KuCoin PAXG/USDT | 0,024 | 25 747 USDT | 0,082 | 1,679 | 1 035 816 USDT | Spread tres serre, profondeur limitee. |
 | Bitget PAXG/USDT | 0,024 | 86 753 USDT | 0,735 | 1,356 | 839 637 USDT | Profondeur utile moyenne. |
 | Gate.io PAXG/USDT | 0,921 | 47 357 USDT | 0,460 | 1,390 | 569 090 USDT | Fallback possible, spread plus large. |
-| Kraken PAXG/USD | 0,146 | 82 018 USD | 0,800 | 0,915 | 1 106 605 USD | Pas stablecoin, mais fiat USD ; frais retail eleves. |
+| Kraken PAXG/USD | 0,146 | 82 018 USD | 0,800 | 0,915 | 1 106 605 USD | Pas stablecoin, mais fiat USD ; devient competitif apres correction fee Kraken Pro 8 bps. |
 | Kraken PAXG/EUR | 1,303 | 58 972 EUR | 0,678 | 1,393 | 376 577 EUR | Pas stablecoin ; possible si depart EUR. |
 | Coinbase PAXG/USD | 1,747 | 85 087 USD | 0,873 | 1,900 | 3 148 608 USD | Pas stablecoin ; frais retail eleves. |
 | Bitstamp PAXG/USD | 16,029 | 1 100 USD | 9,698 | 11,850 | 10 309 USD | Non competitif dans ce releve. |
@@ -336,7 +425,7 @@ Hors frais de depot/retrait et hors conversion stablecoin prealable.
 | KuCoin PAXG/USDT, VIP0 base | 10,000 bps | 0,012 | 10,012 | 1,756 | 11,756 | Bon, mais moins robuste en profondeur. Avec KCS, taker theorique 8 bps. |
 | Bitget PAXG/USDT, base | 10,000 bps | 0,768 | 10,768 | 1,469 | 11,469 | Carnet utilisable ; BGB peut ramener le fee theorique a 8 bps. |
 | Crypto.com PAXG/USDT, Level 1 public | 50,000 bps | 0,012 | 50,012 | 1,380 | 51,380 | Carnet bon, frais retail trop hauts sans meilleur tier. |
-| Kraken PAXG/USD | 80,000 bps | 0,212 | 80,212 | 1,003 | 81,003 | Pas stablecoin et frais retail disqualifiants pour le besoin cout minimal. |
+| Kraken PAXG/USD | 8,000 bps | 0,212 | 8,212 | 1,003 | 9,003 | Pas stablecoin, mais route regulee/API maintenant competitive apres correction fee Kraken Pro. |
 | Coinbase PAXG/USD | 60,000 bps | 1,377 | 61,377 | 2,285 | 62,285 | Pas stablecoin ; route regulee mais trop chere. |
 | Gemini PAXG/USDC | Non chiffre | 47,275 | >=47,275 avant frais | 47,283 | >=47,283 avant frais | Stablecoin direct mais spread/impact deja prohibitif. |
 
@@ -435,7 +524,7 @@ Seuils de depart a discuter :
 | Actif | Profil route | Bloquer/fractionner si... | Idee |
 |---|---|---|---|
 | BTC/ETH | CEX majeur USDT/USDC | `buyImpactBps > 2` ou depth 10 bps < 20x ordre | Devrait presque toujours passer en retail ; sinon carnet anormal. |
-| PAXG/USDT | Binance/OKX/KuCoin/Bitget | `buyImpactBps > 3` ou depth 10 bps < 10x ordre | Evite de traverser un carnet fin pendant une micro-secheresse. |
+| PAXG/USDT | Benchmark hors France / non route cible MiCA | `buyImpactBps > 3` ou depth 10 bps < 10x ordre | Utile pour comparer le manque a gagner, mais pas pour execution France par defaut. |
 | PAXG/USDC | Binance USDC | `buyImpactBps > 5` ou depth 10 bps < 5x ordre | Accepte un peu plus de cout pour rester en stablecoin UE-prudent. |
 | DEX PAXG/USDC | On-chain uniquement | devis routeur > CEX + retrait/gas ou price impact > 10 bps | A utiliser seulement si fonds deja on-chain ou CEX indisponible. |
 
@@ -554,8 +643,8 @@ Conclusion wrapped provisoire : **oui, il y a une piste "plus light en frais", s
 - Kraken liste publiquement `PAXG/EUR`, `PAXG/USD`, `PAXG/XBT` et `PAXG/ETH` ; l'API `AssetPairs` indique ces marches en ligne et un minimum d'ordre `0.001 PAXG`.
 - Pour un resident EEA, Kraken indique que `USDT` et plusieurs autres stablecoins sont delistes : ils ne peuvent plus etre trades/achetes/vendus en EEA, seulement retires/deposes selon conditions. Kraken n'est donc pas une solution `USDT -> PAXG` pour Clem.
 - Snapshot du 2026-10-09 a 00:55 Europe/Paris : `PAXG/EUR` a spread 0,785 bps, ask depth 10 bps ~60 738 EUR, buy impact 1k 0,579 bps et 5k 1,278 bps. Le carnet lui-meme est correct.
-- Le probleme est le fee retail Kraken Pro Tier 1 : 0,40 % maker / 0,80 % taker d'apres le fee schedule public, soit 40 / 80 bps avant impact carnet. Le snapshot chiffre donc `PAXG/EUR` a ~80,579 bps pour 1k et ~81,278 bps pour 5k en taker Tier 1.
-- Decision pratique : **ne pas transferer le PAXG existant hors Kraken juste pour optimiser**, sauf si un ordre/retrait precis justifie les frais et risques. Pour acheter du nouveau PAXG a bas cout, Kraken n'est pas le meilleur chemin ; pour conserver, revendre en EUR/USD, ou arbitrer un PAXG deja la, il est pertinent.
+- Correction 2026-10-11 : la grille Kraken Pro actuelle observee indique 0,080 % taker spot de base, soit 8 bps. Avec le carnet du snapshot France/MiCA, `PAXG/USD` ressort autour de 8,6 bps a 1k et 9,0 bps a 5k ; `PAXG/EUR` autour de 9,1-9,7 bps selon taille.
+- Decision pratique : **ne pas transferer le PAXG existant hors Kraken juste pour optimiser**. Pour acheter/revendre du PAXG avec API et contrainte France, Kraken devient au contraire la route la plus pragmatique actuellement chiffree.
 
 **Gemini / Bitstamp**
 
@@ -566,12 +655,12 @@ Conclusion wrapped provisoire : **oui, il y a une piste "plus light en frais", s
 
 | Scenario | Reserve stablecoin | Route BTC/ETH | Route PAXG | Cout attendu | Risque cle | Lecture |
 |---|---|---|---|---:|---|---|
-| Sans Binance, USDT autorise | USDT | OKX BTC/USDT + ETH/USDT | KuCoin/OKX/Gate.io/Bitget PAXG/USDT selon devis | ~10 a 11 bps spot hors retrait dans les derniers snapshots | USDT / MiCA / disponibilite compte France | Meilleur chemin non-Binance chiffre aujourd'hui. |
-| Sans Binance, reserve USDC mais execution USDT autorisee | USDC parking, conversion USDT ponctuelle | OKX BTC/USDC + ETH/USDC | USDC -> USDT -> PAXG/USDT | ~20,5 a 21,8 bps pour PAXG hors retrait | Double fee, USDT quand meme implique | Possible, mais beaucoup moins economique qu'une reserve USDT pour PAXG. |
-| Sans Binance, USDT refuse / MiCA strict | USDC/EURC/EUR | OKX/Coinbase/Kraken/Bitpanda selon acces | Bitpanda Fusion a tester ; sinon Gemini PAXG/USDC non competitif ou PAXG/USD/EUR fiat | Non satisfaisant en stablecoin public ; Gemini impact marche seul >30 bps dans le dernier snapshot | Absence de paire PAXG stablecoin liquide | Viable seulement si Bitpanda Fusion prouve un bon devis, ou si on accepte fiat. |
-| PAXG deja detenu sur Kraken | PAXG existant | Acheter BTC/ETH ailleurs selon cout ; eviter conversion inutile | Garder/revendre PAXG sur Kraken via EUR/USD si besoin | Pas de cout d'achat si deja detenu ; revente taker Tier 1 Kraken ~80 bps + impact | Frais Kraken Pro retail ; custody Kraken | Kraken devient utile comme lieu de position existante, pas comme route d'achat PAXG low-cost. |
+| France/MiCA par defaut | USDC/EUR | Bitvavo `BTC/USDC` / `ETH/USDC`, ou Kraken `BTC/EUR` / `ETH/EUR` si compte unique | Kraken `PAXG/USD` ou `PAXG/EUR` | BTC/ETH ~6,6-8,5 bps ; PAXG ~8,6-9,7 bps dans le snapshot corrige | Offre PAXG limitee hors Kraken/Bitstamp/Coinbase ; devis USD/EUR | Scenario cible reel pour Clem. |
+| France + reserve USDC stricte | USDC | Bitvavo `BTC/USDC` / `ETH/USDC` | Pas de route CEX PAXG/USDC liquide prouvee ; repasser par USD/EUR sur Kraken ou tester Bitpanda Fusion | BTC/ETH ~6,6-7,6 bps ; PAXG USDC Gemini trop cher | Liquidite PAXG USDC fine | Tres bon pour BTC/ETH, insuffisant seul pour PAXG. |
+| PAXG deja detenu sur Kraken | PAXG existant | Kraken si simplicite compte unique ; Bitvavo si optimisation BTC/ETH maximale | Garder/revendre PAXG sur Kraken via USD/EUR si besoin | Pas de cout d'achat si deja detenu ; PAXG taker corrige ~9 bps + impact | Custody Kraken ; quote USD/EUR | Kraken devient la route PAXG principale, pas seulement un lieu de stockage. |
 | Fonds deja on-chain / wrapped accepte | USDC Base/Solana | `cbBTC` Base/Solana ou `WETH` Base | PAXG officiel Solana via Jupiter, ou Ethereum si gas acceptable | A chiffrer par routeur ; cbBTC liquidite observee 5-9,5 M USD selon pool ; PAXG Solana quote Jupiter disponible mais pool ~130 k USD | Issuer/custody wrapper, smart contracts, bridge/reseau, rate limits routeur | Piste a fort potentiel pour BTC ; PAXG prometteur mais plus fragile en liquidite. |
-| BTC/ETH seulement | USDT/USDC | MEXC 0 % ou OKX | Non couvert | Potentiellement minimal | PAXG absent, region/API a verifier | Ne repond pas au besoin complet, mais peut servir de route specialisee. |
+| Hors France / non retenu | USDT | OKX/KuCoin/Bitget/Gate global | `PAXG/USDT` | ~10-11 bps spot dans les anciens snapshots | Non compatible cible France/MiCA | Benchmark uniquement, pas route TradeIO5 France. |
+| BTC/ETH seulement | USDC/EUR | OKX Europe / Coinbase / Bybit EU / Gate Europe / Kraken | Non couvert | Potentiellement bon | PAXG absent | Ne repond pas au besoin complet, mais peut servir de route specialisee. |
 
 Lecture dure : **le besoin PAXG impose la strategie**. BTC et ETH ont assez de liquidite partout ; l'optimisation se joue sur la paire PAXG disponible, son stablecoin quote, et la contrainte UE/MiCA.
 
@@ -580,18 +669,19 @@ Lecture dure : **le besoin PAXG impose la strategie**. BTC et ETH ont assez de l
 Decision provisoire, a valider avec les contraintes de Clem :
 
 1. **Binance est exclu du plan cible.** Garder ses chiffres comme benchmark uniquement ; ne pas en faire un provider d'execution dans la roadmap TradeIO5 tant que son statut Europe/MiCA n'est pas resolu et verifie sur le compte cible.
-2. **Si USDT est acceptable et tradable : strategie non-Binance recommandee = OKX pour BTC/ETH, puis routeur PAXG entre KuCoin/OKX/Gate.io/Bitget.** Le snapshot du 2026-10-09 donne OKX `BTC/USDT` ~10,006 bps, OKX `ETH/USDT` ~10,020 bps, et KuCoin `PAXG/USDT` ~10,180 bps a 1k / ~10,945 bps a 5k. Le routeur doit recalculer parce que PAXG bouge vite.
-3. **Si USDT est refuse ou bloque par MiCA : aucune route PAXG stablecoin publique hors Binance n'est satisfaisante.** OKX/KuCoin/Gate.io/Bitget/Crypto.com ont PAXG surtout en USDT ; Gemini a `PAXG/USDC`, `PAXG/GUSD`, `PAXG/RLUSD`, mais `PAXG/USDC` a un spread/impact prohibitif dans les snapshots. Bitpanda Fusion devient alors le candidat principal a tester par API authentifiee.
-4. **Si la reserve reste USDC mais que l'execution PAXG accepte USDT : ne convertir qu'au moment de l'ordre, et seulement si le cout total reste sous plafond.** Les routes `USDC -> USDT -> PAXG` hors Binance sortent autour de 20,5-21,8 bps dans le snapshot, donc elles sont nettement plus cheres qu'une reserve directement en USDT pour PAXG.
-5. **MEXC peut etre une optimisation BTC/ETH uniquement**, grace a l'annonce 0 % spot, mais ne resout pas le triptyque car PAXG/USDT n'a pas ete trouve via l'API publique. A ne pas choisir comme exchange principal de la strategie PAXG sans verification compte + region + paire.
-6. **Ajouter un profil wrapped/on-chain, mais explicite.** `USDC -> cbBTC` sur Base/Solana peut reduire fortement les couts reseau/custody pour BTC si cbBTC est accepte comme actif final ou redepose chez Coinbase. `USDC -> PAXG` sur Solana est une vraie piste parce que Paxos supporte officiellement PAXG Solana, mais elle doit rester sous seuil de liquidite/slippage et ne pas remplacer silencieusement PAXG natif CEX/Kraken.
-7. **Strategie d'execution recommandee pour TradeIO5 : smart routing simple, pas market order aveugle.**
+2. **Le plan France/MiCA exclut par defaut les routes USDT.** Les routes `PAXG/USDT` KuCoin/Bitget/OKX global restent des benchmarks economiques, mais ne sont pas des routes cibles pour Clem.
+3. **BTC/ETH France : repartir sur USDC/EUR et comparer OKX Europe, Coinbase, Kraken, Bybit EU, Gate Europe, Crypto.com et Bitstamp.** Le meilleur candidat sera determine par devis compte + carnet, pas par les anciens carnets USDT globaux.
+4. **PAXG France : priorite aux routes regulées et testables : Kraken existant, Coinbase/Bitpanda/Bitstamp/Gemini, puis PAXG officiel Solana.** Le premier test utile est Bitpanda Fusion avec cle API, puis une quote on-chain PAXG Solana propre.
+5. **KuCoin/Bitget ne doivent plus etre dans le routeur actif France.** KuCoin EU est a garder en watchlist uniquement si le compte utilisateur confirme l'acces spot/API ; Bitget est exclu apres son annonce de suspension France.
+6. **MEXC et autres exchanges globaux non MiCA sont exclus par defaut**, meme si leurs frais affiches semblent attractifs.
+7. **Ajouter un profil wrapped/on-chain, mais explicite.** `USDC -> cbBTC` sur Base/Solana peut reduire fortement les couts reseau/custody pour BTC si cbBTC est accepte comme actif final ou redepose chez Coinbase. `USDC -> PAXG` sur Solana est une vraie piste parce que Paxos supporte officiellement PAXG Solana, mais elle doit rester sous seuil de liquidite/slippage et ne pas remplacer silencieusement PAXG natif CEX/Kraken.
+8. **Strategie d'execution recommandee pour TradeIO5 : smart routing simple, pas market order aveugle.**
    - Lire carnet avant chaque ordre.
    - Calculer cout pre-trade : fee compte + demi-spread + slippage pour la taille reelle.
    - Poser d'abord un ordre limit maker/post-only quand le signal n'est pas urgent.
    - Basculer en taker limite IOC seulement si le signal expire ou si le cout reste sous un plafond configure.
    - Pour PAXG, bloquer ou fractionner si slippage estime > seuil (ex. 2 bps hors frais pour ordre retail ; seuil a definir).
-8. **Integration cible : commencer par un `ExecutionCostEstimator` avant tout vrai passage d'ordre.** Le premier lot code devrait seulement comparer les venues/paires et produire un devis chiffre ; l'execution reelle vient apres.
+9. **Integration cible : commencer par un `ExecutionCostEstimator` avant tout vrai passage d'ordre.** Le premier lot code devrait seulement comparer les venues/paires et produire un devis chiffre ; l'execution reelle vient apres.
 
 ## Implications API pour TradeIO5
 

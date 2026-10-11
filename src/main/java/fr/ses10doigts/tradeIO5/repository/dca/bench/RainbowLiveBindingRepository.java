@@ -12,7 +12,14 @@ public interface RainbowLiveBindingRepository extends JpaRepository<RainbowLiveB
 
     List<RainbowLiveBinding> findByUserOrderByPriorityAscAssetSymbolAsc(User user);
 
-    Optional<RainbowLiveBinding> findByUserAndAssetSymbol(User user, String assetSymbol);
+    /** Tous les bindings (supervision admin), groupés par utilisateur. */
+    List<RainbowLiveBinding> findAllByOrderByUserIdAscPriorityAscAssetSymbolAsc();
+
+    /** Clé d'unicité : un binding par (utilisateur, actif, wallet). */
+    Optional<RainbowLiveBinding> findByUserAndAssetSymbolAndWallet_Id(User user, String assetSymbol, Long walletId);
+
+    /** Un preset ne peut être le live que d'un seul binding. */
+    Optional<RainbowLiveBinding> findByPreset(RainbowLivePreset preset);
 
     boolean existsByPreset(RainbowLivePreset preset);
 }

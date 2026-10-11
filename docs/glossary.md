@@ -36,7 +36,9 @@ Vérifié le : 2026-10-10.
 - **TrendRegime** — `UP` / `DOWN` / `RANGE`, sortie du Trend unifié ([`architecture/09-trend.md`](architecture/09-trend.md)).
 - **Bull / Bear (Rainbow)** — les deux jeux de paramètres Rainbow visés par actif (pas de Sideways) ; sélection manuelle dans le pine aujourd'hui.
 - **Credential TRADE** — clé d'exchange à portée `TRADE` (Trade uniquement, jamais Withdraw), chiffrée au repos (AES-GCM) avec la clé maître `TRADEIO_MASTER_KEY` ; distincte de la clé `READ`.
+- **validate (Kraken)** — option de `AddOrder` (`validate=true`) : l'exchange contrôle l'ordre sans le créer. Seule voie du testeur d'ordre ; OKX n'en a pas (contrôles locaux seuls).
+- **costmin** — coût minimum d'un ordre en cotation (Kraken `AssetPairs`) ; stocké `exchange_instrument.cost_min`, appliqué par le planner et le testeur.
 - **Kill switch** — interrupteur global (`execution_control`, engagé par défaut) relu avant chaque étape : engagé ⇒ aucun nouvel ordre.
 - **Double validation du 1ᵉʳ ordre** — l'admin arme le binding, puis son propriétaire confirme ; indispensable avant tout premier ordre réel.
 - **Étape UNKNOWN** — ordre dont l'issue est inconnue (timeout) : jamais renvoyé, relu par `clOrdId` (réconciliation).
-- **Plafond absolu** — constantes de code (500 USD par ordre, 1000 USD par jour et par user) qui bornent les multiplicateurs configurables.
+- **Plafond absolu** — constantes de code (10 USD par ordre, 50 USD par jour et par user en phase de test) qui bornent les multiplicateurs configurables.

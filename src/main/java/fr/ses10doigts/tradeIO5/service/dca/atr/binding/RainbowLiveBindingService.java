@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * CRUD des bindings (preset live + wallet réel par actif), scopé à l'utilisateur. Aucun ordre, aucun branchement moteur.
+ * CRUD des bindings (preset live + wallet réel par actif et par wallet : un même actif peut avoir un binding par exchange), scopé à l'utilisateur. Aucun ordre, aucun branchement moteur.
  * Création et modification exécutent {@link BindingCheck} et en retournent le résultat sans le persister (un KO n'empêche
  * pas d'enregistrer le lien : il est revérifié à chaque passe).
  */
@@ -53,11 +53,12 @@ public class RainbowLiveBindingService {
     @Transactional
     public Checked create(User user, CreateRequest req) {
         requireAllowedAsset(req.assetSymbol());
-        bindingRepository.findByUserAndAssetSymbol(user, req.assetSymbol()).ifPresent(existing -> {
-            throw new RainbowLiveBindingConflictException(req.assetSymbol(), existing.getId());
+        Wallet wallet = walletOf(user, req.walletId());
+        bindingRepository.findByUserAndAssetSymbolAndWallet_Id(user, req.assetSymbol(), wallet.getId()).ifPresent(existing -> {
+            throw new RainbowLiveBindingConflictException(req.assetSymbol(), wallet.getId(), existing.getId());
         });
         RainbowLivePreset preset = presetFor(user, req.presetId(), req.assetSymbol());
-        Wallet wallet = walletOf(user, req.walletId());
+        requirePresetFree(preset, null);
         double bag = req.bagPercent() == null ? DEFAULT_BAG_PERCENT : requireBagPercent(req.bagPercent());
         int priority = req.priority() == null ? defaultPriority(req.assetSymbol()) : req.priority();
 
@@ -78,6 +79,7 @@ public class RainbowLiveBindingService {
         if (req.presetId() != null) {
             RainbowLivePreset before = binding.getPreset();
             RainbowLivePreset after = presetFor(user, req.presetId(), binding.getAssetSymbol());
+            requirePresetFree(after, binding.getId());
             binding.setPreset(after);
             if (!before.getId().equals(after.getId())) {
                 eventService.record(user, binding.getAssetSymbol(), RainbowLivePresetEventType.LIVE_SWITCH, before,
@@ -85,7 +87,12 @@ public class RainbowLiveBindingService {
             }
         }
         if (req.walletId() != null) {
-            binding.setWallet(walletOf(user, req.walletId()));
+            Wallet wallet = walletOf(user, req.walletId());
+            bindingRepository.findByUserAndAssetSymbolAndWallet_Id(user, binding.getAssetSymbol(), wallet.getId())
+                    .filter(other -> !other.getId().equals(binding.getId())).ifPresent(other -> {
+                        throw new RainbowLiveBindingConflictException(binding.getAssetSymbol(), wallet.getId(), other.getId());
+                    });
+            binding.setWallet(wallet);
         }
         if (req.bagPercent() != null) {
             binding.setBagPercent(requireBagPercent(req.bagPercent()));
@@ -143,6 +150,12 @@ public class RainbowLiveBindingService {
         return bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(user);
     }
 
+    /** Wallets actifs de l'utilisateur, pour le formulaire de binding. */
+    @Transactional(readOnly = true)
+    public List<Wallet> wallets(User user) {
+        return walletRepository.findByUserAndEnabledTrue(user);
+    }
+
     @Transactional(readOnly = true)
     public RainbowLiveBinding get(User user, Long id) {
         return owned(user, id);
@@ -178,6 +191,13 @@ public class RainbowLiveBindingService {
                     + ", pas sur " + assetSymbol);
         }
         return preset;
+    }
+
+    /** Un preset alimente au plus un binding (la lecture live retrouve le binding par son preset). */
+    private void requirePresetFree(RainbowLivePreset preset, Long bindingId) {
+        bindingRepository.findByPreset(preset).filter(other -> !other.getId().equals(bindingId)).ifPresent(other -> {
+            throw new RainbowLiveBindingConflictException(preset.getId(), other.getId());
+        });
     }
 
     private static Integer strategyRevision(RainbowLivePreset preset) {

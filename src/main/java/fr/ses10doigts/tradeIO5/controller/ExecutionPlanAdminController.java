@@ -2,6 +2,8 @@ package fr.ses10doigts.tradeIO5.controller;
 
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveExecutionService;
+import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
+import fr.ses10doigts.tradeIO5.service.admin.AdminPlanTriggerService;
 import fr.ses10doigts.tradeIO5.service.execution.plan.OrderPlanService;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import lombok.RequiredArgsConstructor;
@@ -27,8 +29,9 @@ import java.time.LocalDate;
 @RequiredArgsConstructor
 public class ExecutionPlanAdminController {
 
-    private final OrderPlanService planService;
+    private final AdminPlanTriggerService planService;
     private final DomainClock clock;
+    private final IAuthenticationFacade authenticationFacade;
 
     @PostMapping("/plan")
     public ResponseEntity<OrderPlanService.PlanSummary> plan(
@@ -36,6 +39,6 @@ public class ExecutionPlanAdminController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate day) {
         LocalDate target = day != null ? day : RainbowLiveExecutionService.dayFor(pass, clock.now());
         log.info("ExecutionPlanAdminController : déclenchement manuel du plan jour={} passe={}", target, pass);
-        return ResponseEntity.ok(planService.planAll(target, pass));
+        return ResponseEntity.ok(planService.plan(target, pass, authenticationFacade.getConnectedUser().getUsername()));
     }
 }

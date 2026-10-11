@@ -1,0 +1,58 @@
+<div th:fragment="orderTester" class="tab-pane fade" id="adm-pane-orderTester" role="tabpanel">
+	<h5>Testeur d'ordre</h5>
+	<p class="text-muted small">Valide un ordre limit IOC <strong>sans jamais l'envoyer</strong> (Kraken : <code>validate</code> ; OKX : contrôles locaux seuls). Soumis aux mêmes verrous qu'un vrai ordre : mode LIVE, déverrouillage, clé maître, clé Trade, kill switch levé.</p>
+	<form id="adm-ot-form" autocomplete="off" class="row g-2">
+		<div class="col-12 col-md-2">
+			<label class="form-label" for="adm-ot-provider">Exchange</label>
+			<select class="form-select" id="adm-ot-provider"><option value="KRAKEN">Kraken</option><option value="OKX">OKX</option></select>
+		</div>
+		<div class="col-12 col-md-3">
+			<label class="form-label" for="adm-ot-user">Utilisateur (clé Trade)</label>
+			<select class="form-select" id="adm-ot-user"></select>
+		</div>
+		<div class="col-12 col-md-3">
+			<label class="form-label" for="adm-ot-inst">Paire</label>
+			<input type="text" class="form-control" id="adm-ot-inst" list="adm-ot-inst-list" value="BTC-USDC" required>
+			<datalist id="adm-ot-inst-list"></datalist>
+		</div>
+		<div class="col-6 col-md-2">
+			<label class="form-label" for="adm-ot-side">Sens</label>
+			<select class="form-select" id="adm-ot-side"><option value="BUY">BUY</option><option value="SELL">SELL</option></select>
+		</div>
+		<div class="col-6 col-md-2">
+			<label class="form-label" for="adm-ot-sizemode">Saisie</label>
+			<select class="form-select" id="adm-ot-sizemode"><option value="sz">Taille (base)</option><option value="quoteAmount">Montant (cotation)</option></select>
+		</div>
+		<div class="col-6 col-md-3">
+			<label class="form-label" for="adm-ot-size" id="adm-ot-size-label">Taille</label>
+			<input type="text" inputmode="decimal" class="form-control" id="adm-ot-size" required>
+		</div>
+		<div class="col-6 col-md-3">
+			<label class="form-label" for="adm-ot-px">Plafond de prix (BUY) / plancher (SELL)</label>
+			<input type="text" inputmode="decimal" class="form-control" id="adm-ot-px" required>
+		</div>
+		<div class="col-12 col-md-6 d-flex align-items-end">
+			<div class="small text-muted" id="adm-ot-limits"></div>
+		</div>
+		<div class="col-12">
+			<button type="submit" class="btn btn-primary" id="adm-ot-submit">Valider</button>
+			<span class="small ms-2 text-muted">Aucun ordre n'est créé.</span>
+		</div>
+	</form>
+
+	<div id="adm-ot-result" class="mt-3 d-none">
+		<div id="adm-ot-verdict" class="alert" role="status"></div>
+		<div class="row g-3">
+			<div class="col-12 col-lg-6">
+				<h6>Contrôles locaux</h6>
+				<ul class="list-unstyled small" id="adm-ot-checks"></ul>
+			</div>
+			<div class="col-12 col-lg-6">
+				<h6>Requête normalisée</h6>
+				<div class="small" id="adm-ot-normalized"></div>
+				<h6 class="mt-3">Réponse de l'exchange (champs filtrés)</h6>
+				<pre class="small border rounded p-2 mb-0" id="adm-ot-raw"></pre>
+			</div>
+		</div>
+	</div>
+</div>

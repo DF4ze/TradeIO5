@@ -33,7 +33,7 @@
 	    </div>
 	
 		<nav id="navbar" class="nav-menu navbar">
-			<div th:replace="fragments/navbar :: navbar"></div>
+			<div th:replace="~{fragments/navbar :: navbar}"></div>
 		</nav>
 	  </div>
 	</header>
@@ -107,7 +107,7 @@
 				
 				<!-- Si non loggué : inclure login -->
 				<div id="login" th:if="${loggued == false}">
-					<div th:replace="fragments/login :: login"></div>
+					<div th:replace="~{fragments/login :: login}"></div>
 				</div>
 			</div>
 		</section>

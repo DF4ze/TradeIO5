@@ -3,15 +3,13 @@ package fr.ses10doigts.tradeIO5.controller;
 import fr.ses10doigts.tradeIO5.model.entity.execution.ExecutionControl;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
-import fr.ses10doigts.tradeIO5.security.model.User;
-import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
-import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingService;
+import fr.ses10doigts.tradeIO5.service.admin.AdminCredentialService;
+import fr.ses10doigts.tradeIO5.service.admin.AdminExecutionService;
+import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingNotFoundException;
 import fr.ses10doigts.tradeIO5.service.execution.ExecutionControlService;
 import fr.ses10doigts.tradeIO5.service.execution.credential.MasterKeyMissingException;
-import fr.ses10doigts.tradeIO5.service.execution.credential.TradeCredentialService;
 import fr.ses10doigts.tradeIO5.service.execution.run.ExecutionResult;
-import fr.ses10doigts.tradeIO5.service.execution.run.OrderExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -31,7 +29,8 @@ import java.time.Instant;
 
 /**
  * Pilotage de l'exécution réelle, réservé ROLE_ADMIN : lancement d'un plan, kill switch, armement du 1ᵉʳ ordre d'un binding,
- * credentials TRADE. Aucun secret en réponse ni dans les logs. Sans mode LIVE, {@code run} n'envoie rien.
+ * credentials TRADE. Aucun secret en réponse ni dans les logs. Sans mode LIVE, {@code run} n'envoie rien. Logique et journal
+ * (auteur, cible, issue) dans {@link AdminExecutionService} : {@code run} rengage seul le kill switch qu'il a trouvé levé.
  */
 @Slf4j
 @RestController
@@ -40,11 +39,9 @@ import java.time.Instant;
 @RequiredArgsConstructor
 public class ExecutionAdminController {
 
-    private final OrderExecutor executor;
+    private final AdminExecutionService adminService;
     private final ExecutionControlService controlService;
-    private final RainbowLiveBindingService bindingService;
-    private final TradeCredentialService credentialService;
-    private final UserRepository userRepository;
+    private final AdminCredentialService credentialService;
     private final IAuthenticationFacade authenticationFacade;
 
     public record KillSwitchRequest(boolean engaged) {
@@ -73,7 +70,7 @@ public class ExecutionAdminController {
     @PostMapping("/run")
     public ResponseEntity<ExecutionResult> run(@RequestParam Long planId) {
         log.info("ExecutionAdminController : exécution manuelle du plan {}", planId);
-        return ResponseEntity.ok(executor.execute(planId));
+        return ResponseEntity.ok(adminService.run(planId, actor()));
     }
 
     @GetMapping("/control")
@@ -83,23 +80,30 @@ public class ExecutionAdminController {
 
     @PutMapping("/kill-switch")
     public ControlDto killSwitch(@RequestBody KillSwitchRequest request) {
-        return ControlDto.of(controlService.setKillSwitch(request.engaged(), authenticationFacade.getConnectedUser().getUsername()));
+        return ControlDto.of(adminService.setKillSwitch(request.engaged(), actor()));
     }
 
     @PostMapping("/bindings/{id}/arm")
     public ResponseEntity<Void> arm(@PathVariable Long id) {
-        bindingService.arm(id);
+        adminService.arm(id, actor());
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/credentials")
     public ResponseEntity<TradeCredentialDto> storeCredential(@RequestBody TradeCredentialRequest request) {
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new IllegalArgumentException("Utilisateur inconnu : " + request.userId()));
-        ApiCredential saved = credentialService.store(user, request.provider(), request.apiKey(), request.secretKey(),
-                request.passphrase(), request.enabled() == null || request.enabled());
-        return ResponseEntity.status(HttpStatus.CREATED).body(new TradeCredentialDto(saved.getId(), user.getId(),
+        ApiCredential saved = credentialService.storeFor(request.userId(), actor(), request.provider(), request.apiKey(),
+                request.secretKey(), request.passphrase(), request.enabled());
+        return ResponseEntity.status(HttpStatus.CREATED).body(new TradeCredentialDto(saved.getId(), request.userId(),
                 request.provider().name(), saved.getScope().name(), saved.isEnabled()));
+    }
+
+    private String actor() {
+        return authenticationFacade.getConnectedUser().getUsername();
+    }
+
+    @ExceptionHandler(RainbowLiveBindingNotFoundException.class)
+    public ResponseEntity<RainbowLiveControllerAdvice.ErrorResponse> notFound(RainbowLiveBindingNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new RainbowLiveControllerAdvice.ErrorResponse(e.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

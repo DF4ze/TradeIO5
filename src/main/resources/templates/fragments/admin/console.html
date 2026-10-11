@@ -1,0 +1,75 @@
+<div th:fragment="console" class="tab-pane fade show active" id="adm-pane-console" role="tabpanel">
+	<h5>Console d'exécution</h5>
+	<p class="text-muted small">Procédure OKX en 7 étapes. Aucun ordre ne part tant que LIVE est verrouillé ou que le kill switch est engagé ; chaque blocage est expliqué.</p>
+
+	<div class="row g-2 align-items-end mb-3">
+		<div class="col-12 col-md-6">
+			<label class="form-label" for="adm-plan-select">Plan</label>
+			<select class="form-select" id="adm-plan-select"></select>
+		</div>
+		<div class="col-auto">
+			<button type="button" class="btn btn-outline-secondary" id="adm-plans-reload">Recharger les plans</button>
+		</div>
+	</div>
+	<div id="adm-plan-summary" class="mb-3"></div>
+
+	<ol class="list-group list-group-numbered" id="adm-steps">
+		<li class="list-group-item" id="adm-step-1">
+			<div class="d-flex flex-wrap align-items-center gap-2">
+				<strong>Planifier</strong>
+				<select class="form-select form-select-sm w-auto" id="adm-plan-pass" aria-label="Passe">
+					<option value="T2355">T2355</option>
+					<option value="T0005">T0005</option>
+				</select>
+				<input type="date" class="form-control form-control-sm w-auto" id="adm-plan-day" aria-label="Jour (UTC, optionnel)">
+				<button type="button" class="btn btn-sm btn-primary" id="adm-btn-plan">Planifier</button>
+				<span class="small" id="adm-state-1"></span>
+			</div>
+		</li>
+		<li class="list-group-item" id="adm-step-2">
+			<div class="d-flex flex-wrap align-items-center gap-2">
+				<strong>Armer le 1er ordre réel</strong>
+				<span class="small" id="adm-state-2"></span>
+			</div>
+			<div id="adm-arm-list" class="mt-2"></div>
+		</li>
+		<li class="list-group-item" id="adm-step-3">
+			<div class="d-flex flex-wrap align-items-center gap-2">
+				<strong>Confirmation du propriétaire</strong>
+				<span class="small" id="adm-state-3"></span>
+			</div>
+		</li>
+		<li class="list-group-item" id="adm-step-4">
+			<div class="d-flex flex-wrap align-items-center gap-2">
+				<strong>Lever le kill switch</strong>
+				<button type="button" class="btn btn-sm btn-warning" id="adm-btn-lift">Lever</button>
+				<span class="small" id="adm-state-4"></span>
+			</div>
+		</li>
+		<li class="list-group-item" id="adm-step-5">
+			<div class="d-flex flex-wrap align-items-center gap-2">
+				<strong>Exécuter</strong>
+				<button type="button" class="btn btn-sm btn-danger" id="adm-btn-run">Exécuter</button>
+				<span class="small" id="adm-state-5"></span>
+			</div>
+		</li>
+		<li class="list-group-item" id="adm-step-6">
+			<div class="d-flex flex-wrap align-items-center gap-2">
+				<strong>Réconcilier</strong>
+				<button type="button" class="btn btn-sm btn-outline-danger" id="adm-btn-reconcile">Réconcilier</button>
+				<span class="small" id="adm-state-6"></span>
+			</div>
+		</li>
+		<li class="list-group-item" id="adm-step-7">
+			<div class="d-flex flex-wrap align-items-center gap-2">
+				<strong>Réengagement</strong>
+				<span class="small">automatique à la fin d'un « Exécuter » / « Réconcilier ».</span>
+				<button type="button" class="btn btn-sm btn-outline-secondary" id="adm-btn-engage">Réengager maintenant</button>
+				<span class="small" id="adm-state-7"></span>
+			</div>
+		</li>
+	</ol>
+
+	<h6 class="mt-4">Dernier résultat</h6>
+	<div id="adm-result" class="border rounded p-2 small text-muted">Aucune action lancée.</div>
+</div>

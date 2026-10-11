@@ -66,6 +66,18 @@ public class ExchangeInstrument {
     @Column(name = "tick_sz", nullable = false, precision = 38, scale = 18)
     private BigDecimal tickSz;
 
+    /** Coût minimum d'un ordre en cotation (Kraken {@code costmin}) ; nul si l'exchange n'en porte pas (OKX). */
+    @Column(name = "cost_min", precision = 38, scale = 18)
+    private BigDecimal costMin;
+
+    /** Nom de la paire dans l'API de trading (Kraken : {@code XBTUSDC}) ; nul si c'est {@code instId} (OKX). */
+    @Column(name = "native_pair", length = 40)
+    private String nativePair;
+
+    /** Devise des remises de frais au volume ({@code fee_volume_currency}) ; nulle si inconnue. */
+    @Column(name = "fee_currency", length = 20)
+    private String feeCurrency;
+
     @Column(name = "fetched_at", nullable = false)
     private Instant fetchedAt;
 }

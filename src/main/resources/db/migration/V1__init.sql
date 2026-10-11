@@ -2,6 +2,17 @@
 -- Ne pas éditer à la main avant l'activation de Flyway ; une fois appliquée, ne plus jamais la modifier
 -- (toute évolution = nouvelle migration V<n>__*.sql, cf. docs/operations/flyway.md).
 
+    create table admin_action_log (
+        created_at datetime(6) not null,
+        id bigint not null auto_increment,
+        actor varchar(64) not null,
+        target varchar(120),
+        payload varchar(1000),
+        action enum ('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','ORDER_VALIDATE','PLAN','RECONCILE','RUN') not null,
+        outcome enum ('ERROR','OK','REFUSED') not null,
+        primary key (id)
+    ) engine=InnoDB;
+
     create table api_credentials (
         enabled bit not null,
         created_at datetime(6),
@@ -104,15 +115,18 @@
     ) engine=InnoDB;
 
     create table exchange_instrument (
+        cost_min decimal(38,18),
         lot_sz decimal(38,18) not null,
         min_sz decimal(38,18) not null,
         tick_sz decimal(38,18) not null,
         fetched_at datetime(6) not null,
         id bigint not null auto_increment,
         base varchar(20) not null,
+        fee_currency varchar(20),
         quote varchar(20) not null,
         state varchar(20) not null,
         inst_id varchar(40) not null,
+        native_pair varchar(40),
         provider enum ('BINANCE','BINANCE_TESTNET','COINALYZE','COINSTATS','DEFILLAMA','FARSIDE','FINNHUB','FOREXFACTORY','KRAKEN','LEDGER','METAMASK','OKX','SOSOVALUE','TWELVE_DATA','YAHOO_FINANCE','YOUTUBE') not null,
         primary key (id)
     ) engine=InnoDB;
@@ -677,6 +691,9 @@
         primary key (id)
     ) engine=InnoDB;
 
+    create index ix_admin_action_log_created_at 
+       on admin_action_log (created_at);
+
     alter table api_credentials 
        add constraint uk_credential_user_provider_scope unique (user_id, web_provider_id, scope);
 
@@ -717,7 +734,7 @@
        add constraint uk_rainbow_ath_reference_asset_day unique (asset_symbol, ref_day);
 
     alter table rainbow_live_binding 
-       add constraint uk_rainbow_live_binding_user_asset unique (user_id, asset_symbol);
+       add constraint uk_rainbow_live_binding_user_asset_wallet unique (user_id, asset_symbol, wallet_id);
 
     alter table rainbow_live_engine_state 
        add constraint uk_rainbow_live_engine_state_preset_day unique (preset_id, state_day);

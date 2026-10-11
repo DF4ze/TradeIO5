@@ -13,22 +13,14 @@ import fr.ses10doigts.tradeIO5.service.connector.balance.ReadOnlyBalanceReader;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
-import java.net.URLEncoder;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
-import java.util.stream.Collectors;
 
 
 @Component
@@ -36,6 +28,7 @@ public class KrakenApiClient implements ProviderApiClient, ReadOnlyBalanceReader
     private static final Logger logger = LoggerFactory.getLogger(KrakenApiClient.class);
 
     private final BalanceCacheManager balanceCacheManager;
+    private final DomainClock clock;
 
     private static final String API_URL = "https://api.kraken.com";
     private static final String API_VERSION = "0";
@@ -43,6 +36,7 @@ public class KrakenApiClient implements ProviderApiClient, ReadOnlyBalanceReader
     private static Map<String, WebClient> webClients = new HashMap<>();
 
     public KrakenApiClient(DomainClock clock) {
+        this.clock = clock;
         this.balanceCacheManager = new BalanceCacheManager(clock);
     }
 
@@ -300,58 +294,6 @@ public class KrakenApiClient implements ProviderApiClient, ReadOnlyBalanceReader
     }
 
     public JsonNode privatePost(String method, Map<String, String> params, ApiCredential credential) throws Exception {
-        String path = "/" + API_VERSION + "/private/" + method;
-
-        long nonce = System.currentTimeMillis();
-        Map<String, String> postData = new HashMap<>(params);
-        postData.put("nonce", String.valueOf(nonce));
-
-        String postDataEncoded = encodePostData(postData);
-
-        String apiSign = generateSignature(path, nonce, postDataEncoded, credential.getSecretKey());
-
-        String body = getClient(credential).post()
-                .uri(path)
-                .header("API-Key", credential.getApiKey())
-                .header("API-Sign", apiSign)
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .bodyValue(postDataEncoded)
-                .retrieve()
-                .bodyToMono(String.class)
-                .block();
-
-        ObjectMapper mapper = new ObjectMapper();
-        return mapper.readTree(body);
+        return new ObjectMapper().readTree(KrakenSignedRequests.privatePost(clock, credential, method, params));
     }
-
-    private String encodePostData(Map<String, String> data) {
-        return data.entrySet().stream()
-                .map(e -> URLEncoder.encode(e.getKey(), StandardCharsets.UTF_8) + "=" + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
-                .collect(Collectors.joining("&"));
-    }
-
-    private String generateSignature(String path, long nonce, String postDataEncoded, String apiSecretBase64) throws Exception {
-        // Kraken signature algo : HMAC-SHA512 of (path + SHA256(nonce + postData)) with key apiSecret (base64 decoded)
-        byte[] decodedSecret = Base64.getDecoder().decode(apiSecretBase64);
-
-        MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
-        byte[] noncePostData = (nonce + postDataEncoded).getBytes(StandardCharsets.UTF_8);
-        byte[] sha256Hash = sha256.digest(noncePostData);
-
-        byte[] pathBytes = path.getBytes(StandardCharsets.UTF_8);
-
-        ByteBuffer buffer = ByteBuffer.allocate(pathBytes.length + sha256Hash.length);
-        buffer.put(pathBytes);
-        buffer.put(sha256Hash);
-        byte[] message = buffer.array();
-
-        Mac mac = Mac.getInstance("HmacSHA512");
-        SecretKeySpec keySpec = new SecretKeySpec(decodedSecret, "HmacSHA512");
-        mac.init(keySpec);
-        byte[] macData = mac.doFinal(message);
-
-        return Base64.getEncoder().encodeToString(macData);
-    }
-
-
 }

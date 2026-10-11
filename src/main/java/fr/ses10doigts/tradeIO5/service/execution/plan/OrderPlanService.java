@@ -29,9 +29,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -99,7 +101,15 @@ public class OrderPlanService {
         List<RainbowLiveBinding> bindings = bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(user);
         List<AssetInput> inputs = new ArrayList<>();
         boolean anyRun = false;
+        Set<String> plannedAssets = new HashSet<>();
         for (RainbowLiveBinding binding : bindings) {
+            // Étapes, clOrdId et exécuteur sont indexés par actif : un seul binding par actif est planifié (le plus prioritaire),
+            // les autres wallets du même actif restent en lecture live seule (cf. known-gaps).
+            if (!plannedAssets.add(binding.getAssetSymbol())) {
+                log.warn("Plan d'ordres : binding {} ({} sur le wallet {}) ignoré, un autre binding du même actif est déjà planifié",
+                        binding.getId(), binding.getAssetSymbol(), binding.getWallet().getId());
+                continue;
+            }
             Optional<RainbowLiveRun> run = runRepository.findByPresetAndDay(binding.getPreset(), day);
             anyRun |= run.isPresent();
             inputs.add(inputOf(binding, run.map(r -> pass == RainbowLivePass.T2355 ? r.getPass2355() : r.getPass0005())

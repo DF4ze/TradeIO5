@@ -13,12 +13,12 @@ import fr.ses10doigts.tradeIO5.service.execution.exchange.OrderNotFoundException
 import fr.ses10doigts.tradeIO5.service.execution.exchange.OrderRejectedException;
 import fr.ses10doigts.tradeIO5.service.execution.exchange.OrderRequest;
 import fr.ses10doigts.tradeIO5.service.execution.exchange.OrderState;
+import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.service.execution.exchange.SpotOrderPort;
 import fr.ses10doigts.tradeIO5.service.execution.exchange.TradeCredentialRejectedException;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.instrument.ExecutionDefaults;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -48,14 +48,14 @@ public class StepRunner {
     /** Étape à traiter. {@code sz} = taille envoyée (ou déjà envoyée pour une réconciliation). */
     public record StepContext(Long planId, Long walletId, Long stepId, String clOrdId, String instId, StepSide side,
                               BigDecimal sz, BigDecimal px, InstrumentInfo instrument, ApiCredential tradeCredential,
-                              BigDecimal mid) {
+                              BigDecimal mid, WebProviderCode provider) {
     }
 
     /** Issue d'une étape ; {@code outcome} nul sans remplissage connu. */
     public record StepResult(StepStatus status, FillAccounting.Outcome outcome) {
     }
 
-    private final ObjectProvider<SpotOrderPort> ports;
+    private final SpotOrderRouter router;
     private final RainbowLiveOrderStepRepository steps;
     private final FillRecorder recorder;
     private final OrderEventLog events;
@@ -65,16 +65,16 @@ public class StepRunner {
     private final int queryAttempts;
 
     @Autowired
-    public StepRunner(ObjectProvider<SpotOrderPort> ports, RainbowLiveOrderStepRepository steps, FillRecorder recorder,
+    public StepRunner(SpotOrderRouter router, RainbowLiveOrderStepRepository steps, FillRecorder recorder,
                       OrderEventLog events, DomainClock clock, PlatformTransactionManager transactionManager,
                       @Value("${" + ExecutionDefaults.ORDER_QUERY_INTERVAL_PROPERTY + ":PT0.3S}") Duration queryInterval) {
-        this(ports, steps, recorder, events, clock, transactionManager, queryInterval, ExecutionDefaults.ORDER_QUERY_ATTEMPTS);
+        this(router, steps, recorder, events, clock, transactionManager, queryInterval, ExecutionDefaults.ORDER_QUERY_ATTEMPTS);
     }
 
-    StepRunner(ObjectProvider<SpotOrderPort> ports, RainbowLiveOrderStepRepository steps, FillRecorder recorder,
+    StepRunner(SpotOrderRouter router, RainbowLiveOrderStepRepository steps, FillRecorder recorder,
                OrderEventLog events, DomainClock clock, PlatformTransactionManager transactionManager,
                Duration queryInterval, int queryAttempts) {
-        this.ports = ports;
+        this.router = router;
         this.steps = steps;
         this.recorder = recorder;
         this.events = events;
@@ -87,7 +87,7 @@ public class StepRunner {
     // ------------------------------------------------------------------ envoi
 
     public StepResult send(StepContext c) {
-        SpotOrderPort port = port();
+        SpotOrderPort port = port(c.provider());
         OrderRequest request = new OrderRequest(c.instId(), c.side(), StepOrderType.LIMIT_IOC, c.sz(), c.px(), c.clOrdId());
         tx.executeWithoutResult(status -> {
             RainbowLiveOrderStep step = steps.findById(c.stepId()).orElseThrow();
@@ -142,7 +142,7 @@ public class StepRunner {
 
     /** Relit l'ordre par {@code clOrdId} et clôt l'étape si possible. Ne renvoie jamais d'ordre. */
     public StepResult reconcile(StepContext c) {
-        SpotOrderPort port = port();
+        SpotOrderPort port = port(c.provider());
         OrderState state;
         try {
             state = port.query(c.tradeCredential(), c.instId(), c.clOrdId());
@@ -260,12 +260,9 @@ public class StepRunner {
         });
     }
 
-    private SpotOrderPort port() {
-        SpotOrderPort port = ports.getIfAvailable();
-        if (port == null) {
-            throw new IllegalStateException("Port d'ordres indisponible (mode LIVE non déverrouillé)");
-        }
-        return port;
+    private SpotOrderPort port(WebProviderCode provider) {
+        return router.forProvider(provider).orElseThrow(() -> new IllegalStateException(
+                "Port d'ordres indisponible pour " + provider + " (mode LIVE non déverrouillé ou exchange non câblé)"));
     }
 
     private void pause() {

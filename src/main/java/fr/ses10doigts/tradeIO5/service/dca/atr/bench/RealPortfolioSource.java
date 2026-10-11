@@ -72,8 +72,7 @@ public class RealPortfolioSource implements RainbowPortfolioSource {
 
     @Override
     public PortfolioReading read(RainbowLivePreset preset) {
-        RainbowLiveBinding binding = bindingRepository.findByUserAndAssetSymbol(preset.getUser(), preset.getAssetSymbol())
-                .filter(b -> b.getPreset().getId().equals(preset.getId()))
+        RainbowLiveBinding binding = bindingRepository.findByPreset(preset)
                 .orElseThrow(() -> new IllegalStateException("Aucun binding live pour le preset " + preset.getId()));
         Wallet wallet = binding.getWallet();
         Instant now = clock.now();

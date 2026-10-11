@@ -44,11 +44,11 @@ public final class ExecutionDefaults {
     public static final BigDecimal BRIDGE_FEE_MARGIN_PCT = new BigDecimal("0.3");
 
     /**
-     * Plafonds ABSOLUS d'un ordre et d'une journée par utilisateur (USD), en constante : jamais surchargeables par la base
+     * Plafonds ABSOLUS d'un ordre et d'une journée par utilisateur (USD), en constante (valeurs basses de la phase de test : 10 / 50 ; à relever et à rendre configurables par utilisateur plus tard) : jamais surchargeables par la base
      * ({@code ExecutionControl}) ni par une propriété. Filet de sécurité contre un {@code baseAmount} ou un multiplicateur erroné.
      */
-    public static final BigDecimal ABSOLUTE_MAX_ORDER_USD = new BigDecimal("500");
-    public static final BigDecimal ABSOLUTE_MAX_DAY_USD = new BigDecimal("1000");
+    public static final BigDecimal ABSOLUTE_MAX_ORDER_USD = new BigDecimal("10");
+    public static final BigDecimal ABSOLUTE_MAX_DAY_USD = new BigDecimal("50");
 
     /** Plafonds par défaut en multiples du {@code baseAmount} du preset (ordre = 1 ×, jour/utilisateur = 2 ×). */
     public static final BigDecimal DEFAULT_MAX_ORDER_MULTIPLIER = BigDecimal.ONE;
@@ -63,6 +63,22 @@ public final class ExecutionDefaults {
 
     /** Délai minimal entre deux appels réseau du client d'ordres (limites OKX : 60 requêtes / 2 s par endpoint). */
     public static final Duration ORDER_CLIENT_MIN_INTERVAL = Duration.ofMillis(100);
+
+    /** Utilisateur technique inscrit sur le kill switch quand le back le rengage seul après un {@code run}. */
+    public static final String AUTO_REENGAGE_ACTOR = "auto-reengage";
+
+    /** Réponse brute d'exchange gardée pour l'affichage et l'audit (testeur d'ordre) : liste blanche de champs, tronquée à 4 Ko. */
+    public static final int RAW_RESPONSE_MAX_CHARS = 4096;
+
+    /** Pagination des lectures (audit, journal admin) : taille par défaut et borne haute. */
+    public static final int DEFAULT_PAGE_SIZE = 20;
+    public static final int MAX_PAGE_SIZE = 100;
+
+    /** Nombre maximal de paires renvoyées par la liste admin du catalogue (le filtre {@code q} s'applique avant la borne). */
+    public static final int ADMIN_CATALOG_MAX_RESULTS = 200;
+
+    /** Fenêtre par défaut (jours) de la liste admin des plans. */
+    public static final int ADMIN_PLAN_WINDOW_DAYS = 7;
 
     /** Cotation forcée à la vente quand la paire {@code X-USDT} existe. */
     public static final String FORCED_SELL_QUOTE = "USDT";

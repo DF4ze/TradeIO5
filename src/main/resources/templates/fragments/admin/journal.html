@@ -1,0 +1,18 @@
+<div th:fragment="journal" class="tab-pane fade" id="adm-pane-journal" role="tabpanel">
+	<h5>Journal des actions admin</h5>
+	<p class="text-muted small">Lecture seule, du plus récent au plus ancien. Aucune valeur secrète n'y est écrite.</p>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle">
+			<thead>
+				<tr><th>Date (UTC)</th><th>Auteur</th><th>Action</th><th>Cible</th><th>Issue</th><th>Détail</th></tr>
+			</thead>
+			<tbody id="adm-journal-body"></tbody>
+		</table>
+	</div>
+	<div class="d-flex align-items-center gap-2">
+		<button type="button" class="btn btn-sm btn-outline-secondary" id="adm-journal-prev">Précédent</button>
+		<span class="small" id="adm-journal-page"></span>
+		<button type="button" class="btn btn-sm btn-outline-secondary" id="adm-journal-next">Suivant</button>
+		<button type="button" class="btn btn-sm btn-outline-secondary" id="adm-journal-reload">Recharger</button>
+	</div>
+</div>

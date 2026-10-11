@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
+import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.model.entity.execution.StepSide;
 import fr.ses10doigts.tradeIO5.service.connector.apiclient.OkxSignedRequests;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceUnavailableException;
@@ -50,6 +51,11 @@ public class OkxSpotOrderClient implements SpotOrderPort {
     private static final Set<String> UNCERTAIN_CODES = Set.of("50001", "50004", "50013", "50026");
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Override
+    public WebProviderCode provider() {
+        return WebProviderCode.OKX;
+    }
 
     private final DomainClock clock;
     private final long minIntervalNanos;

@@ -33,7 +33,7 @@
 	    </div>
 	
 		<nav id="navbar" class="nav-menu navbar">
-			<div th:replace="fragments/navbar :: navbar"></div>
+			<div th:replace="~{fragments/navbar :: navbar}"></div>
 		</nav>
 	  </div>
 	</header>
@@ -41,13 +41,51 @@
     
     
     <main id="main">
-		<!-- ======= Liste Souhaits Participations Section ======= -->
+		<!-- ======= Page Admin d'exécution : bandeau permanent + onglets ======= -->
 		<section id="about" class="about" >
 		  	<div class="container">
 		    	<div class="section-title">
     				Welcome in Admin's Page <span th:text="${name}" ></span>
-    	
-    	</div>
+    			</div>
+
+				<div id="admin-root" th:attr="data-username=${name}">
+					<!-- Bandeau permanent (tous onglets) : alimenté par GET /api/admin/execution/state -->
+					<div id="adm-banner" class="alert alert-secondary d-flex flex-wrap align-items-center gap-3 py-2" role="status">
+						<span>Mode : <strong id="adm-mode">—</strong></span>
+						<span>LIVE : <strong id="adm-live">—</strong></span>
+						<span>Clé maître : <strong id="adm-master">—</strong></span>
+						<span>KILL SWITCH : <strong id="adm-ks">—</strong></span>
+						<span class="text-muted small" id="adm-caps"></span>
+					</div>
+
+					<div id="adm-alert" class="alert alert-warning d-none" role="alert"></div>
+
+					<ul class="nav nav-tabs" id="adm-tabs" role="tablist">
+						<li class="nav-item" role="presentation">
+							<button type="button" class="nav-link active" id="adm-tab-console" data-adm-tab="console" data-bs-toggle="tab" data-bs-target="#adm-pane-console" role="tab">Console</button>
+						</li>
+						<li class="nav-item" role="presentation">
+							<button type="button" class="nav-link" id="adm-tab-credentials" data-adm-tab="credentials" data-bs-toggle="tab" data-bs-target="#adm-pane-credentials" role="tab">Credentials</button>
+						</li>
+						<li class="nav-item" role="presentation">
+							<button type="button" class="nav-link" id="adm-tab-bindings" data-adm-tab="bindings" data-bs-toggle="tab" data-bs-target="#adm-pane-bindings" role="tab">Bindings</button>
+						</li>
+						<li class="nav-item" role="presentation">
+							<button type="button" class="nav-link" id="adm-tab-orderTester" data-adm-tab="orderTester" data-bs-toggle="tab" data-bs-target="#adm-pane-orderTester" role="tab">Testeur d'ordre</button>
+						</li>
+						<li class="nav-item" role="presentation">
+							<button type="button" class="nav-link" id="adm-tab-journal" data-adm-tab="journal" data-bs-toggle="tab" data-bs-target="#adm-pane-journal" role="tab">Journal</button>
+						</li>
+					</ul>
+
+					<div class="tab-content pt-3">
+						<div th:replace="~{fragments/admin/console :: console}"></div>
+						<div th:replace="~{fragments/admin/credentials :: credentials}"></div>
+						<div th:replace="~{fragments/admin/bindings :: bindings}"></div>
+						<div th:replace="~{fragments/admin/orderTester :: orderTester}"></div>
+						<div th:replace="~{fragments/admin/journal :: journal}"></div>
+					</div>
+				</div>
 			</div>
 		</section>
 	</main>
@@ -69,9 +107,14 @@
 		 <script src="assets/js/main.js"></script>
 		 <script src="assets/js/perso.js"></script>
 		
-		<script>
-		includeHTML();
-		</script>
-    	
+		<!-- Page Admin : un fichier par onglet, données chargées à la première ouverture de l'onglet -->
+		<script src="assets/js/admin/admin-core.js"></script>
+		<script src="assets/js/admin/console.js"></script>
+		<script src="assets/js/admin/credentials.js"></script>
+		<script src="assets/js/admin/bindings.js"></script>
+		<script src="assets/js/admin/orderTester.js"></script>
+		<script src="assets/js/admin/journal.js"></script>
+		<script>AdminCore.start();</script>
+
 	</body>
 </html>

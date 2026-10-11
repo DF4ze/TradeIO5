@@ -1,29 +1,40 @@
-# Exécution réelle des ordres (lots C1 back-end et C2 page)
+# Exécution réelle des ordres (back-end, page utilisateur, page Admin)
 
-Vérifié le : 2026-10-11 (`rainbow-live.js`, `service/execution/{exchange,run,credential}/**`, `service/execution/ExecutionControlService`, `model/entity/execution/**`, `controller/ExecutionAdminController`, `service/scheduler/ExecutionJob`).
+Vérifié le : 2026-10-11 (`rainbow-live.js`, `service/execution/{exchange,run,credential}/**`, `service/execution/ExecutionControlService`, `service/connector/apiclient/KrakenSignedRequests`, `model/entity/execution/**`, `controller/ExecutionAdminController`, `service/admin/**`, `templates/fragments/admin/*`, `static/assets/js/admin/*`, `service/scheduler/ExecutionJob`).
 
-**`LIVE` est verrouillé par défaut** (kill switch engagé, `live-unlocked=false`, `executionEnabled=false`). Validé en réel : un achat limit IOC `BTC-USDC` de 0,0001 BTC (≈ 8 USDC) est passé, réconcilié à l'unité avec l'historique OKX (une seule `Transaction`, audit complet, relance idempotente `sent:0`). Le code est aussi testé sur un exchange simulé (`FakeSpotExchange`, `src/test`) et un serveur HTTP local pour le client OKX. Constats réels : section « Constats exchange ». Plan d'ordres en amont : [`10-execution-plan.md`](10-execution-plan.md).
+**`LIVE` est verrouillé par défaut** (kill switch engagé, `live-unlocked=false`, `executionEnabled=false`). Validé en réel : un achat limit IOC `BTC-USDC` de 0,0001 BTC (≈ 8 USDC) est passé, réconcilié à l'unité avec l'historique OKX (une seule `Transaction`, audit complet, relance idempotente `sent:0`). Le code est aussi testé sur un exchange simulé (`FakeSpotExchange`, `src/test`) et des serveurs HTTP locaux pour les clients OKX et Kraken. Le client Kraken n'a **jamais** passé d'ordre réel (ni `validate` réel) à ce jour. Constats réels : section « Constats exchange ». Plan d'ordres en amont : [`10-execution-plan.md`](10-execution-plan.md).
 
 ## Verrous (tous requis pour qu'un ordre parte)
 
 1. `tradeio.execution.mode=LIVE` **et** `tradeio.execution.live-unlocked=true` (défaut `false`) **et** variable d'environnement `TRADEIO_MASTER_KEY` présente : sinon `ExecutionSettings` refuse `LIVE` au démarrage (`IllegalStateException`). `OFF` / `DRY_RUN` ⇒ l'exécuteur n'appelle jamais le port.
-2. Bean `OkxSpotOrderClient` (seul implémenteur de `SpotOrderPort`) conditionné par `LiveExecutionCondition` (mode `LIVE` **et** déverrouillé) : absent sinon (`ObjectProvider<SpotOrderPort>` vide ⇒ `PORT_UNAVAILABLE`).
+2. Beans `OkxSpotOrderClient` et `KrakenSpotOrderClient` (implémenteurs de `SpotOrderPort`) conditionnés par `LiveExecutionCondition` (mode `LIVE` **et** déverrouillé) : absents sinon. `SpotOrderRouter` (`run`) route par exchange ; aucun port ⇒ `PORT_UNAVAILABLE` global, port manquant pour un exchange ⇒ seuls les actifs de cet exchange sont bloqués.
 3. **Kill switch** (`execution_control`, ligne unique, **engagé par défaut**, ligne absente ⇒ engagé) relu avant chaque étape. `PUT /api/admin/execution/kill-switch`.
 4. Binding : `executionEnabled` (propriétaire) **et** double validation du 1ᵉʳ ordre (`firstLiveApprovedAt` armé par l'admin, puis `firstLiveConfirmedAt` par le propriétaire ; réarmer remet la confirmation à zéro).
 5. `ExecutionGuard.requireExecutable(binding, pathComputed)` : `OK`, ou `TRADABLE_VIA_BRIDGE` si un chemin est chiffré ; `NOT_TRADABLE_WITHOUT_FIAT` toujours refusé.
 6. Credential **TRADE** résolue et déchiffrée.
-7. Plafonds : par ordre (`maxOrderMultiplier` × `baseAmount` du run, défaut 1), par jour et par user (`maxDayMultiplier` × somme des `baseAmount`, défaut 2), bornés par des **constantes absolues** non configurables (`ExecutionDefaults.ABSOLUTE_MAX_ORDER_USD` = 500, `ABSOLUTE_MAX_DAY_USD` = 1000). Le jour compte les étapes principales déjà envoyées (hors ponts).
+7. Plafonds : par ordre (`maxOrderMultiplier` × `baseAmount` du run, défaut 1), par jour et par user (`maxDayMultiplier` × somme des `baseAmount`, défaut 2), bornés par des **constantes absolues** non configurables (`ExecutionDefaults.ABSOLUTE_MAX_ORDER_USD` = 10, `ABSOLUTE_MAX_DAY_USD` = 50 : valeurs volontairement basses pendant la phase de test, à relever et à rendre configurables par utilisateur (avec avertissement à l'approche des seuils) avant l'usage réel). Le jour compte les étapes principales déjà envoyées (hors ponts).
 
 ## Credentials TRADE
 
 - `ApiCredential.scope` (`READ|TRADE`, défaut `READ`), unique (user, provider, scope). Toutes les lectures existantes passent par `findRead…` (la clé TRADE n'est jamais lue par les connecteurs de lecture).
 - `SecretCipher` : AES-256-GCM, IV aléatoire 12 octets, format `enc:v1:base64(iv‖chiffré+tag)`, AAD = nom du champ ; clé maître = env `TRADEIO_MASTER_KEY` (base64 de 32 octets), jamais en base. Clé invalide ⇒ échec au démarrage ; absente ⇒ chiffrement / déchiffrement impossibles, **aucun repli en clair**.
 - `TradeCredentialResolver` : seul lecteur ; renvoie une **copie détachée** déchiffrée (l'entité gérée reste chiffrée) ou `Optional.empty()` (absente, désactivée, clé manquante, valeur non chiffrée ou altérée).
-- Création / rotation : `POST /api/admin/execution/credentials` (ADMIN, OKX seulement), réponse sans secret, `toString` du corps masqué.
+- Au démarrage, `ApiCredentialInitializer` crée (si absente) la clé TRADE de System depuis `tradeio.okx.trade.*` et `tradeio.kraken.trade.*` (chiffrée ; sans `TRADEIO_MASTER_KEY` : WARN, rien créé ; propriétés absentes : rien créé).
+- Création / rotation : `POST /api/credentials/trade` (propriétaire, sa propre clé, page `/admin` onglet Credentials) ou `POST /api/admin/execution/credentials` (ADMIN, pour un user), OKX ou KRAKEN (Kraken : pas de passphrase, ignorée), réponse sans secret, `toString` du corps masqué. Activation / désactivation : `PUT /api/admin/credentials/{id}/enabled`.
 
 ## Port d'ordres (`service.execution.exchange`)
 
-`SpotOrderPort` : `submit`, `query`, `cancel`, `fills`. `OrderRequest` n'accepte que `LIMIT_IOC` (prix plafond obligatoire). `OkxSpotOrderClient` : `POST /api/v5/trade/order` (`tdMode=cash`, `ordType=ioc`, `sz` en base via `tgtCcy=base_ccy`, `px`, `clOrdId`), `GET /api/v5/trade/order`, `POST /api/v5/trade/cancel-order`, `GET /api/v5/trade/fills`, signature HMAC-SHA256 via `OkxSignedRequests`, espacement minimal entre appels. Erreurs : rejet métier ⇒ `OrderRejectedException(code)` ; clé refusée (`501xx`) ⇒ `TradeCredentialRejectedException` ; réponse illisible / HTTP / codes système incertains ⇒ `ExchangeUnavailableException` (issue **inconnue**, l'ordre a pu partir) ; `51603` ⇒ `OrderNotFoundException`. Frais OKX négatifs normalisés en coût positif.
+`SpotOrderPort` : `provider`, `submit`, `query`, `cancel`, `fills`. `OrderRequest` n'accepte que `LIMIT_IOC` (prix plafond obligatoire). `OkxSpotOrderClient` : `POST /api/v5/trade/order` (`tdMode=cash`, `ordType=ioc`, `sz` en base via `tgtCcy=base_ccy`, `px`, `clOrdId`), `GET /api/v5/trade/order`, `POST /api/v5/trade/cancel-order`, `GET /api/v5/trade/fills`, signature HMAC-SHA256 via `OkxSignedRequests`, espacement minimal entre appels. Erreurs : rejet métier ⇒ `OrderRejectedException(code)` ; clé refusée (`501xx`) ⇒ `TradeCredentialRejectedException` ; réponse illisible / HTTP / codes système incertains ⇒ `ExchangeUnavailableException` (issue **inconnue**, l'ordre a pu partir) ; `51603` ⇒ `OrderNotFoundException`. Frais OKX négatifs normalisés en coût positif.
+
+`KrakenSpotOrderClient` (même port + `SpotOrderValidator`) : `POST /0/private/<méthode>` (form-urlencoded, en-têtes `API-Key` / `API-Sign`). Signature = base64(HMAC-SHA512(base64décodé(secret), chemin + SHA256(nonce + corps))) et nonce strictement croissant par clé (`max(ms, dernier+1)`, empreinte SHA-256 de la clé comme index) dans `KrakenSignedRequests`, partagé avec `KrakenApiClient` (lecture). `AddOrder` : `pair` = **nom natif lu au catalogue** (`ExchangeInstrument.nativePair`, jamais reconstruit ; absent ⇒ `OrderRejectedException(PAIR_UNKNOWN)`), `ordertype=limit`, `timeinforce=IOC`, `volume` en base, `price` plafond, `oflags=fciq` (frais toujours en cotation : devise du frais connue), `cl_ord_id` = 32 premiers hexadécimaux de SHA-256 du `clOrdId` interne (Kraken n'accepte que 18 caractères ou un UUID ; déterministe, sert à relire et annuler). Lecture d'un ordre : `ClosedOrders` puis `OpenOrders` filtrés par `cl_ord_id` (`closed` rempli ⇒ `FILLED`, sinon solde IOC `CANCELED`). Fills : `QueryOrders trades=true` puis `QueryTrades` (20 ids max par appel) ; frais positif en cotation, `tradeId` = txid du trade. Annulation : `CancelOrder` par `cl_ord_id`. Erreurs : `EOrder:*` ⇒ `OrderRejectedException` ; `EAPI:Invalid key|signature`, `EGeneral:Permission denied` ⇒ `TradeCredentialRejectedException` ; `EAPI:Invalid nonce`, `EService:*`, limite de débit, réponse illisible ⇒ `ExchangeUnavailableException` (issue inconnue, jamais de renvoi).
+
+## Testeur d'ordre (`validate`, aucun ordre créé)
+
+`POST /api/admin/execution/order-test/validate` (ADMIN) ⇒ `AdminOrderTestService` (journal `ORDER_VALIDATE`) ⇒ `OrderTestService` (`run`), seul appelant de `SpotOrderValidator` ; il n'appelle **jamais** `SpotOrderPort.submit`. Ordres limit IOC uniquement ; fiat interdit (`ExecutionDefaults.forbiddenNodes`) ; plafond absolu par ordre appliqué.
+1. Normalisation : taille arrondie au lot (bas), prix au tick (BUY bas, SELL haut).
+2. Contrôles locaux toujours calculés : `provider_tradable`, `no_fiat`, `pair_known`, `pair_live`, `price_required`, `size_positive`, `lot_tick`, `min_size`, `cost_min` (si `costMin`), `cap_absolute_order`.
+3. Mêmes verrous globaux qu'un vrai ordre : `MODE_NOT_LIVE`, `LIVE_LOCKED`, `MASTER_KEY_MISSING`, `KILL_SWITCH`, `PORT_UNAVAILABLE`, `CREDENTIAL_INVALID` ⇒ réponse `blockedBy`, **aucun appel exchange**.
+4. Échec structurel (paire inconnue / fiat / prix ou taille invalides) ⇒ aucun appel exchange. Sinon `validate` : Kraken `AddOrder validate=true` ; OKX : `OkxLocalOrderValidator` = contrôles locaux seuls (pas de mode démo). Réponse brute réduite à une liste blanche (`error`, `result.descr.order|close`), tronquée à 4 Ko ; `accepted` = exchange accepte **et** contrôles locaux tous ok.
 
 ## Exécution (`service.execution.run`)
 
@@ -44,13 +55,25 @@ Sous le plan de l'actif sélectionné (panneau live) :
 - le bandeau dit « exécution réelle verrouillée » tant que `liveExecution` est faux.
 Tests de rendu : `MainControllerUserPageTest` ; audit : `OrderPlanServiceTest` (propriétaire seul, pagination bornée).
 
+## Page Admin (`/admin`, `textContent` uniquement)
+
+`adminPage.html` + fragments `fragments/admin/{console,credentials,bindings,journal,orderTester}.html` + JS `assets/js/admin/{admin-core,console,credentials,bindings,journal,orderTester}.js` (module partagé `AdminCore` : appels API, bandeau, table unique des messages de blocage). Aucun `innerHTML`/`insertAdjacentHTML`/`outerHTML`/`document.write`/`th:utext` (scan en test).
+- **Bandeau permanent** (`GET /api/admin/execution/state`) : mode, LIVE déverrouillé, clé maître, kill switch (+ qui / quand), plafonds, ports d'ordres ; rafraîchi après chaque action.
+- **Console** (7 étapes) : état, plan, armement, confirmation propriétaire (suivie, non faite par l'admin), levée du kill switch, `run`, réconciliation / réengagement. Plans de tous les users (`GET /api/admin/execution/plans`, audit `…/events`).
+- **Credentials** : liste sans secret, activation, saisie de sa propre clé TRADE (OKX ou KRAKEN ; passphrase masquée pour Kraken ; rappel : droits « créer/annuler des ordres » seuls, jamais retrait, restriction IP).
+- **Testeur d'ordre** : choix user / exchange / paire (`GET /api/admin/catalog/instruments?provider=&q=`, 200 max), sens, taille ou montant, plafond de prix ⇒ affiche contrôles locaux, ordre normalisé, limites, verrou bloquant ou verdict exchange. Bouton « Valider » uniquement : aucun envoi. **Bindings** : lecture de tous les users. **Journal** : `GET /api/admin/actions`.
+- Backend : `AdminExecutionService` (kill switch, armement, `run`), `AdminPlanTriggerService` (plan), `AdminCredentialService`, `AdminStateService`, `AdminPlanQueryService` (lecture, aucun port d'ordre), `AdminBindingQueryService`, `AdminActionLogService`. `AdminPlanTriggerService` est séparé d'`AdminExecutionService` pour que `ExecutionPlanAdminController` ne dépende jamais (transitivement) d'`OrderExecutor`. Le job cron `ExecutionJob` ne passe pas par ces services (ni journal, ni réengagement).
+- **Réengagement automatique** : `AdminExecutionService.run` (execute ou réconcilie) réengage le kill switch dans un `finally` s'il était levé à l'appel ; journalisé `AUTO_REENGAGE` (acteur `auto-reengage`).
+- **Journal `admin_action_log`** : append-only (entité sans setter, `Repository` avec `save` + lectures seulement), écrit en transaction indépendante (`REQUIRES_NEW`) ; un échec d'écriture est un WARN, il ne bloque pas l'action. Colonnes : acteur, action (`KILL_SWITCH, ARM_BINDING, PLAN, RUN, RECONCILE, CREDENTIAL_STORED, CREDENTIAL_ENABLED, AUTO_REENGAGE, ORDER_VALIDATE`), cible, charge utile JSON (clés `secret/passphrase/apikey/password/token` filtrées), résultat (`OK, REFUSED, ERROR`), date (`DomainClock`).
+- Garde-fous inchangés : aucun contournement de verrou ; la page ne fait que piloter les endpoints existants.
+
 ## Déclenchement
 
 `ExecutionJob` (`tradeio.execution.run-cron`, défaut `-`, `zone = "UTC"`) et `POST /api/admin/execution/run?planId=`. Endpoints : [`../api/rest-endpoints.md`](../api/rest-endpoints.md).
 
 ## Garde-fous (tests)
 
-`ExecutionOrderArchitectureTest` (seul `service.execution.exchange` déclare des méthodes d'ordre ; seuls `exchange` et `run` référencent ce package — analyse du pool de constantes, donc ni bench, ni plan, ni contrôleurs de lecture ; bean client absent par défaut ; `LIVE` sans déverrouillage / clé maître refusé), `ExecutionPlanArchitectureTest`, `ConnectorNoOrderMethodTest` et `RainbowLiveNoExchangeDependencyTest` inchangés, `OrderExecutorTest`, `StepRunnerTest`, `OkxSpotOrderClientTest`, `SecretCipherTest`, `TradeCredentialPersistenceTest`, `ExecutionAdminSecurityTest`, `RainbowLiveBindingExecutionTest`.
+`ExecutionOrderArchitectureTest` (seul `service.execution.exchange` déclare des méthodes d'ordre ; seuls `exchange` et `run` référencent ce package — analyse du pool de constantes, donc ni bench, ni plan, ni contrôleurs de lecture ; bean client absent par défaut ; `LIVE` sans déverrouillage / clé maître refusé), `ExecutionPlanArchitectureTest`, `ConnectorNoOrderMethodTest` et `RainbowLiveNoExchangeDependencyTest` inchangés, `OrderExecutorTest`, `StepRunnerTest`, `OkxSpotOrderClientTest`, `KrakenSpotOrderClientTest`, `KrakenSignedRequestsTest`, `SpotOrderRouterTest`, `OrderTestServiceTest`, `SecretCipherTest`, `TradeCredentialPersistenceTest`, `ExecutionAdminSecurityTest`, `RainbowLiveBindingExecutionTest`, `AdminControllersSecurityTest` (sécurité par méthode, DTO sans secret), `AdminActionLogServiceTest` (append-only), `AdminExecutionServiceTest` (réengagement, journal), `AdminCredentialServiceTest`, `AdminPlanQueryServiceTest`, `AdminStateServiceTest`, `MainControllerAdminPageTest` (rendu, scan anti-`innerHTML`).
 
 ## Constats exchange (OKX, validés en réel)
 
@@ -59,7 +82,7 @@ Tests de rendu : `MainControllerUserPageTest` ; audit : `OrderPlanServiceTest` (
 - **Fills retardés** juste après l'envoi : étape `UNKNOWN` (`FILLS_UNAVAILABLE`) puis réconciliation par `clOrdId` (`POST /api/admin/execution/run?planId=`) ; le contrôle global kill switch / mode précède la réconciliation ⇒ le kill switch doit être levé pour réconcilier (aucun ordre n'est envoyé sur un plan `EXECUTING`), puis réengagé.
 - **Plafonds** : `baseAmount` lu dans le run du preset au `run_day` du plan ; absent ⇒ `NO_BASE_AMOUNT`.
 - **Tailles minimales** (`minSz`) : `BTC-USDC` 0,0001 BTC, `USDC-USDT` 1, `PAXG-USDT` 0,001.
-- **Procédure d'exécution manuelle** : kill switch engagé ⇒ plan (`/plan`) ⇒ armement admin (`/bindings/{id}/arm`) ⇒ confirmation propriétaire ⇒ levée du kill switch ⇒ `/run?planId=` ⇒ réconciliation si `UNKNOWN`/`EXECUTING` ⇒ kill switch réengagé.
+- **Procédure d'exécution manuelle** (page Admin, onglet Console) : kill switch engagé ⇒ plan (`/plan`) ⇒ armement admin (`/bindings/{id}/arm`) ⇒ confirmation propriétaire ⇒ levée du kill switch ⇒ `/run?planId=` (le kill switch est réengagé automatiquement en sortie) ⇒ si `UNKNOWN`/`EXECUTING` : lever de nouveau le kill switch puis `/run?planId=` (réconciliation), réengagé automatiquement.
 
 ## Hors périmètre (volontairement absent)
 

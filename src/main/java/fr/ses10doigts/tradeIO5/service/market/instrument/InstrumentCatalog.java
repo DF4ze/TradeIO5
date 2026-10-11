@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -78,8 +79,25 @@ public class InstrumentCatalog {
         ensureFresh(provider);
         return repository.findByProvider(provider.getCode()).stream()
                 .filter(i -> LIVE_STATE.equals(i.getState()))
-                .map(i -> new InstrumentInfo(i.getInstId(), i.getBase(), i.getQuote(), i.getMinSz(), i.getLotSz(), i.getTickSz()))
+                .map(i -> new InstrumentInfo(i.getInstId(), i.getBase(), i.getQuote(), i.getMinSz(), i.getLotSz(), i.getTickSz(),
+                        i.getCostMin(), i.getFeeCurrency()))
                 .toList();
+    }
+
+    /** Toutes les paires de l'exchange, négociables ou non (catalogue frais ou conservé) : liste du testeur d'ordre. */
+    public List<ExchangeInstrument> allInstruments(WebProvider provider) {
+        ensureFresh(provider);
+        return repository.findByProvider(provider.getCode());
+    }
+
+    /**
+     * Nom de la paire dans l'API de trading de l'exchange (Kraken : {@code XBTUSDC}), tel que lu au catalogue : le client
+     * d'ordres ne le reconstruit jamais. Vide si la paire est inconnue ou si l'exchange utilise {@code instId} (OKX).
+     * Lecture en base seule, aucun appel exchange.
+     */
+    public Optional<String> nativePair(WebProviderCode provider, String instId) {
+        return repository.findByProviderAndInstId(provider, instId).map(ExchangeInstrument::getNativePair)
+                .filter(name -> !name.isBlank());
     }
 
     /** Rafraîchissement explicite (un appel public). En cas d'échec le catalogue en base est conservé. */
@@ -116,6 +134,9 @@ public class InstrumentCatalog {
             row.setMinSz(l.minSz());
             row.setLotSz(l.lotSz());
             row.setTickSz(l.tickSz());
+            row.setCostMin(l.costMin());
+            row.setNativePair(l.nativePair());
+            row.setFeeCurrency(l.feeCurrency());
             row.setFetchedAt(now);
             toSave.add(row);
         }

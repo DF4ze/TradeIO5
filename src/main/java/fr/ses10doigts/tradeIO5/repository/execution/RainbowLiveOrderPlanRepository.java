@@ -23,6 +23,12 @@ public interface RainbowLiveOrderPlanRepository extends JpaRepository<RainbowLiv
     List<RainbowLiveOrderPlan> findByUserAndStatusNotAndDayBetweenOrderByDayDescCreatedAtDesc(User user, PlanStatus status,
                                                                                          LocalDate from, LocalDate to);
 
+    /** Plans courants (hors remplacés) de tous les utilisateurs (ou d'un seul si {@code userId} non nul) entre deux jours inclus. */
+    @Query("select p from RainbowLiveOrderPlan p where p.status <> :excluded and p.day between :from and :to "
+            + "and (:userId is null or p.user.id = :userId) order by p.day desc, p.createdAt desc")
+    List<RainbowLiveOrderPlan> findAdminPlans(@Param("excluded") PlanStatus excluded, @Param("from") LocalDate from,
+                                              @Param("to") LocalDate to, @Param("userId") Long userId);
+
     Optional<RainbowLiveOrderPlan> findFirstByUserAndStatusNotOrderByDayDescCreatedAtDesc(User user, PlanStatus status);
 
     /** Plans à réconcilier au démarrage (exécution commencée, pas terminée). */

@@ -29,14 +29,12 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.binding.ExecutionGuard;
 import fr.ses10doigts.tradeIO5.service.execution.ExecutionControlService;
 import fr.ses10doigts.tradeIO5.service.execution.ExecutionSettings;
 import fr.ses10doigts.tradeIO5.service.execution.credential.TradeCredentialResolver;
-import fr.ses10doigts.tradeIO5.service.execution.exchange.SpotOrderPort;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.instrument.ExecutionDefaults;
 import fr.ses10doigts.tradeIO5.service.market.instrument.FeeTest;
 import fr.ses10doigts.tradeIO5.service.market.instrument.InstrumentCatalog;
 import fr.ses10doigts.tradeIO5.service.market.instrument.PathFinder;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -107,7 +105,7 @@ public class OrderExecutor {
 
     private final ExecutionSettings settings;
     private final ExecutionControlService control;
-    private final ObjectProvider<SpotOrderPort> ports;
+    private final SpotOrderRouter router;
     private final RainbowLiveOrderPlanRepository plans;
     private final RainbowLiveOrderStepRepository steps;
     private final RainbowLiveBindingRepository bindings;
@@ -123,7 +121,7 @@ public class OrderExecutor {
     private final DomainClock clock;
     private final TransactionTemplate tx;
 
-    public OrderExecutor(ExecutionSettings settings, ExecutionControlService control, ObjectProvider<SpotOrderPort> ports,
+    public OrderExecutor(ExecutionSettings settings, ExecutionControlService control, SpotOrderRouter router,
                          RainbowLiveOrderPlanRepository plans, RainbowLiveOrderStepRepository steps,
                          RainbowLiveBindingRepository bindings, RainbowLiveRunRepository runs, WalletRepository wallets,
                          UserRepository users, TradeCredentialResolver credentials, InstrumentCatalog catalog,
@@ -131,7 +129,7 @@ public class OrderExecutor {
                          PlatformTransactionManager transactionManager) {
         this.settings = settings;
         this.control = control;
-        this.ports = ports;
+        this.router = router;
         this.plans = plans;
         this.steps = steps;
         this.bindings = bindings;
@@ -181,6 +179,11 @@ public class OrderExecutor {
         RunSummary summary = new RunSummary(day, pass, executed, blocked, skipped, errors);
         log.info("Exécution : {}", summary);
         return summary;
+    }
+
+    /** Exchanges disposant d'un port d'ordres actif (vide hors LIVE déverrouillé) : affichage de la page Admin. */
+    public List<WebProviderCode> orderProviders() {
+        return router.providers();
     }
 
     /**
@@ -237,9 +240,8 @@ public class OrderExecutor {
      */
     public ExecutionResult reconcile(Long planId) {
         PlanView plan = loadPlan(planId);
-        if (!settings.liveExecution() || ports.getIfAvailable() == null) {
-            return ExecutionResult.blockedGlobally(planId, plan.status(),
-                    settings.liveExecution() ? ExecutionBlockReason.PORT_UNAVAILABLE : ExecutionBlockReason.MODE_NOT_LIVE);
+        if (!settings.liveExecution()) {
+            return ExecutionResult.blockedGlobally(planId, plan.status(), ExecutionBlockReason.MODE_NOT_LIVE);
         }
         Run run = new Run();
         for (StepView step : plan.steps()) {
@@ -250,6 +252,11 @@ public class OrderExecutor {
             Wallet wallet = asset == null ? null : wallets.findById(asset.walletId()).orElse(null);
             Optional<ApiCredential> trade = wallet == null || wallet.getWebProviderCode() == null ? Optional.empty()
                     : credentials.resolve(plan.user(), wallet.getWebProviderCode());
+            if (wallet != null && wallet.getWebProviderCode() != null && router.forProvider(wallet.getWebProviderCode()).isEmpty()) {
+                log.warn("Réconciliation du plan {} : aucun client d'ordres pour {} ({})", planId, wallet.getWebProviderCode(), step.clOrdId());
+                run.blocks.put(step.asset(), ExecutionBlockReason.PORT_UNAVAILABLE);
+                continue;
+            }
             if (trade.isEmpty()) {
                 log.warn("Réconciliation du plan {} : credential TRADE indisponible pour {}", planId, step.clOrdId());
                 run.blocks.put(step.asset(), ExecutionBlockReason.CREDENTIAL_INVALID);
@@ -261,7 +268,8 @@ public class OrderExecutor {
                 continue;
             }
             stepRunner.reconcile(new StepRunner.StepContext(planId, wallet.getId(), step.id(), step.clOrdId(), step.instId(),
-                    step.side(), step.sentSz() != null ? step.sentSz() : step.sz(), step.px(), instrument, trade.get(), step.mid()));
+                    step.side(), step.sentSz() != null ? step.sentSz() : step.sz(), step.px(), instrument, trade.get(), step.mid(),
+                    wallet.getWebProviderCode()));
         }
         return finish(planId, run);
     }
@@ -272,7 +280,7 @@ public class OrderExecutor {
         if (!settings.liveExecution()) {
             return Optional.of(ExecutionBlockReason.MODE_NOT_LIVE);
         }
-        if (ports.getIfAvailable() == null) {
+        if (router.providers().isEmpty()) {
             return Optional.of(ExecutionBlockReason.PORT_UNAVAILABLE);
         }
         if (control.current().isKillSwitch()) {
@@ -297,6 +305,14 @@ public class OrderExecutor {
         return ExecutionResult.blockedGlobally(plan.id(), plan.status(), reason);
     }
 
+    /** Aucun client d'ordres pour ce provider : seules ses étapes sont bloquées (les autres providers continuent). */
+    private void blockNoPort(PlanView plan, Run run, String asset, WebProviderCode provider) {
+        run.blocks.put(asset, ExecutionBlockReason.PORT_UNAVAILABLE);
+        log.warn("Plan {} : exécution de {} bloquée (PORT_UNAVAILABLE : aucun client d'ordres pour {})", plan.id(), asset, provider);
+        events.record(plan.id(), null, null, OrderEventType.BLOCKED,
+                payload("asset", asset, "reason", ExecutionBlockReason.PORT_UNAVAILABLE, "provider", provider));
+    }
+
     private void block(PlanView plan, Run run, String asset, ExecutionBlockReason reason) {
         run.blocks.put(asset, reason);
         log.warn("Plan {} : exécution de {} bloquée ({})", plan.id(), asset, reason);
@@ -306,7 +322,7 @@ public class OrderExecutor {
     // ------------------------------------------------------------------ un actif
 
     private void runAsset(PlanView plan, AssetView asset, List<StepView> assetSteps, Run run) {
-        BindingView binding = loadBinding(plan, asset.symbol());
+        BindingView binding = loadBinding(plan, asset.symbol(), asset.walletId());
         if (binding == null || !asset.walletId().equals(binding.walletId()) || !binding.walletUsable()) {
             block(plan, run, asset.symbol(), ExecutionBlockReason.NO_BINDING);
             return;
@@ -317,6 +333,10 @@ public class OrderExecutor {
         }
         if (!binding.executable()) {
             block(plan, run, asset.symbol(), ExecutionBlockReason.NOT_TRADABLE);
+            return;
+        }
+        if (router.forProvider(binding.provider()).isEmpty()) {
+            blockNoPort(plan, run, asset.symbol(), binding.provider());
             return;
         }
         Optional<ApiCredential> trade = credentials.resolve(plan.user(), binding.provider());
@@ -418,7 +438,8 @@ public class OrderExecutor {
                         instrument.lotSz(), RoundingMode.DOWN);
                 sz = sz.min(affordable);
             }
-            if (sz.signum() <= 0 || sz.compareTo(instrument.minSz()) < 0) {
+            if (sz.signum() <= 0 || sz.compareTo(instrument.minSz()) < 0
+                    || (instrument.costMin() != null && sz.multiply(step.px()).compareTo(instrument.costMin()) < 0)) {
                 skip(plan, step, "BELOW_MIN");
                 stop = true;
                 continue;
@@ -454,7 +475,7 @@ public class OrderExecutor {
                 continue;
             }
             StepRunner.StepResult result = stepRunner.send(new StepRunner.StepContext(plan.id(), binding.walletId(), step.id(),
-                    step.clOrdId(), step.instId(), step.side(), sz, step.px(), instrument, trade, quote.mid()));
+                    step.clOrdId(), step.instId(), step.side(), sz, step.px(), instrument, trade, quote.mid(), binding.provider()));
             run.sent++;
             if (!result.status().executed()) {
                 stop = true;
@@ -529,9 +550,9 @@ public class OrderExecutor {
         return view;
     }
 
-    private BindingView loadBinding(PlanView plan, String asset) {
+    private BindingView loadBinding(PlanView plan, String asset, Long walletId) {
         return tx.execute(status -> {
-            RainbowLiveBinding binding = bindings.findByUserAndAssetSymbol(plan.user(), asset).orElse(null);
+            RainbowLiveBinding binding = bindings.findByUserAndAssetSymbolAndWallet_Id(plan.user(), asset, walletId).orElse(null);
             if (binding == null) {
                 return null;
             }

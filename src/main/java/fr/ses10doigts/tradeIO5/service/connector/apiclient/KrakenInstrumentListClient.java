@@ -23,7 +23,8 @@ import java.util.Optional;
  * Toutes les paires spot Kraken en un seul appel public : {@code GET /0/public/AssetPairs}. Noms d'actifs normalisés par
  * {@link KrakenAssetNames} (XXBT -> BTC, ZUSD -> USD...). Négociable si {@code status = online}. Paires « dark pool »
  * ({@code .d}) ignorées. {@code minSz = ordermin}, {@code lotSz = 10^-lot_decimals}, {@code tickSz = tick_size}
- * (sinon {@code 10^-pair_decimals}).
+ * (sinon {@code 10^-pair_decimals}), {@code costMin = costmin}, {@code nativePair = altname} (nom accepté par {@code AddOrder}),
+ * {@code feeCurrency = fee_volume_currency}.
  */
 @Slf4j
 @Component
@@ -106,8 +107,13 @@ public class KrakenInstrumentListClient implements InstrumentListClient {
             BigDecimal min = node.hasNonNull("ordermin") ? new BigDecimal(node.path("ordermin").asText()) : lot;
             BigDecimal tick = node.hasNonNull("tick_size") ? new BigDecimal(node.path("tick_size").asText())
                     : BigDecimal.ONE.movePointLeft(node.path("pair_decimals").asInt(8));
+            BigDecimal costMin = node.hasNonNull("costmin") ? new BigDecimal(node.path("costmin").asText()) : null;
+            String nativePair = node.path("altname").asText("").isBlank() ? pairName : node.path("altname").asText();
+            String rawFeeCurrency = node.path("fee_volume_currency").asText("");
+            String feeCurrency = rawFeeCurrency.isBlank() ? null : KrakenAssetNames.toSymbol(rawFeeCurrency).orElse(rawFeeCurrency);
             return Optional.of(new Listed(base.get() + "-" + quote.get(), base.get(), quote.get(),
-                    ONLINE_STATUS.equals(node.path("status").asText(ONLINE_STATUS)), min, lot, tick));
+                    ONLINE_STATUS.equals(node.path("status").asText(ONLINE_STATUS)), min, lot, tick, costMin, nativePair,
+                    feeCurrency));
         } catch (NumberFormatException e) {
             log.warn("Kraken : paire ignorée (tailles illisibles) {}", pairName);
             return Optional.empty();

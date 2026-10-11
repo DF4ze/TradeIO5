@@ -18,7 +18,7 @@ import java.time.ZoneOffset;
 import java.util.Set;
 
 /**
- * Création / remplacement d'une credential TRADE (API admin uniquement). Les trois secrets sont chiffrés avant d'être
+ * Création / remplacement d'une credential TRADE (API admin uniquement). Les secrets (clé, secret et, chez OKX, passphrase) sont chiffrés avant d'être
  * écrits ; sans clé maître l'opération échoue ({@link MasterKeyMissingException}), rien n'est écrit en clair.
  */
 @Slf4j
@@ -27,7 +27,10 @@ import java.util.Set;
 public class TradeCredentialService {
 
     /** Exchanges disposant d'un client d'ordres. */
-    public static final Set<WebProviderCode> TRADABLE_PROVIDERS = Set.of(WebProviderCode.OKX);
+    public static final Set<WebProviderCode> TRADABLE_PROVIDERS = Set.of(WebProviderCode.OKX, WebProviderCode.KRAKEN);
+
+    /** Exchanges dont la clé Trade porte une passphrase (OKX) ; chez les autres (Kraken) elle est ignorée, jamais stockée. */
+    public static final Set<WebProviderCode> PASSPHRASE_PROVIDERS = Set.of(WebProviderCode.OKX);
 
     private final ApiCredentialRepository repository;
     private final ProviderRepository providerRepository;
@@ -46,8 +49,10 @@ public class TradeCredentialService {
         if (!TRADABLE_PROVIDERS.contains(provider)) {
             throw new IllegalArgumentException("Aucun client d'ordres pour " + provider);
         }
-        if (isBlank(apiKey) || isBlank(secretKey) || isBlank(passphrase)) {
-            throw new IllegalArgumentException("apiKey, secretKey et passphrase sont requis pour " + provider);
+        boolean withPassphrase = PASSPHRASE_PROVIDERS.contains(provider);
+        if (isBlank(apiKey) || isBlank(secretKey) || (withPassphrase && isBlank(passphrase))) {
+            throw new IllegalArgumentException(withPassphrase ? "apiKey, secretKey et passphrase sont requis pour " + provider
+                    : "apiKey et secretKey sont requis pour " + provider + " (pas de passphrase)");
         }
         if (!cipher.isConfigured()) {
             throw new MasterKeyMissingException();
@@ -59,7 +64,7 @@ public class TradeCredentialService {
                         .createdAt(LocalDateTime.ofInstant(clock.now(), ZoneOffset.UTC)).build());
         credential.setApiKey(cipher.encrypt(apiKey, "apiKey"));
         credential.setSecretKey(cipher.encrypt(secretKey, "secretKey"));
-        credential.setPassphrase(cipher.encrypt(passphrase, "passphrase"));
+        credential.setPassphrase(withPassphrase ? cipher.encrypt(passphrase, "passphrase") : null);
         credential.setEnabled(enabled);
         ApiCredential saved = repository.save(credential);
         log.info("Credential TRADE enregistrée id={} user={} provider={} enabled={}", saved.getId(), user.getId(), provider, enabled);

@@ -6,6 +6,10 @@ package fr.ses10doigts.tradeIO5.service.execution.run;
  */
 public enum ExecutionBlockReason {
     MODE_NOT_LIVE(false),
+    /** Testeur d'ordre : {@code tradeio.execution.live-unlocked} non posé. */
+    LIVE_LOCKED(false),
+    /** Testeur d'ordre : {@code TRADEIO_MASTER_KEY} absente (aucune clé Trade lisible). */
+    MASTER_KEY_MISSING(false),
     PORT_UNAVAILABLE(false),
     KILL_SWITCH(false),
     PLAN_EXPIRED(false),

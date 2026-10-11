@@ -8,7 +8,7 @@ Flyway est **préparé mais non activé** : dépendances `flyway-core` + `flyway
 
 Tables du plan d'ordres dry-run (`rainbow_live_order_plan`, `rainbow_live_order_plan_asset`, `rainbow_live_order_step`, FK `ON DELETE CASCADE`) et colonne `rainbow_live_binding.execution_enabled` : créées par `ddl-auto=update` tant que Flyway est inactif, présentes dans `V1__init.sql` (cf. [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md)). Défaut `execution_enabled = false` porté par la colonne (donnée utilisateur, pas un défaut d'initializer).
 
-Lot d'exécution réelle (cf. [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md)) : tables `execution_control` et `rainbow_live_order_event`, colonnes d'exécution des étapes et des plans, `rainbow_live_binding.first_live_{approved,confirmed}_at`, `transaction.fee_currency`, `api_credentials.scope` (+ contrainte `uk_credential_user_provider_scope`), toutes dans `V1__init.sql`.
+Lot d'exécution réelle (cf. [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md)) : tables `execution_control` et `rainbow_live_order_event`, colonnes d'exécution des étapes et des plans, `rainbow_live_binding.first_live_{approved,confirmed}_at`, `admin_action_log` (journal admin append-only), `transaction.fee_currency`, `api_credentials.scope` (+ contrainte `uk_credential_user_provider_scope`), toutes dans `V1__init.sql`.
 
 **Base existante en `ddl-auto=update` : `ApiCredential.scope` demande un SQL manuel, une seule fois, avant le déploiement** (Hibernate n'ajoute pas de défaut à la colonne et ne supprime jamais l'ancien index unique, qui interdirait une clé `TRADE` à côté de la clé `READ`) :
 
@@ -18,6 +18,12 @@ ALTER TABLE api_credentials DROP INDEX uk_credential_user_provider;
 ALTER TABLE api_credentials ADD CONSTRAINT uk_credential_user_provider_scope UNIQUE (user_id, web_provider_id, scope);
 ALTER TABLE api_credentials MODIFY api_key VARCHAR(512) NOT NULL, MODIFY secret_key VARCHAR(512), MODIFY passphrase VARCHAR(512);
 ```
+
+Catalogue : colonnes `exchange_instrument.cost_min`, `native_pair`, `fee_currency` (nullables) ajoutées par `ddl-auto=update`, présentes dans `V1__init.sql`. **Base existante : `admin_action_log.action` est un `ENUM` MySQL natif, Hibernate n'y ajoute pas la valeur `ORDER_VALIDATE`** ⇒ SQL manuel avant le déploiement :
+
+```sql
+ALTER TABLE admin_action_log MODIFY action ENUM('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','ORDER_VALIDATE','PLAN','RECONCILE','RUN') NOT NULL;
+``` Le catalogue se remplit à nouveau au prochain rafraîchissement (ou `refresh(provider)`) : tant que `native_pair` est nul, Kraken ne peut recevoir aucun ordre (`PAIR_UNKNOWN`).
 
 ## Principe
 

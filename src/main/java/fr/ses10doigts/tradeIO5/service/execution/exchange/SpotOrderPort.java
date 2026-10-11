@@ -1,6 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.execution.exchange;
 
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
+import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 
 import java.util.List;
 
@@ -11,6 +12,9 @@ import java.util.List;
  * clé TRADE de l'utilisateur.
  */
 public interface SpotOrderPort {
+
+    /** Exchange servi par ce port (affiché sur la page Admin, aucun effet sur l'exécution). */
+    WebProviderCode provider();
 
     /**
      * @throws OrderRejectedException rejet métier certain

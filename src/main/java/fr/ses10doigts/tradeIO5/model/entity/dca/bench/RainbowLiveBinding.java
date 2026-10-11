@@ -30,8 +30,8 @@ import java.time.Instant;
  */
 @Entity
 @Table(name = "rainbow_live_binding",
-        uniqueConstraints = @UniqueConstraint(name = "uk_rainbow_live_binding_user_asset",
-                columnNames = {"user_id", "asset_symbol"}))
+        uniqueConstraints = @UniqueConstraint(name = "uk_rainbow_live_binding_user_asset_wallet",
+                columnNames = {"user_id", "asset_symbol", "wallet_id"}))
 @Data
 @Builder
 @NoArgsConstructor

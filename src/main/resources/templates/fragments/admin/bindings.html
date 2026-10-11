@@ -1,0 +1,48 @@
+<div th:fragment="bindings" class="tab-pane fade" id="adm-pane-bindings" role="tabpanel">
+	<h5>Bindings</h5>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle">
+			<thead>
+				<tr><th>Id</th><th>Utilisateur</th><th>Actif</th><th>Exchange</th><th>Wallet</th><th>Preset</th><th>Bag %</th><th>Prio</th><th>Exécution</th><th>Tradabilité</th><th>1er ordre</th><th></th></tr>
+			</thead>
+			<tbody id="adm-bind-body"></tbody>
+		</table>
+	</div>
+	<div id="adm-bind-check" class="small mb-3"></div>
+
+	<h6 class="mt-4" id="adm-bind-form-title">Mon binding</h6>
+	<p class="text-muted small">Création et édition de vos propres bindings (le propriétaire décide ; l'admin supervise et arme).</p>
+	<form id="adm-bind-form" autocomplete="off" class="row g-2">
+		<div class="col-6 col-md-2">
+			<label class="form-label" for="adm-bind-asset">Actif</label>
+			<select class="form-select" id="adm-bind-asset"><option value="BTC">BTC</option><option value="ETH">ETH</option><option value="PAXG">PAXG</option></select>
+		</div>
+		<div class="col-6 col-md-3">
+			<label class="form-label" for="adm-bind-preset">Preset</label>
+			<select class="form-select" id="adm-bind-preset"></select>
+		</div>
+		<div class="col-6 col-md-3">
+			<label class="form-label" for="adm-bind-wallet">Wallet</label>
+			<select class="form-select" id="adm-bind-wallet"></select>
+		</div>
+		<div class="col-3 col-md-2">
+			<label class="form-label" for="adm-bind-bag">Bag %</label>
+			<input type="number" class="form-control" id="adm-bind-bag" min="0" max="100" step="any" value="100">
+		</div>
+		<div class="col-3 col-md-2">
+			<label class="form-label" for="adm-bind-prio">Priorité</label>
+			<input type="number" class="form-control" id="adm-bind-prio" step="1">
+		</div>
+		<div class="col-12">
+			<div class="form-check">
+				<input class="form-check-input" type="checkbox" id="adm-bind-enabled">
+				<label class="form-check-label" for="adm-bind-enabled">Exécution activée</label>
+			</div>
+		</div>
+		<div class="col-12">
+			<button type="submit" class="btn btn-primary" id="adm-bind-submit">Créer</button>
+			<button type="button" class="btn btn-outline-secondary d-none" id="adm-bind-cancel">Annuler l'édition</button>
+			<span class="small ms-2" id="adm-bind-status"></span>
+		</div>
+	</form>
+</div>
