@@ -2,7 +2,6 @@ package fr.ses10doigts.tradeIO5.service.admin;
 
 import fr.ses10doigts.tradeIO5.model.dto.admin.AdminPlanDto;
 import fr.ses10doigts.tradeIO5.model.dto.execution.OrderPlanDtos.EventPageDto;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.execution.OrderEventType;
 import fr.ses10doigts.tradeIO5.model.entity.execution.PlanStatus;
 import fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderEvent;
@@ -62,7 +61,7 @@ class AdminPlanQueryServiceTest {
     }
 
     private RainbowLiveOrderPlan plan(User user, LocalDate day, int revision, PlanStatus status, Instant expiresAt) {
-        return planRepository.save(RainbowLiveOrderPlan.builder().user(user).day(day).pass(RainbowLivePass.T2355).revision(revision)
+        return planRepository.save(RainbowLiveOrderPlan.builder().user(user).day(day).revision(revision)
                 .status(status).mode(ExecutionMode.DRY_RUN).inputsHash("h" + user.getId() + day + revision)
                 .createdAt(NOW.minusSeconds(60 + revision)).expiresAt(expiresAt).build());
     }

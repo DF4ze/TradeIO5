@@ -1,6 +1,5 @@
 package fr.ses10doigts.tradeIO5.service.scheduler;
 
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveExecutionService;
 import fr.ses10doigts.tradeIO5.service.execution.plan.OrderPlanService;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
@@ -28,7 +27,6 @@ public class ExecutionPlanJob {
     @Scheduled(cron = ExecutionDefaults.PLAN_CRON, zone = ExecutionDefaults.SCHEDULER_ZONE)
     public void run() {
         Instant now = clock.now();
-        log.info("ExecutionPlanJob : {}", planService.planAll(RainbowLiveExecutionService.dayFor(RainbowLivePass.T2355, now),
-                RainbowLivePass.T2355));
+        log.info("ExecutionPlanJob : {}", planService.planAll(RainbowLiveExecutionService.dayFor(now)));
     }
 }

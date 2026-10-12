@@ -3,7 +3,7 @@
 > À coller tel quel dans une nouvelle discussion (Claude Code / Cowork sur TradeIO-5). **Mission = ANALYSE + proposition + questions, aucun code tant que Clem n'a pas validé.**
 
 ## 0. Démarrage
-1. Lis `docs/README.md`, puis `docs/architecture/09-trend.md`, `04-market-data.md`, `08-rainbow-bench-grandeur-nature.md`, `docs/known-gaps/rainbow-dca-chantiers-ouverts.md`, `docs/CODING_RULES.md`, `docs/glossary.md`, `docs/etudes/spec-composition-trend-unifie.md` (§10 : walk-forward de la Trend) et `docs/calibration/calibration-rainbow-atr-v3-regime.md` (pourquoi l'optimisation automatique du Rainbow a déçu).
+1. Lis `docs/README.md`, puis `docs/architecture/09-trend.md`, `04-market-data.md`, `08-rainbow-live.md`, `docs/known-gaps/rainbow-dca-chantiers-ouverts.md`, `docs/CODING_RULES.md`, `docs/glossary.md`, `docs/etudes/spec-composition-trend-unifie.md` (§10 : walk-forward de la Trend) et `docs/calibration/calibration-rainbow-atr-v3-regime.md` (pourquoi l'optimisation automatique du Rainbow a déçu).
 2. Lis `tools/pine/rainbow_trend_dca_v1.pine` (source de vérité du Trend Mix) puis `TrendMixCalculator`, `RainbowSetSelector`, `RainbowLiveTrendConfig(s)`, `RainbowAtrReplayMain` et `RainbowAtrRegimeBench` (tests).
 3. Réponds en français, court et technique (flèches/symboles bienvenus). Un point flou → **pose la question avant d'avancer** (AskUserQuestion).
 

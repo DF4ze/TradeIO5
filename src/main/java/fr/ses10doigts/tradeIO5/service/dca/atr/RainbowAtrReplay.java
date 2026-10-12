@@ -48,6 +48,10 @@ public final class RainbowAtrReplay {
 
     /** Lignes du rejeu + état de la machine après la dernière bougie (amorçage de l'exécution quotidienne). */
     public record Result(List<DayRow> rows, RainbowAtrState finalState) {
+        /** Position virtuelle après la dernière bougie rejouée (0 si aucune ligne). */
+        public double finalPosition() {
+            return rows.isEmpty() ? 0.0 : rows.getLast().position();
+        }
     }
 
     /**

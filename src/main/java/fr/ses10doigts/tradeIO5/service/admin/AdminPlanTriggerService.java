@@ -2,7 +2,6 @@ package fr.ses10doigts.tradeIO5.service.admin;
 
 import fr.ses10doigts.tradeIO5.model.entity.admin.AdminAction;
 import fr.ses10doigts.tradeIO5.model.entity.admin.AdminActionOutcome;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.service.execution.plan.OrderPlanService;
 import fr.ses10doigts.tradeIO5.service.execution.plan.OrderPlanService.PlanSummary;
 import lombok.RequiredArgsConstructor;
@@ -18,10 +17,10 @@ public class AdminPlanTriggerService {
     private final OrderPlanService planService;
     private final AdminActionLogService journal;
 
-    public PlanSummary plan(LocalDate day, RainbowLivePass pass, String actor) {
-        String target = day + "/" + pass;
+    public PlanSummary plan(LocalDate day, String actor) {
+        String target = day.toString();
         try {
-            PlanSummary summary = planService.planAll(day, pass);
+            PlanSummary summary = planService.planAll(day);
             journal.record(actor, AdminAction.PLAN, target, AdminActionLogService.payload("planned", summary.planned(),
                     "blocked", summary.blocked(), "disabled", summary.disabled(), "unchanged", summary.unchanged(),
                     "skipped", summary.skipped(), "errors", summary.errors()), AdminActionOutcome.OK);

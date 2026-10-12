@@ -9,7 +9,6 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBindingRun;
@@ -123,7 +122,7 @@ class OrderPlanServiceTest {
 
     private void seed(User user, String asset, double amount, boolean enabled) {
         RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor(asset);
-        RainbowLivePreset preset = presetService.create(user, new CreateRequest(asset, "live", true, 6, 1000, c.toTuning(), c.toGlobals()));
+        RainbowLivePreset preset = presetService.create(user, new CreateRequest(asset, "live", true, 6, c.toTuning(), c.toGlobals()));
         Wallet w = walletRepository.save(Wallet.builder().name("OKX " + user.getUsername()).source(WalletSource.EXCHANGE)
                 .webProviderCode(WebProviderCode.OKX).user(user).build());
         RainbowLiveBinding binding = bindingRepository.save(RainbowLiveBinding.builder().user(user).assetSymbol(asset).preset(preset).wallet(w).bagPercent(100)
@@ -131,7 +130,7 @@ class OrderPlanServiceTest {
         RainbowLiveLiveBlock block = RainbowLiveLiveBlock.builder().status(PortfolioStatus.OK).walletId(w.getId())
                 .cashDetail("{\"USDC\":500.0,\"USDT\":0.0}").actionType(RainbowLiveAction.BUY)
                 .actionAmountUsdc(amount).actionQuantity(0.001).build();
-        runRepository.save(RainbowLiveBindingRun.builder().binding(binding).day(DAY).pass2355(block).build());
+        runRepository.save(RainbowLiveBindingRun.builder().binding(binding).day(DAY).live(block).build());
     }
 
     private static PlanDraft draft(String asset, PlanStatus status) {
@@ -149,15 +148,15 @@ class OrderPlanServiceTest {
         seed(alice, "PAXG", 50, true);
         when(planner.plan(anyList())).thenReturn(draft("PAXG", PlanStatus.PLANNED));
 
-        OrderPlanService.PlanSummary summary = service.planAll(DAY, RainbowLivePass.T2355);
+        OrderPlanService.PlanSummary summary = service.planAll(DAY);
 
         assertEquals(1, summary.planned());
-        RainbowLiveOrderPlan plan = planRepository.findFirstByUserAndDayAndPassOrderByRevisionDesc(alice, DAY, RainbowLivePass.T2355).orElseThrow();
+        RainbowLiveOrderPlan plan = planRepository.findFirstByUserAndDayOrderByRevisionDesc(alice, DAY).orElseThrow();
         assertEquals(1, plan.getRevision());
         assertEquals(PlanStatus.PLANNED, plan.getStatus());
         assertEquals(NOW.plusSeconds(300), plan.getExpiresAt());
         assertEquals(1, plan.getSteps().size());
-        assertEquals(ClOrdIds.of(alice.getId(), plan.getSteps().getFirst().getWalletId(), "PAXG", DAY, RainbowLivePass.T2355, 1), plan.getSteps().getFirst().getClOrdId());
+        assertEquals(ClOrdIds.of(alice.getId(), plan.getSteps().getFirst().getWalletId(), "PAXG", DAY, 1), plan.getSteps().getFirst().getClOrdId());
         assertEquals(64, plan.getInputsHash().length());
     }
 
@@ -170,7 +169,7 @@ class OrderPlanServiceTest {
                 .webProviderCode(WebProviderCode.KRAKEN).user(alice).build());
         RainbowLiveBinding second = bindingRepository.save(RainbowLiveBinding.builder().user(alice).assetSymbol("BTC")
                 .preset(first.getPreset()).wallet(kraken).bagPercent(100).priority(1).executionEnabled(true).build());
-        runRepository.save(RainbowLiveBindingRun.builder().binding(second).day(DAY).pass2355(RainbowLiveLiveBlock.builder()
+        runRepository.save(RainbowLiveBindingRun.builder().binding(second).day(DAY).live(RainbowLiveLiveBlock.builder()
                 .status(PortfolioStatus.OK).walletId(kraken.getId()).cashDetail("{\"USDC\":300.0}")
                 .actionType(RainbowLiveAction.BUY).actionAmountUsdc(40.0).actionQuantity(0.0005).build()).build());
         when(planner.plan(anyList())).thenAnswer(inv -> {
@@ -187,9 +186,9 @@ class OrderPlanServiceTest {
             return new PlanDraft(withWallets, PlanStatus.PLANNED, new BigDecimal("0.15"), FeeTestLevel.GREEN, null);
         });
 
-        service.planAll(DAY, RainbowLivePass.T2355);
+        service.planAll(DAY);
 
-        RainbowLiveOrderPlan plan = planRepository.findFirstByUserAndDayAndPassOrderByRevisionDesc(alice, DAY, RainbowLivePass.T2355).orElseThrow();
+        RainbowLiveOrderPlan plan = planRepository.findFirstByUserAndDayOrderByRevisionDesc(alice, DAY).orElseThrow();
         assertEquals(2, plan.getAssets().size());
         assertEquals(2, plan.getSteps().size());
         assertEquals(2, plan.getSteps().stream().map(RainbowLiveOrderStep::getClOrdId).distinct().count());
@@ -203,9 +202,9 @@ class OrderPlanServiceTest {
     void idempotent() {
         seed(alice, "PAXG", 50, true);
         when(planner.plan(anyList())).thenReturn(draft("PAXG", PlanStatus.PLANNED));
-        service.planAll(DAY, RainbowLivePass.T2355);
+        service.planAll(DAY);
 
-        OrderPlanService.PlanSummary again = service.planAll(DAY, RainbowLivePass.T2355);
+        OrderPlanService.PlanSummary again = service.planAll(DAY);
 
         assertEquals(1, again.unchanged());
         assertEquals(1, planRepository.count());
@@ -217,7 +216,7 @@ class OrderPlanServiceTest {
     void resetExpiredPlan() {
         seed(alice, "PAXG", 50, true);
         when(planner.plan(anyList())).thenReturn(draft("PAXG", PlanStatus.PLANNED));
-        service.planAll(DAY, RainbowLivePass.T2355);
+        service.planAll(DAY);
         RainbowLiveOrderPlan first = planRepository.findAll().getFirst();
         CLOCK.set(NOW.plus(java.time.Duration.ofHours(3)));
 
@@ -225,7 +224,7 @@ class OrderPlanServiceTest {
 
         assertEquals(1, reset.planned());
         assertEquals(2, planRepository.count());
-        assertEquals(2, planRepository.findFirstByUserAndDayAndPassOrderByRevisionDesc(alice, DAY, RainbowLivePass.T2355).orElseThrow().getRevision());
+        assertEquals(2, planRepository.findFirstByUserAndDayOrderByRevisionDesc(alice, DAY).orElseThrow().getRevision());
         assertEquals(PlanStatus.SUPERSEDED, planRepository.findById(first.getId()).orElseThrow().getStatus());
     }
 
@@ -234,13 +233,13 @@ class OrderPlanServiceTest {
     void resetRefused() {
         seed(alice, "PAXG", 50, true);
         when(planner.plan(anyList())).thenReturn(draft("PAXG", PlanStatus.PLANNED));
-        service.planAll(DAY, RainbowLivePass.T2355);
+        service.planAll(DAY);
         RainbowLiveOrderPlan first = planRepository.findAll().getFirst();
         service.resetPlan(first.getId());
         Long oldId = first.getId();
         assertThrows(IllegalArgumentException.class, () -> service.resetPlan(oldId), "révision remplacée");
 
-        RainbowLiveOrderPlan current = planRepository.findFirstByUserAndDayAndPassOrderByRevisionDesc(alice, DAY, RainbowLivePass.T2355).orElseThrow();
+        RainbowLiveOrderPlan current = planRepository.findFirstByUserAndDayOrderByRevisionDesc(alice, DAY).orElseThrow();
         current.getSteps().forEach(st -> st.setStatus(StepStatus.FILLED));
         current.setStatus(PlanStatus.EXECUTED);
         planRepository.saveAndFlush(current);
@@ -254,12 +253,12 @@ class OrderPlanServiceTest {
     void superseded() {
         seed(alice, "PAXG", 50, true);
         when(planner.plan(anyList())).thenReturn(draft("PAXG", PlanStatus.PLANNED));
-        service.planAll(DAY, RainbowLivePass.T2355);
+        service.planAll(DAY);
         RainbowLiveBindingRun run = runRepository.findAll().getFirst();
-        run.getPass2355().setActionAmountUsdc(75.0);
+        run.getLive().setActionAmountUsdc(75.0);
         runRepository.saveAndFlush(run);
 
-        OrderPlanService.PlanSummary again = service.planAll(DAY, RainbowLivePass.T2355);
+        OrderPlanService.PlanSummary again = service.planAll(DAY);
 
         assertEquals(1, again.planned());
         List<RainbowLiveOrderPlan> all = planRepository.findAll();
@@ -274,7 +273,7 @@ class OrderPlanServiceTest {
     void expiry() {
         seed(alice, "PAXG", 50, true);
         when(planner.plan(anyList())).thenReturn(draft("PAXG", PlanStatus.PLANNED));
-        service.planAll(DAY, RainbowLivePass.T2355);
+        service.planAll(DAY);
 
         CLOCK.set(NOW.plusSeconds(299));
         assertEquals(PlanStatus.PLANNED, queryService.latest(alice).orElseThrow().status());
@@ -292,7 +291,7 @@ class OrderPlanServiceTest {
         seed(alice, "PAXG", 50, false);
         when(planner.plan(anyList())).thenReturn(new PlanDraft(List.of(), PlanStatus.DISABLED, null, null, null));
 
-        OrderPlanService.PlanSummary summary = service.planAll(DAY, RainbowLivePass.T2355);
+        OrderPlanService.PlanSummary summary = service.planAll(DAY);
 
         assertEquals(1, summary.disabled());
         assertEquals(1, summary.skipped(), "bob n'a aucun binding/run");
@@ -305,7 +304,7 @@ class OrderPlanServiceTest {
         seed(alice, "PAXG", 50, true);
 
         OrderPlanService.PlanSummary off = service(new ExecutionSettings("OFF", java.time.Duration.ofMinutes(5), new BigDecimal("0.1")))
-                .planAll(DAY, RainbowLivePass.T2355);
+                .planAll(DAY);
 
         assertEquals(0, planRepository.count());
         assertEquals(0, off.planned());
@@ -322,7 +321,7 @@ class OrderPlanServiceTest {
     void restIsolation() throws Exception {
         seed(alice, "PAXG", 50, true);
         when(planner.plan(anyList())).thenReturn(draft("PAXG", PlanStatus.PLANNED));
-        service.planAll(DAY, RainbowLivePass.T2355);
+        service.planAll(DAY);
         when(facade.getConnectedUser()).thenReturn(alice);
         MockMvc mvc = MockMvcBuilders.standaloneSetup(new RainbowLiveExecutionPlanController(queryService, facade, clock))
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(new ObjectMapper().findAndRegisterModules())).build();
@@ -350,7 +349,7 @@ class OrderPlanServiceTest {
     void eventsAreOwnerScopedAndPaged() throws Exception {
         seed(alice, "PAXG", 50, true);
         when(planner.plan(anyList())).thenReturn(draft("PAXG", PlanStatus.PLANNED));
-        service.planAll(DAY, RainbowLivePass.T2355);
+        service.planAll(DAY);
         var plan = planRepository.findAll().getFirst();
         for (int i = 0; i < 3; i++) {
             eventRepository.save(fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderEvent.builder().plan(plan)

@@ -1,26 +1,24 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioView;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 
 /**
  * Lecture d'un portefeuille à un instant : cash USD (groupe USDC, détail par membre) et quantités par actif (BTC, ETH, PAXG uniquement). {@code walletId}
- * est nul pour le wallet mock. Une lecture non {@link PortfolioStatus#OK} ne doit jamais servir à dimensionner une action.
+ * est celui du wallet lu. Une lecture non {@link PortfolioStatus#OK} ne doit jamais servir à dimensionner une action.
  */
 public record PortfolioReading(double cash, Map<String, Double> cashByMember, Map<String, Double> positions,
-                               Instant fetchedAt, PortfolioStatus status, Long walletId) implements PortfolioView {
+                               Instant fetchedAt, PortfolioStatus status, Long walletId) {
 
     public PortfolioReading {
         cashByMember = Map.copyOf(cashByMember);
         positions = Map.copyOf(positions);
     }
 
-    /** Lecture sans détail du cash par membre (wallet mock). */
+    /** Lecture sans détail du cash par membre. */
     public PortfolioReading(double cash, Map<String, Double> positions, Instant fetchedAt, PortfolioStatus status,
                             Long walletId) {
         this(cash, Map.of(), positions, fetchedAt, status, walletId);
@@ -47,17 +45,8 @@ public record PortfolioReading(double cash, Map<String, Double> cashByMember, Ma
         return status == PortfolioStatus.OK;
     }
 
-    @Override
     public double quantity(String assetSymbol) {
         return positions.getOrDefault(assetSymbol, 0.0);
-    }
-
-    /** Même lecture, {@code STALE} si plus ancienne que {@code staleAfter} à l'instant {@code now}. */
-    public PortfolioReading checkedAt(Instant now, Duration staleAfter) {
-        if (status == PortfolioStatus.OK && Duration.between(fetchedAt, now).compareTo(staleAfter) > 0) {
-            return new PortfolioReading(cash, cashByMember, positions, fetchedAt, PortfolioStatus.STALE, walletId);
-        }
-        return this;
     }
 
     private static double nz(Double v) {

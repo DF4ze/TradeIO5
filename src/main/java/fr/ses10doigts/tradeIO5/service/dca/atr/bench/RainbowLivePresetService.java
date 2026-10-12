@@ -8,13 +8,11 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveUiMode;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveUserSettings;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveTrendConfigRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveUserSettingsRepository;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMockWallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMode;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAssetStrategy;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePresetEventType;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
-import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveMockWalletRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLivePresetRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowAssetStrategyRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
@@ -32,7 +30,7 @@ import java.util.List;
 
 /**
  * CRUD des presets du bench grandeur nature (persistance seule, aucun calcul moteur, aucun appel exchange).
- * La suppression cascade (FK {@code ON DELETE CASCADE}) vers le wallet mock et les runs.
+ * La suppression cascade (FK {@code ON DELETE CASCADE}) vers les runs.
  */
 @Slf4j
 @Service
@@ -40,7 +38,6 @@ import java.util.List;
 public class RainbowLivePresetService {
 
     private final RainbowLivePresetRepository presetRepository;
-    private final RainbowLiveMockWalletRepository walletRepository;
     private final RainbowLiveBindingRepository bindingRepository;
     private final RainbowAssetStrategyRepository strategyRepository;
     private final RainbowLiveTrendConfigRepository trendConfigRepository;
@@ -49,26 +46,26 @@ public class RainbowLivePresetService {
     private final RainbowLiveUserSettingsRepository settingsRepository;
     private final DomainClock clock;
 
-    /** Création : actif, nom et capital initial sont fixés ici (non modifiables ensuite). */
+    /** Création : actif et nom sont fixés ici (non modifiables ensuite). */
     public record CreateRequest(String assetSymbol, String name, boolean enabled, int analysisWindowMonths,
-                                double initialCapitalUsdc, RainbowAtrTuning tuning, RainbowAtrGlobals globals,
+                                RainbowAtrTuning tuning, RainbowAtrGlobals globals,
                                 String mode, TrendConfigDto trendConfig, Long duplicatedFromId) {
         /** Création sans provenance (pas une duplication). */
         public CreateRequest(String assetSymbol, String name, boolean enabled, int analysisWindowMonths,
-                             double initialCapitalUsdc, RainbowAtrTuning tuning, RainbowAtrGlobals globals,
+                             RainbowAtrTuning tuning, RainbowAtrGlobals globals,
                              String mode, TrendConfigDto trendConfig) {
-            this(assetSymbol, name, enabled, analysisWindowMonths, initialCapitalUsdc, tuning, globals, mode,
+            this(assetSymbol, name, enabled, analysisWindowMonths, tuning, globals, mode,
                     trendConfig, null);
         }
 
         /** Preset FIXED (tuning/globals propres). */
         public CreateRequest(String assetSymbol, String name, boolean enabled, int analysisWindowMonths,
-                             double initialCapitalUsdc, RainbowAtrTuning tuning, RainbowAtrGlobals globals) {
-            this(assetSymbol, name, enabled, analysisWindowMonths, initialCapitalUsdc, tuning, globals, null, null);
+                             RainbowAtrTuning tuning, RainbowAtrGlobals globals) {
+            this(assetSymbol, name, enabled, analysisWindowMonths, tuning, globals, null, null);
         }
     }
 
-    /** Édition : identité (user, actif), wallet et historique conservés. */
+    /** Édition : identité (user, actif) et historique conservés. */
     public record UpdateRequest(String name, boolean enabled, int analysisWindowMonths,
                                 RainbowAtrTuning tuning, RainbowAtrGlobals globals, TrendConfigDto trendConfig) {
         public UpdateRequest(String name, boolean enabled, int analysisWindowMonths,
@@ -105,9 +102,6 @@ public class RainbowLivePresetService {
         RainbowAtrTuning tuning = trend ? resolved.bear().tuning() : req.tuning();
         RainbowAtrGlobals globals = trend ? resolved.bear().globals() : req.globals();
         requireValid(req.name(), req.analysisWindowMonths(), tuning, globals);
-        if (req.initialCapitalUsdc() <= 0) {
-            throw new IllegalArgumentException("initialCapitalUsdc doit être > 0");
-        }
         requireNameFree(user, req.assetSymbol(), req.name(), null);
 
         Instant now = clock.now();
@@ -118,7 +112,6 @@ public class RainbowLivePresetService {
                 .enabled(req.enabled())
                 .assetStrategy(strategy)
                 .analysisWindowMonths(req.analysisWindowMonths())
-                .initialCapitalUsdc(req.initialCapitalUsdc())
                 .createdAt(now)
                 .updatedAt(now)
                 .config(RainbowAtrConfig.of(tuning, globals))
@@ -127,21 +120,13 @@ public class RainbowLivePresetService {
         if (trend && strategy == null) {
             saveTrendConfig(preset, resolved);
         }
-        walletRepository.save(RainbowLiveMockWallet.builder()
-                .preset(preset)
-                .assetSymbol(preset.getAssetSymbol())
-                .cashUsd(preset.getInitialCapitalUsdc())
-                .positionQuantity(0.0)
-                .updatedAt(now)
-                .build());
-        log.info("Preset bench créé id={} user={} actif={} nom='{}' capital={} {}",
-                preset.getId(), user.getId(), preset.getAssetSymbol(), preset.getName(),
-                preset.getInitialCapitalUsdc(), AssetGroup.USD);
+        log.info("Preset bench créé id={} user={} actif={} nom='{}'",
+                preset.getId(), user.getId(), preset.getAssetSymbol(), preset.getName());
         log.debug("Preset bench id={} config={}", preset.getId(), preset.getConfig());
         return preset;
     }
 
-    /** Édite le preset ; n'écrit aucun run, ne touche pas au wallet mock. */
+    /** Édite le preset ; n'écrit aucun run. */
     @Transactional
     public RainbowLivePreset update(User user, Long presetId, UpdateRequest req) {
         RainbowLivePreset preset = owned(user, presetId);
@@ -179,7 +164,7 @@ public class RainbowLivePresetService {
         return saved;
     }
 
-    /** Supprime le preset ; wallet mock et runs partent en cascade (FK). */
+    /** Supprime le preset ; ses runs partent en cascade (FK). */
     @Transactional
     public void delete(User user, Long presetId) {
         RainbowLivePreset preset = owned(user, presetId);
@@ -189,7 +174,7 @@ public class RainbowLivePresetService {
         }
         presetRepository.delete(preset);
         presetRepository.flush();
-        log.info("Preset bench supprimé id={} user={} actif={} nom='{}' (wallet mock + runs en cascade)",
+        log.info("Preset bench supprimé id={} user={} actif={} nom='{}' (runs en cascade)",
                 presetId, user.getId(), preset.getAssetSymbol(), preset.getName());
     }
 
@@ -252,7 +237,7 @@ public class RainbowLivePresetService {
     private RainbowLivePreset followStrategy(User user, RainbowAssetStrategy t, String name) {
         boolean trend = t.getMode() == RainbowLiveMode.TREND_MIX;
         CreateRequest req = new CreateRequest(t.getAssetSymbol(), name, false, t.getAnalysisWindowMonths(),
-                t.getInitialCapitalUsdc(), trend ? null : t.getConfig().toTuning(), trend ? null : t.getConfig().toGlobals(),
+                trend ? null : t.getConfig().toTuning(), trend ? null : t.getConfig().toGlobals(),
                 trend ? RainbowLiveMode.TREND_MIX.name() : null,
                 trend ? RainbowLiveTrendConfigs.fromJson(t.getTrendConfigJson()) : null);
         return doCreate(user, req, t);
@@ -264,8 +249,8 @@ public class RainbowLivePresetService {
      */
     @Transactional
     public RainbowLivePreset createTrendMix(User user, String assetSymbol, String name, boolean enabled,
-                                            int analysisWindowMonths, double initialCapitalUsdc) {
-        return create(user, new CreateRequest(assetSymbol, name, enabled, analysisWindowMonths, initialCapitalUsdc,
+                                            int analysisWindowMonths) {
+        return create(user, new CreateRequest(assetSymbol, name, enabled, analysisWindowMonths,
                 null, null, RainbowLiveMode.TREND_MIX.name(), null));
     }
 

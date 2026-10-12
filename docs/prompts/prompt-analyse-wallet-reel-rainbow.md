@@ -3,7 +3,7 @@
 > À coller tel quel dans une nouvelle discussion (Claude Code / Cowork sur TradeIO-5). **Mission = ANALYSE + proposition + questions, aucun code tant que Clem n'a pas validé.**
 
 ## 0. Démarrage
-1. Lis `docs/README.md`, puis `architecture/01-overview.md`, `03-ownership-and-lifecycle.md`, `04-market-data.md`, `07-security.md`, `08-rainbow-bench-grandeur-nature.md`, `known-gaps/rainbow-dca-chantiers-ouverts.md`, `known-gaps/decision-to-order-gap.md`, `docs/CODING_RULES.md`, `glossary.md`.
+1. Lis `docs/README.md`, puis `architecture/01-overview.md`, `03-ownership-and-lifecycle.md`, `04-market-data.md`, `07-security.md`, `08-rainbow-live.md`, `known-gaps/rainbow-dca-chantiers-ouverts.md`, `known-gaps/decision-to-order-gap.md`, `docs/CODING_RULES.md`, `glossary.md`.
 2. Lis le code : `model/entity/currency/Wallet`, `ApiCredential`, `WebProvider`, `WalletSource`, `service/WalletService`, `service/connector/ProviderApiService` + `apiclient/*` (Binance, BinanceTestnet, Kraken : pas d'OKX privé), `service/tree/opinion/WalletSnapshotService` (agrège déjà les soldes réels multi-wallets : vérifie s'il est réellement appelé, `known-gaps` dit que `WalletSnapshot` n'est jamais peuplé), `BalanceCacheManager`, et côté bench : `model/entity/dca/bench/RainbowLiveMockWallet`, `RainbowLivePreset`, `service/dca/atr/bench/*` (surtout `RainbowLiveExecutionService`, `RainbowLiveRunService`).
 3. Réponds en français, court et technique (flèches/symboles bienvenus). Un point flou → **pose la question avant d'avancer** (AskUserQuestion).
 

@@ -1,6 +1,5 @@
 package fr.ses10doigts.tradeIO5.controller;
 
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.admin.AdminActionLogService;
@@ -84,7 +83,7 @@ class ExecutionPlanControllersSecurityTest {
     @Test
     @DisplayName("Sans authentification : tout refusé")
     void anonymous() {
-        assertThrows(AuthenticationCredentialsNotFoundException.class, () -> admin.plan(RainbowLivePass.T2355, null));
+        assertThrows(AuthenticationCredentialsNotFoundException.class, () -> admin.plan(null));
         assertThrows(AuthenticationCredentialsNotFoundException.class, () -> reader.plans(null, null));
         assertThrows(AuthenticationCredentialsNotFoundException.class, reader::latest);
     }
@@ -93,20 +92,18 @@ class ExecutionPlanControllersSecurityTest {
     @DisplayName("ROLE_USER : lecture permise, déclenchement admin refusé")
     void userRole() {
         loginAs("ROLE_USER");
-        assertThrows(AccessDeniedException.class, () -> admin.plan(RainbowLivePass.T2355, null));
+        assertThrows(AccessDeniedException.class, () -> admin.plan(null));
         reader.plans(null, null);
     }
 
     @Test
-    @DisplayName("ROLE_ADMIN : déclenchement permis, jour par défaut = jour UTC de la passe")
+    @DisplayName("ROLE_ADMIN : déclenchement permis, jour par défaut = jour UTC courant")
     void adminRole() {
         loginAs("ROLE_ADMIN");
-        when(PLAN_SERVICE.planAll(any(), any())).thenReturn(new OrderPlanService.PlanSummary(LocalDate.of(2026, 10, 9), RainbowLivePass.T2355, 0, 0, 0, 0, 0, 0));
-        admin.plan(RainbowLivePass.T2355, null);
-        verify(PLAN_SERVICE).planAll(LocalDate.of(2026, 10, 9), RainbowLivePass.T2355);
-        admin.plan(RainbowLivePass.T0005, null);
-        verify(PLAN_SERVICE).planAll(LocalDate.of(2026, 10, 8), RainbowLivePass.T0005);
-        admin.plan(RainbowLivePass.T2355, LocalDate.of(2026, 10, 1));
-        verify(PLAN_SERVICE).planAll(LocalDate.of(2026, 10, 1), RainbowLivePass.T2355);
+        when(PLAN_SERVICE.planAll(any())).thenReturn(new OrderPlanService.PlanSummary(LocalDate.of(2026, 10, 9), 0, 0, 0, 0, 0, 0));
+        admin.plan(null);
+        verify(PLAN_SERVICE).planAll(LocalDate.of(2026, 10, 9));
+        admin.plan(LocalDate.of(2026, 10, 1));
+        verify(PLAN_SERVICE).planAll(LocalDate.of(2026, 10, 1));
     }
 }

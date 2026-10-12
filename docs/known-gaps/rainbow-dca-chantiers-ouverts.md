@@ -6,17 +6,17 @@ Vérifié le : 2026-10-11 (code + décisions de Clem). Objectif n°1 du projet :
 
 | Brique | État |
 |---|---|
-| Moteur Rainbow ATR (pine v4 = source de vérité, port Java) | fait — découpé en couches L1 bornes / L2 `step` pur + `RainbowAtrState` / L3 `AthReference` / L4 `Sizer` (référence seulement) ; état et ATH persistés pour les presets `TREND_MIX` du bench (`RainbowLiveEngineState`, `RainbowAthReference`) — [`04-market-data.md`](../architecture/04-market-data.md) |
+| Moteur Rainbow ATR (pine v4 = source de vérité, port Java) | fait — découpé en couches L1 bornes / L2 `step` pur + `RainbowAtrState` / L3 `AthReference` / L4 `Sizer` (référence seulement) ; état et ATH persistés pour les presets `TREND_MIX` (`RainbowLiveEngineState`, `RainbowAthReference`) — [`04-market-data.md`](../architecture/04-market-data.md) |
 | Paramétrage par actif et par trend (Bull / Bear) | fait pour BTC, ETH, PAXG : presets `<ACTIF> Perso Bear/Bull` du pine v4 repris en Java ; stratégies Actif (une Trend Mix par actif, pilotées par System, suivies par les presets des users, inactifs au départ) aux réglages par défaut. Réglages PAXG ajustés à la main par Clem |
 | Trend simple (`TrendAnalyzer`, UP/DOWN/RANGE) | fait — [`09-trend.md`](../architecture/09-trend.md) |
 | Client d'ordres Kraken | code et tests faits (`KrakenSpotOrderClient`, testeur d'ordre `validate`) ; **jamais utilisé en réel** : ni `validate` ni ordre réel passés sur Kraken, hypothèses sur l'API à confirmer au 1ᵉʳ essai. PAXG reste `NOT_TRADABLE_WITHOUT_FIAT` (aucune paire stable) |
-| Branchement Trend → jeu de paramètres | fait : Trend Mix (`TrendMixCalculator` = méga-pine `rainbow_trend_dca_v1.pine`, vérifié par Clem Java vs pine) choisit Bull/Bear à chaque bougie (`RainbowSetSelector`) ; état de la machine et ATH persistés ; branché au dry-run quotidien (presets `TREND_MIX`, [`08`](../architecture/08-rainbow-bench-grandeur-nature.md)), pas à une exécution réelle |
-| Bench grandeur nature (dry-run quotidien, wallet fictif, page web) | fait, tourne chaque jour sur le VPS (résultats de tous les presets en base) — [`08`](../architecture/08-rainbow-bench-grandeur-nature.md) |
+| Branchement Trend → jeu de paramètres | fait : Trend Mix (`TrendMixCalculator` = méga-pine `rainbow_trend_dca_v1.pine`, vérifié par Clem Java vs pine) choisit Bull/Bear à chaque bougie (`RainbowSetSelector`) ; état de la machine et ATH persistés ; branché au dry-run quotidien (presets `TREND_MIX`, [`08`](../architecture/08-rainbow-live.md)), pas à une exécution réelle |
+| Run Rainbow quotidien 23:55 UTC (signal des presets actifs, page web ; sans simulation de wallet ni performance) | fait, tourne chaque jour sur le VPS — [`08`](../architecture/08-rainbow-live.md) |
 | Candles du signal par lien (D1 natif 720 j, source = exchange du wallet) | fait en code, tests ciblés verts, **pas encore déployé ni exécuté en réel** (colonnes `candle_source*` ajoutées par `ddl-auto=update` au 1ᵉʳ démarrage). Reste : affichage page, ATH Trend Mix sur la source du lien, bascule Binance au-delà de 720 j — §8bis, [étude](../etudes/etude-source-candles-provider-du-lien.md) |
 | Recréation d'une base (Flyway + initializers) | fait : `V1__init.sql` généré (non activé), défauts créés par les initializers, stratégies Actif pilotées par System (presets qui les suivent) — [`operations/flyway.md`](../operations/flyway.md). données historiques (`candle`, `etf_flow_snapshot`) sauvegardées chaque semaine et rechargées au démarrage. **Ouvert** : sauvegarde récurrente de la branche décisionnelle (branche en pause) |
 | Curseur d'exposition | non fait — [spec V1 §2](../etudes/spec-rainbow-v1-trend-global-exposition-risque-macro.md) |
 | Risque macro (`riskCursor`) | non fait — spec V1 §3 |
-| Wallet réel (lecture seule) branché au preset live | fait : connecteurs, bindings, moteur sur vrai cash, page ; lecture OKX et Kraken vérifiée en réel (Home affiche PAXG Kraken) ; reste la bascule preset / `bagPercent` et les cas BLOCKED / UNAVAILABLE / STALE en conditions réelles, cf. §5 ; `WalletSnapshot` (branche décisionnelle) non branché — [`decision-to-order-gap.md`](decision-to-order-gap.md) |
+| Wallet réel (lecture seule) branché au preset live | fait : connecteurs, bindings, moteur sur vrai cash, page ; lecture OKX et Kraken vérifiée en réel (Home affiche PAXG Kraken) ; reste la bascule preset / `bagPercent` et les cas BLOCKED / UNAVAILABLE en conditions réelles, cf. §5 ; `WalletSnapshot` (branche décisionnelle) non branché — [`decision-to-order-gap.md`](decision-to-order-gap.md) |
 | Exécution d'ordres réels | partiel : exécuteur, audit, kill switch, plafonds faits ; 1ᵉʳ ordre réel OKX (BTC-USDC) et vente via le testeur d'ordre validés, 1ᵉʳ achat réel PAXG sur Kraken (USDC → BTC → PAXG) exécuté depuis la Console, `LIVE` verrouillé par défaut ; cron d'exécution désactivé — cf. §5c |
 
 ## 1. Paramétrage automatique d'un actif quelconque (priorité moindre)
@@ -31,7 +31,7 @@ Reste : les constantes du Trend Mix ont été réglées à la main sur BTC et se
 
 ## 3. Curseur d'exposition
 
-Intention (pas de code) : cible d'exposition crypto/stablecoin pilotée par l'utilisateur, agissant sur les quantités achetées **et** vendues ; l'écart exposition voulue / réelle accélérerait achats ou ventes via les facteurs buy/sell. Impose un vrai wallet (aujourd'hui wallet fictif USDC par preset, qui diverge de la position du moteur) et, à terme, un capital commun à tous les actifs. Un achat et une vente simultanés sur la même bougie sont aujourd'hui impossibles (la vente l'emporte) et pourraient devenir possibles.
+Intention (pas de code) : cible d'exposition crypto/stablecoin pilotée par l'utilisateur, agissant sur les quantités achetées **et** vendues ; l'écart exposition voulue / réelle accélérerait achats ou ventes via les facteurs buy/sell. Repose sur le wallet réel (lecture seule) et, à terme, sur un capital commun à tous les actifs. Un achat et une vente simultanés sur la même bougie sont aujourd'hui impossibles (la vente l'emporte) et pourraient devenir possibles.
 
 ## 4. Risque macro
 
@@ -42,7 +42,7 @@ Intention (pas de code) : `riskCursor` (0-10, persisté, orphelin) comme gain su
 Hors Rainbow : branchement `WalletSnapshot`, sizing réel, composant d'exécution (dry-run obligatoire avant activation) — [`decision-to-order-gap.md`](decision-to-order-gap.md).
 
 **Wallet réel du preset live — reste à vérifier** (la lecture OKX et Kraken est vérifiée en réel) :
-- **Vérification réelle** : basculer le preset live et `bagPercent` et constater leur prise en compte à la passe suivante ; cas BLOCKED / UNAVAILABLE / STALE en conditions réelles.
+- **Vérification réelle** : basculer le preset live et `bagPercent` et constater leur prise en compte au run suivant ; cas BLOCKED / UNAVAILABLE en conditions réelles.
 - **Page** : le rendu JS n'est pas testé en navigateur (tests Java : API + conteneur + absence d'`innerHTML`) .
 - **Clôture du lot** : après le « Point » avec Clem, la roadmap `wallet-reel` reste en `docs/prompts/` (trace de la réflexion) ; les prompts d'implémentation exécutés sont déjà supprimés.
 - **Hors lot** (plus tard) : token d'exchange, découverte automatique du wallet, alerte % de liquidité (§7), compte Funding OKX / Earn.
@@ -59,7 +59,7 @@ Ordre voulu : d'abord boucler le fonctionnel du back, puis :
 - **Constat** : PAXG n'a aucune paire spot en USDC/USDT sur Kraken (USD, EUR, XBT, ETH) ; la route sans fiat est `USDC → BTC → PAXG` (ETH chiffré, affiché, jamais choisi). Sur OKX, le compte EEA de Clem reçoit `51155` sur les paires USDT, USDT est exclu : seuls BTC et ETH (en USDC) sont achetables.
 - **Déjà en place** : groupe USD = USDC, statuts `OK` / `TRADABLE_VIA_INTERMEDIARY` / `NOT_TRADABLE_WITHOUT_FIAT` + `routeKey` persistés sur le binding, clients Kraken lecture seule (TradeVolume, Depth), `PathFinder` multi-jambes, plan dry-run multi-jambes avec stock en transit (`TransitStock`). `ExecutionGuard` refuse tout sauf `OK`. Attendu : Kraken PAXG ⇒ `TRADABLE_VIA_INTERMEDIARY` (`USDC>BTC>PAXG`), BTC/ETH ⇒ `OK`.
 - **Exécution multi-jambes codée** (retry borné de la jambe 2, stock en transit, validation par jambe, page) — [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md). **1ᵉʳ achat réel PAXG minimal exécuté sous contrôle de Clem** (taux taker réel via `TradeVolume`, coût ≈ 0,8 % par jambe ⇒ Fee Test rouge à 0,8 % : le seuil se règle par `tradeio.execution.fee-test.red-pct`). **Reste** : vérifier le comportement de la jambe 2 sans BTC détenu, exécution manuelle quelques jours avant tout cron. Hors périmètre : route ETH automatique, bascule automatique de route, ordre compensatoire, retrait/transfert API (jamais).
-- **Lot B, étape a faite** (catalogue d'instruments, frais réels `trade-fee`, carnet, `PathFinder`, Fee Test, `GET …/bindings/{id}/path-quote` ; cf. [`../architecture/08-rainbow-bench-grandeur-nature.md`](../architecture/08-rainbow-bench-grandeur-nature.md)) : le chemin le moins coûteux est chiffré en lecture seule. 
+- **Lot B, étape a faite** (catalogue d'instruments, frais réels `trade-fee`, carnet, `PathFinder`, Fee Test, `GET …/bindings/{id}/path-quote` ; cf. [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md)) : le chemin le moins coûteux est chiffré en lecture seule. 
 - **Lot B, étape b faite** : plan d'ordres dry-run enregistré et affiché (job `ExecutionPlanJob` désactivé par défaut, bilan virtuel USDC, achats + ventes, `clOrdId` déterministes, expiration 5 min, mode global `OFF|DRY_RUN`, `LIVE` refusé au démarrage) — [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md). 
 - **Lots C1 (back-end) et C2 (panneau d'exécution sur la page) faits** : clé TRADE chiffrée, port d'ordres + client OKX (inactif par défaut), exécuteur avec réconciliation, audit append-only, kill switch, plafonds, double validation du 1ᵉʳ ordre — [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md). **1ᵉʳ ordre réel validé (BTC-USDC, minimal) ; `LIVE` verrouillé par défaut.** **Reste** : exécution manuelle quelques jours avant tout cron ; filtrage du catalogue par instruments du compte ; chiffrement optionnel des clés READ ; plafonds absolus (30 USD par ordre, 100 USD par jour, constantes) et multiplicateurs relatifs (table `execution_control`, SQL seulement) à rendre configurables par utilisateur dans la page, avec avertissement à l'approche des seuils.
 
@@ -69,7 +69,7 @@ Constat du 2026-10-05 : trop de ventes, le bag ne gonfle pas. Réglage manuel pa
 
 ## 6b. Stratégies Actif : gestion System et Stratégie Wallet (reste à faire)
 
-Fait : la config par défaut est pilotée par System via la stratégie Actif (cf. [`architecture/08`](../architecture/08-rainbow-bench-grandeur-nature.md)). Reste :
+Fait : la config par défaut est pilotée par System via la stratégie Actif (cf. [`architecture/08`](../architecture/08-rainbow-live.md)). Reste :
 - **Création de stratégies** : aujourd'hui seul l'Initializer en crée (une Trend Mix par actif). Prévoir un endpoint System de création (nouvel actif / nouvelle stratégie) et une **page de gestion admin** dédiée (édition des jeux Bear/Bull et Trend, vue des révisions).
 - **Stratégie Wallet** : niveau portefeuille avec vue globale des actifs (capital commun, priorités, exposition) — aujourd'hui portés par les bindings (`priority`, `bagPercent`) et le `CashLedger`.
 - **Page** : afficher l'historique des switchs (`GET /preset-events`) ; l'API existe, pas d'écran.
@@ -89,7 +89,7 @@ Fait : la config par défaut est pilotée par System via la stratégie Actif (cf
 
 ## 8bis. Source des candles du Rainbow : limites assumées
 
-Signal par lien sur l'exchange du wallet, D1 natif sur 720 j ([`../architecture/04-market-data.md`](../architecture/04-market-data.md#chemin-d1-natif-rainbow-getdailydatasetforasset), [`../architecture/08-rainbow-bench-grandeur-nature.md`](../architecture/08-rainbow-bench-grandeur-nature.md)). Limites connues :
+Signal par lien sur l'exchange du wallet, D1 natif sur 720 j ([`../architecture/04-market-data.md`](../architecture/04-market-data.md#chemin-d1-natif-rainbow-getdailydatasetforasset), [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md)). Limites connues :
 - **720 j d'historique** : suffit pour l'ATH de BTC, ETH, PAXG. Un actif sans ATH depuis 720 j est considéré mort. Si un actif exige plus de 720 j, il faudra agir ; piste prévue : quand plus que ce qu'un exchange sert est demandé, basculer les bougies manquantes sur Binance (meilleur historique). Piège : cotations différentes (`PAXGUSDT` vs `PAXGUSD`), un ATH tombant dans la partie Binance contaminerait le signal de l'autre exchange ; recalage des prix au raccord à étudier.
 - **Trend Mix** : machine d'état unique par preset, signal partagé entre ses liens (WARN + lien marqué substitué si les sources diffèrent). L'ATH de référence du Trend Mix (`rainbow_ath_reference`, par actif) reste amorcé sur l'historique complet Binance, pas sur la source du lien.
 - **Page web** : `candleSource` / `candleSourceSubstituted` sont persistés sur le snapshot du lien mais pas encore affichés.

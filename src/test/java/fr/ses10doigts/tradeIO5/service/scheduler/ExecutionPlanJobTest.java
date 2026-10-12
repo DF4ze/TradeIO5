@@ -1,6 +1,5 @@
 package fr.ses10doigts.tradeIO5.service.scheduler;
 
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.service.execution.plan.OrderPlanService;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import fr.ses10doigts.tradeIO5.service.market.instrument.ExecutionDefaults;
@@ -28,13 +27,13 @@ class ExecutionPlanJobTest {
     private static final Instant NOW = Instant.parse("2026-10-09T23:58:00Z");
 
     @Test
-    @DisplayName("Délègue à planAll(jour UTC, T2355)")
+    @DisplayName("Délègue à planAll(jour UTC)")
     void delegates() {
         OrderPlanService service = mock(OrderPlanService.class);
 
         new ExecutionPlanJob(service, new FixedDomainClock(NOW)).run();
 
-        verify(service).planAll(LocalDate.of(2026, 10, 9), RainbowLivePass.T2355);
+        verify(service).planAll(LocalDate.of(2026, 10, 9));
     }
 
     @Test

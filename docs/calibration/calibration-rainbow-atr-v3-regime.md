@@ -29,7 +29,7 @@ Hors-échantillon (moyenne des folds), score A / excès vs DCA fixe (% budget) :
 
 RÉGIME − GLOBAL (score A) : BTC −1,06 ± 1,71 (3/6 folds), ETH −3,05 ± 1,72 (1/6), PAXG −1,03 ± 0,71 (0/3). Objectif B (excès) : BTC +2,88 ± 1,73, ETH −6,93 ± 5,71, PAXG +0,70 ± 4,53 — signe incohérent entre actifs. Le score d'entraînement progresse avec 3 jeux mais ne se transfère pas : sur-ajustement (3× plus de paramètres, RANGE 12-21 % des jours) ; les jeux par régime in-sample diffèrent fortement du global sans gain hors-échantillon (ex. ETH DOWN SMA 26/ATR 10 vs UP SMA 36/ATR 21 ; PAXG UP SMA 75/up3 4 vs DOWN SMA 14/up3 1,5). Conclusion du bench (invalidée, cf. ci-dessus). Le pine (`tools/pine/rainbow_dca_v4_atr_moon.pine`) expose un sélecteur `Preset` nommé (Perso Generic, « <ACTIF> Bench global », « <ACTIF> Perso Bear/Bull ») : le choix du jeu Bull/Bear y est **manuel** ; son pilotage automatique par la Trend n'est pas branché.
 
-> Les sections ci-dessous décrivent les jeux **globaux** du bench ; ce sont les presets par défaut du bench grandeur nature (`Bench global`, [`08`](../architecture/08-rainbow-bench-grandeur-nature.md)), plus la cible du paramétrage.
+> Les sections ci-dessous décrivent les jeux **globaux** du bench ; ce sont les presets par défaut du run Rainbow (`Bench global`, [`08`](../architecture/08-rainbow-live.md)), plus la cible du paramétrage.
 
 ## Jeu global recommandé BTC (centre des plateaux + consensus des folds)
 

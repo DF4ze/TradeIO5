@@ -5,7 +5,6 @@ import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAthReference;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveEngineState;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePresetEventType;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
@@ -56,8 +55,8 @@ import static org.mockito.Mockito.when;
 
 @DataJpaTest
 @Import({RainbowAssetStrategyService.class, RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class, RainbowLivePresetService.class, RainbowLiveRunService.class, RainbowLiveBindingRunService.class, RainbowLiveExecutionService.class,
-        RainbowTrendLiveService.class, MockPortfolioSource.class, RainbowAthService.class, RainbowTrendLiveServiceTest.ClockConfig.class})
-@DisplayName("Bench grandeur nature Rainbow : presets Trend Mix (état persisté, ATH en base)")
+        RainbowTrendLiveService.class, RainbowAthService.class, RainbowTrendLiveServiceTest.ClockConfig.class})
+@DisplayName("Live Rainbow : presets Trend Mix (état persisté, ATH en base)")
 class RainbowTrendLiveServiceTest {
 
     private static final LocalDate START = LocalDate.of(2026, 1, 1);
@@ -75,7 +74,7 @@ class RainbowTrendLiveServiceTest {
     }
 
     @MockBean private MarketDatasetEngine datasetEngine;
-    /** Aucun binding : tous les presets restent en simulation (liveSlots vide). */
+    /** Aucun binding : aucun lien live (liveSlots vide), seul le signal du preset est calculé. */
     @MockBean private RealPortfolioSource realPortfolioSource;
     @MockBean private BinanceDailyCandleFetcher fetcher;
     @Autowired private RainbowLiveExecutionService service;
@@ -114,7 +113,7 @@ class RainbowTrendLiveServiceTest {
         User alice = userRepository.save(User.builder().username("alice").email("alice@example.com").password("x").enabled(true).build());
         btc = null;
         for (String a : RainbowLiveDefaultPresets.ASSETS) {
-            RainbowLivePreset p = presetService.createTrendMix(alice, a, "Trend Mix", true, 6, 1000);
+            RainbowLivePreset p = presetService.createTrendMix(alice, a, "Trend Mix", true, 6);
             if (a.equals(ASSET)) {
                 btc = p;
             }
@@ -126,7 +125,7 @@ class RainbowTrendLiveServiceTest {
     }
 
     private void pass2355(int idx) {
-        service.runPass(RainbowLivePass.T2355, day(idx).atTime(23, 55).toInstant(ZoneOffset.UTC), null);
+        service.runPass(day(idx).atTime(23, 55).toInstant(ZoneOffset.UTC), null);
     }
 
     @Test
@@ -141,25 +140,50 @@ class RainbowTrendLiveServiceTest {
         assertEquals(expected, ath.getAthValue(), 1e-9);
 
         RainbowLiveRun run = runRepository.findByPresetAndDay(btc, day(FIRST)).orElseThrow();
-        assertNotNull(run.getPass2355().getActiveSet());
-        assertTrue(run.getPass2355().getActiveSet().startsWith("BTC Perso"));
-        assertNotNull(run.getPass2355().getTrendRegime());
+        assertNotNull(run.getSignal().getActiveSet());
+        assertTrue(run.getSignal().getActiveSet().startsWith("BTC Perso"));
+        assertNotNull(run.getSignal().getTrendRegime());
     }
 
     @Test
-    @DisplayName("Passe 00:05 : recalcul sur la clôture finale sans écrire ni état ni ATH")
-    void pass0005WritesNothing() {
+    @DisplayName("Passe du lendemain : le run de la veille est rafraîchi sur la clôture finale (indicateurs, ATH, état), action figée")
+    void nextDayRefreshesPreviousRun() {
         pass2355(FIRST);
-        long states = stateRepository.count();
-        long aths = athRepository.count();
+        RainbowLiveRun first = runRepository.findByPresetAndDay(btc, day(FIRST)).orElseThrow();
+        var action = first.getSignal().getActionType();
+        double provisional = first.getSignal().getClose();
+        double finalClose = provisional + 3;
+        MarketData old = candles.get(FIRST);
+        candles.set(FIRST, MarketData.builder().timeFrame(TimeFrame.D1).timestamp(old.getTimestamp()).pair(ASSET)
+                .open(old.getOpen()).high(BigDecimal.valueOf(finalClose * 1.02)).low(old.getLow())
+                .close(BigDecimal.valueOf(finalClose)).volume(BigDecimal.ONE).build());
 
-        service.runPass(RainbowLivePass.T0005, day(FIRST + 1).atTime(0, 5).toInstant(ZoneOffset.UTC), null);
+        pass2355(FIRST + 1);
 
-        assertEquals(states, stateRepository.count());
-        assertEquals(aths, athRepository.count());
-        RainbowLiveRun run = runRepository.findByPresetAndDay(btc, day(FIRST)).orElseThrow();
-        assertNotNull(run.getPass0005());
-        assertNotNull(run.getPass0005().getActiveSet());
+        RainbowLiveRun refreshed = runRepository.findByPresetAndDay(btc, day(FIRST)).orElseThrow();
+        assertEquals(finalClose, refreshed.getSignal().getClose(), 1e-9);
+        assertEquals(action, refreshed.getSignal().getActionType(), "l'action décidée à 23:55 reste figée");
+        assertEquals(finalClose * 1.02, athRepository.findByAssetSymbolAndDay(ASSET, day(FIRST)).orElseThrow().getAthValue(), 1e-9);
+        assertTrue(runRepository.findByPresetAndDay(btc, day(FIRST + 1)).isPresent());
+    }
+
+    @Test
+    @DisplayName("Position virtuelle du moteur : persistée par jour, achats = montant/close, ventes = quantité, jamais négative")
+    void virtualPositionIsPersisted() {
+        int last = FIRST + 60;
+        for (int i = FIRST; i <= last; i++) {
+            pass2355(i);
+        }
+        double pos = stateRepository.findByPresetAndDay(btc, day(FIRST - 1)).orElseThrow().getPositionQty();
+        for (int i = FIRST; i <= last; i++) {
+            var sig = runRepository.findByPresetAndDay(btc, day(i)).orElseThrow().getSignal();
+            double buy = sig.getActionType() == fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction.BUY
+                    ? sig.getActionAmountUsdc() / sig.getClose() : 0;
+            double sell = sig.getActionType() == fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction.SELL
+                    ? sig.getActionQuantity() : 0;
+            pos = Math.max(0, pos - sell + buy);
+            assertEquals(pos, stateRepository.findByPresetAndDay(btc, day(i)).orElseThrow().getPositionQty(), 1e-9, "jour " + i);
+        }
     }
 
     @Test
@@ -223,7 +247,7 @@ class RainbowTrendLiveServiceTest {
     }
 
     @Test
-    @DisplayName("Révision de la stratégie : la passe 23:55 suivante ré-amorce l'état (== rejeu avec la nouvelle config), runs passés intacts, événement STRATEGY_CHANGED une seule fois")
+    @DisplayName("Révision de la stratégie : la passe suivante ré-amorce l'état (== rejeu avec la nouvelle config), actions passées inchangées, événement STRATEGY_CHANGED une seule fois")
     void strategyChangeReseedsState() {
         RainbowLivePreset follower = followerOf("bob");
         for (int i = FIRST; i <= FIRST + 5; i++) {
@@ -232,7 +256,8 @@ class RainbowTrendLiveServiceTest {
         RainbowLiveRun before = runRepository.findByPresetAndDay(follower, day(FIRST + 5)).orElseThrow();
         String oldHash = stateRepository.findByPresetAndDay(follower, day(FIRST + 5)).orElseThrow().getConfigHash();
         String oldRunHash = before.getConfigHash();
-        double oldClose = before.getPass2355().getClose();
+        double oldClose = before.getSignal().getClose();
+        var oldAction = before.getSignal().getActionType();
         assertNotNull(oldHash);
 
         changeStrategyWindow(follower, 3);
@@ -268,10 +293,11 @@ class RainbowTrendLiveServiceTest {
         assertEquals(replayed.cooldown(), persisted.cooldown());
         assertEquals(replayed.moon().active(), persisted.moon().active());
 
-        // runs passés intacts
+        // run de la veille : rafraîchi (config effective) mais action et clôture inchangées ; plus ancien : intact
         RainbowLiveRun after = runRepository.findByPresetAndDay(follower, day(FIRST + 5)).orElseThrow();
-        assertEquals(oldRunHash, after.getConfigHash());
-        assertEquals(oldClose, after.getPass2355().getClose(), 0.0);
+        assertEquals(oldAction, after.getSignal().getActionType());
+        assertEquals(oldClose, after.getSignal().getClose(), 0.0);
+        assertEquals(oldRunHash, runRepository.findByPresetAndDay(follower, day(FIRST + 4)).orElseThrow().getConfigHash());
 
         // historique : une seule fois pour la révision 2, même si on rejoue
         pass2355(FIRST + 6);
@@ -283,27 +309,17 @@ class RainbowTrendLiveServiceTest {
     }
 
     @Test
-    @DisplayName("Passe 00:05 après un changement de stratégie : recalcul sur la nouvelle config sans écrire d'état ; un preset perso n'est pas ré-amorcé")
-    void pass0005AfterStrategyChangeWritesNoState() {
+    @DisplayName("Un preset perso n'est pas ré-amorcé par le changement de stratégie d'un autre")
+    void ownPresetNotReseeded() {
         RainbowLivePreset follower = followerOf("carol");
         for (int i = FIRST; i <= FIRST + 5; i++) {
             pass2355(i);
         }
         String ownHash = stateRepository.findByPresetAndDay(btc, day(FIRST + 5)).orElseThrow().getConfigHash();
-        String followerHash = stateRepository.findByPresetAndDay(follower, day(FIRST + 4)).orElseThrow().getConfigHash();
-        long states = stateRepository.count();
 
         changeStrategyWindow(follower, 3);
-        service.runPass(RainbowLivePass.T0005, day(FIRST + 6).atTime(0, 5).toInstant(ZoneOffset.UTC), null);
-
-        assertEquals(states, stateRepository.count(), "le 00:05 n'écrit aucun état");
-        assertEquals(followerHash, stateRepository.findByPresetAndDay(follower, day(FIRST + 4)).orElseThrow().getConfigHash(),
-                "l'état persisté n'est pas touché par le 00:05");
-        assertNotNull(runRepository.findByPresetAndDay(follower, day(FIRST + 5)).orElseThrow().getPass0005());
-        assertEquals(ownHash, stateRepository.findByPresetAndDay(btc, day(FIRST + 5)).orElseThrow().getConfigHash(),
-                "preset perso : aucun effet");
-
         pass2355(FIRST + 6);
+
         assertEquals(ownHash, stateRepository.findByPresetAndDay(btc, day(FIRST + 5)).orElseThrow().getConfigHash());
         assertEquals(ownHash, stateRepository.findByPresetAndDay(btc, day(FIRST + 6)).orElseThrow().getConfigHash(),
                 "le preset perso continue sans ré-amorçage");

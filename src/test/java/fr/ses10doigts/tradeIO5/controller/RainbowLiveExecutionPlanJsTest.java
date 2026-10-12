@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("Page : bloc « Plan d'exécution (simulation) » du panneau live")
+@DisplayName("Page : bloc « Plan d'exécution (dry-run) » du panneau live")
 class RainbowLiveExecutionPlanJsTest {
 
     private static String js() throws Exception {
@@ -21,7 +21,7 @@ class RainbowLiveExecutionPlanJsTest {
     void rendersPlanStates() throws Exception {
         String js = js();
         assertTrue(js.contains("'/execution-plans/latest'"));
-        assertTrue(js.contains("Plan d\\'exécution (simulation)") && js.contains("non envoyé"));
+        assertTrue(js.contains("Plan d\\'exécution (dry-run)") && js.contains("non envoyé"));
         for (String status : new String[] {"PLANNED", "BLOCKED", "EXPIRED", "DISABLED"}) {
             assertTrue(js.contains(status + ":"), "statut " + status);
         }

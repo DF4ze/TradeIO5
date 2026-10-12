@@ -3,7 +3,7 @@
 > À coller tel quel dans une nouvelle discussion (Claude Code / Cowork sur TradeIO-5). **Mission = ANALYSE + proposition + questions, aucun code et AUCUN ORDRE tant que Clem n'a pas validé.** Suite du lot B (`etudes/etude-chemin-achat-execution.md`, `prompt-roadmap-chemin-achat-execution.md`).
 
 ## 0. Démarrage
-1. Lis `docs/README.md`, puis `architecture/08-rainbow-bench-grandeur-nature.md`, `architecture/10-execution-plan.md`, `architecture/10-execution-reelle.md`, `known-gaps/rainbow-dca-chantiers-ouverts.md` (§5c), `etudes/etude-chemin-achat-execution.md`, `etudes/etude-trading-stablecoin-frais-btc-eth-paxg.md`, `etudes/etude-liens-strategie-provider-actif.md`, `etudes/etude-ux-admin-execution.md`, `docs/CODING_RULES.md`, `glossary.md`.
+1. Lis `docs/README.md`, puis `architecture/08-rainbow-live.md`, `architecture/10-execution-plan.md`, `architecture/10-execution-reelle.md`, `known-gaps/rainbow-dca-chantiers-ouverts.md` (§5c), `etudes/etude-chemin-achat-execution.md`, `etudes/etude-trading-stablecoin-frais-btc-eth-paxg.md`, `etudes/etude-liens-strategie-provider-actif.md`, `etudes/etude-ux-admin-execution.md`, `docs/CODING_RULES.md`, `glossary.md`.
 2. Lis le code : `service/market/instrument/` (`PathFinder`, `FeeTest`, `LegMarketSource`, catalogue d'instruments), `service/dca/atr/binding/` (`BindingCheck`, statuts), `service/execution/plan/OrderPlanner`, `service/execution/run/` (`SpotOrderRouter`, exécuteur), clients `KrakenSpotOrderClient` / OKX, `AssetGroupInitializer` + `AssetGroup`, `RealPortfolioSource`, `CashLedger`, `LiveSizing`, `LiveBlockReason` / `PlanBlockReason`.
 3. Réponds en français, court et technique (flèches/symboles). Un point flou → **pose la question avant d'avancer** (AskUserQuestion).
 

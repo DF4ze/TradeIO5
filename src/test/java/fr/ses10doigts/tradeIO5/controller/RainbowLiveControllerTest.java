@@ -4,10 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
-import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveMockWalletRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLivePresetRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
@@ -63,7 +61,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({RainbowLivePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService.class, RainbowAssetStrategyService.class, RainbowLiveRunService.class,
         RainbowLiveQueryService.class,
         RainbowLiveControllerTest.ClockConfig.class})
-@DisplayName("RainbowLiveController : API REST du bench grandeur nature")
+@DisplayName("RainbowLiveController : API REST des presets Rainbow")
 class RainbowLiveControllerTest {
 
     private static final LocalDate DAY1 = LocalDate.of(2026, 10, 1);
@@ -83,7 +81,6 @@ class RainbowLiveControllerTest {
     @Autowired private RainbowLiveRunService runService;
     @Autowired private RainbowLiveQueryService queryService;
     @Autowired private RainbowLivePresetRepository presetRepository;
-    @Autowired private RainbowLiveMockWalletRepository walletRepository;
     @Autowired private RainbowLiveRunRepository runRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private EntityManager em;
@@ -111,7 +108,7 @@ class RainbowLiveControllerTest {
 
     private static CreateRequest createRequest(String asset, String name) {
         RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor(asset);
-        return new CreateRequest(asset, name, true, 6, 1000, c.toTuning(), c.toGlobals());
+        return new CreateRequest(asset, name, true, 6, c.toTuning(), c.toGlobals());
     }
 
     private RainbowLivePreset btcPreset(User u, String name) {
@@ -131,8 +128,8 @@ class RainbowLiveControllerTest {
                 .actionType(type).actionAmountUsdc(amount).actionQuantity(qty).actionPrice(close).build();
     }
 
-    private void play(RainbowLivePreset p, LocalDate day, RainbowLivePass pass, RainbowLivePassBlock b) {
-        runService.upsertPass(p, day, pass, b);
+    private void play(RainbowLivePreset p, LocalDate day, RainbowLivePassBlock b) {
+        runService.upsert(p, day, b);
     }
 
     // ---------------------------------------------------------------- defaults / liste / seed
@@ -145,7 +142,6 @@ class RainbowLiveControllerTest {
                 .andExpect(jsonPath("$.assets.length()").value(3))
                 .andExpect(jsonPath("$.cashCurrency").value("USD"))
                 .andExpect(jsonPath("$.analysisWindowMonths").value(6))
-                .andExpect(jsonPath("$.initialCapitalUsdc").value(1000.0))
                 .andExpect(jsonPath("$.baseAmount").value(1.0))
                 .andExpect(jsonPath("$.configs.BTC.tuning.smaPeriod").value(50))
                 .andExpect(jsonPath("$.configs.BTC.tuning.buyReentryMode").value("TRAILING_STOP"))
@@ -174,8 +170,6 @@ class RainbowLiveControllerTest {
                 .andExpect(jsonPath("$[0].strategyRevision").value(1))
                 .andExpect(jsonPath("$[0].enabled").value(false))
                 .andExpect(jsonPath("$[0].mode").value("TREND_MIX"))
-                .andExpect(jsonPath("$[0].wallet.cashUsd").value(1000.0))
-                .andExpect(jsonPath("$[0].wallet.equityUsdc").doesNotExist())
                 .andExpect(jsonPath("$[0].runCount").value(0))
                 .andExpect(jsonPath("$[0].lastRun").doesNotExist());
 
@@ -222,11 +216,11 @@ class RainbowLiveControllerTest {
     }
 
     @Test
-    @DisplayName("GET /presets : wallet, nb de runs, 1er run et dernier run résumé")
+    @DisplayName("GET /presets : nb de runs, 1er run et dernier run résumé")
     void listEnriched() throws Exception {
         RainbowLivePreset p = btcPreset(alice, "Bench");
-        play(p, DAY1, RainbowLivePass.T2355, block(RainbowLiveAction.BUY, 100.0, 0.001, 100_000));
-        play(p, DAY2, RainbowLivePass.T2355, block(RainbowLiveAction.NONE, null, null, 110_000));
+        play(p, DAY1, block(RainbowLiveAction.BUY, 100.0, 0.001, 100_000));
+        play(p, DAY2, block(RainbowLiveAction.NONE, null, null, 110_000));
         em.flush();
 
         mvc.perform(get("/api/rainbow-live/presets").param("asset", "BTC"))
@@ -234,24 +228,19 @@ class RainbowLiveControllerTest {
                 .andExpect(jsonPath("$[0].runCount").value(2))
                 .andExpect(jsonPath("$[0].firstRunDay").value("2026-10-01"))
                 .andExpect(jsonPath("$[0].lastRun.day").value("2026-10-02"))
-                .andExpect(jsonPath("$[0].lastRun.pass").value("T2355"))
                 .andExpect(jsonPath("$[0].lastRun.actionType").value("NONE"))
-                .andExpect(jsonPath("$[0].wallet.cashUsd").value(900.0))
-                .andExpect(jsonPath("$[0].wallet.positionQuantity").value(0.001))
-                .andExpect(jsonPath("$[0].wallet.lastClose").value(110_000.0))
-                .andExpect(jsonPath("$[0].wallet.equityUsdc").value(900.0 + 0.001 * 110_000));
+                .andExpect(jsonPath("$[0].lastRun.close").value(110_000.0));
     }
 
     // ---------------------------------------------------------------- CRUD
 
     @Test
-    @DisplayName("CRUD complet : POST 201, GET détail, PUT (actif et capital inchangés), DELETE 204 puis 404")
+    @DisplayName("CRUD complet : POST 201, GET détail, PUT (actif inchangé), DELETE 204 puis 404")
     void crud() throws Exception {
         postJson("/api/rainbow-live/presets", createRequest("ETH", "Mon ETH"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.assetSymbol").value("ETH"))
                 .andExpect(jsonPath("$.name").value("Mon ETH"))
-                .andExpect(jsonPath("$.initialCapitalUsdc").value(1000.0))
                 .andExpect(jsonPath("$.tuning.smaPeriod").value(36))
                 .andExpect(jsonPath("$.globals.baseAmount").value(1.0));
         Long id = presetRepository.findByUserAndAssetSymbolAndName(alice, "ETH", "Mon ETH").orElseThrow().getId();
@@ -267,8 +256,7 @@ class RainbowLiveControllerTest {
                 .andExpect(jsonPath("$.enabled").value(false))
                 .andExpect(jsonPath("$.analysisWindowMonths").value(12))
                 .andExpect(jsonPath("$.tuning.smaPeriod").value(20))
-                .andExpect(jsonPath("$.assetSymbol").value("ETH"))
-                .andExpect(jsonPath("$.initialCapitalUsdc").value(1000.0));
+                .andExpect(jsonPath("$.assetSymbol").value("ETH"));
 
         mvc.perform(delete("/api/rainbow-live/presets/" + id)).andExpect(status().isNoContent());
         mvc.perform(get("/api/rainbow-live/presets/" + id)).andExpect(status().isNotFound());
@@ -287,25 +275,20 @@ class RainbowLiveControllerTest {
             mvc.perform(get(base)).andExpect(status().isNotFound());
             putJson(base, upd).andExpect(status().isNotFound());
             mvc.perform(delete(base)).andExpect(status().isNotFound());
-            mvc.perform(get(base + "/runs")).andExpect(status().isNotFound());
-            mvc.perform(get(base + "/performance")).andExpect(status().isNotFound());
-            mvc.perform(get(base + "/delta")).andExpect(status().isNotFound());
         }
         assertTrue(presetRepository.findById(alicePreset.getId()).isPresent(), "le preset d'alice est intact");
     }
 
     @Test
-    @DisplayName("Payload invalide ⇒ 400 (tuning invalide, actif interdit, fenêtre 0, capital 0, JSON illisible) ; nom en double ⇒ 409")
+    @DisplayName("Payload invalide ⇒ 400 (tuning invalide, actif interdit, fenêtre 0, JSON illisible) ; nom en double ⇒ 409")
     void validation() throws Exception {
         RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor("BTC");
         RainbowAtrTuning badTuning = c.toTuning().toBuilder().set("atrMultUp1", 9.0).build(); // up1 > up2
-        postJson("/api/rainbow-live/presets", new CreateRequest("BTC", "a", true, 6, 1000, badTuning, c.toGlobals()))
+        postJson("/api/rainbow-live/presets", new CreateRequest("BTC", "a", true, 6, badTuning, c.toGlobals()))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
-        postJson("/api/rainbow-live/presets", new CreateRequest("SOL", "a", true, 6, 1000, c.toTuning(), c.toGlobals()))
+        postJson("/api/rainbow-live/presets", new CreateRequest("SOL", "a", true, 6, c.toTuning(), c.toGlobals()))
                 .andExpect(status().isBadRequest());
-        postJson("/api/rainbow-live/presets", new CreateRequest("BTC", "a", true, 0, 1000, c.toTuning(), c.toGlobals()))
-                .andExpect(status().isBadRequest());
-        postJson("/api/rainbow-live/presets", new CreateRequest("BTC", "a", true, 6, 0, c.toTuning(), c.toGlobals()))
+        postJson("/api/rainbow-live/presets", new CreateRequest("BTC", "a", true, 0, c.toTuning(), c.toGlobals()))
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/api/rainbow-live/presets").contentType(MediaType.APPLICATION_JSON).content("{pas du json"))
                 .andExpect(status().isBadRequest());
@@ -320,10 +303,10 @@ class RainbowLiveControllerTest {
     }
 
     @Test
-    @DisplayName("DELETE ⇒ runs et wallet mock disparus")
-    void deleteRemovesRunsAndWallet() throws Exception {
+    @DisplayName("DELETE ⇒ runs disparus")
+    void deleteRemovesRuns() throws Exception {
         RainbowLivePreset p = btcPreset(alice, "Bench");
-        play(p, DAY1, RainbowLivePass.T2355, block(RainbowLiveAction.BUY, 100.0, 0.001, 100_000));
+        play(p, DAY1, block(RainbowLiveAction.BUY, 100.0, 0.001, 100_000));
         em.flush();
         assertEquals(1, runRepository.count());
 
@@ -331,135 +314,5 @@ class RainbowLiveControllerTest {
         em.clear();
 
         assertEquals(0, runRepository.count());
-        assertEquals(0, walletRepository.count());
-    }
-
-    // ---------------------------------------------------------------- runs / config modifiée
-
-    @Test
-    @DisplayName("Édition ⇒ historique intact, run suivant avec nouvelle config : configChanged + changedParams ; from/to garde le calcul sur l'historique complet")
-    void editThenNextRunMarksConfigChange() throws Exception {
-        RainbowLivePreset p = btcPreset(alice, "Bench");
-        play(p, DAY1, RainbowLivePass.T2355, block(RainbowLiveAction.NONE, null, null, 100_000));
-        play(p, DAY2, RainbowLivePass.T2355, block(RainbowLiveAction.NONE, null, null, 101_000));
-
-        RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor("BTC");
-        putJson("/api/rainbow-live/presets/" + p.getId(), new UpdateRequest("Bench", true, 6,
-                c.toTuning().toBuilder().set("smaPeriod", 36).build(),
-                c.toGlobals().toBuilder().set("athRefDdBuyPct", 45.0).build())).andExpect(status().isOk());
-        play(p, DAY3, RainbowLivePass.T2355, block(RainbowLiveAction.NONE, null, null, 102_000));
-        em.flush();
-
-        String runs = "/api/rainbow-live/presets/" + p.getId() + "/runs";
-        mvc.perform(get(runs))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(3))
-                .andExpect(jsonPath("$[0].day").value("2026-10-01"))
-                .andExpect(jsonPath("$[0].configChanged").value(false))
-                .andExpect(jsonPath("$[0].changedParams.length()").value(0))
-                .andExpect(jsonPath("$[1].configChanged").value(false))
-                .andExpect(jsonPath("$[0].pass0005").doesNotExist())
-                .andExpect(jsonPath("$[0].pass2355.close").value(100_000.0))
-                .andExpect(jsonPath("$[2].configChanged").value(true))
-                .andExpect(jsonPath("$[2].changedParams[0]").value("smaPeriod"))
-                .andExpect(jsonPath("$[2].changedParams[1]").value("globals.athRefDdBuyPct"))
-                .andExpect(jsonPath("$[2].changedParams.length()").value(2));
-        // l'historique des jours passés garde l'ancienne config (snapshot immuable)
-        assertEquals(50, runRepository.findByPresetAndDay(p, DAY1).orElseThrow().getConfig().getSmaPeriod());
-
-        // filtre from : le 1er run de la plage reste comparé au run précédent hors plage
-        mvc.perform(get(runs).param("from", "2026-10-03"))
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].configChanged").value(true))
-                .andExpect(jsonPath("$[0].changedParams.length()").value(2));
-        mvc.perform(get(runs).param("from", "2026-10-02").param("to", "2026-10-02"))
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].configChanged").value(false));
-        mvc.perform(get(runs).param("from", "pas-une-date")).andExpect(status().isBadRequest());
-
-        mvc.perform(get("/api/rainbow-live/presets/" + p.getId() + "/performance"))
-                .andExpect(jsonPath("$.configMarkers.length()").value(1))
-                .andExpect(jsonPath("$.configMarkers[0].day").value("2026-10-03"))
-                .andExpect(jsonPath("$.configMarkers[0].changedParams[0]").value("smaPeriod"));
-    }
-
-    // ---------------------------------------------------------------- performance
-
-    @Test
-    @DisplayName("GET /performance sans run ⇒ 200 vide, métriques à 0, JSON sans NaN/Infinity")
-    void performanceEmpty() throws Exception {
-        RainbowLivePreset p = btcPreset(alice, "Bench");
-        String body = mvc.perform(get("/api/rainbow-live/presets/" + p.getId() + "/performance"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.days").value(0))
-                .andExpect(jsonPath("$.series.length()").value(0))
-                .andExpect(jsonPath("$.markers.length()").value(0))
-                .andExpect(jsonPath("$.metrics.invested").value(0.0))
-                .andExpect(jsonPath("$.metrics.pnlPercent").value(0.0))
-                .andExpect(jsonPath("$.wallet.equityUsdc").value(1000.0))
-                .andReturn().getResponse().getContentAsString();
-        assertFalse(body.contains("NaN") || body.contains("Infinity"));
-    }
-
-    @Test
-    @DisplayName("GET /performance : métriques, séries, marqueurs ; ?to borne la plage ; JSON sans NaN")
-    void performance() throws Exception {
-        RainbowLivePreset p = btcPreset(alice, "Bench");
-        play(p, DAY1, RainbowLivePass.T2355, block(RainbowLiveAction.BUY, 100.0, 1.0, 100));
-        play(p, DAY2, RainbowLivePass.T2355, block(RainbowLiveAction.NONE, null, null, 150));
-        play(p, DAY3, RainbowLivePass.T2355, block(RainbowLiveAction.SELL, 120.0, 0.5, 240));
-        em.flush();
-        String url = "/api/rainbow-live/presets/" + p.getId() + "/performance";
-
-        String body = mvc.perform(get(url))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.days").value(3))
-                .andExpect(jsonPath("$.metrics.invested").value(100.0))
-                .andExpect(jsonPath("$.metrics.saleProceeds").value(120.0))
-                .andExpect(jsonPath("$.metrics.realizedGain").value(70.0))     // 120 − 100 × 0,5
-                .andExpect(jsonPath("$.metrics.currentValue").value(120.0))    // 0,5 × 240
-                .andExpect(jsonPath("$.metrics.totalGain").value(140.0))
-                .andExpect(jsonPath("$.metrics.pnlPercent").value(140.0))
-                .andExpect(jsonPath("$.metrics.fixedInvested").value(3.0))     // baseAmount 1 × 3 jours
-                .andExpect(jsonPath("$.series.length()").value(3))
-                .andExpect(jsonPath("$.markers.length()").value(2))
-                .andExpect(jsonPath("$.markers[0].type").value("BUY"))
-                .andExpect(jsonPath("$.configMarkers.length()").value(0))
-                .andReturn().getResponse().getContentAsString();
-        assertFalse(body.contains("NaN") || body.contains("Infinity"));
-
-        mvc.perform(get(url).param("to", "2026-10-02"))
-                .andExpect(jsonPath("$.days").value(2))
-                .andExpect(jsonPath("$.metrics.saleProceeds").value(0.0))
-                .andExpect(jsonPath("$.metrics.currentValue").value(150.0));
-    }
-
-    // ---------------------------------------------------------------- delta
-
-    @Test
-    @DisplayName("GET /delta : jours à 2 blocs seulement, action différente détaillée, écarts")
-    void delta() throws Exception {
-        RainbowLivePreset p = btcPreset(alice, "Bench");
-        play(p, DAY1, RainbowLivePass.T2355, block(RainbowLiveAction.BUY, 10.0, 0.1, 100));
-        play(p, DAY1, RainbowLivePass.T0005, block(RainbowLiveAction.NONE, null, null, 101));
-        play(p, DAY2, RainbowLivePass.T2355, block(RainbowLiveAction.NONE, null, null, 110));   // sans 00:05
-        play(p, DAY3, RainbowLivePass.T2355, block(RainbowLiveAction.NONE, null, null, 120));
-        play(p, DAY3, RainbowLivePass.T0005, block(RainbowLiveAction.NONE, null, null, 120));
-        em.flush();
-
-        mvc.perform(get("/api/rainbow-live/presets/" + p.getId() + "/delta"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.daysCompared").value(2))
-                .andExpect(jsonPath("$.daysIgnored").value(1))
-                .andExpect(jsonPath("$.daysActionDiffers").value(1))
-                .andExpect(jsonPath("$.actionDifferences[0].day").value("2026-10-01"))
-                .andExpect(jsonPath("$.actionDifferences[0].pass2355.type").value("BUY"))
-                .andExpect(jsonPath("$.actionDifferences[0].pass0005.type").value("NONE"))
-                .andExpect(jsonPath("$.indicators.close.maxAbs").value(1.0))
-                .andExpect(jsonPath("$.indicators.close.meanAbs").value(0.5));
-
-        mvc.perform(get("/api/rainbow-live/presets/" + p.getId() + "/delta").param("from", "2026-10-03"))
-                .andExpect(jsonPath("$.daysCompared").value(1))
-                .andExpect(jsonPath("$.daysActionDiffers").value(0));
     }
 }

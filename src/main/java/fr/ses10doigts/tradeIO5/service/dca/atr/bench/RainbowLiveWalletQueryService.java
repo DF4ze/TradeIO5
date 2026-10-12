@@ -7,7 +7,6 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingCheckStatus;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveWalletDtos.LiveAssetDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveWalletDtos.LiveSnapshotDto;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBindingRun;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
@@ -63,14 +62,10 @@ public class RainbowLiveWalletQueryService {
                 b.isExecutionEnabled(), b.getFirstLiveApprovedAt() != null, b.getFirstLiveConfirmedAt() != null, b.getRouteKey(), transit, latest == null ? null : snapshotOf(latest));
     }
 
-    /** Bloc le plus récent portant un snapshot live (00:05 avant 23:55) ; nul si le run n'en a pas (preset pas encore joué en live). */
+    /** Snapshot live du run ; nul s'il n'en a pas (preset pas encore joué en live). */
     private static LiveSnapshotDto snapshotOf(RainbowLiveBindingRun run) {
-        RainbowLiveLiveBlock b0005 = run.getPass0005();
-        if (b0005 != null && b0005.hasLiveSnapshot()) {
-            return toSnapshot(run, RainbowLivePass.T0005, b0005);
-        }
-        RainbowLiveLiveBlock b2355 = run.getPass2355();
-        return b2355 != null && b2355.hasLiveSnapshot() ? toSnapshot(run, RainbowLivePass.T2355, b2355) : null;
+        RainbowLiveLiveBlock b = run.getLive();
+        return b != null && b.hasLiveSnapshot() ? toSnapshot(run, b) : null;
     }
 
     /** Avertissement texte seulement quand l'exécution est bloquée (couple non tradable sans fiat). */
@@ -84,8 +79,8 @@ public class RainbowLiveWalletQueryService {
                 + " : l'intermédiaire est détenu entre les deux jambes (risque de prix)" : null;
     }
 
-    private static LiveSnapshotDto toSnapshot(RainbowLiveBindingRun run, RainbowLivePass pass, RainbowLiveLiveBlock b) {
-        return new LiveSnapshotDto(run.getDay(), pass, b.getStatus(), b.getFetchedAt(), b.getCashUsd(),
+    private static LiveSnapshotDto toSnapshot(RainbowLiveBindingRun run, RainbowLiveLiveBlock b) {
+        return new LiveSnapshotDto(run.getDay(), b.getStatus(), b.getFetchedAt(), b.getCashUsd(),
                 CashDetailCodec.read(b.getCashDetail()),
                 b.getPositionQty(), b.getTradableQty(), b.getCashReserved(), b.getBlockReason(),
                 b.getActionType(), b.getActionAmountUsdc(), b.getActionQuantity());

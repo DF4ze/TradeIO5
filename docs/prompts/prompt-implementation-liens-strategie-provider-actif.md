@@ -3,7 +3,7 @@
 > À coller tel quel dans une nouvelle discussion (Claude Code / Cowork sur TradeIO-5). Décision et vocabulaire : `docs/etudes/etude-liens-strategie-provider-actif.md` (**fait foi**, à lire en premier). Les noms de classes cités ici sont ceux du code au 2026-10-11 ; **le code fait foi**, relis-le d'abord.
 
 ## 0. Démarrage
-1. Lis `docs/README.md`, `docs/CODING_RULES.md`, l'étude ci-dessus, `docs/architecture/08-rainbow-bench-grandeur-nature.md` (binding, run, passes, `RealPortfolioSource`), `docs/architecture/10-execution-plan.md` et `10-execution-reelle.md`, `docs/operations/flyway.md`.
+1. Lis `docs/README.md`, `docs/CODING_RULES.md`, l'étude ci-dessus, `docs/architecture/08-rainbow-live.md` (binding, run, passes, `RealPortfolioSource`), `docs/architecture/10-execution-plan.md` et `10-execution-reelle.md`, `docs/operations/flyway.md`.
 2. Lis le code : `RainbowLiveBinding` + `RainbowLiveBindingService`, `RainbowLiveBindingRepository`, `RainbowLiveRun`, `RainbowLivePassBlock` (champs `live*`), `RainbowLiveExecutionService` (`runUser`, `runPreset`, `runTrendPreset`, `liveSizing`), `RainbowTrendLiveService#run`, `LiveSizing`, `LiveSlot`, `RealPortfolioSource`, `PortfolioReading`, `RainbowLiveRunService#upsertPass`, `RainbowLiveWalletQueryService` + `RainbowLiveWalletDtos`, `OrderPlanService`, `OrderPlanner`, `ClOrdIds`, `OrderExecutor`, `rainbow-live.js`, `admin/bindings.js`.
 3. Réponds en français, court et technique. Point ambigu ⇒ question à Clem avant de coder (c'est sa préférence). Livre lot par lot, suite verte entre chaque lot.
 

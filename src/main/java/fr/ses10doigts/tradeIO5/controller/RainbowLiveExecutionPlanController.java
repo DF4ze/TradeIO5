@@ -18,7 +18,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 /**
- * Plans d'ordres (simulation, rien n'est envoyé) de l'utilisateur connecté, tels qu'enregistrés en base. Propriétaire
+ * Plans d'ordres (dry-run, rien n'est envoyé) de l'utilisateur connecté, tels qu'enregistrés en base. Propriétaire
  * seulement ; aucun appel exchange à la lecture.
  */
 @RestController

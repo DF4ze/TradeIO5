@@ -121,7 +121,7 @@ class RainbowLiveBindingPathQuoteTest {
         Wallet wallet = walletRepository.save(Wallet.builder().name("OKX").source(WalletSource.EXCHANGE)
                 .webProviderCode(WebProviderCode.OKX).webProvider(okx).credential(credential).user(alice).enabled(true).build());
         RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor("PAXG");
-        RainbowLivePreset preset = presetService.create(alice, new CreateRequest("PAXG", "live", true, 6, 1000, c.toTuning(), c.toGlobals()));
+        RainbowLivePreset preset = presetService.create(alice, new CreateRequest("PAXG", "live", true, 6, c.toTuning(), c.toGlobals()));
         aliceBindingId = bindingService.create(alice, new RainbowLiveBindingService.CreateRequest("PAXG", preset.getId(),
                 wallet.getId(), null, null)).binding().getId();
 

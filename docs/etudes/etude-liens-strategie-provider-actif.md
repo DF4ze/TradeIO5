@@ -1,6 +1,6 @@
 # Étude — Liens stratégie / provider / actif (vocabulaire et modèle cible)
 
-Statut : **décision de Clem du 2026-10-11**, validée en conversation. Le modèle cible n'est **pas** encore implémenté (le code contient une étape intermédiaire, cf. §5). Prompt d'implémentation : [`../prompts/prompt-implementation-liens-strategie-provider-actif.md`](../prompts/prompt-implementation-liens-strategie-provider-actif.md). État du code actuel : [`../architecture/08-rainbow-bench-grandeur-nature.md`](../architecture/08-rainbow-bench-grandeur-nature.md).
+Statut : **décision de Clem du 2026-10-11**, validée en conversation. Le modèle cible n'est **pas** encore implémenté (le code contient une étape intermédiaire, cf. §5). Prompt d'implémentation : [`../prompts/prompt-implementation-liens-strategie-provider-actif.md`](../prompts/prompt-implementation-liens-strategie-provider-actif.md). État du code actuel : [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md).
 
 ## 1. Besoin
 
@@ -40,7 +40,7 @@ Lien        (utilisateur, provider, actif)  ->  stratégie + preset choisi
 
 ## 5. Implémentation
 
-Livrée en 4 lots (unicité et presets partagés, snapshot live par lien `RainbowLiveBindingRun`, plan/exécuteur indexés par `(actif, wallet)`, front). État courant : [`../architecture/08-rainbow-bench-grandeur-nature.md`](../architecture/08-rainbow-bench-grandeur-nature.md) et [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md). SQL manuel sur base existante : [`../operations/flyway.md`](../operations/flyway.md).
+Livrée en 4 lots (unicité et presets partagés, snapshot live par lien `RainbowLiveBindingRun`, plan/exécuteur indexés par `(actif, wallet)`, front). État courant : [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md) et [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md). SQL manuel sur base existante : [`../operations/flyway.md`](../operations/flyway.md).
 
 ## 6. Questions ouvertes
 

@@ -1,6 +1,5 @@
 package fr.ses10doigts.tradeIO5.controller;
 
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveExecutionService;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.admin.AdminPlanTriggerService;
@@ -21,7 +20,7 @@ import java.time.LocalDate;
 
 /**
  * Déclenchement manuel du plan d'ordres dry-run (rien n'est envoyé). Réservé ROLE_ADMIN.
- * {@code POST /api/admin/execution/plan[?day=YYYY-MM-DD][&pass=T2355|T0005]} : {@code day} (UTC) par défaut = jour de la passe.
+ * {@code POST /api/admin/execution/plan[?day=YYYY-MM-DD]} : {@code day} (UTC) par défaut = jour de la passe.
  */
 @Slf4j
 @RestController
@@ -36,11 +35,10 @@ public class ExecutionPlanAdminController {
 
     @PostMapping("/plan")
     public ResponseEntity<OrderPlanService.PlanSummary> plan(
-            @RequestParam(defaultValue = "T2355") RainbowLivePass pass,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate day) {
-        LocalDate target = day != null ? day : RainbowLiveExecutionService.dayFor(pass, clock.now());
-        log.info("ExecutionPlanAdminController : déclenchement manuel du plan jour={} passe={}", target, pass);
-        return ResponseEntity.ok(planService.plan(target, pass, authenticationFacade.getConnectedUser().getUsername()));
+        LocalDate target = day != null ? day : RainbowLiveExecutionService.dayFor(clock.now());
+        log.info("ExecutionPlanAdminController : déclenchement manuel du plan jour={}", target);
+        return ResponseEntity.ok(planService.plan(target, authenticationFacade.getConnectedUser().getUsername()));
     }
 
     /** Remise à zéro d'un plan non envoyé (bloqué, expiré, désactivé…) : nouvelle révision même si les entrées sont inchangées. */

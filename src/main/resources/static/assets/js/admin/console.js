@@ -33,7 +33,7 @@
 
   /* ------------------------------------------------------------------ rendu */
 
-  const planLabel = (p) => '#' + p.id + ' · ' + p.day + ' ' + p.pass + ' r' + p.revision + ' · ' + p.username + ' · ' + p.status;
+  const planLabel = (p) => '#' + p.id + ' · ' + p.day + ' r' + p.revision + ' · ' + p.username + ' · ' + p.status;
 
   function renderPlanSelect() {
     const select = byId('adm-plan-select');
@@ -143,11 +143,11 @@
 
   async function plan() {
     const day = byId('adm-plan-day').value;
-    const query = '?pass=' + encodeURIComponent(byId('adm-plan-pass').value) + (day ? '&day=' + encodeURIComponent(day) : '');
+    const query = day ? '?day=' + encodeURIComponent(day) : '';
     const s = await api('POST', EXEC + '/plan' + query);
     const box = byId('adm-result');
     box.className = 'border rounded p-2 small';
-    box.textContent = 'Plan ' + s.day + ' ' + s.pass + ' : ' + s.planned + ' planifié(s), ' + s.blocked + ' bloqué(s), '
+    box.textContent = 'Plan ' + s.day + ' : ' + s.planned + ' planifié(s), ' + s.blocked + ' bloqué(s), '
       + s.disabled + ' désactivé(s), ' + s.unchanged + ' inchangé(s), ' + s.skipped + ' ignoré(s), ' + s.errors + ' erreur(s).';
     local.selectedId = null;
     await reload();
@@ -165,14 +165,14 @@
     await reload();
   }
 
-  /** Passe Rainbow live manuelle (simulation + snapshot live par lien) : prérequis du plan. Aucun ordre. */
+  /** Passe Rainbow live manuelle (signal + snapshot live par lien) : prérequis du plan. Aucun ordre. */
   async function livePass() {
     const day = byId('adm-plan-day').value;
-    const query = '?pass=' + encodeURIComponent(byId('adm-plan-pass').value) + (day ? '&day=' + encodeURIComponent(day) : '');
+    const query = day ? '?day=' + encodeURIComponent(day) : '';
     const s = await api('POST', '/api/admin/rainbow-live/run' + query);
     const box = byId('adm-result');
     box.className = 'border rounded p-2 small';
-    box.textContent = 'Passe live ' + s.day + ' ' + s.pass + ' : ' + s.processed + ' traité(s), ' + s.skipped + ' ignoré(s), '
+    box.textContent = 'Passe live ' + s.day + ' : ' + s.processed + ' traité(s), ' + s.skipped + ' ignoré(s), '
       + s.errors + ' erreur(s).';
   }
 

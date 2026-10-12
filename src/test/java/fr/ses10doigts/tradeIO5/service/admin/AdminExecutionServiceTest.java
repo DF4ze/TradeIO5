@@ -2,7 +2,6 @@ package fr.ses10doigts.tradeIO5.service.admin;
 
 import fr.ses10doigts.tradeIO5.model.entity.admin.AdminAction;
 import fr.ses10doigts.tradeIO5.model.entity.admin.AdminActionOutcome;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.execution.ExecutionControl;
 import fr.ses10doigts.tradeIO5.model.entity.execution.PlanStatus;
 import fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderPlan;
@@ -174,13 +173,13 @@ class AdminExecutionServiceTest {
     void planIsJournaled() {
         OrderPlanService planService = mock(OrderPlanService.class);
         LocalDate day = LocalDate.of(2026, 10, 11);
-        when(planService.planAll(day, RainbowLivePass.T2355)).thenReturn(new PlanSummary(day, RainbowLivePass.T2355, 2, 0, 0, 0, 0, 0));
-        new AdminPlanTriggerService(planService, journal).plan(day, RainbowLivePass.T2355, "clem");
-        verify(journal).record(eq("clem"), eq(AdminAction.PLAN), eq("2026-10-11/T2355"), any(), eq(AdminActionOutcome.OK));
+        when(planService.planAll(day)).thenReturn(new PlanSummary(day, 2, 0, 0, 0, 0, 0));
+        new AdminPlanTriggerService(planService, journal).plan(day, "clem");
+        verify(journal).record(eq("clem"), eq(AdminAction.PLAN), eq("2026-10-11"), any(), eq(AdminActionOutcome.OK));
 
-        when(planService.planAll(day, RainbowLivePass.T0005)).thenThrow(new IllegalStateException("x"));
-        assertThrows(IllegalStateException.class, () -> new AdminPlanTriggerService(planService, journal).plan(day, RainbowLivePass.T0005, "clem"));
-        verify(journal).record(eq("clem"), eq(AdminAction.PLAN), eq("2026-10-11/T0005"), any(), eq(AdminActionOutcome.ERROR));
+        when(planService.planAll(day)).thenThrow(new IllegalStateException("x"));
+        assertThrows(IllegalStateException.class, () -> new AdminPlanTriggerService(planService, journal).plan(day, "clem"));
+        verify(journal).record(eq("clem"), eq(AdminAction.PLAN), eq("2026-10-11"), any(), eq(AdminActionOutcome.ERROR));
     }
 
     @Test

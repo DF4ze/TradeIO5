@@ -1,7 +1,6 @@
 package fr.ses10doigts.tradeIO5.model.entity.execution;
 
 import fr.ses10doigts.tradeIO5.model.dto.execution.FeeTestLevel;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.execution.ExecutionMode;
 import jakarta.persistence.CascadeType;
@@ -33,14 +32,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Photo d'un plan d'ordres d'un utilisateur pour une passe : ce qu'on achèterait / vendrait, par quel chemin et à quel
+ * Photo d'un plan d'ordres d'un utilisateur pour un jour : ce qu'on achèterait / vendrait, par quel chemin et à quel
  * coût. <b>Rien n'est envoyé</b>. Une révision par jeu d'entrées : un rejeu avec des entrées différentes marque l'ancienne
  * révision {@link PlanStatus#SUPERSEDED} (ligne d'audit) et en crée une nouvelle ; à entrées identiques rien ne change.
  */
 @Entity
 @Table(name = "rainbow_live_order_plan",
-        uniqueConstraints = @UniqueConstraint(name = "uk_rainbow_live_order_plan_user_day_pass_rev",
-                columnNames = {"user_id", "run_day", "pass_code", "revision"}))
+        uniqueConstraints = @UniqueConstraint(name = "uk_rainbow_live_order_plan_user_day_rev",
+                columnNames = {"user_id", "run_day", "revision"}))
 @Getter
 @Setter
 @Builder
@@ -56,15 +55,11 @@ public class RainbowLiveOrderPlan {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    /** Jour UTC de la passe. */
+    /** Jour UTC du run. */
     @Column(name = "run_day", nullable = false)
     private LocalDate day;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "pass_code", nullable = false, length = 8)
-    private RainbowLivePass pass;
-
-    /** 1 pour le premier plan du (user, jour, passe), +1 à chaque remplacement. */
+    /** 1 pour le premier plan du (user, jour), +1 à chaque remplacement. */
     @Column(nullable = false)
     private int revision;
 

@@ -64,20 +64,16 @@ class MainControllerUserPageTest {
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
 
         assertTrue(html.contains("id=\"rainbow-live\""), "conteneur de la section");
-        assertTrue(html.contains("Bench grandeur nature"), "titre FR de la section");
+        assertTrue(html.contains("Presets — Rainbow DCA ATR"), "titre FR de la section");
         assertTrue(html.contains("id=\"rl-asset-tabs\"") && html.contains("id=\"rl-presets-body\""), "tableau des presets");
         assertTrue(html.contains("id=\"rl-form-modal\"") && html.contains("id=\"rl-delete-modal\""), "modales");
         assertTrue(html.contains("assets/js/rainbow-live.js"), "script de la page");
-        assertTrue(html.contains("assets/vendor/lightweight-charts/lightweight-charts.standalone.production.js"),
-                "lib de graphique vendorée (pas de CDN)");
         assertTrue(html.contains("Welcome in User's Page"), "contenu existant conservé");
         assertTrue(html.contains("Se déconnecter"), "navbar existante conservée");
-        assertTrue(html.indexOf("lightweight-charts.standalone") < html.indexOf("assets/js/rainbow-live.js"),
-                "la lib est chargée avant le script de la page");
     }
 
     @Test
-    @DisplayName("Page : conteneur du wallet réel (masqué par défaut => page inchangée sans binding) + wallet fictif étiqueté")
+    @DisplayName("Page : conteneur du wallet réel (masqué par défaut => page inchangée sans binding)")
     void userPageContainsLiveWalletPanel() throws Exception {
         String html = mvc.perform(get("/user").accept(MediaType.TEXT_HTML))
                 .andExpect(status().isOk())
@@ -85,11 +81,10 @@ class MainControllerUserPageTest {
 
         assertTrue(html.matches("(?s).*id=\"rl-live-panel\"[^>]*class=\"[^\"]*d-none[^\"]*\".*|(?s).*class=\"[^\"]*d-none[^\"]*\"[^>]*id=\"rl-live-panel\".*"),
                 "bloc wallet réel masqué tant qu'aucun binding n'existe");
-        assertTrue(html.contains("Wallet fictif (mock)"), "wallet mock conservé et étiqueté");
     }
 
     @Test
-    @DisplayName("JS : rendu live en textContent uniquement (aucun innerHTML/outerHTML/insertAdjacentHTML/document.write), états OK/BLOCKED/UNAVAILABLE/STALE gérés")
+    @DisplayName("JS : rendu live en textContent uniquement (aucun innerHTML/outerHTML/insertAdjacentHTML/document.write), états OK/BLOCKED/UNAVAILABLE gérés")
     void liveRenderingIsTextOnly() throws Exception {
         String js = new String(getClass().getResourceAsStream("/static/assets/js/rainbow-live.js").readAllBytes(),
                 StandardCharsets.UTF_8);
@@ -99,7 +94,7 @@ class MainControllerUserPageTest {
         }
         assertTrue(js.contains("'/live-wallet'"), "lecture du snapshot en base");
         assertTrue(js.contains("Achat bloqué") && js.contains("Données indisponibles, aucune action")
-                && js.contains("recommandée, non exécutée") && js.contains("Ancien") && js.contains("LIVE"),
+                && js.contains("recommandée, non exécutée") && js.contains("LIVE"),
                 "encarts et mentions du lot");
     }
 

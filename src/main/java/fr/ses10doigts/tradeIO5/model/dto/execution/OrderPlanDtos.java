@@ -19,7 +19,7 @@ public final class OrderPlanDtos {
     }
 
     /** {@code status} est le statut effectif : {@code EXPIRED} une fois {@code expiresAt} atteint. */
-    public record PlanDto(Long id, LocalDate day, String pass, int revision, PlanStatus status, String mode,
+    public record PlanDto(Long id, LocalDate day, int revision, PlanStatus status, String mode,
                           BigDecimal totalCostPct, FeeTestLevel feeTestLevel, String blockReason, Instant createdAt,
                           Instant expiresAt, String executionBlockReason, Instant executionStartedAt,
                           Instant executionFinishedAt, List<AssetDto> assets) {

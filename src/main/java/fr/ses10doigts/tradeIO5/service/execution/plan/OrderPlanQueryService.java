@@ -75,7 +75,7 @@ public class OrderPlanQueryService {
 
     public static PlanDto toDto(RainbowLiveOrderPlan plan, Instant now) {
         List<AssetDto> assets = plan.getAssets().stream().map(a -> toDto(plan, a)).toList();
-        return new PlanDto(plan.getId(), plan.getDay(), plan.getPass().name(), plan.getRevision(), plan.effectiveStatus(now),
+        return new PlanDto(plan.getId(), plan.getDay(), plan.getRevision(), plan.effectiveStatus(now),
                 plan.getMode().name(), plan.getTotalCostPct(), plan.getFeeTestLevel(), plan.getBlockReason(), plan.getCreatedAt(),
                 plan.getExpiresAt(), plan.getExecutionBlockReason(), plan.getExecutionStartedAt(),
                 plan.getExecutionFinishedAt(), assets);

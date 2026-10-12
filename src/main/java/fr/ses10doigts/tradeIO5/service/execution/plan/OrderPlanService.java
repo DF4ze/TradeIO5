@@ -4,7 +4,6 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.execution.StepSide;
 import fr.ses10doigts.tradeIO5.model.dto.execution.PathEstimation;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBindingRun;
 import fr.ses10doigts.tradeIO5.model.entity.execution.PlanStatus;
@@ -39,7 +38,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Plan d'ordres dry-run pour tous les utilisateurs actifs : lit les bindings et les blocs live de la passe EN BASE (le
+ * Plan d'ordres dry-run pour tous les utilisateurs actifs : lit les bindings et les blocs live du jour EN BASE (le
  * bench ne dépend pas du plan), appelle {@link OrderPlanner}, enregistre le plan (<b>rien n'est envoyé</b>). Une erreur sur
  * un utilisateur n'arrête jamais les autres ; pas de rattrapage des jours manquants. Mode {@code OFF} : aucun plan.
  */
@@ -48,7 +47,7 @@ import java.util.stream.Collectors;
 public class OrderPlanService {
 
     /** Récapitulatif d'un déclenchement (log + réponse de l'endpoint admin). */
-    public record PlanSummary(LocalDate day, RainbowLivePass pass, int planned, int blocked, int disabled, int unchanged,
+    public record PlanSummary(LocalDate day, int planned, int blocked, int disabled, int unchanged,
                               int skipped, int errors) {
     }
 
@@ -79,30 +78,30 @@ public class OrderPlanService {
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
-    public PlanSummary planAll(LocalDate day, RainbowLivePass pass) {
+    public PlanSummary planAll(LocalDate day) {
         if (!settings.planningEnabled()) {
-            log.info("Plan d'ordres : mode {} => aucun plan (jour {} passe {})", settings.getMode(), day, pass);
-            return new PlanSummary(day, pass, 0, 0, 0, 0, 0, 0);
+            log.info("Plan d'ordres : mode {} => aucun plan (jour {})", settings.getMode(), day);
+            return new PlanSummary(day, 0, 0, 0, 0, 0, 0);
         }
         int[] counts = new int[UserResult.values().length];
         int errors = 0;
         for (User user : userRepository.findByEnabledTrueAndArchivedAtIsNull()) {
             try {
-                UserResult result = transaction.execute(status -> planUser(user, day, pass, false));
+                UserResult result = transaction.execute(status -> planUser(user, day, false));
                 counts[result.ordinal()]++;
             } catch (Exception e) {
                 errors++;
-                log.error("Plan d'ordres : échec pour user={} jour {} passe {}", user.getId(), day, pass, e);
+                log.error("Plan d'ordres : échec pour user={} jour {}", user.getId(), day, e);
             }
         }
-        PlanSummary summary = new PlanSummary(day, pass, counts[UserResult.PLANNED.ordinal()], counts[UserResult.BLOCKED.ordinal()],
+        PlanSummary summary = new PlanSummary(day, counts[UserResult.PLANNED.ordinal()], counts[UserResult.BLOCKED.ordinal()],
                 counts[UserResult.DISABLED.ordinal()], counts[UserResult.UNCHANGED.ordinal()], counts[UserResult.SKIPPED.ordinal()], errors);
         log.info("Plan d'ordres : {}", summary);
         return summary;
     }
 
     /**
-     * Remise à zéro d'un plan : recalcule une nouvelle révision (même jour, même passe) même si les entrées n'ont pas changé.
+     * Remise à zéro d'un plan : recalcule une nouvelle révision (même jour) même si les entrées n'ont pas changé.
      * Réservé aux plans courants dont AUCUNE étape n'est partie (statut PLANNED, expiré, BLOCKED, DISABLED ou CANCELLED, étapes toutes
      * PLANNED) : un plan dont des ordres ont été envoyés ne se rejoue jamais (réconciliation par clOrdId).
      *
@@ -115,9 +114,8 @@ public class OrderPlanService {
         RainbowLiveOrderPlan plan = planRepository.findById(planId).orElseThrow(() -> new IllegalArgumentException("Plan inconnu : " + planId));
         User user = plan.getUser();
         LocalDate day = plan.getDay();
-        RainbowLivePass pass = plan.getPass();
         UserResult result = transaction.execute(status -> {
-            RainbowLiveOrderPlan latest = planRepository.findFirstByUserAndDayAndPassOrderByRevisionDesc(user, day, pass)
+            RainbowLiveOrderPlan latest = planRepository.findFirstByUserAndDayOrderByRevisionDesc(user, day)
                     .orElseThrow(() -> new IllegalArgumentException("Plan inconnu : " + planId));
             if (!latest.getId().equals(planId)) {
                 throw new IllegalArgumentException("Plan #" + planId + " déjà remplacé par la révision " + latest.getRevision());
@@ -129,40 +127,40 @@ public class OrderPlanService {
                 throw new IllegalArgumentException("Plan #" + planId + " non réinitialisable (statut " + effective
                         + ", des ordres ont été envoyés ou sont à réconcilier)");
             }
-            return planUser(user, day, pass, true);
+            return planUser(user, day, true);
         });
-        PlanSummary summary = new PlanSummary(day, pass, result == UserResult.PLANNED ? 1 : 0, result == UserResult.BLOCKED ? 1 : 0,
+        PlanSummary summary = new PlanSummary(day, result == UserResult.PLANNED ? 1 : 0, result == UserResult.BLOCKED ? 1 : 0,
                 result == UserResult.DISABLED ? 1 : 0, result == UserResult.UNCHANGED ? 1 : 0, result == UserResult.SKIPPED ? 1 : 0, 0);
         log.info("Plan d'ordres #{} réinitialisé : {}", planId, summary);
         return summary;
     }
 
-    private UserResult planUser(User user, LocalDate day, RainbowLivePass pass, boolean force) {
+    private UserResult planUser(User user, LocalDate day, boolean force) {
         List<RainbowLiveBinding> bindings = bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(user);
         List<AssetInput> inputs = new ArrayList<>();
         boolean anyRun = false;
         for (RainbowLiveBinding binding : bindings) {
             Optional<RainbowLiveBindingRun> run = runRepository.findByBindingAndDay(binding, day);
             anyRun |= run.isPresent();
-            inputs.add(inputOf(binding, run.map(r -> pass == RainbowLivePass.T2355 ? r.getPass2355() : r.getPass0005())
-                    .filter(RainbowLiveLiveBlock::hasLiveSnapshot).orElse(null), transitOf(binding, run.map(r -> pass == RainbowLivePass.T2355 ? r.getPass2355() : r.getPass0005())
-                    .filter(RainbowLiveLiveBlock::hasLiveSnapshot).map(RainbowLiveLiveBlock::getActionType).orElse(null))));
+            Optional<RainbowLiveLiveBlock> live = run.map(RainbowLiveBindingRun::getLive).filter(RainbowLiveLiveBlock::hasLiveSnapshot);
+            inputs.add(inputOf(binding, live.orElse(null),
+                    transitOf(binding, live.map(RainbowLiveLiveBlock::getActionType).orElse(null))));
         }
         if (!anyRun) {
-            log.debug("Plan d'ordres : aucun run live pour user={} jour {} passe {}, ignoré", user.getId(), day, pass);
+            log.debug("Plan d'ordres : aucun run live pour user={} jour {}, ignoré", user.getId(), day);
             return UserResult.SKIPPED;
         }
 
         String hash = OrderPlanner.inputsHash(inputs);
-        Optional<RainbowLiveOrderPlan> current = planRepository.findFirstByUserAndDayAndPassOrderByRevisionDesc(user, day, pass);
+        Optional<RainbowLiveOrderPlan> current = planRepository.findFirstByUserAndDayOrderByRevisionDesc(user, day);
         if (!force && current.isPresent() && current.get().getInputsHash().equals(hash)) {
-            log.debug("Plan d'ordres inchangé user={} jour {} passe {}", user.getId(), day, pass);
+            log.debug("Plan d'ordres inchangé user={} jour {}", user.getId(), day);
             return UserResult.UNCHANGED;
         }
 
         PlanDraft draft = planner.plan(inputs);
         Instant now = clock.now();
-        RainbowLiveOrderPlan plan = RainbowLiveOrderPlan.builder().user(user).day(day).pass(pass)
+        RainbowLiveOrderPlan plan = RainbowLiveOrderPlan.builder().user(user).day(day)
                 .revision(current.map(p -> p.getRevision() + 1).orElse(1)).status(draft.status()).mode(settings.getMode())
                 .totalCostPct(draft.totalCostPct()).feeTestLevel(draft.feeTestLevel()).blockReason(draft.blockReason())
                 .inputsHash(hash).createdAt(now).expiresAt(now.plus(settings.getPlanTtl())).build();
@@ -173,18 +171,18 @@ public class OrderPlanService {
             a.steps().forEach(s -> plan.addStep(RainbowLiveOrderStep.builder().rank(s.rank()).assetSymbol(s.assetSymbol())
                     .instId(s.instId()).side(s.side()).ordType(StepOrderType.LIMIT_IOC).sz(s.sz()).px(s.px())
                     .quoteAmount(s.quoteAmount()).walletId(a.walletId())
-                    .clOrdId(ClOrdIds.of(user.getId(), a.walletId(), s.assetSymbol(), day, pass, s.rank()))
+                    .clOrdId(ClOrdIds.of(user.getId(), a.walletId(), s.assetSymbol(), day, s.rank()))
                     .feePct(s.feePct()).spreadPct(s.spreadPct()).slippagePct(s.slippagePct()).status(StepStatus.PLANNED)
                     .estimation(s.estimation() == null ? PathEstimation.BOOK : s.estimation()).build()));
         });
         current.ifPresent(previous -> {
             previous.setStatus(PlanStatus.SUPERSEDED);
             planRepository.saveAndFlush(previous);
-            log.info("Plan d'ordres user={} jour {} passe {} : révision {} remplace la révision {}", user.getId(), day, pass,
+            log.info("Plan d'ordres user={} jour {} : révision {} remplace la révision {}", user.getId(), day,
                     plan.getRevision(), previous.getRevision());
         });
         planRepository.save(plan);
-        log.info("Plan d'ordres user={} jour {} passe {} : {} ({} étape(s)) expire à {}", user.getId(), day, pass, plan.getStatus(),
+        log.info("Plan d'ordres user={} jour {} : {} ({} étape(s)) expire à {}", user.getId(), day, plan.getStatus(),
                 plan.getSteps().size(), plan.getExpiresAt());
         return switch (plan.getStatus()) {
             case BLOCKED -> UserResult.BLOCKED;

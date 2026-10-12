@@ -45,20 +45,16 @@ public class RealPortfolioSource implements RainbowPortfolioSource {
     private final AssetGroupService groupService;
     private final TransitStockRepository transitRepository;
     private final DomainClock clock;
-    private final Duration staleAfter;
 
     public RealPortfolioSource(RainbowLiveBindingRepository bindingRepository, BindingCheck bindingCheck,
                                List<ReadOnlyBalanceReader> readers, AssetGroupService groupService,
-                               TransitStockRepository transitRepository, DomainClock clock,
-                               @Value("${" + RainbowLiveDefaultPresets.READING_STALE_AFTER_PROPERTY + ":"
-                                       + RainbowLiveDefaultPresets.DEFAULT_READING_STALE_AFTER + "}") Duration staleAfter) {
+                               TransitStockRepository transitRepository, DomainClock clock) {
         this.bindingRepository = bindingRepository;
         this.bindingCheck = bindingCheck;
         this.readers = readers.stream().collect(Collectors.toMap(ReadOnlyBalanceReader::getProviderCode, Function.identity()));
         this.groupService = groupService;
         this.transitRepository = transitRepository;
         this.clock = clock;
-        this.staleAfter = staleAfter;
     }
 
     @Override
@@ -67,11 +63,6 @@ public class RealPortfolioSource implements RainbowPortfolioSource {
                 .map(b -> new LiveSlot(b.getId(), b.getPreset().getId(), b.getAssetSymbol(), b.getWallet().getId(),
                         b.getPriority(), b.getBagPercent(), LiveCandleSource.of(b.getWallet())))
                 .toList();
-    }
-
-    @Override
-    public PortfolioReading checkFreshness(PortfolioReading reading) {
-        return reading.checkedAt(clock.now(), staleAfter);
     }
 
     /** Lecture du portefeuille réel du lien. Ne lève pas pour une panne exchange : statut {@code UNAVAILABLE}. */

@@ -22,8 +22,7 @@ import java.time.Instant;
 
 /**
  * Preset du bench grandeur nature Rainbow DCA ATR : un jeu de paramètres pour (utilisateur, actif).
- * Timeframe 1D fixe. Le capital initial du wallet mock est figé à la création ; l'édition d'un preset
- * conserve identité, wallet et historique.
+ * Timeframe 1D fixe. L'édition d'un preset conserve identité et historique.
  */
 @Entity
 @Table(name = "rainbow_live_preset",
@@ -67,9 +66,6 @@ public class RainbowLivePreset {
 
     /** Fenêtre rejouée par le moteur, en mois. */
     private int analysisWindowMonths;
-
-    /** Capital initial (USDC) du wallet mock. */
-    private double initialCapitalUsdc;
 
     @Column(nullable = false)
     private Instant createdAt;

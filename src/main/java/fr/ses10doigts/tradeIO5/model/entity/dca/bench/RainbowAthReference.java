@@ -16,7 +16,7 @@ import java.time.LocalDate;
 
 /**
  * ATH de référence d'un ACTIF (pas d'un utilisateur), « plus haut atteint jusqu'à la fin du jour {@code day} UTC
- * inclus ». Une ligne par (actif, jour traité) : la passe 00:05 relit ainsi l'ATH de la VEILLE même si la passe 23:55
+ * inclus ». Une ligne par (actif, jour traité) : le rafraîchissement du run de la VEILLE relit ainsi l'ATH de l'avant-veille même si la passe 23:55
  * du jour l'a déjà mis à jour. Semé une fois sur l'historique D1 complet puis alimenté par la passe 23:55.
  */
 @Entity

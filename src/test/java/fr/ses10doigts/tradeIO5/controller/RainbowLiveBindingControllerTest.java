@@ -115,7 +115,7 @@ class RainbowLiveBindingControllerTest {
 
     private RainbowLivePreset preset(User user, String asset, String name) {
         RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor(asset);
-        return presetService.create(user, new CreateRequest(asset, name, true, 6, 1000, c.toTuning(), c.toGlobals()));
+        return presetService.create(user, new CreateRequest(asset, name, true, 6, c.toTuning(), c.toGlobals()));
     }
 
     private ResultActions json(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder req, Object body)

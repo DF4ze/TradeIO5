@@ -19,12 +19,6 @@ public interface RainbowLiveRunRepository extends JpaRepository<RainbowLiveRun, 
 
     long countByPreset(RainbowLivePreset preset);
 
-    /** Runs d'un preset entre deux jours (inclus), ordre chronologique. */
-    List<RainbowLiveRun> findByPresetAndDayBetweenOrderByDayAsc(RainbowLivePreset preset, LocalDate from, LocalDate to);
-
-    /** Run immédiatement antérieur à {@code day} (référence du « config modifiée » du premier run d'une plage). */
-    Optional<RainbowLiveRun> findFirstByPresetAndDayBeforeOrderByDayDesc(RainbowLivePreset preset, LocalDate day);
-
     /** Agrégats par preset (1 requête pour tous). */
     @Query("select r.preset.id as presetId, count(r) as runs, min(r.day) as firstDay "
             + "from RainbowLiveRun r where r.preset in :presets group by r.preset.id")

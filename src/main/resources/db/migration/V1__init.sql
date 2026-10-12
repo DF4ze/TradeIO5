@@ -216,7 +216,6 @@
         cooldown_after_sell_on bit,
         cooldown_days integer,
         fixed_delay_days integer,
-        initial_capital_usdc float(53) not null,
         moon_on bit,
         moon_reserve_pct float(53),
         moon_reserve_ratchet bit,
@@ -271,34 +270,24 @@
     ) engine=InnoDB;
 
     create table rainbow_live_binding_run (
+        live_action_amount_usdc float(53),
+        live_action_quantity float(53),
+        live_candle_substituted bit,
+        live_cash_reserved float(53),
+        live_cash_usd float(53),
+        live_position_qty float(53),
+        live_tradable_qty float(53),
         run_day date not null,
-        t0005_action_amount_usdc float(53),
-        t0005_action_quantity float(53),
-        t0005_cash_reserved float(53),
-        t0005_cash_usd float(53),
-        t0005_position_qty float(53),
-        t0005_tradable_qty float(53),
-        t2355_action_amount_usdc float(53),
-        t2355_action_quantity float(53),
-        t2355_cash_reserved float(53),
-        t2355_cash_usd float(53),
-        t2355_position_qty float(53),
-        t2355_tradable_qty float(53),
         binding_id bigint not null,
         computed_at datetime(6),
         id bigint not null auto_increment,
-        t0005_fetched_at datetime(6),
-        t0005_wallet_id bigint,
-        t2355_fetched_at datetime(6),
-        t2355_wallet_id bigint,
-        t0005_cash_detail varchar(255),
-        t2355_cash_detail varchar(255),
-        t0005_action_type enum ('BLOCKED','BUY','NONE','SELL'),
-        t0005_block_reason enum ('INSUFFICIENT_CASH','NONE','NOT_TRADABLE_WITHOUT_FIAT','UNAVAILABLE'),
-        t0005_status enum ('NOT_TRADABLE','OK','STALE','UNAVAILABLE'),
-        t2355_action_type enum ('BLOCKED','BUY','NONE','SELL'),
-        t2355_block_reason enum ('INSUFFICIENT_CASH','NONE','NOT_TRADABLE_WITHOUT_FIAT','UNAVAILABLE'),
-        t2355_status enum ('NOT_TRADABLE','OK','STALE','UNAVAILABLE'),
+        live_fetched_at datetime(6),
+        live_wallet_id bigint,
+        live_cash_detail varchar(255),
+        live_action_type enum ('BLOCKED','BUY','NONE','SELL'),
+        live_block_reason enum ('INSUFFICIENT_CASH','NONE','NOT_TRADABLE_WITHOUT_FIAT','UNAVAILABLE'),
+        live_candle_source enum ('BINANCE','CHAINLINK','COINBASE','DATABASE','FILE','KRAKEN','MEMORY','OKX','SUSHISWAP','UNISWAP'),
+        live_status enum ('NOT_TRADABLE','OK','UNAVAILABLE'),
         primary key (id)
     ) engine=InnoDB;
 
@@ -311,6 +300,7 @@
         lowest_since_armed float(53),
         moon_active bit not null,
         moon_peak float(53),
+        position_qty float(53) not null,
         reserve_qty float(53) not null,
         sell_armed bit not null,
         sell_armed_days integer not null,
@@ -318,16 +308,6 @@
         id bigint not null auto_increment,
         preset_id bigint not null,
         config_hash varchar(64),
-        primary key (id)
-    ) engine=InnoDB;
-
-    create table rainbow_live_mock_wallet (
-        cash_usd float(53) not null,
-        position_quantity float(53) not null,
-        id bigint not null auto_increment,
-        preset_id bigint not null,
-        updated_at datetime(6) not null,
-        asset_symbol varchar(16) not null,
         primary key (id)
     ) engine=InnoDB;
 
@@ -357,7 +337,6 @@
         block_reason varchar(255),
         fee_test_level enum ('GREEN','RED','WARNING'),
         mode enum ('DRY_RUN','LIVE','OFF') not null,
-        pass_code enum ('T0005','T2355') not null,
         status enum ('BLOCKED','CANCELLED','DISABLED','EXECUTED','EXECUTING','EXPIRED','FAILED','PARTIAL','PLANNED','SUPERSEDED') not null,
         primary key (id)
     ) engine=InnoDB;
@@ -433,7 +412,6 @@
         cooldown_days integer,
         enabled bit not null,
         fixed_delay_days integer,
-        initial_capital_usdc float(53) not null,
         moon_on bit,
         moon_reserve_pct float(53),
         moon_reserve_ratchet bit,
@@ -506,72 +484,42 @@
         multx2 float(53),
         run_day date not null,
         sell_fraction float(53),
+        signal_action_amount_usdc float(53),
+        signal_action_price float(53),
+        signal_action_quantity float(53),
+        signal_ath_distance float(53),
+        signal_atr float(53),
+        signal_bound_down1 float(53),
+        signal_bound_down2 float(53),
+        signal_bound_up1 float(53),
+        signal_bound_up2 float(53),
+        signal_bound_up3 float(53),
+        signal_buy_armed bit,
+        signal_buy_factor float(53),
+        signal_buy_locked bit,
+        signal_close float(53),
+        signal_cooldown_remaining integer,
+        signal_moon_mode bit,
+        signal_moon_reserve_qty float(53),
+        signal_sell_armed bit,
+        signal_sell_factor float(53),
+        signal_sma float(53),
+        signal_zone integer,
         sma_period integer,
-        t0005_action_amount_usdc float(53),
-        t0005_action_price float(53),
-        t0005_action_quantity float(53),
-        t0005_ath_distance float(53),
-        t0005_atr float(53),
-        t0005_bound_down1 float(53),
-        t0005_bound_down2 float(53),
-        t0005_bound_up1 float(53),
-        t0005_bound_up2 float(53),
-        t0005_bound_up3 float(53),
-        t0005_buy_armed bit,
-        t0005_buy_factor float(53),
-        t0005_buy_locked bit,
-        t0005_cash_after float(53),
-        t0005_close float(53),
-        t0005_cooldown_remaining integer,
-        t0005_moon_mode bit,
-        t0005_moon_reserve_qty float(53),
-        t0005_position_after float(53),
-        t0005_sell_armed bit,
-        t0005_sell_factor float(53),
-        t0005_sma float(53),
-        t0005_zone integer,
-        t2355_action_amount_usdc float(53),
-        t2355_action_price float(53),
-        t2355_action_quantity float(53),
-        t2355_ath_distance float(53),
-        t2355_atr float(53),
-        t2355_bound_down1 float(53),
-        t2355_bound_down2 float(53),
-        t2355_bound_up1 float(53),
-        t2355_bound_up2 float(53),
-        t2355_bound_up3 float(53),
-        t2355_buy_armed bit,
-        t2355_buy_factor float(53),
-        t2355_buy_locked bit,
-        t2355_cash_after float(53),
-        t2355_close float(53),
-        t2355_cooldown_remaining integer,
-        t2355_moon_mode bit,
-        t2355_moon_reserve_qty float(53),
-        t2355_position_after float(53),
-        t2355_sell_armed bit,
-        t2355_sell_factor float(53),
-        t2355_sma float(53),
-        t2355_zone integer,
         trailing_stop_buy_pct float(53),
         trailing_stop_sell_pct float(53),
         id bigint not null auto_increment,
         preset_id bigint not null,
-        t0005_computed_at datetime(6),
-        t2355_computed_at datetime(6),
+        signal_computed_at datetime(6),
         user_id bigint not null,
         asset_symbol varchar(16) not null,
         config_hash varchar(32),
-        t0005_active_set varchar(255),
-        t0005_config_hash varchar(255),
-        t0005_trend_regime varchar(255),
-        t2355_active_set varchar(255),
-        t2355_config_hash varchar(255),
-        t2355_trend_regime varchar(255),
+        signal_active_set varchar(255),
+        signal_config_hash varchar(255),
+        signal_trend_regime varchar(255),
         buy_reentry_mode enum ('FIXED_DELAY','IMMEDIATE','TRAILING_STOP'),
         sell_reentry_mode enum ('FIXED_DELAY','IMMEDIATE','TRAILING_STOP'),
-        t0005_action_type enum ('BLOCKED','BUY','NONE','SELL'),
-        t2355_action_type enum ('BLOCKED','BUY','NONE','SELL'),
+        signal_action_type enum ('BLOCKED','BUY','NONE','SELL'),
         primary key (id)
     ) engine=InnoDB;
 
@@ -766,14 +714,11 @@
     alter table rainbow_live_engine_state 
        add constraint uk_rainbow_live_engine_state_preset_day unique (preset_id, state_day);
 
-    alter table rainbow_live_mock_wallet 
-       add constraint UKeapf4gshqevtl6bbfi7xjyo4y unique (preset_id);
-
     create index ix_rainbow_live_order_event_plan 
        on rainbow_live_order_event (plan_id);
 
     alter table rainbow_live_order_plan 
-       add constraint uk_rainbow_live_order_plan_user_day_pass_rev unique (user_id, run_day, pass_code, revision);
+       add constraint uk_rainbow_live_order_plan_user_day_rev unique (user_id, run_day, revision);
 
     alter table rainbow_live_preset 
        add constraint uk_rainbow_live_preset_user_asset_name unique (user_id, asset_symbol, name);
@@ -869,12 +814,6 @@
 
     alter table rainbow_live_engine_state 
        add constraint FKhnwwgjks321auqn1xmejlwig8 
-       foreign key (preset_id) 
-       references rainbow_live_preset (id) 
-       on delete cascade;
-
-    alter table rainbow_live_mock_wallet 
-       add constraint FKkp15qju5trcln3hg8e10apnyo 
        foreign key (preset_id) 
        references rainbow_live_preset (id) 
        on delete cascade;

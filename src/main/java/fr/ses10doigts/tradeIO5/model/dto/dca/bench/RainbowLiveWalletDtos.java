@@ -4,7 +4,6 @@ import java.util.List;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.LiveBlockReason;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 
 import java.time.Instant;
 import java.util.Map;
@@ -35,10 +34,10 @@ public final class RainbowLiveWalletDtos {
     }
 
     /**
-     * Snapshot du dernier bloc de passe live ; {@code liveAction*} = action réelle plafonnée, recommandée et
+     * Snapshot live du dernier run de lien ; {@code liveAction*} = action réelle plafonnée, recommandée et
      * <b>non exécutée</b>.
      */
-    public record LiveSnapshotDto(LocalDate day, RainbowLivePass pass, PortfolioStatus status, Instant fetchedAt,
+    public record LiveSnapshotDto(LocalDate day, PortfolioStatus status, Instant fetchedAt,
                                   Double cashUsd, Map<String, Double> cashByMember, Double positionQty, Double tradableQty, Double cashReserved,
                                   LiveBlockReason blockReason, RainbowLiveAction liveActionType,
                                   Double liveActionAmountUsdc, Double liveActionQuantity) {

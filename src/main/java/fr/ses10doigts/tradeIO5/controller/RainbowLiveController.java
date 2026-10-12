@@ -2,15 +2,12 @@ package fr.ses10doigts.tradeIO5.controller;
 
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.DefaultsDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.EnabledDto;
-import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.PerformanceDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.PresetDto;
-import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.RunDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.PresetEventDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.StrategyDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.UiModeDto;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDeltaCalculator;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.CreateRequest;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.UpdateRequest;
@@ -113,25 +110,5 @@ public class RainbowLiveController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         presetService.delete(authenticationFacade.getConnectedUser(), id);
         return ResponseEntity.noContent().build();
-    }
-
-    @GetMapping("/presets/{id}/runs")
-    public List<RunDto> runs(@PathVariable Long id,
-                             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-                             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return queryService.runs(authenticationFacade.getConnectedUser(), id, from, to);
-    }
-
-    @GetMapping("/presets/{id}/performance")
-    public PerformanceDto performance(@PathVariable Long id,
-                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return queryService.performance(authenticationFacade.getConnectedUser(), id, to);
-    }
-
-    @GetMapping("/presets/{id}/delta")
-    public RainbowLiveDeltaCalculator.Delta delta(@PathVariable Long id,
-                                                  @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-                                                  @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return queryService.delta(authenticationFacade.getConnectedUser(), id, from, to);
     }
 }

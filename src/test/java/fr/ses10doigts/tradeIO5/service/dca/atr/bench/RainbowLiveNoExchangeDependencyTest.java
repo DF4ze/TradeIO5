@@ -2,7 +2,6 @@ package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
 import fr.ses10doigts.tradeIO5.controller.RainbowLiveAdminController;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
-import fr.ses10doigts.tradeIO5.service.scheduler.RainbowLivePass0005Job;
 import fr.ses10doigts.tradeIO5.service.scheduler.RainbowLivePass2355Job;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,11 +28,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  * dedans. Le second test impose que tout bean du package du bench qui touche un exchange/wallet soit une implémentation
  * du port.
  */
-@DisplayName("Bench grandeur nature : aucun accès exchange / ordre")
+@DisplayName("Live Rainbow (signal) : aucun accès exchange / ordre")
 class RainbowLiveNoExchangeDependencyTest {
 
     private static final List<Class<?>> BEANS = List.of(RainbowLivePresetService.class, RainbowLiveRunService.class, RainbowLiveBindingRunService.class,
-            RainbowLiveExecutionService.class, RainbowLivePass2355Job.class, RainbowLivePass0005Job.class,
+            RainbowLiveExecutionService.class, RainbowLivePass2355Job.class,
             RainbowLiveAdminController.class);
 
     private static final String PROJECT_PACKAGE = "fr.ses10doigts.tradeIO5.";

@@ -24,9 +24,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 
 /**
- * Run quotidien d'un LIEN (binding) : une ligne par (lien, jour UTC) portant les deux snapshots live indépendants et
- * nullables (passe 23:55, passe 00:05). Le signal moteur et le wallet fictif restent dans {@link RainbowLiveRun} (par
- * preset, partagé par tous les liens du preset) ; tout ce qui dépend du wallet réel est ici. Supprimé avec son lien.
+ * Run quotidien d'un LIEN (binding) : une ligne par (lien, jour UTC) portant le snapshot live de la passe 23:55 (wallet réel
+ * en lecture seule, action dimensionnée). Le signal moteur reste dans {@link RainbowLiveRun} (par preset, partagé par tous les
+ * liens du preset) ; tout ce qui dépend du wallet réel est ici. Supprimé avec son lien.
  */
 @Entity
 @Table(name = "rainbow_live_binding_run",
@@ -51,45 +51,25 @@ public class RainbowLiveBindingRun {
     @Column(name = "run_day", nullable = false)
     private LocalDate day;
 
-    /** Snapshot de la passe 23:55 UTC (null tant que non jouée). */
+    /** Snapshot live de la passe 23:55 UTC (null tant que non joué). */
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride(name = "status", column = @Column(name = "t2355_status")),
-            @AttributeOverride(name = "walletId", column = @Column(name = "t2355_wallet_id")),
-            @AttributeOverride(name = "fetchedAt", column = @Column(name = "t2355_fetched_at")),
-            @AttributeOverride(name = "cashUsd", column = @Column(name = "t2355_cash_usd")),
-            @AttributeOverride(name = "cashDetail", column = @Column(name = "t2355_cash_detail")),
-            @AttributeOverride(name = "positionQty", column = @Column(name = "t2355_position_qty")),
-            @AttributeOverride(name = "tradableQty", column = @Column(name = "t2355_tradable_qty")),
-            @AttributeOverride(name = "cashReserved", column = @Column(name = "t2355_cash_reserved")),
-            @AttributeOverride(name = "blockReason", column = @Column(name = "t2355_block_reason")),
-            @AttributeOverride(name = "actionType", column = @Column(name = "t2355_action_type")),
-            @AttributeOverride(name = "actionAmountUsdc", column = @Column(name = "t2355_action_amount_usdc")),
-            @AttributeOverride(name = "actionQuantity", column = @Column(name = "t2355_action_quantity")),
-            @AttributeOverride(name = "candleSource", column = @Column(name = "t2355_candle_source")),
-            @AttributeOverride(name = "candleSourceSubstituted", column = @Column(name = "t2355_candle_substituted"))
+            @AttributeOverride(name = "status", column = @Column(name = "live_status")),
+            @AttributeOverride(name = "walletId", column = @Column(name = "live_wallet_id")),
+            @AttributeOverride(name = "fetchedAt", column = @Column(name = "live_fetched_at")),
+            @AttributeOverride(name = "cashUsd", column = @Column(name = "live_cash_usd")),
+            @AttributeOverride(name = "cashDetail", column = @Column(name = "live_cash_detail")),
+            @AttributeOverride(name = "positionQty", column = @Column(name = "live_position_qty")),
+            @AttributeOverride(name = "tradableQty", column = @Column(name = "live_tradable_qty")),
+            @AttributeOverride(name = "cashReserved", column = @Column(name = "live_cash_reserved")),
+            @AttributeOverride(name = "blockReason", column = @Column(name = "live_block_reason")),
+            @AttributeOverride(name = "actionType", column = @Column(name = "live_action_type")),
+            @AttributeOverride(name = "actionAmountUsdc", column = @Column(name = "live_action_amount_usdc")),
+            @AttributeOverride(name = "actionQuantity", column = @Column(name = "live_action_quantity")),
+            @AttributeOverride(name = "candleSource", column = @Column(name = "live_candle_source")),
+            @AttributeOverride(name = "candleSourceSubstituted", column = @Column(name = "live_candle_substituted"))
     })
-    private RainbowLiveLiveBlock pass2355;
-
-    /** Snapshot de la passe 00:05 UTC (null tant que non jouée). */
-    @Embedded
-    @AttributeOverrides({
-            @AttributeOverride(name = "status", column = @Column(name = "t0005_status")),
-            @AttributeOverride(name = "walletId", column = @Column(name = "t0005_wallet_id")),
-            @AttributeOverride(name = "fetchedAt", column = @Column(name = "t0005_fetched_at")),
-            @AttributeOverride(name = "cashUsd", column = @Column(name = "t0005_cash_usd")),
-            @AttributeOverride(name = "cashDetail", column = @Column(name = "t0005_cash_detail")),
-            @AttributeOverride(name = "positionQty", column = @Column(name = "t0005_position_qty")),
-            @AttributeOverride(name = "tradableQty", column = @Column(name = "t0005_tradable_qty")),
-            @AttributeOverride(name = "cashReserved", column = @Column(name = "t0005_cash_reserved")),
-            @AttributeOverride(name = "blockReason", column = @Column(name = "t0005_block_reason")),
-            @AttributeOverride(name = "actionType", column = @Column(name = "t0005_action_type")),
-            @AttributeOverride(name = "actionAmountUsdc", column = @Column(name = "t0005_action_amount_usdc")),
-            @AttributeOverride(name = "actionQuantity", column = @Column(name = "t0005_action_quantity")),
-            @AttributeOverride(name = "candleSource", column = @Column(name = "t0005_candle_source")),
-            @AttributeOverride(name = "candleSourceSubstituted", column = @Column(name = "t0005_candle_substituted"))
-    })
-    private RainbowLiveLiveBlock pass0005;
+    private RainbowLiveLiveBlock live;
 
     @Column(name = "computed_at")
     private Instant computedAt;

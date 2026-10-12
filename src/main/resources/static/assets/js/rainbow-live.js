@@ -1,8 +1,7 @@
 /*
- * Page "Bench grandeur nature — Rainbow DCA ATR" (userPage, fragment fragments/rainbowLive.html).
+ * Page "Presets — Rainbow DCA ATR" (userPage, fragment fragments/rainbowLive.html).
  * Contrat : API REST /api/rainbow-live (cf. docs/api/rest-endpoints.md). Tous les chiffres viennent du serveur :
  * ce fichier ne fait que de l'affichage. Entrées utilisateur/serveur insérées via textContent (jamais en HTML).
- * Graphiques : TradingView lightweight-charts v5 (vendorée, assets/vendor/lightweight-charts).
  */
 (function () {
   'use strict';
@@ -13,13 +12,11 @@
   const $ = (id) => document.getElementById(id);
 
   const DASH = '—';
-  const COLORS = { buy: '#198754', sell: '#dc3545', neutral: '#adb5bd', strategy: '#0d6efd', fixed: '#fd7e14',
-    invested: '#6c757d', config: '#6f42c1' };
 
   const state = {
     defaults: null, zones: new Map(), asset: null, presets: [], selectedId: null,
     formMode: null, formKind: 'FIXED', formPreset: null, formSource: null, uiMode: 'EXPERT', deleteTarget: null,
-    charts: [], perf: null, retry: null,
+    retry: null,
     live: new Map(), liveCheck: null, routes: null, plan: null, exec: null, events: null
   };
 
@@ -32,9 +29,7 @@
   const qty = (v) => (isNum(v) ? F8.format(v) : DASH);
   const pct = (v) => (isNum(v) ? F2.format(v) + ' %' : DASH);
   const dec = (v) => (isNum(v) ? FVAR.format(v) : DASH);
-  const signClass = (v) => (isNum(v) ? (v > 0 ? 'rl-pos' : (v < 0 ? 'rl-neg' : '')) : '');
   const zoneLabel = (z) => (z == null ? DASH : (state.zones.get(z) || String(z)));
-  const todayMinus = (days) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
 
   /** Création de nœud DOM ; les enfants texte passent par createTextNode (pas d'injection HTML). */
   function el(tag, props, ...children) {
@@ -107,7 +102,6 @@
       el('span', { text: err.message }),
       retry ? el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary ms-2', text: 'Réessayer', onclick: retry }) : null));
   }
-  const emptyMsg = (text) => el('div', { class: 'text-muted fst-italic', text });
 
   function card(label, value, cls, title) {
     return el('div', { class: 'col-6 col-md-4 col-xl-3' },
@@ -131,8 +125,6 @@
     document.querySelectorAll('#rl-asset-tabs .nav-link').forEach((b) =>
       b.classList.toggle('active', b.dataset.asset === asset));
     $('rl-asset-label').textContent = asset;
-    $('rl-detail').classList.add('d-none');
-    destroyCharts();
     state.liveCheck = null;
     state.routes = null;
     return Promise.all([loadLive(), loadPresets()]);
@@ -171,7 +163,6 @@
   }
 
   function presetRow(p) {
-    const w = p.wallet;
     const last = p.lastRun;
     const toggle = el('input', { type: 'checkbox', class: 'form-check-input', role: 'switch',
       title: 'Activer / désactiver ce preset' });
@@ -187,8 +178,6 @@
           title: 'Preset propre à ton compte : ne reçoit pas les mises à jour de System' })),
       el('td', null, el('div', { class: 'form-check form-switch' }, toggle)),
       el('td', { text: p.analysisWindowMonths }),
-      el('td', { text: usd(p.initialCapitalUsdc) }),
-      el('td', { text: w ? usd(w.cashUsd) + ' / ' + qty(w.positionQuantity) + ' / ' + usd(w.equityUsdc) : DASH }),
       el('td', { text: p.runCount }),
       el('td', { text: p.firstRunDay || DASH }),
       el('td', null, setTrendCell(last && last.activeSet, last && last.trendRegime)),
@@ -196,7 +185,6 @@
         + actionText(last.actionType, last.actionAmountUsdc, last.actionQuantity) : DASH }),
       el('td', { class: 'text-nowrap' },
         el('div', { class: 'btn-group btn-group-sm' },
-          el('button', { type: 'button', class: 'btn btn-outline-primary', text: 'Voir', onclick: () => selectPreset(p.id) }),
           el('button', { type: 'button', class: 'btn btn-outline-secondary', text: 'Éditer', disabled: p.followsStrategy,
             title: p.followsStrategy ? 'Suit la stratégie System : non modifiable (dupliquer pour te détacher)' : null, onclick: () => openForm('edit', p) }),
           el('button', { type: 'button', class: 'btn btn-outline-secondary', text: 'Dupliquer', onclick: () => openForm('duplicate', p) }),
@@ -226,8 +214,7 @@
     { id: 'general', title: 'Général', fields: [
       { scope: 'preset', key: 'name', label: 'Nom', type: 'text' },
       { scope: 'preset', key: 'enabled', label: 'Preset actif (joué à chaque passe)', type: 'bool' },
-      { scope: 'preset', key: 'analysisWindowMonths', label: "Fenêtre d'analyse (mois)", type: 'int' },
-      { scope: 'preset', key: 'initialCapitalUsdc', label: 'Capital initial (USDC)', type: 'number', createOnly: true }] },
+      { scope: 'preset', key: 'analysisWindowMonths', label: "Fenêtre d'analyse (mois)", type: 'int' }] },
     { id: 'bounds', title: 'Bornes ATR', fields: [
       { scope: 'tuning', key: 'smaPeriod', label: 'Période SMA', type: 'int' },
       { scope: 'tuning', key: 'atrPeriod', label: 'Période ATR', type: 'int' },
@@ -391,8 +378,7 @@
   }
 
   function formData(p) {
-    const d = { preset: { name: p.name, enabled: p.enabled, analysisWindowMonths: p.analysisWindowMonths,
-      initialCapitalUsdc: p.initialCapitalUsdc }, tuning: p.tuning, globals: p.globals };
+    const d = { preset: { name: p.name, enabled: p.enabled, analysisWindowMonths: p.analysisWindowMonths }, tuning: p.tuning, globals: p.globals };
     return isTrend(p) ? Object.assign(d, trendData(p.trendConfig)) : d;
   }
 
@@ -423,13 +409,10 @@
     } else {
       const cfg = state.defaults.configs[asset];
       const base = { preset: { name: state.formKind === 'TREND_MIX' ? 'Trend Mix' : '',
-        enabled: true, analysisWindowMonths: state.defaults.analysisWindowMonths,
-        initialCapitalUsdc: state.defaults.initialCapitalUsdc }, tuning: cfg.tuning, globals: cfg.globals };
+        enabled: true, analysisWindowMonths: state.defaults.analysisWindowMonths }, tuning: cfg.tuning, globals: cfg.globals };
       fillForm(state.formKind === 'TREND_MIX'
         ? Object.assign(base, trendData(state.defaults.trendDefaults[asset])) : base);
     }
-    // capital initial : lecture seule en édition (l'actif l'est toujours)
-    $(inputId({ scope: 'preset', key: 'initialCapitalUsdc' })).disabled = mode === 'edit';
     bootstrap.Modal.getOrCreateInstance($('rl-form-modal')).show();
   }
 
@@ -507,13 +490,12 @@
       } else {
         saved = await api('POST', '/presets', Object.assign({ assetSymbol: $('rl-f-asset').value, name: d.preset.name,
           enabled: d.preset.enabled, analysisWindowMonths: d.preset.analysisWindowMonths,
-          initialCapitalUsdc: d.preset.initialCapitalUsdc, mode: state.formKind,
+          mode: state.formKind,
           duplicatedFromId: state.formSource ? state.formSource.id : null }, specific));
       }
       bootstrap.Modal.getOrCreateInstance($('rl-form-modal')).hide();
       hideAlert();
       await loadPresets();
-      if (state.formMode === 'create' || state.selectedId === saved.id) { selectPreset(saved.id); }
     } catch (e) {
       errBox.textContent = e.message;
       errBox.classList.remove('d-none');
@@ -539,11 +521,6 @@
     try {
       await api('DELETE', '/presets/' + p.id);
       bootstrap.Modal.getOrCreateInstance($('rl-delete-modal')).hide();
-      if (state.selectedId === p.id) {
-        state.selectedId = null;
-        $('rl-detail').classList.add('d-none');
-        destroyCharts();
-      }
       hideAlert();
       await loadPresets();
     } catch (e) {
@@ -559,7 +536,6 @@
 
   const LIVE_STATUS = {
     OK: ['bg-success', 'Lecture OK'],
-    STALE: ['bg-warning text-dark', 'Ancien'],
     UNAVAILABLE: ['bg-danger', 'Indisponible'],
     NOT_TRADABLE: ['bg-warning text-dark', 'Non tradable']
   };
@@ -598,7 +574,7 @@
 INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
     NOT_TRADABLE_WITHOUT_FIAT: 'non tradable sans monnaie fiat', READING_UNAVAILABLE: 'données indisponibles' };
 
-  /** Dernier plan d'ordres (simulation) en base ; 204 ou erreur ⇒ pas de plan (le reste de la page n'en dépend pas). */
+  /** Dernier plan d'ordres en base ; 204 ou erreur ⇒ pas de plan (le reste de la page n'en dépend pas). */
   async function loadPlan() {
     try {
       state.plan = await api('GET', '/execution-plans/latest');
@@ -647,12 +623,12 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
       a.warning ? el('div', { class: 'small text-warning-emphasis', text: a.warning }) : null);
   }
 
-  /** Plan d'ordres de l'actif sélectionné (simulation : rien n'est envoyé à l'exchange). */
+  /** Plan d'ordres de l'actif sélectionné (dry-run : rien n'est envoyé à l'exchange). */
   function planView(l) {
     const p = state.plan;
     const sent = !!p && EXECUTED_STATUS.includes(p.status);
     const head = el('div', { class: 'd-flex flex-wrap align-items-center gap-2 mb-2' },
-      el('h6', { class: 'mb-0', text: sent ? 'Plan d\'exécution (réel)' : 'Plan d\'exécution (simulation)' }),
+      el('h6', { class: 'mb-0', text: sent ? 'Plan d\'exécution (réel)' : 'Plan d\'exécution (dry-run)' }),
       el('span', { class: 'badge bg-light text-dark border', text: sent ? 'ordres envoyés' : 'non envoyé' }));
     if (!p) {
       return el('div', { class: 'mt-3 border-top pt-2' }, head, el('div', { class: 'text-muted fst-italic', text: 'Aucun plan enregistré.' }));
@@ -662,7 +638,7 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
     return el('div', { class: 'mt-3 border-top pt-2' }, head,
       el('div', { class: 'small mb-2' },
         el('span', { class: 'badge ' + st[0] + ' me-2', text: st[1] }),
-        el('span', { text: 'passe ' + p.day + ' ' + (p.pass === 'T0005' ? '00:05' : '23:55') + ' UTC · ' + expiry
+        el('span', { text: 'jour ' + p.day + ' (23:55 UTC) · ' + expiry
           + ' (un plan n\'est qu\'une photo, l\'exécution re-devise)' }),
         p.executionBlockReason ? el('div', { class: 'text-warning-emphasis', text: 'Blocages : ' + p.executionBlockReason }) : null),
       planAssetView(p.assets.find((a) => a.assetSymbol === l.assetSymbol && a.walletId === l.walletId), l));
@@ -783,8 +759,7 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
       el('div', { class: 'rl-live-meta mb-2' },
         el('span', { class: 'badge ' + st[0] + ' me-2', text: st[1] }),
         el('span', { text: 'Wallet réel : ' + l.walletName + ' (' + (l.exchange || DASH) + ') · lu le '
-          + (s.fetchedAt ? new Date(s.fetchedAt).toLocaleString('fr-FR') : DASH) + ' · passe ' + s.day + ' ' + (s.pass === 'T0005' ? '00:05' : '23:55') + ' UTC'
-          + (s.status === 'STALE' ? ' · ancien' : '') })),
+          + (s.fetchedAt ? new Date(s.fetchedAt).toLocaleString('fr-FR') : DASH) + ' · jour ' + s.day + ' (23:55 UTC)' })),
       el('div', { class: 'row g-2' },
         card('Cash USD', usd(s.cashUsd), '', cashDetail(s.cashByMember)),
         card('Position réelle ' + l.assetSymbol, qty(s.positionQty)),
@@ -879,8 +854,8 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
       el('div', { class: 'd-flex flex-wrap justify-content-between align-items-center gap-2 mb-2' },
         el('h5', { class: 'mb-0' }, el('span', { class: 'badge rl-badge-live me-2', text: 'LIVE' }), 'Wallet réel — ' + l.assetSymbol + ' · ' + l.walletName + ' (' + (l.exchange || DASH) + ')'),
         el('span', { class: 'small text-muted', text: state.exec && state.exec.liveExecution
-          ? 'Exécution réelle déverrouillée : des ordres peuvent être envoyés selon les verrous ci-dessous. Le wallet fictif des presets reste une simulation.'
-          : 'Aucun ordre n\'est passé (exécution réelle verrouillée). Le wallet fictif des presets reste une simulation.' })),
+          ? 'Exécution réelle déverrouillée : des ordres peuvent être envoyés selon les verrous ci-dessous.'
+          : 'Aucun ordre n\'est passé (exécution réelle verrouillée).' })),
       liveSnapshotView(l),
       el('div', { class: 'row g-2 align-items-end mt-2' },
         el('div', { class: 'col-12 col-md-5' }, el('label', { class: 'form-label small mb-0', for: 'rl-live-preset-' + l.bindingId, text: 'Preset live' }), select),
@@ -925,386 +900,6 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
     }
   }
 
-  /* ------------------------------------------------------------------ détail d'un preset */
-
-  function selectPreset(id) {
-    const p = state.presets.find((x) => x.id === id);
-    if (!p) { return; }
-    state.selectedId = id;
-    renderPresets();
-    $('rl-detail-title').textContent = '« ' + p.name + ' » — ' + p.assetSymbol;
-    $('rl-detail').classList.remove('d-none');
-    $('rl-runs-from').value = todayMinus(90);
-    $('rl-runs-to').value = '';
-    ['rl-perf-panel', 'rl-runs-panel', 'rl-delta-panel'].forEach((pid) =>
-      $(pid).replaceChildren(emptyMsg('Chargement…')));
-    loadPerformance(); loadRuns(); loadDelta();
-    $('rl-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  const currentPreset = () => state.presets.find((x) => x.id === state.selectedId);
-
-  /* -------- performance + graphiques */
-
-  async function loadPerformance() {
-    const id = state.selectedId;
-    const panel = $('rl-perf-panel');
-    try {
-      const [perf, runs] = await Promise.all([api('GET', '/presets/' + id + '/performance'),
-        api('GET', '/presets/' + id + '/runs').catch(() => [])]);
-      if (id !== state.selectedId) { return; }
-      state.perf = perf;
-      renderPerformance(panel, perf);
-      if (perf.days > 0) { renderCharts(perf, runs); }
-    } catch (e) {
-      if (id !== state.selectedId) { return; }
-      destroyCharts();
-      panelError(panel, e, loadPerformance);
-    }
-  }
-
-  function renderPerformance(panel, perf) {
-    if (perf.days === 0) {
-      destroyCharts();
-      panel.replaceChildren(emptyMsg('Aucun run encore : les passes 23:55/00:05 UTC alimenteront cette vue.'));
-      $('rl-chart-perf').textContent = '';
-      $('rl-chart-multi').textContent = '';
-      $('rl-multi-legend').textContent = '';
-      $('rl-chart-legend').textContent = '';
-      return;
-    }
-    const m = perf.metrics;
-    const w = perf.wallet;
-    const fixedHelp = 'DCA fixe de référence : achat du montant de base (baseAmount du jour) au close de chaque jour ayant un run 23:55, '
-      + 'depuis le 1er run, sans combler les jours manquants.';
-    const walletHelp = 'La performance reflète le wallet mock : les actions fictives sont plafonnées par son cash et sa position.';
-    panel.replaceChildren(
-      el('div', { class: 'small text-muted mb-1', text: 'Du ' + perf.firstDay + ' au ' + perf.lastDay + ' — ' + perf.days + ' jour(s) avec run 23:55' }),
-      el('div', { class: 'fw-semibold mt-2' }, 'Stratégie ', el('span', { class: 'rl-help', title: walletHelp, text: 'ⓘ' })),
-      el('div', { class: 'row g-2' },
-        card('Investi', usd(m.invested)), card('Vendu', usd(m.saleProceeds)), card('Restant (valeur)', usd(m.currentValue)),
-        card('Gain réalisé', usd(m.realizedGain), signClass(m.realizedGain)),
-        card('Gain potentiel', usd(m.potentialGain), signClass(m.potentialGain)),
-        card('Gain total', usd(m.totalGain), signClass(m.totalGain)),
-        card('PnL', pct(m.pnlPercent), signClass(m.pnlPercent)),
-        card('Réalisé', pct(m.realizedPercent), signClass(m.realizedPercent)),
-        card('Potentiel', pct(m.potentialPercent), signClass(m.potentialPercent)),
-        card('Position', qty(m.position)), card('Coût de revient', usd(m.costBasis)), card('Dernier close', usd(m.lastClose))),
-      el('div', { class: 'fw-semibold mt-3' }, 'DCA fixe de référence ', el('span', { class: 'rl-help', title: fixedHelp, text: 'ⓘ' })),
-      el('div', { class: 'row g-2' },
-        card('Investi', usd(m.fixedInvested)), card('Valeur', usd(m.fixedValue)),
-        card('Gain', usd(m.fixedGain), signClass(m.fixedGain)), card('PnL', pct(m.fixedPnlPercent), signClass(m.fixedPnlPercent)),
-        card('Écart stratégie − DCA fixe', usd(m.outperformanceGain), signClass(m.outperformanceGain)),
-        card('Écart (points de PnL)', isNum(m.outperformancePoints) ? F2.format(m.outperformancePoints) + ' pts' : DASH,
-          signClass(m.outperformancePoints))),
-      el('div', { class: 'fw-semibold mt-3' }, 'Wallet mock ', el('span', { class: 'rl-help', title: walletHelp, text: 'ⓘ' })),
-      el('div', { class: 'row g-2' },
-        card('Capital initial', usd(w.initialCapitalUsdc)), card('Cash', usd(w.cashUsd)),
-        card('Position', qty(w.positionQuantity)), card('Équité', usd(w.equityUsdc), signClass(w.equityUsdc - w.initialCapitalUsdc)),
-        card('PnL wallet', pct(w.pnlPercent), signClass(w.pnlPercent))));
-  }
-
-  function destroyCharts() {
-    state.charts.forEach((c) => { try { c.remove(); } catch (e) { /* déjà détruit */ } });
-    state.charts = [];
-    $('rl-chart-tooltip').classList.add('d-none');
-  }
-
-  const chartDay = (t) => (typeof t === 'string' ? t : (t && t.year
-    ? t.year + '-' + String(t.month).padStart(2, '0') + '-' + String(t.day).padStart(2, '0') : null));
-
-  function baseChartOptions(LW, attribution) {
-    return {
-      autoSize: true,
-      layout: { background: { type: LW.ColorType.Solid, color: '#ffffff' }, textColor: '#333', attributionLogo: attribution },
-      grid: { vertLines: { color: '#f1f3f5' }, horzLines: { color: '#f1f3f5' } },
-      rightPriceScale: { borderVisible: false },
-      timeScale: { borderVisible: false }
-    };
-  }
-
-  const legendItem = (color, text) => el('span', { class: 'me-3' },
-    el('span', { style: 'display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;background:' + color }), text);
-
-  function renderCharts(perf, runs) {
-    destroyCharts();
-    const errBox = $('rl-chart-error');
-    errBox.classList.add('d-none');
-    const LW = window.LightweightCharts;
-    if (!LW) {
-      errBox.textContent = 'Bibliothèque de graphiques non chargée.';
-      errBox.classList.remove('d-none');
-      return;
-    }
-    const series = perf.series;
-    const days = new Set(series.map((p) => p.day));
-    const snap = (day) => { const hit = series.find((p) => p.day >= day); return hit ? hit.day : null; };
-
-    // --- graphique performance
-    const perfEl = $('rl-chart-perf');
-    perfEl.textContent = '';
-    const chart = LW.createChart(perfEl, baseChartOptions(LW, true));
-    const fmt = { type: 'price', precision: 2, minMove: 0.01 };
-    const sStrat = chart.addSeries(LW.LineSeries, { color: COLORS.strategy, lineWidth: 2, priceFormat: fmt, title: 'Stratégie' });
-    const sFixed = chart.addSeries(LW.LineSeries, { color: COLORS.fixed, lineWidth: 2, priceFormat: fmt, title: 'DCA fixe' });
-    const sInv = chart.addSeries(LW.LineSeries, { color: COLORS.invested, lineWidth: 1, lineStyle: LW.LineStyle.Dashed,
-      priceFormat: fmt, title: 'Investi' });
-    sStrat.setData(series.map((p) => ({ time: p.day, value: p.saleProceeds + p.currentValue })));
-    sFixed.setData(series.map((p) => ({ time: p.day, value: p.fixedValue })));
-    sInv.setData(series.map((p) => ({ time: p.day, value: p.invested })));
-
-    const byDay = new Map(series.map((p) => [p.day, { point: p, trades: [], configs: [] }]));
-    const markers = [];
-    perf.markers.forEach((t) => {
-      if (!days.has(t.day)) { return; }
-      byDay.get(t.day).trades.push(t);
-      markers.push(t.type === 'BUY'
-        ? { time: t.day, position: 'belowBar', color: COLORS.buy, shape: 'arrowUp' }
-        : { time: t.day, position: 'aboveBar', color: COLORS.sell, shape: 'arrowDown' });
-    });
-    perf.configMarkers.forEach((c) => {
-      const day = snap(c.day);
-      if (!day) { return; }
-      byDay.get(day).configs.push(c);
-      markers.push({ time: day, position: 'aboveBar', color: COLORS.config, shape: 'circle', text: 'cfg' });
-    });
-    markers.sort((a, b) => (a.time < b.time ? -1 : (a.time > b.time ? 1 : 0)));
-    LW.createSeriesMarkers(sStrat, markers);
-    chart.timeScale().fitContent();
-
-    const tip = $('rl-chart-tooltip');
-    chart.subscribeCrosshairMove((param) => {
-      const day = param && param.time ? chartDay(param.time) : null;
-      const info = day ? byDay.get(day) : null;
-      if (!info || !param.point) { tip.classList.add('d-none'); return; }
-      const p = info.point;
-      const lines = [el('div', { class: 'fw-semibold', text: day }),
-        el('div', { text: 'Stratégie : ' + usd(p.saleProceeds + p.currentValue) }),
-        el('div', { text: 'DCA fixe : ' + usd(p.fixedValue) }),
-        el('div', { text: 'Investi : ' + usd(p.invested) })];
-      info.trades.forEach((t) => lines.push(el('div', { class: t.type === 'BUY' ? 'rl-pos' : 'rl-neg',
-        text: actionText(t.type, t.amountUsdc, t.quantity) + ' @ ' + usd(t.price) })));
-      info.configs.forEach((c) => lines.push(el('div', { text: 'Config modifiée : '
-        + (c.changedParams.length ? c.changedParams.join(', ') : DASH) })));
-      tip.replaceChildren(...lines);
-      tip.classList.remove('d-none');
-    });
-
-    // --- graphique multi-panneaux : prix + tags, PnL, expositions
-    const chart2 = renderMultiChart(LW, perf, runs || [], fmt);
-    state.charts = [chart, chart2];
-
-    // plages visibles synchronisées (mêmes jours sur les deux graphiques)
-    let syncing = false;
-    const link = (from, to) => from.timeScale().subscribeVisibleLogicalRangeChange((r) => {
-      if (syncing || !r) { return; }
-      syncing = true;
-      to.timeScale().setVisibleLogicalRange(r);
-      syncing = false;
-    });
-    link(chart, chart2); link(chart2, chart);
-
-    $('rl-chart-legend').replaceChildren(
-      legendItem(COLORS.strategy, 'Stratégie (vendu + restant)'), legendItem(COLORS.fixed, 'DCA fixe (valeur)'),
-      legendItem(COLORS.invested, 'Investi cumulé'), legendItem(COLORS.buy, '▲ achat'), legendItem(COLORS.sell, '▼ vente'),
-      legendItem(COLORS.config, '● config modifiée'));
-  }
-
-  const pctText = (v) => (isNum(v) ? F2.format(v * 100) + ' %' : DASH);
-  const compact = (v) => (isNum(v) ? nf(0, v >= 1000 ? 0 : 2).format(v) : DASH);
-
-  /** 3 panneaux : close + SMA/bornes + tags d'ordres ; PnL ; expositions. Données = /performance + /runs (rien recalculé côté moteur). */
-  function renderMultiChart(LW, perf, runs, fmt) {
-    const host = $('rl-chart-multi');
-    host.textContent = '';
-    const chart = LW.createChart(host, baseChartOptions(LW, false));
-    const series = perf.series;
-    const L = (color, width, style, pane, title) => chart.addSeries(LW.LineSeries, { color, lineWidth: width,
-      lineStyle: style || 0, priceFormat: fmt, priceLineVisible: false, lastValueVisible: false,
-      crosshairMarkerVisible: false, title: title || '' }, pane);
-    const dashed = LW.LineStyle.Dashed;
-
-    // panneau 0 : prix, SMA, bornes
-    const sClose = L('#212529', 2, 0, 0, 'Close');
-    sClose.setData(series.map((p) => ({ time: p.day, value: p.close })));
-    const blockOf = new Map(runs.map((r) => [r.day, r.pass2355 || r.pass0005]));
-    const band = (key, color, width) => {
-      const data = runs.map((r) => ({ time: r.day, value: (r.pass2355 || r.pass0005 || {})[key] }))
-        .filter((d) => isNum(d.value));
-      if (data.length) { L(color, width || 1, 0, 0).setData(data); }
-    };
-    band('sma', '#9ca3af'); band('boundDown2', '#198754', 2); band('boundDown1', '#86efac');
-    band('boundUp1', '#fca5a5'); band('boundUp2', '#f87171'); band('boundUp3', '#dc3545', 2);
-    const tags = perf.markers.map((t) => {
-      const b = blockOf.get(t.day) || {};
-      const factor = t.type === 'BUY' ? b.buyFactor : b.sellFactor;
-      const text = (t.type === 'BUY' ? '▲ ' : '▼ ') + compact(t.price)
-        + (isNum(factor) ? ' ×' + F2.format(factor) : '')
-        + (isNum(b.athDistance) ? ' · ATH −' + pctText(b.athDistance) : '');
-      return t.type === 'BUY'
-        ? { time: t.day, position: 'belowBar', color: COLORS.buy, shape: 'arrowUp', text }
-        : { time: t.day, position: 'aboveBar', color: COLORS.sell, shape: 'arrowDown', text };
-    }).sort((a, b) => (a.time < b.time ? -1 : (a.time > b.time ? 1 : 0)));
-    LW.createSeriesMarkers(sClose, tags);
-
-    // panneau 1 : PnL (réalisé = vendu − coût des parts vendues ; potentiel = valeur − coût de revient)
-    const realized = (p) => p.saleProceeds - (p.invested - p.costBasis);
-    L('#198754', 2, 0, 1, 'réalisé').setData(series.map((p) => ({ time: p.day, value: realized(p) })));
-    L('#0d6efd', 2, 0, 1, 'potentiel').setData(series.map((p) => ({ time: p.day, value: p.currentValue - p.costBasis })));
-    L('#212529', 2, 0, 1, 'total').setData(series.map((p) => ({ time: p.day, value: realized(p) + p.currentValue - p.costBasis })));
-    L('#9ca3af', 1, dashed, 1, 'DCA fixe').setData(series.map((p) => ({ time: p.day, value: p.fixedValue - p.fixedInvested })));
-
-    // panneau 2 : expositions du wallet mock
-    const cap = perf.wallet ? perf.wallet.initialCapitalUsdc : null;
-    L('#212529', 2, 0, 2, 'wallet total').setData(series.map((p) => ({ time: p.day, value: p.walletEquity })));
-    L('#0d6efd', 2, 0, 2, 'en actif').setData(series.map((p) => ({ time: p.day, value: p.currentValue })));
-    L('#198754', 2, 0, 2, 'en stable').setData(series.map((p) => ({ time: p.day, value: p.walletEquity - p.currentValue })));
-    if (isNum(cap)) { L('#9ca3af', 1, dashed, 2, 'capital initial').setData(series.map((p) => ({ time: p.day, value: cap }))); }
-
-    const panes = chart.panes();
-    [5, 2, 2].forEach((f, i) => { if (panes[i]) { panes[i].setStretchFactor(f); } });
-    chart.timeScale().fitContent();
-
-    $('rl-multi-legend').replaceChildren(
-      legendItem('#212529', 'Close'), legendItem('#9ca3af', 'SMA'), legendItem('#198754', 'bornes basses / réalisé / stable'),
-      legendItem('#dc3545', 'bornes hautes'), legendItem('#0d6efd', 'potentiel / en actif'),
-      legendItem(COLORS.buy, '▲ achat (prix ×facteur ATH · distance ATH)'), legendItem(COLORS.sell, '▼ vente'));
-    return chart;
-  }
-
-  /* -------- runs */
-
-  async function loadRuns() {
-    const id = state.selectedId;
-    const panel = $('rl-runs-panel');
-    const q = new URLSearchParams();
-    if ($('rl-runs-from').value) { q.set('from', $('rl-runs-from').value); }
-    if ($('rl-runs-to').value) { q.set('to', $('rl-runs-to').value); }
-    try {
-      const runs = await api('GET', '/presets/' + id + '/runs' + (q.toString() ? '?' + q : ''));
-      if (id !== state.selectedId) { return; }
-      renderRuns(panel, runs);
-    } catch (e) {
-      if (id !== state.selectedId) { return; }
-      panelError(panel, e, loadRuns);
-    }
-  }
-
-  const refBlock = (r) => r.pass2355 || r.pass0005;
-  const BLOCK_FIELDS = [['sma', 'SMA'], ['atr', 'ATR'], ['boundDown2', 'Borne extrême bas'], ['boundDown1', 'Borne basse'],
-    ['boundUp1', 'Borne haute 1'], ['boundUp2', 'Borne haute 2'], ['boundUp3', 'Borne extrême haut'],
-    ['athDistance', 'Distance ATH'], ['buyFactor', 'Facteur achat'], ['sellFactor', 'Facteur vente'],
-    ['moonReserveQty', 'Réserve moon (qté)']];
-
-  function renderRuns(panel, runs) {
-    if (runs.length === 0) {
-      const p = currentPreset();
-      panel.replaceChildren(emptyMsg(p && p.runCount === 0
-        ? 'Aucun run encore : les passes 23:55/00:05 UTC alimenteront cette vue.' : 'Aucun run sur cette période.'));
-      return;
-    }
-    const rows = [];
-    [...runs].reverse().forEach((r) => {
-      const b = refBlock(r);
-      const detail = el('tr', { class: 'rl-detail-row d-none' }, el('td', { colspan: 10 }, runDetail(r)));
-      const btn = el('button', { type: 'button', class: 'btn btn-sm btn-link p-0', text: '▸', title: 'Détails (bornes, facteurs)' });
-      btn.addEventListener('click', () => {
-        const open = detail.classList.toggle('d-none') === false;
-        btn.textContent = open ? '▾' : '▸';
-      });
-      rows.push(el('tr', null,
-        el('td', null, btn),
-        el('td', { class: 'text-nowrap', text: r.day }),
-        el('td', { text: b ? usd(b.close) : DASH }),
-        el('td', { text: b ? zoneLabel(b.zone) : DASH }),
-        el('td', { text: r.pass2355 ? actionText(r.pass2355.actionType, r.pass2355.actionAmountUsdc, r.pass2355.actionQuantity) : DASH }),
-        el('td', { text: r.pass0005 ? actionText(r.pass0005.actionType, r.pass0005.actionAmountUsdc, r.pass0005.actionQuantity) : DASH }),
-        el('td', null, setTrendCell(b && b.activeSet, b && b.trendRegime)),
-        el('td', null, stateBadges(b)),
-        el('td', { text: r.pass2355 ? usd(r.pass2355.cashAfter) + ' / ' + qty(r.pass2355.positionAfter) : DASH }),
-        el('td', null,
-          r.deltaActionDiffers ? el('span', { class: 'badge bg-warning text-dark me-1', text: '⚠ delta',
-            title: "L'action diffère entre la passe 23:55 et la passe 00:05" }) : null,
-          r.configChanged ? el('span', { class: 'badge bg-info text-dark', text: 'config modifiée',
-            title: r.changedParams.length ? 'Paramètres modifiés : ' + r.changedParams.join(', ') : 'Configuration modifiée' }) : null)));
-      rows.push(detail);
-    });
-    panel.replaceChildren(
-      el('div', { class: 'small text-muted mb-1', text: runs.length + ' jour(s), le plus récent en premier. Action 23:55 = action fictive retenue.' }),
-      el('div', { class: 'rl-runs-scroll' }, el('table', { class: 'table table-sm align-middle mb-0' },
-        el('thead', null, el('tr', null, ...['', 'Jour', 'Close', 'Zone', 'Action 23:55', 'Action 00:05', 'Jeu · Trend', 'États',
-          'Cash / position après', ''].map((h) => el('th', { text: h })))),
-        el('tbody', null, rows))));
-  }
-
-  function stateBadges(b) {
-    if (!b) { return DASH; }
-    const tags = [];
-    if (b.moonMode) { tags.push('moon'); }
-    if (b.buyArmed) { tags.push('armé achat'); }
-    if (b.sellArmed) { tags.push('armé vente'); }
-    if (b.buyLocked) { tags.push('verrou achat'); }
-    if (isNum(b.cooldownRemaining) && b.cooldownRemaining > 0) { tags.push('cooldown ' + b.cooldownRemaining + ' j'); }
-    return tags.length ? tags.map((t) => el('span', { class: 'badge bg-secondary me-1', text: t })) : DASH;
-  }
-
-  function runDetail(r) {
-    const head = el('tr', null, el('th', { text: '' }), el('th', { text: '23:55' }), el('th', { text: '00:05' }));
-    const rows = BLOCK_FIELDS.map(([k, label]) => el('tr', null, el('td', { text: label }),
-      el('td', { text: r.pass2355 ? dec(r.pass2355[k]) : DASH }), el('td', { text: r.pass0005 ? dec(r.pass0005[k]) : DASH })));
-    return el('table', { class: 'table table-sm mb-0 w-auto' }, el('thead', null, head), el('tbody', null, rows));
-  }
-
-  /* -------- delta */
-
-  async function loadDelta() {
-    const id = state.selectedId;
-    const panel = $('rl-delta-panel');
-    try {
-      const d = await api('GET', '/presets/' + id + '/delta');
-      if (id !== state.selectedId) { return; }
-      renderDelta(panel, d);
-    } catch (e) {
-      if (id !== state.selectedId) { return; }
-      panelError(panel, e, loadDelta);
-    }
-  }
-
-  const table = (heads, rows) => el('table', { class: 'table table-sm w-auto' },
-    el('thead', null, el('tr', null, ...heads.map((h) => el('th', { text: h })))), el('tbody', null, rows));
-
-  function renderDelta(panel, d) {
-    if (d.daysCompared === 0) {
-      panel.replaceChildren(emptyMsg('Aucun jour avec les deux passes (23:55 et 00:05) pour le moment : '
-        + d.daysIgnored + ' jour(s) ignoré(s).'));
-      return;
-    }
-    const share = d.daysActionDiffers / d.daysCompared * 100;
-    const indicators = Object.entries(d.indicators || {}).map(([name, s]) => el('tr', null, el('td', { text: name }),
-      el('td', { text: dec(s.meanAbs) }), el('td', { text: dec(s.maxAbs) }), el('td', { text: pct(s.meanPct) }), el('td', { text: pct(s.maxPct) })));
-    panel.replaceChildren(
-      el('div', { class: 'row g-2' },
-        card('Jours comparés', String(d.daysCompared)),
-        card('Jours ignorés', String(d.daysIgnored), '', "Jours sans l'une des deux passes"),
-        card("Jours où l'action diffère", d.daysActionDiffers + ' (' + pct(share) + ')'),
-        card('Divergences de zone', String(d.zoneDivergences.length)),
-        card("Divergences d'états", String(d.stateDivergences.length))),
-      el('div', { class: 'fw-semibold mt-3', text: 'Écart 00:05 − 23:55 par indicateur' }),
-      table(['Indicateur', 'Moyenne abs.', 'Max abs.', 'Moyenne %', 'Max %'], indicators),
-      d.actionDifferences.length ? el('div', null, el('div', { class: 'fw-semibold', text: 'Actions différentes' }),
-        table(['Jour', 'Action 23:55', 'Action 00:05'], d.actionDifferences.map((a) => el('tr', null, el('td', { text: a.day }),
-          el('td', { text: actionText(a.pass2355.type, a.pass2355.amountUsdc, a.pass2355.quantity) }),
-          el('td', { text: actionText(a.pass0005.type, a.pass0005.amountUsdc, a.pass0005.quantity) }))))) : null,
-      d.zoneDivergences.length ? el('div', null, el('div', { class: 'fw-semibold', text: 'Zones différentes' }),
-        table(['Jour', 'Zone 23:55', 'Zone 00:05'], d.zoneDivergences.map((z) => el('tr', null, el('td', { text: z.day }),
-          el('td', { text: zoneLabel(z.zone2355) }), el('td', { text: zoneLabel(z.zone0005) }))))) : null,
-      d.stateDivergences.length ? el('div', null, el('div', { class: 'fw-semibold', text: 'États différents' }),
-        table(['Jour', 'Champs'], d.stateDivergences.map((s) => el('tr', null, el('td', { text: s.day }),
-          el('td', { text: s.fields.join(', ') }))))) : null,
-      el('div', { class: 'small text-muted', text: 'Hypothèse à vérifier : un delta minime signifie des effets de bord quasi nuls. '
-        + 'Les chiffres ci-dessus sont fournis tels quels, sans conclusion.' }));
-  }
-
   /* ------------------------------------------------------------------ mode d'affichage (par utilisateur) */
 
   const UI_MODES = [['AUTO', 'Auto'], ['SIMPLE', 'Simple'], ['ADVANCED', 'Avancé'], ['EXPERT', 'Expert']];
@@ -1339,9 +934,6 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
     $('rl-form-submit').addEventListener('click', submitForm);
     $('rl-form-fill-default').addEventListener('click', fillWithAssetDefault);
     $('rl-delete-confirm').addEventListener('click', confirmDelete);
-    $('rl-runs-apply').addEventListener('click', loadRuns);
-    $('rl-runs-90').addEventListener('click', () => { $('rl-runs-from').value = todayMinus(90); $('rl-runs-to').value = ''; loadRuns(); });
-    $('rl-runs-all').addEventListener('click', () => { $('rl-runs-from').value = ''; $('rl-runs-to').value = ''; loadRuns(); });
   }
 
   async function init() {

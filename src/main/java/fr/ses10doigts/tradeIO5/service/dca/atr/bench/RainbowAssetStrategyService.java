@@ -58,7 +58,6 @@ public class RainbowAssetStrategyService {
                     .name(RainbowLiveDefaultPresets.TREND_MIX_NAME)
                     .mode(RainbowLiveMode.TREND_MIX)
                     .analysisWindowMonths(RainbowLiveDefaultPresets.DEFAULT_ANALYSIS_WINDOW_MONTHS)
-                    .initialCapitalUsdc(RainbowLiveDefaultPresets.DEFAULT_INITIAL_CAPITAL_USDC)
                     .createdAt(now)
                     .updatedAt(now)
                     .revision(1)

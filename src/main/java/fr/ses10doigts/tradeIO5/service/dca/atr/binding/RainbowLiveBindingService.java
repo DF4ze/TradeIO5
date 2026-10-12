@@ -83,7 +83,7 @@ public class RainbowLiveBindingService {
         return checked(saved);
     }
 
-    /** Bascule du live = changer {@code presetId} ; l'ancien preset n'est plus lié (simulation), historique conservé. */
+    /** Bascule du live = changer {@code presetId} ; l'ancien preset n'est plus lié, historique conservé. */
     @Transactional
     public Checked update(User user, Long id, UpdateRequest req) {
         RainbowLiveBinding binding = owned(user, id);

@@ -311,7 +311,7 @@ class OrderPlannerTest {
                 RainbowLiveAction.NONE, null, null, cash("500"));
         AssetInput upstreamBlocked = new AssetInput("PAXG", 2, true, 7L, WebProviderCode.OKX, credential, PortfolioStatus.OK,
                 RainbowLiveAction.BLOCKED, d("100"), d("0.001"), cash("500"));
-        AssetInput stale = new AssetInput("SOL", 3, true, 7L, WebProviderCode.OKX, credential, PortfolioStatus.STALE,
+        AssetInput stale = new AssetInput("SOL", 3, true, 7L, WebProviderCode.OKX, credential, PortfolioStatus.UNAVAILABLE,
                 RainbowLiveAction.BUY, d("100"), d("0.001"), cash("500"));
         PlanDraft plan = planner.plan(List.of(none, upstreamBlocked, stale));
         assertEquals(AssetPlanOutcome.NO_ACTION, asset(plan, "ETH").outcome());
@@ -353,24 +353,22 @@ class OrderPlannerTest {
     @Test
     @DisplayName("clOrdId : déterministe, alphanumérique, 32 caractères maximum, distinct par wallet")
     void clOrdId() {
-        var t2355 = fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass.T2355;
         LocalDate day = LocalDate.of(2026, 10, 9);
-        String id = ClOrdIds.of(1234567L, 12L, "PAXG", day, t2355, 2);
+        String id = ClOrdIds.of(1234567L, 12L, "PAXG", day, 2);
 
-        assertEquals(id, ClOrdIds.of(1234567L, 12L, "PAXG", day, t2355, 2));
-        assertEquals("t54qglj1cpaxg20261009102", id);
+        assertEquals(id, ClOrdIds.of(1234567L, 12L, "PAXG", day, 2));
+        assertEquals("t54qglj1cpaxg2026100902", id);
         assertTrue(id.length() <= 32 && id.matches("[a-z0-9]+"));
-        assertNotEquals(id, ClOrdIds.of(1234567L, 12L, "PAXG", day, t2355, 1));
-        assertNotEquals(id, ClOrdIds.of(1234567L, 13L, "PAXG", day, t2355, 2), "un autre wallet donne un autre identifiant");
-        assertNotEquals(ClOrdIds.of(1L, 11L, "BTC", day, t2355, 1), ClOrdIds.of(11L, 1L, "BTC", day, t2355, 1),
+        assertNotEquals(id, ClOrdIds.of(1234567L, 12L, "PAXG", day, 1));
+        assertNotEquals(id, ClOrdIds.of(1234567L, 13L, "PAXG", day, 2), "un autre wallet donne un autre identifiant");
+        assertNotEquals(ClOrdIds.of(1L, 11L, "BTC", day, 1), ClOrdIds.of(11L, 1L, "BTC", day, 1),
                 "userId/walletId non ambigus");
     }
 
     @Test
     @DisplayName("clOrdId : longueur maximale avec des identifiants réalistes (user 6 chiffres, wallet 6 chiffres, PAXG)")
     void clOrdIdMaxLength() {
-        String id = ClOrdIds.of(999_999L, 999_999L, "PAXG", LocalDate.of(2026, 12, 31),
-                fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass.T0005, 99);
+        String id = ClOrdIds.of(999_999L, 999_999L, "PAXG", LocalDate.of(2026, 12, 31), 99);
         assertTrue(id.length() <= ClOrdIds.MAX_LENGTH, id);
     }
 }

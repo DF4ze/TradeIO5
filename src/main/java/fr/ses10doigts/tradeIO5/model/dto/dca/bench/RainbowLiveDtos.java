@@ -1,10 +1,8 @@
 package fr.ses10doigts.tradeIO5.model.dto.dca.bench;
 
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrGlobals;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrTuning;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePerformanceCalculator;
 import fr.ses10doigts.tradeIO5.service.tree.trend.TrendMixCalculator;
 
 import java.time.Instant;
@@ -26,7 +24,7 @@ public final class RainbowLiveDtos {
      * moteur (le front ne duplique aucune de ces constantes).
      */
     public record DefaultsDto(List<String> assets, String cashCurrency, String defaultName, int analysisWindowMonths,
-                              double initialCapitalUsdc, double baseAmount, Map<String, ConfigDto> configs,
+                              double baseAmount, Map<String, ConfigDto> configs,
                               List<String> reentryModes, List<ZoneDto> zones,
                               Map<String, TrendConfigDto> trendDefaults, List<String> rangeMappings,
                               List<String> uiModes, String systemPrefix) {
@@ -44,7 +42,7 @@ public final class RainbowLiveDtos {
 
     /** Stratégie Actif (lecture seule côté user) ; {@code trendConfig} nul pour une stratégie FIXED. */
     public record StrategyDto(Long id, String assetSymbol, String name, String mode, int revision, Instant updatedAt,
-                              int analysisWindowMonths, double initialCapitalUsdc, ConfigDto config,
+                              int analysisWindowMonths, ConfigDto config,
                               TrendConfigDto trendConfig) {
     }
 
@@ -56,18 +54,15 @@ public final class RainbowLiveDtos {
     public record UiModeDto(String mode) {
     }
 
-    /** Wallet mock ; {@code lastClose}/{@code equityUsdc} nuls tant qu'aucun close n'est connu. */
-    public record WalletDto(double cashUsd, double positionQuantity, Double lastClose, Double equityUsdc) {
-    }
-
-    public record LastRunDto(LocalDate day, RainbowLivePass pass, Double close, Integer zone, RainbowLiveAction actionType,
+    /** Dernier signal enregistré d'un preset (run le plus récent). */
+    public record LastRunDto(LocalDate day, Double close, Integer zone, RainbowLiveAction actionType,
                              Double actionAmountUsdc, Double actionQuantity,
                              String activeSet, String trendRegime) {
     }
 
     public record PresetDto(Long id, String assetSymbol, String name, boolean enabled, int analysisWindowMonths,
-                            double initialCapitalUsdc, Instant createdAt, Instant updatedAt,
-                            RainbowAtrTuning tuning, RainbowAtrGlobals globals, WalletDto wallet,
+                            Instant createdAt, Instant updatedAt,
+                            RainbowAtrTuning tuning, RainbowAtrGlobals globals,
                             long runCount, LocalDate firstRunDay, LastRunDto lastRun, String mode, TrendConfigDto trendConfig,
                             boolean followsStrategy, Integer strategyRevision) {
     }
@@ -76,30 +71,5 @@ public final class RainbowLiveDtos {
     public record PresetEventDto(Long id, String assetSymbol, String type, Long presetBeforeId, String presetBeforeName,
                                  Long presetAfterId, String presetAfterName, Integer strategyRevision, Instant occurredAt,
                                  String reason) {
-    }
-
-    public record BlockDto(Double close, Double sma, Double atr, Double boundDown2, Double boundDown1, Double boundUp1,
-                           Double boundUp2, Double boundUp3, Integer zone, Double athDistance, Double buyFactor,
-                           Double sellFactor, Boolean moonMode, Boolean buyArmed, Boolean sellArmed, Boolean buyLocked,
-                           Integer cooldownRemaining, Double moonReserveQty, RainbowLiveAction actionType,
-                           Double actionAmountUsdc, Double actionQuantity, Double actionPrice, Double cashAfter,
-                           Double positionAfter, String configHash, Instant computedAt,
-                           String activeSet, String trendRegime) {
-    }
-
-    public record RunDto(LocalDate day, BlockDto pass2355, BlockDto pass0005, boolean deltaActionDiffers,
-                         String configHash, boolean configChanged, List<String> changedParams) {
-    }
-
-    public record ConfigMarkerDto(LocalDate day, String configHash, List<String> changedParams) {
-    }
-
-    public record PerformanceDto(Long presetId, String assetSymbol, double initialCapitalUsdc, int days,
-                                 LocalDate firstDay, LocalDate lastDay,
-                                 RainbowLivePerformanceCalculator.Metrics metrics,
-                                 RainbowLivePerformanceCalculator.WalletMetrics wallet,
-                                 List<RainbowLivePerformanceCalculator.DayPoint> series,
-                                 List<RainbowLivePerformanceCalculator.TradeMarker> markers,
-                                 List<ConfigMarkerDto> configMarkers) {
     }
 }

@@ -3,7 +3,7 @@
 > À coller tel quel dans une nouvelle discussion (Claude Code / Cowork sur TradeIO-5). Étape (a) de `docs/prompts/prompt-roadmap-chemin-achat-execution.md`. **Lecture seule : aucun ordre, aucune méthode d'ordre, aucun appel authentifié autre que `GET /api/v5/account/trade-fee` avec la clé Read.** Point avec Clem à la fin.
 
 ## 0. Démarrage
-1. Lis `docs/README.md`, `docs/CODING_RULES.md`, `docs/etudes/etude-chemin-achat-execution.md` (§2 état des lieux, §3.1-3.2, §5 décisions), la roadmap, `architecture/08-rainbow-bench-grandeur-nature.md` (§Bindings, §Groupes d'actifs), `architecture/07-security.md`, `operations/flyway.md` (règle des défauts dans les Initializers).
+1. Lis `docs/README.md`, `docs/CODING_RULES.md`, `docs/etudes/etude-chemin-achat-execution.md` (§2 état des lieux, §3.1-3.2, §5 décisions), la roadmap, `architecture/08-rainbow-live.md` (§Bindings, §Groupes d'actifs), `architecture/07-security.md`, `operations/flyway.md` (règle des défauts dans les Initializers).
 2. Lis le code : `service/connector/apiclient/{OkxBalanceReader,OkxInstrumentChecker,KrakenInstrumentChecker,OkxApiClient}`, `service/connector/instrument/SpotInstrumentChecker`, `service/dca/atr/binding/BindingCheck*`, `service/currency/AssetGroupService`, `model/dto/market/OrderBookSnapshot`, `BinanceOrderBookApiClient` (modèle de lecture de carnet), `ApiCredential`/`Wallet`, tests `InstrumentCheckersTest`, `ConnectorNoOrderMethodTest`, `RainbowLiveNoExchangeDependencyTest`.
 3. Réponds en français, court et technique. Point ambigu ⇒ pose la question à Clem avant de coder.
 

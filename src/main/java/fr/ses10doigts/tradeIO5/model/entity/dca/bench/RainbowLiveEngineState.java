@@ -23,7 +23,7 @@ import java.time.LocalDate;
 /**
  * État de la machine Rainbow ({@link RainbowAtrState}) d'un preset {@code TREND_MIX} à la FIN du jour {@code day}
  * (après la passe 23:55). Une ligne par (preset, jour) : la passe du lendemain repart de la dernière ligne
- * antérieure à son jour, la passe 00:05 relit celle de la veille sans rien écrire. Supprimé avec son preset.
+ * antérieure à son jour. Supprimé avec son preset.
  * Les NaN du moteur (« sans objet ») sont stockés {@code null}.
  */
 @Entity
@@ -58,6 +58,9 @@ public class RainbowLiveEngineState {
     private double reserveQty;
     private boolean moonActive;
     private Double moonPeak;
+
+    /** Position VIRTUELLE du moteur (quantité), base de la réserve moon et des ventes ; indépendante de tout wallet. */
+    private double positionQty;
 
     /** Hash de la config effective (jeux Bear/Bull + réglages Trend + fenêtre) avec laquelle l'état a été calculé. */
     @Column(length = 64)

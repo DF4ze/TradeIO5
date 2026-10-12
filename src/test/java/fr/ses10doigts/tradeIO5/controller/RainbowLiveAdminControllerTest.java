@@ -2,7 +2,6 @@ package fr.ses10doigts.tradeIO5.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAssetStrategy;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMode;
@@ -57,31 +56,25 @@ class RainbowLiveAdminControllerTest {
     }
 
     @Test
-    @DisplayName("POST /run?pass=T2355 => runPass(T2355, now, null)")
+    @DisplayName("POST /run => runPass(now, null)")
     void runWithoutDay() throws Exception {
-        when(service.runPass(eq(RainbowLivePass.T2355), eq(NOW), isNull()))
-                .thenReturn(new PassSummary(RainbowLivePass.T2355, LocalDate.of(2026, 9, 30), 3, 0, 0));
+        when(service.runPass(eq(NOW), isNull()))
+                .thenReturn(new PassSummary(LocalDate.of(2026, 9, 30), 3, 0, 0));
 
-        mockMvc.perform(post("/api/admin/rainbow-live/run").param("pass", "T2355"))
+        mockMvc.perform(post("/api/admin/rainbow-live/run"))
                 .andExpect(status().isOk())
-                .andExpect(content().json("{\"pass\":\"T2355\",\"day\":\"2026-09-30\",\"processed\":3,\"skipped\":0,\"errors\":0}"));
-        verify(service).runPass(RainbowLivePass.T2355, NOW, null);
+                .andExpect(content().json("{\"day\":\"2026-09-30\",\"processed\":3,\"skipped\":0,\"errors\":0}"));
+        verify(service).runPass(NOW, null);
     }
 
     @Test
-    @DisplayName("POST /run?pass=T0005&day=2026-09-20 => jour forcé")
+    @DisplayName("POST /run?day=2026-09-20 => jour forcé")
     void runWithDayOverride() throws Exception {
-        when(service.runPass(any(), any(), any())).thenReturn(new PassSummary(RainbowLivePass.T0005, LocalDate.of(2026, 9, 20), 1, 0, 0));
+        when(service.runPass(any(), any())).thenReturn(new PassSummary(LocalDate.of(2026, 9, 20), 1, 0, 0));
 
-        mockMvc.perform(post("/api/admin/rainbow-live/run").param("pass", "T0005").param("day", "2026-09-20"))
+        mockMvc.perform(post("/api/admin/rainbow-live/run").param("day", "2026-09-20"))
                 .andExpect(status().isOk());
-        verify(service).runPass(RainbowLivePass.T0005, NOW, LocalDate.of(2026, 9, 20));
-    }
-
-    @Test
-    @DisplayName("pass invalide => 400")
-    void invalidPass() throws Exception {
-        mockMvc.perform(post("/api/admin/rainbow-live/run").param("pass", "X")).andExpect(status().isBadRequest());
+        verify(service).runPass(NOW, LocalDate.of(2026, 9, 20));
     }
 
     @Test
@@ -89,7 +82,7 @@ class RainbowLiveAdminControllerTest {
     void updateStrategy() throws Exception {
         RainbowLiveTrendConfigs.Resolved trend = RainbowLiveTrendConfigs.defaults("BTC");
         RainbowAssetStrategy updated = RainbowAssetStrategy.builder().id(7L).assetSymbol("BTC").name("Trend Mix")
-                .mode(RainbowLiveMode.TREND_MIX).analysisWindowMonths(9).initialCapitalUsdc(1000).revision(2)
+                .mode(RainbowLiveMode.TREND_MIX).analysisWindowMonths(9).revision(2)
                 .createdAt(NOW).updatedAt(NOW)
                 .config(RainbowAtrConfig.of(trend.bear().tuning(), trend.bear().globals()))
                 .trendConfigJson(RainbowLiveTrendConfigs.toJson(RainbowLiveTrendConfigs.toDto(trend))).build();

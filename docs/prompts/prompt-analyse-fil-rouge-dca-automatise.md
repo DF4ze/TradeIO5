@@ -3,7 +3,7 @@
 ## Contexte
 Objectif n°1 : automatiser les achats/ventes du DCA intelligent Rainbow ATR. Lis, dans l'ordre :
 1. `docs/README.md` puis `docs/known-gaps/rainbow-dca-chantiers-ouverts.md` (état de la chaîne, questions ouvertes) ;
-2. `docs/architecture/04-market-data.md` (moteur Rainbow ATR), `08-rainbow-bench-grandeur-nature.md`, `09-trend.md` ;
+2. `docs/architecture/04-market-data.md` (moteur Rainbow ATR), `08-rainbow-live.md`, `09-trend.md` ;
 3. `docs/calibration/calibration-rainbow-atr-v3-regime.md` (verdict du bench invalidé, pourquoi) ;
 4. `docs/known-gaps/decision-to-order-gap.md` ;
 5. `tools/pine/rainbow_dca_v4_atr_moon.pine` : **source de vérité** de la logique (presets `<ACTIF> Perso Bear/Bull` = jeux réglés à la main par Clem, BTC/ETH/PAXG Kraken) ; le Java doit s'y conformer.

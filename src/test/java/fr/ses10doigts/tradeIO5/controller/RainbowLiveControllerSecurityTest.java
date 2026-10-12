@@ -71,8 +71,6 @@ class RainbowLiveControllerSecurityTest {
         SecurityContextHolder.setContext(new SecurityContextImpl(new AnonymousAuthenticationToken(
                 "key", "anonymous", AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS"))));
         assertThrows(AccessDeniedException.class, () -> controller.defaults());
-        assertThrows(AccessDeniedException.class, () -> controller.runs(1L, null, null));
-        assertThrows(AccessDeniedException.class, () -> controller.performance(1L, null));
     }
 
     @Test

@@ -1,6 +1,5 @@
 package fr.ses10doigts.tradeIO5.controller;
 
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.StrategyDto;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowAssetStrategyService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveExecutionService;
@@ -26,7 +25,7 @@ import java.util.Map;
 /**
  * Déclenchement manuel d'une passe du bench grandeur nature Rainbow (même patron que
  * {@link DecisionOrchestratorAdminController}). Réservé ROLE_ADMIN.
- * {@code POST /api/admin/rainbow-live/run?pass=T2355|T0005[&day=YYYY-MM-DD]} : {@code day} (UTC) force le jour traité.
+ * {@code POST /api/admin/rainbow-live/run[?day=YYYY-MM-DD]} : {@code day} (UTC) force le jour traité.
  */
 @Slf4j
 @RestController
@@ -41,10 +40,9 @@ public class RainbowLiveAdminController {
 
     @PostMapping("/run")
     public ResponseEntity<RainbowLiveExecutionService.PassSummary> run(
-            @RequestParam RainbowLivePass pass,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate day) {
-        log.info("RainbowLiveAdminController : déclenchement manuel passe={} day={}", pass, day);
-        return ResponseEntity.ok(executionService.runPass(pass, clock.now(), day));
+        log.info("RainbowLiveAdminController : déclenchement manuel day={}", day);
+        return ResponseEntity.ok(executionService.runPass(clock.now(), day));
     }
 
     /**

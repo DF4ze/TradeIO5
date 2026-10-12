@@ -55,7 +55,7 @@ class RainbowLiveTrendConfigTest {
     }
 
     private RainbowLivePreset trend(TrendConfigDto cfg) {
-        return presetService.create(alice, new CreateRequest("BTC", "TM", true, 6, 1000, null, null, "TREND_MIX", cfg));
+        return presetService.create(alice, new CreateRequest("BTC", "TM", true, 6, null, null, "TREND_MIX", cfg));
     }
 
     @Test

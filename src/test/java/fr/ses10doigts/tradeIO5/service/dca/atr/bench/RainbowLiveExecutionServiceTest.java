@@ -3,13 +3,10 @@ package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMockWallet;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
-import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveMockWalletRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLivePresetRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
@@ -62,9 +59,9 @@ import static org.mockito.Mockito.when;
 
 @DataJpaTest
 @Import({RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class, RainbowLivePresetService.class, RainbowAssetStrategyService.class, RainbowLiveRunService.class, RainbowLiveBindingRunService.class, RainbowLiveExecutionService.class,
-        RainbowTrendLiveService.class, MockPortfolioSource.class, RainbowAthService.class,
+        RainbowTrendLiveService.class, RainbowAthService.class,
         RainbowLiveExecutionServiceTest.ClockConfig.class})
-@DisplayName("Bench grandeur nature Rainbow : service d'exécution (passes 23:55 / 00:05)")
+@DisplayName("Live Rainbow : service d'exécution (passe quotidienne 23:55 UTC)")
 class RainbowLiveExecutionServiceTest {
 
     private static final LocalDate START = LocalDate.of(2026, 9, 1);
@@ -72,7 +69,6 @@ class RainbowLiveExecutionServiceTest {
     private static final int N = 30;
     private static final LocalDate LAST_DAY = START.plusDays(N - 1);
     private static final Instant ASOF_2355 = Instant.parse("2026-09-30T23:55:00Z");
-    private static final Instant ASOF_0005 = Instant.parse("2026-10-01T00:05:00Z");
 
     /** Zone X1 sur série plate (sma 100, atr 2) : un BUY_ZONE de {@code base} par bougie. IMMEDIATE, pas de cooldown. */
     private static final RainbowAtrTuning FLAT = new RainbowAtrTuning(3, 3, 2.0, 1.0, 1.0, 2.0, 3.0,
@@ -102,14 +98,13 @@ class RainbowLiveExecutionServiceTest {
     }
 
     @MockBean private MarketDatasetEngine datasetEngine;
-    /** Aucun binding : tous les presets restent en simulation (liveSlots vide). */
+    /** Aucun binding : seul le signal du preset est calculé (liveSlots vide). */
     @MockBean private RealPortfolioSource realPortfolioSource;
     @MockBean private fr.ses10doigts.tradeIO5.service.calibration.BinanceDailyCandleFetcher binanceDailyCandleFetcher;
     @Autowired private RainbowLiveExecutionService service;
     @Autowired private RainbowLivePresetService presetService;
     @Autowired private RainbowAssetStrategyService strategyService;
     @Autowired private RainbowLivePresetRepository presetRepository;
-    @Autowired private RainbowLiveMockWalletRepository walletRepository;
     @Autowired private RainbowLiveRunRepository runRepository;
     @Autowired private UserRepository userRepository;
 
@@ -166,16 +161,12 @@ class RainbowLiveExecutionServiceTest {
     }
 
     private RainbowLivePreset preset(User u, String asset, String name, RainbowAtrTuning t, RainbowAtrGlobals g) {
-        return presetService.create(u, new RainbowLivePresetService.CreateRequest(asset, name, true, 6, 1000, t, g));
+        return presetService.create(u, new RainbowLivePresetService.CreateRequest(asset, name, true, 6, t, g));
     }
 
     /** Un preset FLAT par actif autorisé => aucun preset par défaut créé par le job. */
     private List<RainbowLivePreset> presetsAllAssets(User u) {
         return RainbowLiveDefaultPresets.ASSETS.stream().map(a -> preset(u, a, "t", FLAT, globals(false, 1.0))).toList();
-    }
-
-    private RainbowLiveMockWallet wallet(RainbowLivePreset p) {
-        return walletRepository.findByPreset(p).orElseThrow();
     }
 
     private RainbowLiveRun run(RainbowLivePreset p, LocalDate day) {
@@ -198,10 +189,10 @@ class RainbowLiveExecutionServiceTest {
     // ---------------------------------------------------------------- jour UTC
 
     @Test
-    @DisplayName("dayFor : 23:55 => jour de asOf ; 00:05 => veille (UTC)")
+    @DisplayName("dayFor : jour UTC de asOf")
     void dayFor() {
-        assertEquals(LAST_DAY, RainbowLiveExecutionService.dayFor(RainbowLivePass.T2355, ASOF_2355));
-        assertEquals(LAST_DAY, RainbowLiveExecutionService.dayFor(RainbowLivePass.T0005, ASOF_0005));
+        assertEquals(LAST_DAY, RainbowLiveExecutionService.dayFor(ASOF_2355));
+        assertEquals(LAST_DAY.plusDays(1), RainbowLiveExecutionService.dayFor(ASOF_2355.plusSeconds(600)));
     }
 
     @Test
@@ -223,11 +214,11 @@ class RainbowLiveExecutionServiceTest {
         }
         RainbowLivePreset p = presetsAllAssets(alice).getFirst();
 
-        service.runPass(RainbowLivePass.T2355, ASOF_2355);
+        service.runPass(ASOF_2355);
 
         RainbowAtrDataset ds = RainbowAtrDataset.fromMarketData(candles("BTC", closes));
         RainbowAtrResult r = RainbowAtrEngine.simulate(ds, globals(false, 1.0), FLAT, 2, N - 1);
-        RainbowLivePassBlock b = run(p, LAST_DAY).getPass2355();
+        RainbowLivePassBlock b = run(p, LAST_DAY).getSignal();
         double sma = r.lastSma();
         double atr = r.lastAtr();
         assertEquals(closes[N - 1], b.getClose(), 1e-12);
@@ -263,15 +254,12 @@ class RainbowLiveExecutionServiceTest {
         RainbowLivePreset p = presetsAllAssets(alice).getFirst();
         assertEquals(List.of("BUY_ZONE"), lastDayEvents(closes, FLAT, globals(false, 1.0)));
 
-        service.runPass(RainbowLivePass.T2355, ASOF_2355);
+        service.runPass(ASOF_2355);
 
-        RainbowLivePassBlock b = run(p, LAST_DAY).getPass2355();
+        RainbowLivePassBlock b = run(p, LAST_DAY).getSignal();
         assertEquals(RainbowLiveAction.BUY, b.getActionType());
         assertEquals(1.0, b.getActionAmountUsdc(), 1e-12);
         assertEquals(0.01, b.getActionQuantity(), 1e-12);
-        assertEquals(999.0, b.getCashAfter(), 1e-12);
-        assertEquals(0.01, b.getPositionAfter(), 1e-12);
-        assertEquals(999.0, wallet(p).getCashUsd(), 1e-12);
     }
 
     @Test
@@ -285,46 +273,27 @@ class RainbowLiveExecutionServiceTest {
         serve("BTC", closes);
         assertEquals(List.of("BUY_TRIGGERED"), lastDayEvents(closes, TIGHT, globals(false, 1.0)));
 
-        service.runPass(RainbowLivePass.T2355, ASOF_2355);
+        service.runPass(ASOF_2355);
 
-        RainbowLivePassBlock b = run(p, LAST_DAY).getPass2355();
+        RainbowLivePassBlock b = run(p, LAST_DAY).getSignal();
         assertEquals(RainbowLiveAction.BUY, b.getActionType());
         assertEquals(3.0, b.getActionAmountUsdc(), 1e-12);
     }
 
     @Test
-    @DisplayName("SELL => SELL de la quantité moteur ; plafonnée à la position du wallet mock")
-    void mapsSellAndCapsToPosition() {
+    @DisplayName("SELL => SELL de la quantité moteur (signal non plafonné : le plafond réel est appliqué par lien)")
+    void mapsSell() {
         double[] closes = concat(flat(N - 2, 100), 150, 150);
         assertEquals(List.of("SELL"), lastDayEvents(closes, SELLT, globals(false, 1.0)));
         RainbowLivePreset p = preset(alice, "BTC", "sell", SELLT, globals(false, 1.0));
         serve("BTC", closes);
-        RainbowLiveMockWallet w = wallet(p);
-        w.setPositionQuantity(0.005);
-        walletRepository.save(w);
 
-        service.runPass(RainbowLivePass.T2355, ASOF_2355);
+        service.runPass(ASOF_2355);
 
-        RainbowLivePassBlock b = run(p, LAST_DAY).getPass2355();
+        RainbowLivePassBlock b = run(p, LAST_DAY).getSignal();
         assertEquals(RainbowLiveAction.SELL, b.getActionType());
-        assertEquals(0.005, b.getActionQuantity(), 1e-12);
-        assertEquals(0.005 * 150, b.getActionAmountUsdc(), 1e-9);
-        assertEquals(0.0, wallet(p).getPositionQuantity(), 1e-12);
-        assertEquals(1000 + 0.005 * 150, wallet(p).getCashUsd(), 1e-9);
-    }
-
-    @Test
-    @DisplayName("SELL avec position mock nulle => NONE (wallet jamais négatif, pas d'exception)")
-    void sellWithNoPositionIsNone() {
-        double[] closes = concat(flat(N - 2, 100), 150, 150);
-        RainbowLivePreset p = preset(alice, "BTC", "sell", SELLT, globals(false, 1.0));
-        serve("BTC", closes);
-
-        PassSummary s = service.runPass(RainbowLivePass.T2355, ASOF_2355);
-
-        assertEquals(0, s.errors());
-        assertEquals(RainbowLiveAction.NONE, run(p, LAST_DAY).getPass2355().getActionType());
-        assertEquals(0.0, wallet(p).getPositionQuantity(), 1e-12);
+        assertTrue(b.getActionQuantity() > 0);
+        assertEquals(b.getActionQuantity() * 150, b.getActionAmountUsdc(), 1e-9);
     }
 
     @Test
@@ -334,13 +303,10 @@ class RainbowLiveExecutionServiceTest {
         assertEquals(List.of("MOON_STOP"), lastDayEvents(closes, MOON_COOLDOWN, globals(true, 1.0)));
         RainbowLivePreset p = preset(alice, "BTC", "moon", MOON_COOLDOWN, globals(true, 1.0));
         serve("BTC", closes);
-        RainbowLiveMockWallet w = wallet(p);
-        w.setPositionQuantity(1.0);
-        walletRepository.save(w);
 
-        service.runPass(RainbowLivePass.T2355, ASOF_2355);
+        service.runPass(ASOF_2355);
 
-        RainbowLivePassBlock b = run(p, LAST_DAY).getPass2355();
+        RainbowLivePassBlock b = run(p, LAST_DAY).getSignal();
         assertEquals(RainbowLiveAction.SELL, b.getActionType());
         assertTrue(b.getActionQuantity() > 0 && b.getActionQuantity() <= 1.0);
     }
@@ -353,13 +319,10 @@ class RainbowLiveExecutionServiceTest {
         assertTrue(events.contains("MOON_STOP") && events.contains("BUY_ZONE"), "scénario : " + events);
         RainbowLivePreset p = preset(alice, "BTC", "both", MOON_NO_COOLDOWN, globals(true, 1.0));
         serve("BTC", closes);
-        RainbowLiveMockWallet w = wallet(p);
-        w.setPositionQuantity(1.0);
-        walletRepository.save(w);
 
-        service.runPass(RainbowLivePass.T2355, ASOF_2355);
+        service.runPass(ASOF_2355);
 
-        assertEquals(RainbowLiveAction.SELL, run(p, LAST_DAY).getPass2355().getActionType());
+        assertEquals(RainbowLiveAction.SELL, run(p, LAST_DAY).getSignal().getActionType());
     }
 
     @Test
@@ -370,97 +333,48 @@ class RainbowLiveExecutionServiceTest {
         serve("BTC", closes);
         assertTrue(lastDayEvents(closes, TIGHT, globals(false, 1.0)).isEmpty());
 
-        service.runPass(RainbowLivePass.T2355, ASOF_2355);
+        service.runPass(ASOF_2355);
 
-        RainbowLivePassBlock b = run(p, LAST_DAY).getPass2355();
+        RainbowLivePassBlock b = run(p, LAST_DAY).getSignal();
         assertEquals(RainbowLiveAction.NONE, b.getActionType());
         assertNull(b.getActionAmountUsdc());
     }
 
-    // ---------------------------------------------------------------- plafonds cash
+    // ---------------------------------------------------------------- passe quotidienne / rafraîchissement J-1
 
     @Test
-    @DisplayName("Achat partiel si cash < montant ; NONE si cash = 0 ; aucune IllegalStateException")
-    void capsBuyToCash() {
-        double[] closes = flat(N, 100);
-        RainbowLivePreset p = preset(alice, "BTC", "cash", FLAT, globals(false, 5.0));
-        serve("BTC", closes);
-        RainbowLiveMockWallet w = wallet(p);
-        w.setCashUsd(2.0);
-        walletRepository.save(w);
-
-        PassSummary s = service.runPass(RainbowLivePass.T2355, ASOF_2355);
-
-        assertEquals(0, s.errors());
-        RainbowLivePassBlock b = run(p, LAST_DAY).getPass2355();
-        assertEquals(RainbowLiveAction.BUY, b.getActionType());
-        assertEquals(2.0, b.getActionAmountUsdc(), 1e-12);
-        assertEquals(0.02, b.getActionQuantity(), 1e-12);
-        assertEquals(0.0, wallet(p).getCashUsd(), 1e-12);
-
-        // lendemain : cash 0 => NONE
-        serve("BTC", concat(closes, 100));
-        service.runPass(RainbowLivePass.T2355, ASOF_2355.plusSeconds(86_400));
-        RainbowLivePassBlock next = run(p, LAST_DAY.plusDays(1)).getPass2355();
-        assertEquals(RainbowLiveAction.NONE, next.getActionType());
-        assertEquals(0.0, wallet(p).getCashUsd(), 1e-12);
-    }
-
-    // ---------------------------------------------------------------- double passe / idempotence
-
-    @Test
-    @DisplayName("Double passe : blocs côte à côte, wallet modifié une seule fois, bougie du nouveau jour ignorée, rejeu idempotent")
-    void doublePass() {
-        double[] c2355 = flat(N, 100);
+    @DisplayName("Passe du lendemain : le run de la veille est rafraîchi sur la vraie clôture, action figée ; rejeu idempotent")
+    void nextDayRefreshesPreviousRun() {
         RainbowLivePreset p = presetsAllAssets(alice).getFirst();
         for (String a : RainbowLiveDefaultPresets.ASSETS) {
-            serve(a, c2355);
+            serve(a, flat(N, 100));
         }
-        service.runPass(RainbowLivePass.T2355, ASOF_2355);
-        double cashAfter2355 = wallet(p).getCashUsd();
-        assertEquals(999.0, cashAfter2355, 1e-12);
+        service.runPass(ASOF_2355);
+        RainbowLivePassBlock first = run(p, LAST_DAY).getSignal();
+        assertEquals(100.0, first.getClose(), 1e-12);
+        assertEquals(RainbowLiveAction.BUY, first.getActionType());
+        assertEquals(0.01, first.getActionQuantity(), 1e-12);
 
-        // 00:05 : vraie clôture du jour (101) + 1re bougie du nouveau jour (60) qui doit être ignorée
-        double[] c0005 = concat(flat(N - 1, 100), 101, 60);
+        // lendemain : la bougie J a sa clôture définitive (101) et la bougie J+1 est en cours
+        double[] next = concat(flat(N - 1, 100), 101, 100);
         for (String a : RainbowLiveDefaultPresets.ASSETS) {
-            serve(a, c0005);
+            serve(a, next);
         }
-        PassSummary s = service.runPass(RainbowLivePass.T0005, ASOF_0005);
+        PassSummary s = service.runPass(ASOF_2355.plusSeconds(86_400));
 
-        assertEquals(LAST_DAY, s.day());
-        RainbowLiveRun r = run(p, LAST_DAY);
-        assertNotNull(r.getPass2355());
-        assertNotNull(r.getPass0005());
-        assertEquals(100.0, r.getPass2355().getClose(), 1e-12);
-        assertEquals(101.0, r.getPass0005().getClose(), 1e-12);
-        assertEquals(RainbowLiveAction.BUY, r.getPass0005().getActionType());
-        assertNull(r.getPass0005().getCashAfter());
-        assertTrue(r.deltaActionDiffers(), "quantité 1/100 vs 1/101");
-        assertEquals(cashAfter2355, wallet(p).getCashUsd(), 1e-12);
-        assertEquals(1, runRepository.countByPreset(p), "pas de run pour le nouveau jour");
+        assertEquals(LAST_DAY.plusDays(1), s.day());
+        RainbowLivePassBlock refreshed = run(p, LAST_DAY).getSignal();
+        assertEquals(101.0, refreshed.getClose(), 1e-12);
+        assertEquals(RainbowLiveAction.BUY, refreshed.getActionType());
+        assertEquals(1.0, refreshed.getActionAmountUsdc(), 1e-12);
+        assertEquals(0.01, refreshed.getActionQuantity(), 1e-12, "la quantité décidée à 23:55 reste figée");
+        assertEquals(2, runRepository.countByPreset(p));
+        assertEquals(100.0, run(p, LAST_DAY.plusDays(1)).getSignal().getClose(), 1e-12);
 
-        // rejeu des deux passes : même état
-        service.runPass(RainbowLivePass.T0005, ASOF_0005);
-        service.runPass(RainbowLivePass.T2355, ASOF_2355);
-        assertEquals(cashAfter2355, wallet(p).getCashUsd(), 1e-12);
-        assertEquals(1, runRepository.countByPreset(p));
-        assertEquals(RainbowLiveAction.BUY, run(p, LAST_DAY).getPass2355().getActionType());
-    }
-
-    @Test
-    @DisplayName("00:05 sans 23:55 toléré : bloc 00:05 seul, wallet intact")
-    void pass0005AloneIsTolerated() {
-        double[] closes = concat(flat(N, 100), 60);
-        RainbowLivePreset p = preset(alice, "BTC", "t", FLAT, globals(false, 1.0));
-        serve("BTC", closes);
-
-        service.runPass(RainbowLivePass.T0005, ASOF_0005);
-
-        RainbowLiveRun r = run(p, LAST_DAY);
-        assertNull(r.getPass2355());
-        assertNotNull(r.getPass0005());
-        assertEquals(1000.0, wallet(p).getCashUsd(), 1e-12);
-        assertFalse(r.deltaActionDiffers());
+        // rejeu : mêmes lignes
+        service.runPass(ASOF_2355.plusSeconds(86_400));
+        assertEquals(2, runRepository.countByPreset(p));
+        assertEquals(101.0, run(p, LAST_DAY).getSignal().getClose(), 1e-12);
     }
 
     // ---------------------------------------------------------------- robustesse
@@ -473,7 +387,7 @@ class RainbowLiveExecutionServiceTest {
         serve("ETH", flat(N, 100));
         serve("PAXG", flat(N - 2, 100));   // s'arrête 2 jours avant
 
-        PassSummary s = service.runPass(RainbowLivePass.T2355, ASOF_2355);
+        PassSummary s = service.runPass(ASOF_2355);
 
         assertEquals(2, s.processed());
         assertEquals(1, s.skipped());
@@ -489,28 +403,11 @@ class RainbowLiveExecutionServiceTest {
         serve("BTC", flat(N, 100));
         candlesByAsset.remove("ETH");     // ETH absent => exception du provider
 
-        PassSummary s = service.runPass(RainbowLivePass.T2355, ASOF_2355);
+        PassSummary s = service.runPass(ASOF_2355);
 
         assertEquals(2, s.processed());
         assertEquals(1, s.errors());
         assertEquals(0, runRepository.countByPreset(ps.get(1)));
-    }
-
-    @Test
-    @DisplayName("Erreur d'un preset (wallet mock absent) n'arrête pas les autres")
-    void presetErrorIsIsolated() {
-        RainbowLivePreset a = preset(alice, "BTC", "a", FLAT, globals(false, 1.0));
-        RainbowLivePreset b = preset(alice, "BTC", "b", FLAT, globals(false, 1.0));
-        presetsExcept(alice, "BTC");
-        serve("BTC", flat(N, 100));
-        walletRepository.delete(wallet(a));
-        walletRepository.flush();
-
-        PassSummary s = service.runPass(RainbowLivePass.T2355, ASOF_2355);
-
-        assertEquals(1, s.errors());
-        assertEquals(0, runRepository.countByPreset(a));
-        assertEquals(1, runRepository.countByPreset(b));
     }
 
     private void presetsExcept(User u, String assetToSkip) {
@@ -533,7 +430,7 @@ class RainbowLiveExecutionServiceTest {
         presetsExcept(bob, "BTC");
         serve("BTC", flat(N, 100));
 
-        PassSummary s = service.runPass(RainbowLivePass.T2355, ASOF_2355);
+        PassSummary s = service.runPass(ASOF_2355);
 
         assertEquals(7, s.processed());
         verify(datasetEngine, times(1)).getDailyDatasetForAsset(eq("BTC"), anyInt(), any(Instant.class), isNull());
@@ -547,7 +444,7 @@ class RainbowLiveExecutionServiceTest {
         for (String a : RainbowLiveDefaultPresets.ASSETS) {
             serve(a, flat(N, 100));
         }
-        service.runPass(RainbowLivePass.T2355, ASOF_2355);
+        service.runPass(ASOF_2355);
         verify(datasetEngine).getDailyDatasetForAsset("BTC", RainbowLiveDefaultPresets.D1_LOOKBACK_CANDLES, ASOF_2355, null);
     }
 
@@ -565,7 +462,7 @@ class RainbowLiveExecutionServiceTest {
         off.setEnabled(false);
         presetRepository.save(off);
 
-        PassSummary s = service.runPass(RainbowLivePass.T2355, ASOF_2355);
+        PassSummary s = service.runPass(ASOF_2355);
 
         assertEquals(2, presetService.list(alice, "BTC").size(), "BTC : le preset désactivé + le preset de stratégie");
         assertEquals(1, presetService.list(alice, "ETH").size(), "preset de stratégie ETH créé par le job");
@@ -576,7 +473,7 @@ class RainbowLiveExecutionServiceTest {
     }
 
     @Test
-    @DisplayName("2 users => runs et wallets séparés (clé user non codée en dur)")
+    @DisplayName("2 users => runs séparés (clé user non codée en dur)")
     void twoUsersSeparateRuns() {
         User bob = user("bob", true);
         RainbowLivePreset pa = presetsAllAssets(alice).getFirst();
@@ -585,24 +482,22 @@ class RainbowLiveExecutionServiceTest {
             serve(a, flat(N, 100));
         }
 
-        PassSummary s = service.runPass(RainbowLivePass.T2355, ASOF_2355);
+        PassSummary s = service.runPass(ASOF_2355);
 
         assertEquals(6, s.processed());
         assertNotEquals(run(pa, LAST_DAY).getId(), run(pb, LAST_DAY).getId());
         assertEquals(alice.getId(), run(pa, LAST_DAY).getUser().getId());
         assertEquals(bob.getId(), run(pb, LAST_DAY).getUser().getId());
-        assertEquals(999.0, wallet(pa).getCashUsd(), 1e-12);
-        assertEquals(999.0, wallet(pb).getCashUsd(), 1e-12);
     }
 
     @Test
-    @DisplayName("Config modifiée entre deux jours : le run du jour utilise la config courante, les runs passés restent intacts")
+    @DisplayName("Config modifiée entre deux jours : le run du jour utilise la config courante, l'action de la veille reste figée")
     void configChangeAppliesFromNextRun() {
         RainbowLivePreset p = presetsAllAssets(alice).getFirst();
         serve("BTC", flat(N, 100));
         serve("ETH", flat(N, 100));
         serve("PAXG", flat(N, 100));
-        service.runPass(RainbowLivePass.T2355, ASOF_2355);
+        service.runPass(ASOF_2355);
         String hashDay1 = run(p, LAST_DAY).getConfigHash();
         assertEquals(1.0, run(p, LAST_DAY).getConfig().toGlobals().baseAmount(), 1e-12);
 
@@ -610,12 +505,11 @@ class RainbowLiveExecutionServiceTest {
         for (String a : RainbowLiveDefaultPresets.ASSETS) {
             serve(a, flat(N + 1, 100));
         }
-        service.runPass(RainbowLivePass.T2355, ASOF_2355.plusSeconds(86_400));
+        service.runPass(ASOF_2355.plusSeconds(86_400));
 
-        assertEquals(hashDay1, run(p, LAST_DAY).getConfigHash());
-        assertEquals(1.0, run(p, LAST_DAY).getConfig().toGlobals().baseAmount(), 1e-12);
         assertNotEquals(hashDay1, run(p, LAST_DAY.plusDays(1)).getConfigHash());
-        assertEquals(2.0, run(p, LAST_DAY.plusDays(1)).getPass2355().getActionAmountUsdc(), 1e-12);
+        assertEquals(1.0, run(p, LAST_DAY).getSignal().getActionAmountUsdc(), 1e-12, "l'action de la veille reste figée");
+        assertEquals(2.0, run(p, LAST_DAY.plusDays(1)).getSignal().getActionAmountUsdc(), 1e-12);
     }
 
     @Test
@@ -625,7 +519,7 @@ class RainbowLiveExecutionServiceTest {
         presetsExcept(alice, "BTC");
         candlesByAsset.put("BTC", candles("BTC", 100, 100));
         // jour demandé = index 1 => endIdx 1 < warmup(2)+1
-        PassSummary s = service.runPass(RainbowLivePass.T2355, Instant.parse("2026-09-02T23:55:00Z"));
+        PassSummary s = service.runPass(Instant.parse("2026-09-02T23:55:00Z"));
 
         assertEquals(0, runRepository.countByPreset(p));
         assertTrue(s.skipped() >= 1);

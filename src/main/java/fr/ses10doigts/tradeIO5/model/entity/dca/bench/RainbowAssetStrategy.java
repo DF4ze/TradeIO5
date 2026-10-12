@@ -57,8 +57,6 @@ public class RainbowAssetStrategy {
 
     private int analysisWindowMonths;
 
-    private double initialCapitalUsdc;
-
     @Column(nullable = false)
     private Instant createdAt;
 

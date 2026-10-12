@@ -1,6 +1,5 @@
 package fr.ses10doigts.tradeIO5.repository.execution;
 
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.execution.PlanStatus;
 import fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderPlan;
 import fr.ses10doigts.tradeIO5.security.model.User;
@@ -16,8 +15,8 @@ import java.util.Optional;
 
 public interface RainbowLiveOrderPlanRepository extends JpaRepository<RainbowLiveOrderPlan, Long> {
 
-    /** Révision courante (la plus récente) du (user, jour, passe). */
-    Optional<RainbowLiveOrderPlan> findFirstByUserAndDayAndPassOrderByRevisionDesc(User user, LocalDate day, RainbowLivePass pass);
+    /** Révision courante (la plus récente) du (user, jour). */
+    Optional<RainbowLiveOrderPlan> findFirstByUserAndDayOrderByRevisionDesc(User user, LocalDate day);
 
     /** Plans courants (hors remplacés) d'un utilisateur entre deux jours inclus, du plus récent au plus ancien. */
     List<RainbowLiveOrderPlan> findByUserAndStatusNotAndDayBetweenOrderByDayDescCreatedAtDesc(User user, PlanStatus status,

@@ -30,17 +30,6 @@ class PortfolioReadingTest {
     }
 
     @Test
-    @DisplayName("Fraîcheur : OK dans le seuil, STALE au-delà ; un statut non OK n'est pas requalifié")
-    void freshness() {
-        PortfolioReading ok = new PortfolioReading(10, Map.of("BTC", 1.0), T0, PortfolioStatus.OK, 7L);
-
-        assertEquals(PortfolioStatus.OK, ok.checkedAt(T0.plus(Duration.ofMinutes(10)), Duration.ofMinutes(30)).status());
-        assertEquals(PortfolioStatus.STALE, ok.checkedAt(T0.plus(Duration.ofMinutes(31)), Duration.ofMinutes(30)).status());
-        PortfolioReading down = PortfolioReading.unavailable(7L, T0);
-        assertEquals(PortfolioStatus.UNAVAILABLE, down.checkedAt(T0.plus(Duration.ofHours(5)), Duration.ofMinutes(30)).status());
-    }
-
-    @Test
     @DisplayName("Relecture d'un snapshot : cash du pool, position de l'actif, wallet, instant, statut")
     void fromSnapshot() {
         RainbowLiveLiveBlock block = RainbowLiveLiveBlock.builder().status(PortfolioStatus.OK).walletId(7L)

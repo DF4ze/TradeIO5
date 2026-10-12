@@ -7,7 +7,6 @@ import fr.ses10doigts.tradeIO5.model.dto.execution.InstrumentInfo;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
@@ -112,7 +111,7 @@ class OrderExecutorTest {
         when(credentials.resolve(any(), any())).thenReturn(Optional.of(new ApiCredential()));
         when(requoter.requote(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new StepRequoter.Requote(new BigDecimal("0.10"), new BigDecimal("100000")));
-        plan = RainbowLiveOrderPlan.builder().id(1L).user(user).day(DAY).pass(RainbowLivePass.T2355).status(PlanStatus.PLANNED)
+        plan = RainbowLiveOrderPlan.builder().id(1L).user(user).day(DAY).status(PlanStatus.PLANNED)
                 .expiresAt(NOW.plusSeconds(3600)).assets(new ArrayList<>()).steps(new ArrayList<>()).build();
         when(plans.findById(1L)).thenReturn(Optional.of(plan));
     }
@@ -180,7 +179,7 @@ class OrderExecutorTest {
             assertEquals(ExecutionBlockReason.MODE_NOT_LIVE, r.blocked().get("*"));
             assertEquals(0, exchange.totalCalls());
             assertEquals(PlanStatus.PLANNED, plan.getStatus());
-            assertEquals(0, executor(mode).executeAll(DAY, RainbowLivePass.T2355).executed());
+            assertEquals(0, executor(mode).executeAll(DAY).executed());
         }
         verify(users, never()).findByEnabledTrueAndArchivedAtIsNull();
     }

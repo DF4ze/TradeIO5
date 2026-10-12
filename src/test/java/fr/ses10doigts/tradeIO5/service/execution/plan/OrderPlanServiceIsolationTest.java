@@ -5,7 +5,6 @@ import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBindingRun;
@@ -65,15 +64,15 @@ class OrderPlanServiceIsolationTest {
             RainbowLiveLiveBlock block = RainbowLiveLiveBlock.builder().status(PortfolioStatus.OK)
                     .actionType(RainbowLiveAction.NONE).cashDetail("{}").build();
             when(runs.findByBindingAndDay(b, DAY)).thenReturn(Optional.of(RainbowLiveBindingRun.builder()
-                    .binding(b).day(DAY).pass2355(block).build()));
-            when(plans.findFirstByUserAndDayAndPassOrderByRevisionDesc(u, DAY, RainbowLivePass.T2355)).thenReturn(Optional.empty());
+                    .binding(b).day(DAY).live(block).build()));
+            when(plans.findFirstByUserAndDayOrderByRevisionDesc(u, DAY)).thenReturn(Optional.empty());
         }
         when(planner.plan(anyList())).thenThrow(new IllegalStateException("boom"))
                 .thenReturn(new PlanDraft(List.of(), PlanStatus.PLANNED, null, (FeeTestLevel) null, null));
         OrderPlanService service = new OrderPlanService(users, bindings, runs, plans, mock(TransitStockRepository.class), planner, new ExecutionSettings(),
                 new FixedDomainClock(Instant.parse("2026-10-09T23:58:00Z")), mock(PlatformTransactionManager.class));
 
-        OrderPlanService.PlanSummary summary = service.planAll(DAY, RainbowLivePass.T2355);
+        OrderPlanService.PlanSummary summary = service.planAll(DAY);
 
         assertEquals(1, summary.errors());
         assertEquals(1, summary.planned());

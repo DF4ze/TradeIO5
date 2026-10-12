@@ -5,7 +5,6 @@ import fr.ses10doigts.tradeIO5.model.dto.execution.InstrumentInfo;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
 import fr.ses10doigts.tradeIO5.model.entity.execution.ExecutionControl;
@@ -81,8 +80,8 @@ public class OrderExecutor {
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
     private static final EnumSet<StepStatus> SENT = EnumSet.of(StepStatus.SUBMITTED, StepStatus.FILLED, StepStatus.PARTIAL, StepStatus.UNKNOWN);
 
-    /** Récapitulatif d'un déclenchement par jour et passe (job). */
-    public record RunSummary(LocalDate day, RainbowLivePass pass, int executed, int blocked, int skipped, int errors) {
+    /** Récapitulatif d'un déclenchement par jour (job). */
+    public record RunSummary(LocalDate day, int executed, int blocked, int skipped, int errors) {
     }
 
     private record StepView(Long id, int rank, String asset, Long walletId, String instId, StepSide side, BigDecimal sz, BigDecimal px,
@@ -188,18 +187,18 @@ public class OrderExecutor {
 
     // ------------------------------------------------------------------ déclenchements
 
-    /** Exécute les plans courants {@code PLANNED} de tous les utilisateurs actifs pour (jour, passe). */
-    public RunSummary executeAll(LocalDate day, RainbowLivePass pass) {
+    /** Exécute les plans courants {@code PLANNED} de tous les utilisateurs actifs pour le jour. */
+    public RunSummary executeAll(LocalDate day) {
         if (!settings.liveExecution()) {
-            log.info("Exécution : mode {} => aucun ordre (jour {} passe {})", settings.getMode(), day, pass);
-            return new RunSummary(day, pass, 0, 0, 0, 0);
+            log.info("Exécution : mode {} => aucun ordre (jour {})", settings.getMode(), day);
+            return new RunSummary(day, 0, 0, 0, 0);
         }
         int executed = 0;
         int blocked = 0;
         int skipped = 0;
         int errors = 0;
         for (User user : users.findByEnabledTrueAndArchivedAtIsNull()) {
-            Optional<RainbowLiveOrderPlan> plan = plans.findFirstByUserAndDayAndPassOrderByRevisionDesc(user, day, pass);
+            Optional<RainbowLiveOrderPlan> plan = plans.findFirstByUserAndDayOrderByRevisionDesc(user, day);
             if (plan.isEmpty() || plan.get().getStatus() != PlanStatus.PLANNED) {
                 skipped++;
                 continue;
@@ -216,7 +215,7 @@ public class OrderExecutor {
                 log.error("Exécution : échec pour user={} plan={}", user.getId(), plan.get().getId(), e);
             }
         }
-        RunSummary summary = new RunSummary(day, pass, executed, blocked, skipped, errors);
+        RunSummary summary = new RunSummary(day, executed, blocked, skipped, errors);
         log.info("Exécution : {}", summary);
         return summary;
     }

@@ -3,7 +3,7 @@
 > À coller tel quel dans une nouvelle discussion (Claude Code / Cowork sur TradeIO-5). **Mission = ANALYSE + maquettes + proposition + questions, aucun code ni aucun ordre tant que Clem n'a pas validé.** Prérequis : lot B chemin d'achat a–e livré, 1er ordre réel OKX passé (`BTC-USDC`).
 
 ## 0. Démarrage
-1. Lis `docs/README.md`, puis `architecture/07-security.md`, `08-rainbow-bench-grandeur-nature.md`, `10-execution-plan.md`, `10-execution-reelle.md`, `api/rest-endpoints.md`, `known-gaps/rainbow-dca-chantiers-ouverts.md` (§5, §5b, §5c), `etudes/etude-chemin-achat-execution.md`, `docs/CODING_RULES.md`, `glossary.md`.
+1. Lis `docs/README.md`, puis `architecture/07-security.md`, `08-rainbow-live.md`, `10-execution-plan.md`, `10-execution-reelle.md`, `api/rest-endpoints.md`, `known-gaps/rainbow-dca-chantiers-ouverts.md` (§5, §5b, §5c), `etudes/etude-chemin-achat-execution.md`, `docs/CODING_RULES.md`, `glossary.md`.
 2. Lis le code : `controller/MainController` (`/admin`, `/user`), `templates/adminPage.html` (quasi vide), `templates/userPage.html`, `fragments/*`, `static/**/rainbow-live.js` (patron à réutiliser : `textContent` uniquement), `controller/ExecutionAdminController`, `Rainbow*Controller` (`/api/rainbow-live/**`), `service/execution/**`, `ApiCredentialInitializer`, `ApiCredential`, `ExecutionGuard`, la config de sécurité (rôles ADMIN / owner).
 3. Réponds en français, court et technique (flèches/symboles bienvenus). Un point flou → **pose la question avant d'avancer** (AskUserQuestion).
 

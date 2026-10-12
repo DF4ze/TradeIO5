@@ -23,7 +23,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -63,8 +62,7 @@ class RealPortfolioSourceTest {
         when(reader.getProviderCode()).thenReturn(WebProviderCode.OKX);
         when(groups.members(AssetGroup.USD)).thenReturn(List.of("USDC", "USDT"));
         when(groups.byMember(eq(AssetGroup.USD), any())).thenCallRealMethod();
-        source = new RealPortfolioSource(bindings, bindingCheck, List.of(reader), groups, transit, new FixedDomainClock(NOW),
-                Duration.ofMinutes(30));
+        source = new RealPortfolioSource(bindings, bindingCheck, List.of(reader), groups, transit, new FixedDomainClock(NOW));
     }
 
     @Test
@@ -177,14 +175,5 @@ class RealPortfolioSourceTest {
         org.mockito.Mockito.verify(bindings).save(saved.capture());
         assertEquals(BindingCheckStatus.NOT_TRADABLE_WITHOUT_FIAT, saved.getValue().getTradability());
         assertEquals(NOW, saved.getValue().getTradabilityCheckedAt());
-    }
-
-    @Test
-    @DisplayName("Fraîcheur : une lecture plus vieille que le seuil devient STALE")
-    void staleAfterThreshold() {
-        PortfolioReading old = new PortfolioReading(1, Map.of(), NOW.minus(Duration.ofHours(1)), PortfolioStatus.OK, 9L);
-
-        assertEquals(PortfolioStatus.STALE, source.checkFreshness(old).status());
-        assertTrue(source.checkFreshness(new PortfolioReading(1, Map.of(), NOW, PortfolioStatus.OK, 9L)).isOk());
     }
 }

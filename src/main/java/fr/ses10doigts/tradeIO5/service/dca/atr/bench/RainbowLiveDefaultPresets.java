@@ -23,7 +23,6 @@ public final class RainbowLiveDefaultPresets {
     /** Préfixe réservé du nom des presets qui suivent une stratégie Actif ; refusé sur un preset créé par l'utilisateur. */
     public static final String SYSTEM_PREFIX = "[Système] ";
     public static final int DEFAULT_ANALYSIS_WINDOW_MONTHS = 6;
-    public static final double DEFAULT_INITIAL_CAPITAL_USDC = 1000.0;
 
     /**
      * Historique D1 demandé à {@code MarketDatasetEngine#getDailyDatasetForAsset} (chemin D1 natif, hors Bucket H1) : 720 j
@@ -35,14 +34,9 @@ public final class RainbowLiveDefaultPresets {
     /** Fuseau explicite des jobs du bench (les autres jobs suivent le fuseau JVM). */
     public static final String SCHEDULER_ZONE = "UTC";
     public static final String PASS_2355_CRON_PROPERTY = "tradeio.rainbow-live.pass-2355-cron";
-    public static final String PASS_0005_CRON_PROPERTY = "tradeio.rainbow-live.pass-0005-cron";
     /** Placeholders {@code @Scheduled} : défaut {@code -} (= {@code Scheduled.CRON_DISABLED}, job non enregistré). */
     public static final String PASS_2355_CRON = "${" + PASS_2355_CRON_PROPERTY + ":-}";
-    public static final String PASS_0005_CRON = "${" + PASS_0005_CRON_PROPERTY + ":-}";
 
-    /** Âge maximal d'une lecture du portefeuille réel au-delà duquel elle est {@code STALE} (durée ISO-8601). */
-    public static final String READING_STALE_AFTER_PROPERTY = "tradeio.rainbow-live.reading-stale-after";
-    public static final String DEFAULT_READING_STALE_AFTER = "PT30M";
 
     private static final RainbowAtrGlobals PINE = RainbowAtrGlobals.pineDefault();
 

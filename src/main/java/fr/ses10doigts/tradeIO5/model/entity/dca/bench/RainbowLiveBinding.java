@@ -25,7 +25,7 @@ import java.time.Instant;
 
 /**
  * Lien (utilisateur, actif) -> preset « live » + wallet réel (lecture seule). L'unicité (user, actif) garantit un seul
- * preset live par actif ; changer de preset live = modifier ce lien (l'ancien preset reste un preset de simulation, son
+ * preset live par actif ; changer de preset live = modifier ce lien (l'ancien preset reste disponible, son
  * historique est conservé). Donnée utilisateur : créée par l'API, jamais par un initializer.
  */
 @Entity

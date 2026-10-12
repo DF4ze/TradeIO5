@@ -6,6 +6,8 @@ Vérifié le : 2026-10-11 (`pom.xml`, `application.properties`, `src/main/resour
 
 Flyway est **préparé mais non activé** : dépendances `flyway-core` + `flyway-mysql` (versions du BOM Spring Boot), `spring.flyway.enabled=false` (`application.properties` et propriétés de test), `V1__init.sql` généré depuis les entités. Le schéma reste géré par `spring.jpa.hibernate.ddl-auto` (`update` en dev/prod, `create-drop` en test). L'activation attend que les entités se stabilisent : tant qu'elle n'est pas faite, **aucune migration à écrire**.
 
+`V1__init.sql` ne contient ni wallet fictif ni colonnes de simulation (`rainbow_live_run` ne porte que le signal `signal_*`, `rainbow_live_binding_run` le bloc `live_*`) : une base existante issue d'un schéma antérieur doit être recréée depuis ce script.
+
 Tables du plan d'ordres dry-run (`rainbow_live_order_plan`, `rainbow_live_order_plan_asset`, `rainbow_live_order_step`, FK `ON DELETE CASCADE`) et colonne `rainbow_live_binding.execution_enabled` : créées par `ddl-auto=update` tant que Flyway est inactif, présentes dans `V1__init.sql` (cf. [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md)). Défaut `execution_enabled = false` porté par la colonne (donnée utilisateur, pas un défaut d'initializer).
 
 Passerelle actif non stable : table `transit_stock` et colonnes `transit_stock.finish_side` et `rainbow_live_binding.route_key` (remplace `bridge_pair`), dans `V1__init.sql`.
@@ -28,65 +30,7 @@ ALTER TABLE rainbow_live_binding ADD CONSTRAINT uk_rainbow_live_binding_user_ass
 ALTER TABLE rainbow_live_binding DROP INDEX uk_rainbow_live_binding_user_asset;
 ```
 
-**Base existante : snapshots live par lien** (`rainbow_live_binding_run`, créée par `ddl-auto=update`) : les anciens snapshots live portés par `rainbow_live_run` (`t2355_live_*` / `t0005_live_*`) ne sont pas migrés par Hibernate (colonnes laissées en place, ignorées). Copie optionnelle, une seule fois, avant le déploiement (un snapshot par binding actuel du preset) :
-
-```sql
-INSERT INTO rainbow_live_binding_run (binding_id, run_day, computed_at,
-  t2355_status,
-  t2355_wallet_id,
-  t2355_fetched_at,
-  t2355_cash_usd,
-  t2355_cash_detail,
-  t2355_position_qty,
-  t2355_tradable_qty,
-  t2355_cash_reserved,
-  t2355_block_reason,
-  t2355_action_type,
-  t2355_action_amount_usdc,
-  t2355_action_quantity,
-  t0005_status,
-  t0005_wallet_id,
-  t0005_fetched_at,
-  t0005_cash_usd,
-  t0005_cash_detail,
-  t0005_position_qty,
-  t0005_tradable_qty,
-  t0005_cash_reserved,
-  t0005_block_reason,
-  t0005_action_type,
-  t0005_action_amount_usdc,
-  t0005_action_quantity)
-SELECT b.id, r.run_day, NOW(6),
-  r.t2355_live_status,
-  r.t2355_live_wallet_id,
-  r.t2355_live_fetched_at,
-  r.t2355_live_cash_usd,
-  r.t2355_live_cash_detail,
-  r.t2355_live_position_qty,
-  r.t2355_live_tradable_qty,
-  r.t2355_live_cash_reserved,
-  r.t2355_live_block_reason,
-  r.t2355_live_action_type,
-  r.t2355_live_action_amount_usdc,
-  r.t2355_live_action_quantity,
-  r.t0005_live_status,
-  r.t0005_live_wallet_id,
-  r.t0005_live_fetched_at,
-  r.t0005_live_cash_usd,
-  r.t0005_live_cash_detail,
-  r.t0005_live_position_qty,
-  r.t0005_live_tradable_qty,
-  r.t0005_live_cash_reserved,
-  r.t0005_live_block_reason,
-  r.t0005_live_action_type,
-  r.t0005_live_action_amount_usdc,
-  r.t0005_live_action_quantity
-FROM rainbow_live_run r
-JOIN rainbow_live_binding b ON b.preset_id = r.preset_id
-WHERE r.t2355_live_status IS NOT NULL OR r.t0005_live_status IS NOT NULL;
-```
-
-`rainbow_live_order_step.wallet_id` (nullable) est ajoutée par `ddl-auto=update` ; les étapes existantes restent à `NULL`. Le format de `clOrdId` change (il encode le wallet) : un plan non exécuté est simplement re-planifié (TTL 5 min), un plan déjà exécuté garde ses anciens identifiants.
+`rainbow_live_order_step.wallet_id` (nullable) est ajoutée par `ddl-auto=update` ; les étapes existantes restent à `NULL`. 
 
 Catalogue : colonnes `exchange_instrument.cost_min`, `native_pair`, `fee_currency` (nullables) ajoutées par `ddl-auto=update`, présentes dans `V1__init.sql`. **Base existante : `admin_action_log.action` est un `ENUM` MySQL natif, Hibernate n'y ajoute pas les valeurs `ORDER_VALIDATE`, `ORDER_SEND` et `ORDER_READ`** ⇒ SQL manuel avant le déploiement :
 
@@ -131,7 +75,7 @@ Tout nouveau « défaut » de l'application (donnée de paramétrage devant exis
 
 Tables de cache de données publiques (non seedées par un initializer) : `exchange_instrument` (catalogue des paires, rempli à la demande par `InstrumentCatalog`).
 
-Initializers existants : `AssetInitializer` (1), `AssetGroupInitializer` (2, groupe `USD` = USDC seul), `RoleInitializer` (10), `UserInitializer` (20), `HistoricalDataInitializer` (5, recharge `candle` et `etf_flow_snapshot` depuis les fichiers de backup si la table est vide), `ApiCredentialInitializer` (40, tous profils : clés du user System (CoinStats, Coinalyze, Twelve Data, Finnhub, SoSoValue) et clés Binance/Kraken/OKX d'OKlm lues dans les propriétés `tradeio.<fournisseur>.apiKey|secretKey` (OKX : `tradeio.okx.read.*` et `tradeio.okx.trade.*`, avec `passphrase`) des `application-*.properties` (gitignorés) ; clé absente => warning, rien semé), `WalletInitializer` (45), `WebProviderInitializer` (dont OKX, `https://www.okx.com`), `ContentSourceInitializer` (50), `RainbowAssetStrategyInitializer` (60, stratégies Actif Rainbow, jamais écrasées ensuite : System les modifie en base ; chaque utilisateur reçoit un preset qui la suit à sa première utilisation, cf. [`../architecture/08-rainbow-bench-grandeur-nature.md`](../architecture/08-rainbow-bench-grandeur-nature.md)).
+Initializers existants : `AssetInitializer` (1), `AssetGroupInitializer` (2, groupe `USD` = USDC seul), `RoleInitializer` (10), `UserInitializer` (20), `HistoricalDataInitializer` (5, recharge `candle` et `etf_flow_snapshot` depuis les fichiers de backup si la table est vide), `ApiCredentialInitializer` (40, tous profils : clés du user System (CoinStats, Coinalyze, Twelve Data, Finnhub, SoSoValue) et clés Binance/Kraken/OKX d'OKlm lues dans les propriétés `tradeio.<fournisseur>.apiKey|secretKey` (OKX : `tradeio.okx.read.*` et `tradeio.okx.trade.*`, avec `passphrase`) des `application-*.properties` (gitignorés) ; clé absente => warning, rien semé), `WalletInitializer` (45), `WebProviderInitializer` (dont OKX, `https://www.okx.com`), `ContentSourceInitializer` (50), `RainbowAssetStrategyInitializer` (60, stratégies Actif Rainbow, jamais écrasées ensuite : System les modifie en base ; chaque utilisateur reçoit un preset qui la suit à sa première utilisation, cf. [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md)).
 
 ## Données non recréées par les initializers
 

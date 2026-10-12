@@ -11,12 +11,9 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 
 /**
- * Résultat d'une passe (23:55 ou 00:05) : indicateurs, états des machines, action. Champs nullables
- * (Hibernate lit le bloc entier comme {@code null} tant que la passe n'a pas été jouée).
- * <p>
- * {@code cashAfter}/{@code positionAfter} : état du wallet mock après l'action — renseignés par
- * {@code RainbowLiveRunService} pour la seule passe 23:55 (nuls en 00:05 : « action qui aurait été
- * prise », jamais appliquée).
+ * Signal du jour d'un preset (passe 23:55 UTC) : indicateurs, états des machines, action voulue par le moteur (avant tout
+ * plafond de portefeuille). Champs nullables (Hibernate lit le bloc entier comme {@code null} tant que la passe n'a pas été
+ * jouée).
  */
 @Embeddable
 @Data
@@ -59,9 +56,6 @@ public class RainbowLivePassBlock {
     private Double actionAmountUsdc;
     private Double actionQuantity;
     private Double actionPrice;
-
-    private Double cashAfter;
-    private Double positionAfter;
 
     /** Hash de la config avec laquelle la passe a été calculée. */
     private String configHash;
