@@ -68,7 +68,7 @@ public class AssetOverviewService {
 				if (quantity.compareTo(BigDecimal.ZERO) == 0)
 					continue;
 
-				// Membre d'un groupe (USD = USDC + USDT) : valorisation nominale, pas d'appel de prix.
+				// Membre d'un groupe (USD = USDC) : valorisation nominale, pas d'appel de prix.
 				// Le fiat « USD » (ZUSD Kraken) est ignoré : son code est celui du groupe.
 				if (AssetGroup.USD.equals(asset))
 					continue;

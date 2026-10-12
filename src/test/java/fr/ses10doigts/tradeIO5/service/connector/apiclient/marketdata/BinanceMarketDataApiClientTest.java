@@ -82,9 +82,14 @@ class BinanceMarketDataApiClientTest extends AbstractMarketDataApiClientContract
     }
 
     @Test
+    void nativeInterval_returnsBinanceCodeForD1() {
+        assertEquals("1d", BinanceMarketDataApiClient.nativeInterval(TimeFrame.D1));
+    }
+
+    @Test
     void nativeInterval_throwsForUnsupportedTimeFrame() {
         assertThrows(IllegalArgumentException.class,
-                () -> BinanceMarketDataApiClient.nativeInterval(TimeFrame.D1));
+                () -> BinanceMarketDataApiClient.nativeInterval(TimeFrame.H4));
     }
 
     @Test

@@ -12,9 +12,9 @@ public enum BindingCheckStatus {
     PROVIDER_UNSUPPORTED,
     /** Soldes illisibles (panne, réseau, réponse invalide). */
     BALANCE_UNAVAILABLE,
-    /** Achat via une passerelle entre membres du groupe USD (ex : USDC -> USDT puis {@code <actif>/USDT}). Information pour le moteur d'exécution. */
-    TRADABLE_VIA_BRIDGE,
-    /** Aucun chemin spot sans monnaie fiat vers l'actif (ex : PAXG sur Kraken) : toute exécution est bloquée. */
+    /** Achat via un intermédiaire non stable choisi (ex : {@code USDC -> BTC -> PAXG} sur Kraken) : deux jambes, route mémorisée sur le lien. */
+    TRADABLE_VIA_INTERMEDIARY,
+    /** Aucun chemin spot sans monnaie fiat (ni intermédiaire choisi) vers l'actif : toute exécution est bloquée. */
     NOT_TRADABLE_WITHOUT_FIAT,
     /** Existence de la paire non vérifiable (endpoint public injoignable). */
     INSTRUMENT_UNAVAILABLE

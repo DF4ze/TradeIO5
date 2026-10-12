@@ -29,6 +29,21 @@ public final class ClOrdIds {
         return id;
     }
 
+    /**
+     * Identifiant du n-ième envoi d'une même étape (retry de la jambe 2) : l'identifiant de base pour le 1er envoi, puis
+     * {@code <base>r<n>}. Un ordre IOC refusé ou annulé ne peut pas être renvoyé sous le même identifiant.
+     */
+    public static String attempt(String base, int attempt) {
+        if (attempt <= 1) {
+            return base;
+        }
+        String id = base + "r" + attempt;
+        if (id.length() > MAX_LENGTH) {
+            throw new IllegalStateException("clOrdId de retry invalide : " + id);
+        }
+        return id;
+    }
+
     /** Longueur (1 caractère base 36) puis valeur en base 36. */
     private static String base36(long value) {
         String digits = Long.toString(value, 36);

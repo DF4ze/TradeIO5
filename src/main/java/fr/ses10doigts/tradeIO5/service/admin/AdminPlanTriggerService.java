@@ -32,4 +32,20 @@ public class AdminPlanTriggerService {
             throw e;
         }
     }
+
+    /** Remise à zéro d'un plan non envoyé (bloqué, expiré, désactivé…) : nouvelle révision, journal PLAN. */
+    public PlanSummary reset(Long planId, String actor) {
+        String target = "reset#" + planId;
+        try {
+            PlanSummary summary = planService.resetPlan(planId);
+            journal.record(actor, AdminAction.PLAN, target, AdminActionLogService.payload("planned", summary.planned(),
+                    "blocked", summary.blocked(), "disabled", summary.disabled(), "unchanged", summary.unchanged(),
+                    "skipped", summary.skipped()), AdminActionOutcome.OK);
+            return summary;
+        } catch (RuntimeException e) {
+            journal.record(actor, AdminAction.PLAN, target, AdminActionLogService.payload("error", e.getClass().getSimpleName()),
+                    e instanceof IllegalArgumentException ? AdminActionOutcome.REFUSED : AdminActionOutcome.ERROR);
+            throw e;
+        }
+    }
 }

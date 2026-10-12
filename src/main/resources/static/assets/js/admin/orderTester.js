@@ -175,6 +175,37 @@
     });
   }
 
+  /** Valide la jambe 1 (formulaire) puis la jambe 2 : POST /validate-route, aucun envoi. */
+  async function validateRoute() {
+    const numeric = /^\d+(\.\d+)?$/;
+    const mode = byId('adm-ot-sizemode').value;
+    const leg1 = {
+      userId: byId('adm-ot-user').value ? Number(byId('adm-ot-user').value) : null,
+      provider: byId('adm-ot-provider').value, instId: byId('adm-ot-inst').value.trim().toUpperCase(),
+      side: byId('adm-ot-side').value, px: byId('adm-ot-px').value.trim().replace(',', '.')
+    };
+    leg1[mode] = byId('adm-ot-size').value.trim().replace(',', '.');
+    const leg2 = {
+      userId: leg1.userId, provider: leg1.provider, instId: byId('adm-ot-r2-inst').value.trim().toUpperCase(),
+      side: byId('adm-ot-r2-side').value, sz: byId('adm-ot-r2-sz').value.trim().replace(',', '.'),
+      px: byId('adm-ot-r2-px').value.trim().replace(',', '.')
+    };
+    if (!leg2.instId || !numeric.test(leg1.px) || !numeric.test(leg1[mode]) || !numeric.test(leg2.sz) || !numeric.test(leg2.px)) {
+      core.showAlert('Route : renseigner les deux jambes (nombres simples, sans « / » ni texte).');
+      return;
+    }
+    await run(byId('adm-ot-route'), async () => {
+      const r = await api('POST', '/api/admin/execution/order-test/validate-route', { legs: [leg1, leg2] });
+      const rows = r.legs.map((leg, i) => el('li', null,
+        el('span', { class: 'badge text-bg-' + (leg.accepted ? 'success' : 'danger') + ' me-2', text: leg.accepted ? '✔' : '✘' }),
+        el('strong', { text: 'Jambe ' + (i + 1) + ' ' }),
+        leg.blockedBy ? 'Bloquée (aucun appel exchange) : ' + leg.blockedBy : (leg.accepted ? 'acceptée. ' : 'refusée. ') + (leg.message || '')));
+      if (r.note) { rows.push(el('li', { class: 'text-warning-emphasis', text: r.note })); }
+      byId('adm-ot-route-result').replaceChildren(...rows);
+    });
+  }
+
+  byId('adm-ot-route').addEventListener('click', validateRoute);
   byId('adm-ot-form').addEventListener('submit', submit);
   byId('adm-ot-provider').addEventListener('change', onProviderChange);
   byId('adm-ot-sizemode').addEventListener('change', onSizeModeChange);

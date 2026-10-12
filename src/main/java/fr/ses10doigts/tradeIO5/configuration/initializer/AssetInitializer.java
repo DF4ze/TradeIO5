@@ -5,6 +5,7 @@ import fr.ses10doigts.tradeIO5.model.entity.currency.AssetProvider;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.repository.AssetProviderRepository;
 import fr.ses10doigts.tradeIO5.repository.AssetRepository;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.MarketDataProviderLimits;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,7 +60,7 @@ public class AssetInitializer implements CommandLineRunner {
      * {@code /market/history-candles} de l'étape 2 (docs/prompts/prompt-implementation-fallback-etapes-0-3.md)
      * est mergé (cf. tableau §3 de l'étude, étape 2 = ✅ Fait), donc plus de limite bornée côté OKX.
      */
-    private static final Integer KRAKEN_MAX_HORIZON_DAYS = 25;
+    private static final Integer KRAKEN_MAX_HORIZON_DAYS = MarketDataProviderLimits.KRAKEN_H1_MAX_HORIZON_DAYS;
 
     // 7 assets déjà présents en prod + PAXG (jamais seedé jusqu'ici malgré une utilisation prod
     // déjà existante, cf. docs/etudes/etude-fallback-multi-provider-marketdata.md §1). Decimals PAXG

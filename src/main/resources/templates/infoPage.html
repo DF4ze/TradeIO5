@@ -64,7 +64,7 @@
 
 				<h5>2. Testeur d'ordre (Admin → Testeur d'ordre) — aucun ordre créé</h5>
 				<ul>
-					<li>User, exchange Kraken, paire BTC (<code>BTC-USDC</code> ou <code>BTC-USDT</code>), BUY, taille minimale (≈ 0,0001 BTC), plafond de prix au-dessus du marché, puis « Valider ».</li>
+					<li>User, exchange Kraken, paire BTC (<code>BTC-USDC</code>), BUY, taille minimale (≈ 0,0001 BTC), plafond de prix au-dessus du marché, puis « Valider ».</li>
 					<li>Le testeur est soumis au kill switch : « Lever » dans le bandeau du haut avant « Valider », puis « Engager » après le test.</li>
 					<li>Attendu : contrôles locaux tous OK et <code>accepted</code>. Un <code>blockedBy</code> indique le verrou manquant.</li>
 				</ul>
@@ -79,7 +79,7 @@
 				<h5>3. Binding (Admin → Bindings)</h5>
 				<ul>
 					<li>Binding BTC sur le wallet Kraken, preset au choix, <code>bagPercent</code> faible.</li>
-					<li>Activer les presets liés dans la page Rainbow live (un preset inactif ne produit aucun snapshot), activer « Exécution » du binding, puis « Vérifier » (OK ou via passerelle).</li>
+					<li>Activer les presets liés dans la page Rainbow live (un preset inactif ne produit aucun snapshot), activer « Exécution » du binding, puis « Vérifier » (OK ou via intermédiaire).</li>
 				</ul>
 
 				<h5>4. Passe puis plan (Admin → Console, étape 1)</h5>

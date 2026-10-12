@@ -72,12 +72,12 @@ class BindingCheckCatalogTest {
 
     @BeforeEach
     void setUp() {
-        client.response = List.of(pair("BTC", "USDC"), pair("PAXG", "USDT"), pair("USDC", "USDT"));
+        client.response = List.of(pair("BTC", "USDC"), pair("PAXG", "BTC"));
         InstrumentCatalog catalog = new InstrumentCatalog(repository, List.of(client),
                 new FixedDomainClock(Instant.parse("2026-10-10T08:00:00Z")), transactionManager, Duration.ofHours(24));
         when(reader.getProviderCode()).thenReturn(WebProviderCode.OKX);
         when(reader.getAvailableBalances(any())).thenReturn(Map.of());
-        when(groups.members(AssetGroup.USD)).thenReturn(List.of("USDC", "USDT"));
+        when(groups.members(AssetGroup.USD)).thenReturn(List.of("USDC"));
         check = new BindingCheck(List.of(reader), catalog, groups);
         ApiCredential credential = ApiCredential.builder().id(1L).webProvider(okx).apiKey("k").secretKey("s")
                 .passphrase("p").enabled(true).build();
@@ -86,13 +86,13 @@ class BindingCheckCatalogTest {
     }
 
     @Test
-    @DisplayName("Mêmes statuts qu'avant : OK, TRADABLE_VIA_BRIDGE, NOT_TRADABLE_WITHOUT_FIAT")
+    @DisplayName("Mêmes statuts qu'avant : OK, TRADABLE_VIA_INTERMEDIARY, NOT_TRADABLE_WITHOUT_FIAT")
     void sameStatuses() {
         assertEquals(BindingCheckStatus.OK, check.check(wallet, "BTC").status());
         BindingCheckResult paxg = check.check(wallet, "PAXG");
-        assertEquals(BindingCheckStatus.TRADABLE_VIA_BRIDGE, paxg.status());
-        assertEquals("USDT", paxg.quoteMember());
-        assertEquals("USDC/USDT", paxg.bridgePair());
+        assertEquals(BindingCheckStatus.TRADABLE_VIA_INTERMEDIARY, paxg.status());
+        assertEquals("BTC", paxg.quoteMember());
+        assertEquals("USDC>BTC>PAXG", paxg.routeKey());
         assertEquals(BindingCheckStatus.NOT_TRADABLE_WITHOUT_FIAT, check.check(wallet, "ETH").status());
     }
 

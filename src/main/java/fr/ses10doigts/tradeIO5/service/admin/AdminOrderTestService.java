@@ -1,5 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.admin;
 
+import fr.ses10doigts.tradeIO5.model.dto.admin.RouteValidationRequest;
+import fr.ses10doigts.tradeIO5.model.dto.admin.RouteValidationDto;
 import fr.ses10doigts.tradeIO5.model.dto.admin.OrderTestRequest;
 import fr.ses10doigts.tradeIO5.model.dto.admin.RealOrderRequest;
 import fr.ses10doigts.tradeIO5.model.dto.admin.RealOrderResultDto;
@@ -104,5 +106,33 @@ public class AdminOrderTestService {
                     AdminActionOutcome.ERROR);
             throw e;
         }
+    }
+
+    /**
+     * Valide chaque jambe d'une route, dans l'ordre, sans jamais envoyer d'ordre. Chaque jambe est tracée au journal comme une
+     * validation isolée. Une jambe suivante refusée pour fonds insuffisants est signalée dans la note : l'exchange contrôle le
+     * solde et la jambe 2 ne peut être acceptée qu'une fois l'intermédiaire détenu.
+     */
+    public RouteValidationDto validateRoute(RouteValidationRequest request, String actor) {
+        if (request == null || request.legs() == null || request.legs().isEmpty()) {
+            throw new IllegalArgumentException("Route sans jambe");
+        }
+        List<ValidationReportDto> reports = new java.util.ArrayList<>();
+        String note = null;
+        for (int i = 0; i < request.legs().size(); i++) {
+            ValidationReportDto report = validate(request.legs().get(i), actor);
+            reports.add(report);
+            if (i > 0 && !report.accepted() && report.blockedBy() == null && fundsRelated(report)) {
+                note = "Jambe " + (i + 1) + " refusée faute de fonds : attendu tant que la jambe " + i
+                        + " n'est pas exécutée (l'intermédiaire n'est pas encore détenu)";
+            }
+        }
+        return new RouteValidationDto(List.copyOf(reports), reports.stream().allMatch(ValidationReportDto::accepted), note);
+    }
+
+    private static boolean fundsRelated(ValidationReportDto report) {
+        String text = ((report.exchangeCode() == null ? "" : report.exchangeCode()) + " "
+                + (report.message() == null ? "" : report.message())).toLowerCase();
+        return text.contains("insufficient") || text.contains("funds");
     }
 }

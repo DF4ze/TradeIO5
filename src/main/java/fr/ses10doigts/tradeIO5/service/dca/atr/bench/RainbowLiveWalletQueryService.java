@@ -1,5 +1,8 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
+import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveWalletDtos.TransitDto;
+import fr.ses10doigts.tradeIO5.model.entity.execution.StepSide;
+import fr.ses10doigts.tradeIO5.repository.execution.TransitStockRepository;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingCheckStatus;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveWalletDtos.LiveAssetDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveWalletDtos.LiveSnapshotDto;
@@ -29,6 +32,7 @@ public class RainbowLiveWalletQueryService {
 
     private final RainbowLiveBindingRepository bindingRepository;
     private final RainbowLiveBindingRunRepository runRepository;
+    private final TransitStockRepository transitRepository;
 
     /** Un élément par binding de l'utilisateur (ordre de priorité) ; liste vide sans binding. */
     @Transactional(readOnly = true)
@@ -39,17 +43,24 @@ public class RainbowLiveWalletQueryService {
         }
         Map<Long, RainbowLiveBindingRun> latest = runRepository.latestByBindings(bindings).stream()
                 .collect(Collectors.toMap(r -> r.getBinding().getId(), Function.identity()));
-        return bindings.stream().map(b -> toDto(b, latest.get(b.getId()))).toList();
+        return bindings.stream().map(b -> toDto(b, latest.get(b.getId()), transitOf(b))).toList();
     }
 
-    private static LiveAssetDto toDto(RainbowLiveBinding b, RainbowLiveBindingRun latest) {
+    /** Stock en transit actif du wallet du lien visant son actif (lecture base seule). */
+    private List<TransitDto> transitOf(RainbowLiveBinding b) {
+        return transitRepository.findByWalletIdAndTargetAssetAndResolvedAtIsNull(b.getWallet().getId(), b.getAssetSymbol()).stream()
+                .map(s -> new TransitDto(s.getCurrency(), s.getQuantity(),
+                        (s.getFinishSide() == null ? StepSide.BUY : s.getFinishSide()).name(), s.getCreatedAt())).toList();
+    }
+
+    private static LiveAssetDto toDto(RainbowLiveBinding b, RainbowLiveBindingRun latest, List<TransitDto> transit) {
         var wallet = b.getWallet();
         return new LiveAssetDto(b.getAssetSymbol(), b.getId(), b.getPreset().getId(), b.getPreset().getName(),
                 wallet.getId(), wallet.getName(),
                 wallet.getWebProviderCode() == null ? null : wallet.getWebProviderCode().name(),
                 b.getBagPercent(), b.getPriority(),
                 b.getTradability() == null ? null : b.getTradability().name(), tradabilityMessage(b),
-                b.isExecutionEnabled(), b.getFirstLiveApprovedAt() != null, b.getFirstLiveConfirmedAt() != null, latest == null ? null : snapshotOf(latest));
+                b.isExecutionEnabled(), b.getFirstLiveApprovedAt() != null, b.getFirstLiveConfirmedAt() != null, b.getRouteKey(), transit, latest == null ? null : snapshotOf(latest));
     }
 
     /** Bloc le plus récent portant un snapshot live (00:05 avant 23:55) ; nul si le run n'en a pas (preset pas encore joué en live). */
@@ -64,9 +75,13 @@ public class RainbowLiveWalletQueryService {
 
     /** Avertissement texte seulement quand l'exécution est bloquée (couple non tradable sans fiat). */
     private static String tradabilityMessage(RainbowLiveBinding b) {
-        return b.getTradability() == BindingCheckStatus.NOT_TRADABLE_WITHOUT_FIAT
-                ? b.getAssetSymbol() + " non tradable sur " + b.getWallet().getWebProviderCode()
-                + " sans passer par une monnaie fiat : exécution bloquée" : null;
+        if (b.getTradability() == BindingCheckStatus.NOT_TRADABLE_WITHOUT_FIAT) {
+            return b.getAssetSymbol() + " non tradable sur " + b.getWallet().getWebProviderCode()
+                    + " sans passer par une monnaie fiat : exécution bloquée";
+        }
+        return b.getTradability() == BindingCheckStatus.TRADABLE_VIA_INTERMEDIARY
+                ? "Achat en deux jambes via " + (b.getRouteKey() == null ? "un intermédiaire" : b.getRouteKey().replace(">", " → "))
+                + " : l'intermédiaire est détenu entre les deux jambes (risque de prix)" : null;
     }
 
     private static LiveSnapshotDto toSnapshot(RainbowLiveBindingRun run, RainbowLivePass pass, RainbowLiveLiveBlock b) {

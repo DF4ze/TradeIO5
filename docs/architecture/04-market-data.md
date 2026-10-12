@@ -1,6 +1,6 @@
 # Données de marché (candles)
 
-Vérifié le : 2026-10-10 (`service/connector/apiclient/marketdata/**` pagination ; 2026-10-08 : `service/market/dataset/**` ; 2026-10-04 : `service/dca/atr/**` ; autres références : 2026-09-12 — `service/market/dataset/MarketDatasetEngine`, `service/market/provider/MarketDataProviderRegistry`, `configuration/MarketDataCachingConfig`, `model/enumerate/market/MarketDataSource`).
+Vérifié le : 2026-10-12 (chemin D1 natif `MarketDatasetEngine#getDailyDatasetForAsset`, clients D1 ; 2026-10-10 : `service/connector/apiclient/marketdata/**` pagination ; 2026-10-08 : `service/market/dataset/**` ; 2026-10-04 : `service/dca/atr/**` ; autres références : 2026-09-12 — `service/market/dataset/MarketDatasetEngine`, `service/market/provider/MarketDataProviderRegistry`, `configuration/MarketDataCachingConfig`, `model/enumerate/market/MarketDataSource`).
 
 ## Deux chemins de résolution, ne pas les confondre
 
@@ -16,13 +16,23 @@ Vérifié le : 2026-10-10 (`service/connector/apiclient/marketdata/**` paginatio
 - **Trous (`hasDataGap`)** : enregistrés uniquement vers l'avant (saut > 1 bougie entre la dernière connue et une entrante, clé = première bougie après le trou, valeur = nb manquantes). Chaque trou est tenté **une seule fois** par `fillMissingData` (retiré avant l'appel provider) via `Manager.fillGap` → `Bucket.fill`.
 - Tests de non-régression : `MarketDatasetEngineFreshnessTest` (D1 qui avance jour après jour, bougie partielle finalisée, historique étendu, refetch incrémental).
 
+## Chemin D1 natif (Rainbow) : `getDailyDatasetForAsset`
+
+Le Rainbow live n'utilise plus le Bucket H1 : `MarketDatasetEngine#getDailyDatasetForAsset(symbole, lookBack, endTime, MarketDataSource preferred)` demande des bougies **D1 natives** au client caché de l'exchange (cache DB `CandleRepository`, un appel réseau par jour et par exchange) et renvoie un `DailyDataset(dataset, source, providerSymbol, substituted)`.
+
+- **Clients** : D1 natif ajouté à Binance (`1d`), Kraken (`interval=1440`) et OKX (`1Dutc`, aligné 00:00 UTC ; `1D` OKX est en UTC+8). Le Bucket reste H1 uniquement.
+- **Fenêtre** : `lookBack` bougies D1 (720 pour le Rainbow = limite native Kraken). Si un actif exige un jour plus d'historique que ce qu'un exchange sert, il faudra agir (fenêtre, historique profond, ou bascule des bougies manquantes sur Binance : voir `known-gaps/rainbow-dca-chantiers-ouverts.md`).
+- **`preferred == null`** : candidats `asset_provider` activés par `priority`, fallback silencieux (défauts). `maxHorizonDays` n'intervient pas (réservé au chemin H1).
+- **`preferred != null`** (source du lien) : cette source est tentée seule en premier. Ligne `asset_provider` absente ⇒ **créée à la volée** si l'exchange est de confiance (Binance, Kraken, OKX ; paire par `ProviderSymbolMapper`), en dernière priorité pour ne pas changer les défauts. Ligne désactivée (kill switch) ⇒ respectée. Source en échec ou sans bougie ⇒ fallback sur les autres candidats avec un WARN `SUBSTITUTION DE SOURCE` et `substituted = true` ; plus aucun candidat ⇒ `NoProviderAvailableException`.
+- Aucun credential : les klines sont publiques.
+
 ## Plafonds par provider et pagination
 
 Constantes en un seul endroit : `MarketDataProviderLimits` (Binance 1000/appel, Kraken 720 non paginable, OKX 300 récent + 100/page historique, garde-fou `MAX_PAGES_PER_FETCH`, espacement `PAGE_PAUSE_MILLIS`).
 
 - **Binance** : `getCandles` pagine par `startTime` via `CandlePaginator` (pur, testable) : pages de 1000 jusqu'à `until`/`limit`, ordre croissant, doublons ignorés, pause entre pages, arrêt sur page courte ou absence de progression. Sans `since` et `limit` > 1000, `since` est dérivé de `until - (limit-1)` bougies. Résultat = préfixe contigu : si le garde-fou est atteint ou si une page échoue après la 1re (429/418…), le préfixe est renvoyé (WARN) et persisté ; le reste du trou est redétecté par `CachingMarketDataApiClient` depuis la base au prochain appel. Échec dès la 1re page : exception (contrat inchangé).
 - **OKX** : `/market/candles` (récent) puis pagination `history-candles` par curseur `after` (déjà en place) ; tailles de page bornées par les constantes.
-- **Kraken** : `/public/OHLC` ne sert que les 720 dernières bougies (pas de pagination possible) ; l'historique plus ancien est exclu par `maxHorizonDays` (`asset_provider`).
+- **Kraken** : `/public/OHLC` ne sert que les 720 dernières bougies (pas de pagination possible) : 30 j en H1 (historique plus ancien exclu par `maxHorizonDays` = `MarketDataProviderLimits.KRAKEN_H1_MAX_HORIZON_DAYS` sur le chemin H1) mais 720 j en D1 natif.
 
 ## Cache
 

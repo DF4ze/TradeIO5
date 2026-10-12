@@ -104,6 +104,11 @@ class KrakenMarketDataApiClientTest extends AbstractMarketDataApiClientContractT
     }
 
     @Test
+    void nativeInterval_returnsKrakenMinutesForD1() {
+        assertEquals(1440, KrakenMarketDataApiClient.nativeInterval(TimeFrame.D1));
+    }
+
+    @Test
     void nativeInterval_throwsForUnsupportedTimeFrame() {
         assertThrows(IllegalArgumentException.class,
                 () -> KrakenMarketDataApiClient.nativeInterval(TimeFrame.H4));

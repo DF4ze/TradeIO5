@@ -26,7 +26,7 @@ import java.time.Instant;
 /**
  * Un ordre limit IOC plafonné, calculé par le plan puis (si le mode LIVE est déverrouillé) envoyé par l'exécuteur ;
  * les colonnes d'exécution restent nulles tant que l'étape n'a pas été envoyée. {@code rank} = rang dans le chemin de l'actif
- * (1 = pont éventuel, puis jambe d'achat). {@code px} = prix plafond (prix de référence ± tolérance de slippage, arrondi
+ * (1 = jambe 1 ; une seconde jambe suit pour une route via intermédiaire). {@code px} = prix plafond (prix de référence ± tolérance de slippage, arrondi
  * au tick) ; {@code sz} en unités de la base ; {@code quoteAmount} en monnaie de cotation.
  */
 @Entity

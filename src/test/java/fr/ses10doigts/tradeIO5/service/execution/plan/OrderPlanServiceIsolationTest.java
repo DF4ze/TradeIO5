@@ -14,6 +14,7 @@ import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRunRepository;
 import fr.ses10doigts.tradeIO5.repository.execution.RainbowLiveOrderPlanRepository;
+import fr.ses10doigts.tradeIO5.repository.execution.TransitStockRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.service.execution.ExecutionSettings;
@@ -69,7 +70,7 @@ class OrderPlanServiceIsolationTest {
         }
         when(planner.plan(anyList())).thenThrow(new IllegalStateException("boom"))
                 .thenReturn(new PlanDraft(List.of(), PlanStatus.PLANNED, null, (FeeTestLevel) null, null));
-        OrderPlanService service = new OrderPlanService(users, bindings, runs, plans, planner, new ExecutionSettings(),
+        OrderPlanService service = new OrderPlanService(users, bindings, runs, plans, mock(TransitStockRepository.class), planner, new ExecutionSettings(),
                 new FixedDomainClock(Instant.parse("2026-10-09T23:58:00Z")), mock(PlatformTransactionManager.class));
 
         OrderPlanService.PlanSummary summary = service.planAll(DAY, RainbowLivePass.T2355);

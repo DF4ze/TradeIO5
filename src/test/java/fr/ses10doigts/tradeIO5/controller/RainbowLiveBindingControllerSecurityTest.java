@@ -61,7 +61,7 @@ class RainbowLiveBindingControllerSecurityTest {
     @Test
     @DisplayName("Sans contexte de sécurité : path-quote refusé")
     void noAuthentication() {
-        assertThrows(AuthenticationCredentialsNotFoundException.class, () -> controller.pathQuote(1L, BigDecimal.TEN, null));
+        assertThrows(AuthenticationCredentialsNotFoundException.class, () -> controller.pathQuote(1L, BigDecimal.TEN));
         assertThrows(AuthenticationCredentialsNotFoundException.class, () -> controller.list());
     }
 
@@ -70,13 +70,13 @@ class RainbowLiveBindingControllerSecurityTest {
     void anonymousAndAuthenticated() {
         SecurityContextHolder.setContext(new SecurityContextImpl(new AnonymousAuthenticationToken(
                 "key", "anonymous", AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS"))));
-        assertThrows(AccessDeniedException.class, () -> controller.pathQuote(1L, BigDecimal.TEN, null));
+        assertThrows(AccessDeniedException.class, () -> controller.pathQuote(1L, BigDecimal.TEN));
 
         SecurityContextHolder.setContext(new SecurityContextImpl(new UsernamePasswordAuthenticationToken(
                 "alice", "x", AuthorityUtils.createAuthorityList("ROLE_USER"))));
         // services mockés => résultat nul => NPE de mapping, mais jamais un refus de sécurité
         try {
-            controller.pathQuote(1L, BigDecimal.TEN, null);
+            controller.pathQuote(1L, BigDecimal.TEN);
         } catch (AccessDeniedException | AuthenticationCredentialsNotFoundException e) {
             throw new AssertionError("l'utilisateur authentifié ne doit pas être refusé", e);
         } catch (RuntimeException expected) {

@@ -1,5 +1,8 @@
 package fr.ses10doigts.tradeIO5.service.execution.run;
 
+import fr.ses10doigts.tradeIO5.service.market.instrument.ExecutionDefaults;
+import fr.ses10doigts.tradeIO5.model.entity.execution.TransitStock;
+import fr.ses10doigts.tradeIO5.repository.execution.TransitStockRepository;
 import fr.ses10doigts.tradeIO5.model.dto.execution.InstrumentInfo;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
@@ -53,6 +56,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -81,9 +85,13 @@ class OrderExecutorTest {
     private final InstrumentInfo ethUsdc = new InstrumentInfo("ETH-USDC", "ETH", "USDC", new BigDecimal("0.0001"),
             new BigDecimal("0.00000001"), new BigDecimal("0.01"));
 
+    private final InstrumentInfo paxgBtc = new InstrumentInfo("PAXG-BTC", "PAXG", "BTC", new BigDecimal("0.0001"),
+            new BigDecimal("0.0001"), new BigDecimal("0.00001"));
+
     private RainbowLiveOrderPlanRepository plans;
     private RainbowLiveOrderStepRepository steps;
     private TradeCredentialResolver credentials;
+    private TransitStockRepository transitRepo;
     private StepRequoter requoter;
     private UserRepository users;
     private RainbowLiveOrderPlan plan;
@@ -141,7 +149,7 @@ class OrderExecutorTest {
         when(runs.findByPresetAndDay(any(), any())).thenAnswer(i -> Optional.of(RainbowLiveRun.builder()
                 .config(RainbowAtrConfig.builder().baseAmount(baseAmount.doubleValue()).build()).build()));
         InstrumentCatalog catalog = mock(InstrumentCatalog.class);
-        when(catalog.liveInstruments(any())).thenReturn(List.of(btcUsdc, ethUsdc));
+        when(catalog.liveInstruments(any())).thenReturn(List.of(btcUsdc, ethUsdc, paxgBtc));
         ExecutionControlService controlService = mock(ExecutionControlService.class);
         when(controlService.current()).thenAnswer(i -> control);
         SpotOrderRouter ports = router;
@@ -151,10 +159,12 @@ class OrderExecutorTest {
         OrderEventLog events = mock(OrderEventLog.class);
         boolean live = "LIVE".equals(mode);
         ExecutionSettings settings = new ExecutionSettings(mode, Duration.ofHours(1), new BigDecimal("0.1"), live, live);
+        transitRepo = mock(TransitStockRepository.class);
+        when(transitRepo.findByWalletIdAndTargetAssetAndResolvedAtIsNull(anyLong(), any())).thenReturn(List.of());
         StepRunner runner = new StepRunner(ports, steps, mock(FillRecorder.class), events, new FixedDomainClock(NOW), tm,
                 Duration.ZERO, 2);
         return new OrderExecutor(settings, controlService, ports, plans, steps, bindings, runs, wallets, users,
-                credentials, catalog, requoter, runner, events, new FeeTest(), new FixedDomainClock(NOW), tm);
+                credentials, catalog, requoter, runner, events, new FeeTest(), new FixedDomainClock(NOW), transitRepo, tm, Duration.ZERO);
     }
 
     private ExecutionResult runLive() {
@@ -251,13 +261,13 @@ class OrderExecutorTest {
         addAsset("BTC", btcUsdc, "6", 100L);
         assertEquals(ExecutionBlockReason.CAP_ORDER, runLive().blocked().get("BTC@10"));
         plan.setStatus(PlanStatus.PLANNED);
-        stepsById.get(100L).setQuoteAmount(new BigDecimal("12"));
-        baseAmount = new BigDecimal("20");
+        stepsById.get(100L).setQuoteAmount(new BigDecimal("35"));
+        baseAmount = new BigDecimal("50");
         assertEquals(ExecutionBlockReason.CAP_ABSOLUTE_ORDER, runLive().blocked().get("BTC@10"));
         plan.setStatus(PlanStatus.PLANNED);
         stepsById.get(100L).setQuoteAmount(new BigDecimal("8"));
         RainbowLiveOrderStep earlier = RainbowLiveOrderStep.builder().id(7L).assetSymbol("BTC").instId("BTC-USDC")
-                .quoteAmount(new BigDecimal("45")).status(StepStatus.FILLED).build();
+                .quoteAmount(new BigDecimal("95")).status(StepStatus.FILLED).build();
         when(steps.findSentSince(any(), any(), any())).thenReturn(List.of(earlier));
         assertEquals(ExecutionBlockReason.CAP_ABSOLUTE_DAY, runLive().blocked().get("BTC@10"));
         assertEquals(0, exchange.totalCalls());
@@ -296,6 +306,7 @@ class OrderExecutorTest {
         when(requoter.requote(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new StepRequoter.Requote(new BigDecimal("5"), new BigDecimal("100000")));
         assertEquals(0, runLive().sent());
+        assertTrue(plan.getExecutionBlockReason().endsWith("BTC@10:COST_RED"), "la raison du non-envoi remonte au plan");
         assertEquals(0, exchange.totalCalls());
         assertEquals(StepStatus.PLANNED, stepsById.get(100L).getStatus());
     }
@@ -347,5 +358,111 @@ class OrderExecutorTest {
         assertEquals(ExecutionBlockReason.BINDING_DISABLED, r.blocked().get("BTC@11"));
         assertNull(r.blocked().get("BTC@10"));
         assertEquals(StepStatus.PLANNED, stepsById.get(101L).getStatus());
+    }
+
+    // ------------------------------------------------------------------ route via intermédiaire (PAXG par BTC)
+
+    /** Achat PAXG : jambe 1 {@code BTC-USDC} (4 USDC) puis jambe 2 {@code PAXG-BTC} sur le net reçu. */
+    private void addPaxgRoute() {
+        addAsset("PAXG", 10L, btcUsdc, "4", 300L);
+        RainbowLiveOrderStep first = stepsById.get(300L);
+        first.setAssetSymbol("PAXG");
+        bindingsByAsset.get("PAXG@10").setTradability(BindingCheckStatus.TRADABLE_VIA_INTERMEDIARY);
+        plan.getAssets().getFirst().setCostPct(new BigDecimal("0.20"));
+        RainbowLiveOrderStep second = RainbowLiveOrderStep.builder().id(301L).plan(plan).rank(2).assetSymbol("PAXG").walletId(10L)
+                .instId("PAXG-BTC").side(StepSide.BUY).ordType(StepOrderType.LIMIT_IOC).px(new BigDecimal("0.02"))
+                .sz(new BigDecimal("0.001")).quoteAmount(new BigDecimal("0.00002")).clOrdId("tio301abc")
+                .feePct(new BigDecimal("0.05")).spreadPct(new BigDecimal("0.03")).slippagePct(new BigDecimal("0.02"))
+                .status(StepStatus.PLANNED).build();
+        plan.getSteps().add(second);
+        stepsById.put(301L, second);
+    }
+
+    @Test
+    @DisplayName("Route PAXG via BTC : jambe 2 dimensionnée sur le net reçu de la jambe 1, plan EXECUTED")
+    void viaIntermediaryHappyPath() {
+        addPaxgRoute();
+        exchange.feeRate("0.0016");
+        ExecutionResult r = runLive();
+        assertEquals(PlanStatus.EXECUTED, r.status());
+        assertEquals(2, exchange.submitCount());
+        assertEquals(StepStatus.FILLED, stepsById.get(300L).getStatus());
+        assertEquals(StepStatus.FILLED, stepsById.get(301L).getStatus());
+        verify(transitRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Jambe 2 refusée une fois : retry sous un nouvel identifiant, plan EXECUTED, aucun stock")
+    void leg2RetryThenSuccess() {
+        addPaxgRoute();
+        int[] paxgSends = {0};
+        exchange.onSubmit(r -> {
+            if (r.instId().equals("PAXG-BTC")) {
+                exchange.mode(++paxgSends[0] == 1 ? Mode.NO_FILL : Mode.FILL_ALL);
+            }
+        });
+        ExecutionResult r = runLive();
+        assertEquals(PlanStatus.EXECUTED, r.status());
+        assertEquals(3, exchange.submitCount());
+        assertEquals("tio301abcr2", exchange.submitted.getLast().clOrdId());
+        assertEquals(StepStatus.FILLED, stepsById.get(301L).getStatus());
+        verify(transitRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Jambe 2 toujours refusée : retries bornés, plan PARTIAL, BTC reçu en stock en transit, aucun ordre compensatoire")
+    void leg2ExhaustedBecomesTransitStock() {
+        addPaxgRoute();
+        exchange.onSubmit(r -> exchange.mode(r.instId().equals("PAXG-BTC") ? Mode.NO_FILL : Mode.FILL_ALL));
+        ExecutionResult r = runLive();
+        assertEquals(PlanStatus.PARTIAL, r.status());
+        assertEquals(1 + ExecutionDefaults.LEG2_MAX_ATTEMPTS, exchange.submitCount());
+        assertTrue(exchange.submitted.stream().skip(1).allMatch(o -> o.instId().equals("PAXG-BTC") && o.side() == StepSide.BUY));
+        org.mockito.ArgumentCaptor<TransitStock> stock = org.mockito.ArgumentCaptor.forClass(TransitStock.class);
+        verify(transitRepo).save(stock.capture());
+        assertEquals("BTC", stock.getValue().getCurrency());
+        assertEquals("PAXG", stock.getValue().getTargetAsset());
+        assertEquals(StepSide.BUY, stock.getValue().getFinishSide());
+        assertEquals(0, stepsById.get(300L).getReceivedAmount().compareTo(stock.getValue().getQuantity()));
+    }
+
+    @Test
+    @DisplayName("Jambe 2 en coût RED au re-devis : aucun envoi de jambe 2, BTC en stock en transit")
+    void leg2RedGoesToTransitStock() {
+        addPaxgRoute();
+        when(requoter.requote(any(), any(), any(), any(), any(), any())).thenAnswer(i ->
+                new StepRequoter.Requote(i.getArgument(2, InstrumentInfo.class).instId().equals("PAXG-BTC")
+                        ? new BigDecimal("5") : new BigDecimal("0.10"), new BigDecimal("100000")));
+        ExecutionResult r = runLive();
+        assertEquals(PlanStatus.PARTIAL, r.status());
+        assertEquals(1, exchange.submitCount());
+        assertEquals(StepStatus.PLANNED, stepsById.get(301L).getStatus());
+        verify(transitRepo).save(any(TransitStock.class));
+    }
+
+    @Test
+    @DisplayName("Stock en transit en tête de plan : jambe 2 envoyée avec le stock, stock diminué puis résolu")
+    void transitStockIsFinishedFirst() {
+        addPaxgRoute();
+        plan.getSteps().removeFirst();
+        stepsById.remove(300L);
+        stepsById.get(301L).setRank(1);
+        TransitStock stock = TransitStock.builder().userId(1L).walletId(10L).currency("BTC").quantity(new BigDecimal("0.00002"))
+                .targetAsset("PAXG").finishSide(StepSide.BUY).createdAt(NOW).build();
+        OrderExecutor ex = executor("LIVE");
+        when(transitRepo.findByWalletIdAndTargetAssetAndResolvedAtIsNull(10L, "PAXG")).thenReturn(List.of(stock));
+        ExecutionResult r = ex.execute(1L);
+        assertEquals(PlanStatus.EXECUTED, r.status());
+        assertEquals(1, exchange.submitCount());
+        assertEquals("PAXG-BTC", exchange.submitted.getFirst().instId());
+        assertTrue(stock.getQuantity().compareTo(new BigDecimal("0.00002")) < 0);
+    }
+
+    @Test
+    @DisplayName("Plafonds : la jambe cotée en BTC ne compte pas dans le notionnel USD")
+    void intermediaryLegIsNotCountedInCaps() {
+        addPaxgRoute();
+        stepsById.get(301L).setQuoteAmount(new BigDecimal("500"));
+        assertEquals(PlanStatus.EXECUTED, runLive().status());
     }
 }

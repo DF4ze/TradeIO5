@@ -13,6 +13,9 @@ public final class MarketDataProviderLimits {
     /** Kraken {@code /public/OHLC} : seules les 720 dernières bougies sont servies, non paginable. */
     public static final int KRAKEN_OHLC_MAX = 720;
 
+    /** Horizon (jours) des bougies H1 d'une ligne {@code asset_provider} Kraken : 720 H1 = 30 j, 25 j de marge. */
+    public static final Integer KRAKEN_H1_MAX_HORIZON_DAYS = 25;
+
     /** OKX {@code /market/candles} (fenêtre récente) : ~300 bougies max. */
     public static final int OKX_RECENT_CANDLES_MAX = 300;
 

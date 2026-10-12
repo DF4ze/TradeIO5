@@ -24,15 +24,16 @@ Vérifié le : 2026-10-11.
 - **Binding (Rainbow live)** — lien unique (user, actif, wallet) entre un preset et un wallet réel (un preset peut alimenter plusieurs liens) lu en lecture seule, avec `bagPercent` (part dynamique de la position réelle offerte à la stratégie) et `priority` (ordre de passage du cash). Cf. [`architecture/08`](architecture/08-rainbow-bench-grandeur-nature.md).
 - **BLOCKED (action live)** — achat voulu par le moteur mais refusé faute de cash dans le pool du wallet (tout-ou-rien, raison `INSUFFICIENT_CASH`) ; jamais exécuté.
 - **CashLedger** — pool de cash USDC d'un (user, wallet) pour une passe : les actifs le parcourent par `priority`, chaque achat accepté réserve son montant.
-- **BindingCheck** — vérification de disponibilité d'un binding : credential valide, soldes lisibles, chemin spot sans monnaie fiat vers l'actif via le groupe USD ; statut explicite (`OK`, `TRADABLE_VIA_BRIDGE`, `NOT_TRADABLE_WITHOUT_FIAT`, `CREDENTIAL_INVALID`, `BALANCE_UNAVAILABLE`…).
+- **BindingCheck** — vérification de disponibilité d'un binding : credential valide, soldes lisibles, route spot sans monnaie fiat vers l'actif ; statut explicite (`OK`, `TRADABLE_VIA_INTERMEDIARY`, `NOT_TRADABLE_WITHOUT_FIAT`, `CREDENTIAL_INVALID`, `BALANCE_UNAVAILABLE`…) et `routeKey`.
 - **Catalogue d'instruments** — paires spot d'un exchange conservées en base (`exchange_instrument`), rafraîchies au plus 1×/jour par un seul appel public ; lu par `BindingCheck` et `PathFinder`.
 - **PathQuote** — devis d'un chemin d'achat (jambes, coût total en %, niveau Fee Test) : frais réels du compte + demi-spread + slippage au montant, sans monnaie fiat, ≤ 2 jambes.
 - **Plan d'ordres (dry-run)** — photo enregistrée de ce qu'on achèterait / vendrait pour une passe (étapes `LIMIT_IOC` avec prix plafond, coût, niveau Fee Test) ; rien n'est envoyé, `EXPIRED` après 5 min ; une révision par jeu d'entrées (`SUPERSEDED` pour les anciennes). Cf. [`architecture/10-execution-plan.md`](architecture/10-execution-plan.md).
-- **Bilan virtuel** — soldes par membre du groupe USD (USDC, USDT) d'un wallet, décrémentés actif par actif pendant le calcul du plan (par `priority`) pour dimensionner les ponts ; les ventes ne le créditent pas le jour même.
-- **Pont (jambe pont)** — conversion `USDC→USDT` (ou l'inverse) limitée au manque de la cotation terminale, avant l'achat de l'actif.
+- **Bilan virtuel** — soldes USDC d'un wallet (membres du groupe USD), décrémentés actif par actif pendant le calcul du plan (par `priority`) ; les ventes ne le créditent pas le jour même.
+- **Intermédiaire / `routeKey`** — actif non stable traversé par une route d'achat (ex. `USDC>BTC>PAXG`, BTC choisi, ETH affiché seulement) ; jamais conservé à la vente.
+- **Stock en transit** — quantité d'intermédiaire acquise par la jambe 1 dont la jambe 2 a échoué après son retry borné ; terminé par le plan suivant avant tout nouvel achat, aucun ordre compensatoire.
 - **clOrdId** — identifiant client déterministe d'une étape (`t5` + user et wallet base 36 + actif + `yyyyMMdd` + passe + rang), ≤ 32 caractères alphanumériques.
 - **Fee Test** — niveau du coût total d'un chemin : GREEN < 0,2 % ≤ WARNING ≤ 0,8 % < RED (seuils configurables).
-- **Groupe d'actifs** — plusieurs actifs regroupés sous un seul (ex : `USD` = USDC + USDT), valorisation nominale 1:1, tables `asset_group` / `asset_group_member`.
+- **Groupe d'actifs** — plusieurs actifs regroupés sous un seul (ex : `USD` = USDC seul), valorisation nominale 1:1, tables `asset_group` / `asset_group_member`.
 - **TrendRegime** — `UP` / `DOWN` / `RANGE`, sortie du Trend unifié ([`architecture/09-trend.md`](architecture/09-trend.md)).
 - **Bull / Bear (Rainbow)** — les deux jeux de paramètres Rainbow visés par actif (pas de Sideways) ; sélection manuelle dans le pine aujourd'hui.
 - **Credential TRADE** — clé d'exchange à portée `TRADE` (Trade uniquement, jamais Withdraw), chiffrée au repos (AES-GCM) avec la clé maître `TRADEIO_MASTER_KEY` ; distincte de la clé `READ`.
@@ -41,4 +42,4 @@ Vérifié le : 2026-10-11.
 - **Kill switch** — interrupteur global (`execution_control`, engagé par défaut) relu avant chaque étape : engagé ⇒ aucun nouvel ordre.
 - **Double validation du 1ᵉʳ ordre** — l'admin arme le binding, puis son propriétaire confirme ; indispensable avant tout premier ordre réel.
 - **Étape UNKNOWN** — ordre dont l'issue est inconnue (timeout) : jamais renvoyé, relu par `clOrdId` (réconciliation).
-- **Plafond absolu** — constantes de code (10 USD par ordre, 50 USD par jour et par user en phase de test) qui bornent les multiplicateurs configurables.
+- **Plafond absolu** — constantes de code (30 USD par ordre, 100 USD par jour et par user en phase de test) qui bornent les multiplicateurs configurables.

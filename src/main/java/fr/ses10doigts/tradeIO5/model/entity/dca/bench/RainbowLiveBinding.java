@@ -74,12 +74,12 @@ public class RainbowLiveBinding {
     @Column(length = 32)
     private BindingCheckStatus tradability;
 
-    /** Membre du groupe USD dans lequel l'actif est coté, et paire de passerelle éventuelle (dernier contrôle). */
+    /** Cotation de la dernière jambe d'achat de l'actif (USDC ou intermédiaire), et route mémorisée (ex. {@code USDC>BTC>PAXG}). */
     @Column(name = "quote_member", length = 16)
     private String quoteMember;
 
-    @Column(name = "bridge_pair", length = 32)
-    private String bridgePair;
+    @Column(name = "route_key", length = 64)
+    private String routeKey;
 
     @Column(name = "tradability_checked_at")
     private Instant tradabilityCheckedAt;
@@ -107,7 +107,7 @@ public class RainbowLiveBinding {
     public void recordCheck(BindingCheckResult result, Instant at) {
         tradability = result.status();
         quoteMember = result.quoteMember();
-        bridgePair = result.bridgePair();
+        routeKey = result.routeKey();
         tradabilityCheckedAt = at;
     }
 }

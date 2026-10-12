@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Constantes métier mutualisées du chemin d'achat (défauts en code, surchargeables par propriété : pas de config DB,
@@ -16,6 +17,19 @@ public final class ExecutionDefaults {
     public static final Set<String> FIAT_CURRENCIES = Set.of("USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "NZD",
             "AED", "TRY", "BRL", "MXN", "ARS", "PLN", "SEK", "NOK", "DKK", "CZK", "HUF", "UAH", "SGD", "HKD", "KRW",
             "INR", "ZAR");
+
+    /** Stablecoin exclu partout (jamais un nœud de chemin) : les données de marché {@code *USDT} (Binance, candles) ne sont pas concernées. */
+    public static final String EXCLUDED_STABLE = "USDT";
+
+    /** Nœuds interdits par défaut : devises fiat + stablecoin exclu. Surcharge : {@link #FORBIDDEN_NODES_PROPERTY}. */
+    public static final Set<String> DEFAULT_FORBIDDEN_NODES = Stream.concat(FIAT_CURRENCIES.stream(), Stream.of(EXCLUDED_STABLE))
+            .collect(Collectors.toUnmodifiableSet());
+
+    /** Intermédiaires non stables autorisés dans un chemin (doivent avoir eux-mêmes une paire stable sur l'exchange). */
+    public static final Set<String> INTERMEDIARIES = Set.of("BTC", "ETH");
+
+    /** Intermédiaires choisis automatiquement (les autres sont chiffrés et affichés, jamais choisis). */
+    public static final Set<String> CHOSEN_INTERMEDIARIES = Set.of("BTC");
 
     /** Nombre maximal de jambes d'un chemin. */
     public static final int MAX_PATH_DEPTH = 2;
@@ -40,15 +54,19 @@ public final class ExecutionDefaults {
     /** Tolérance appliquée au prix de référence pour le prix plafond d'un ordre limit IOC (en %). */
     public static final BigDecimal SLIPPAGE_TOLERANCE_PCT = new BigDecimal("0.1");
 
-    /** Marge (en %) ajoutée au manque couvert par une jambe pont, pour absorber ses frais et le mouvement de prix. */
-    public static final BigDecimal BRIDGE_FEE_MARGIN_PCT = new BigDecimal("0.3");
+    /** Stable de cotation du cash (seul membre du groupe USD) : une étape cotée en cette devise porte le notionnel USD des plafonds. */
+    public static final String CASH_STABLE = "USDC";
+
+    /** Jambe 2 d'une route via intermédiaire : nombre maximal d'envois (1 + retries), délai entre deux, re-devis à chaque essai. */
+    public static final int LEG2_MAX_ATTEMPTS = 3;
+    public static final Duration LEG2_RETRY_DELAY = Duration.ofSeconds(2);
 
     /**
-     * Plafonds ABSOLUS d'un ordre et d'une journée par utilisateur (USD), en constante (valeurs basses de la phase de test : 10 / 50 ; à relever et à rendre configurables par utilisateur plus tard) : jamais surchargeables par la base
+     * Plafonds ABSOLUS d'un ordre et d'une journée par utilisateur (USD), en constante (valeurs basses de la phase de test : 30 / 100 ; à relever et à rendre configurables par utilisateur plus tard) : jamais surchargeables par la base
      * ({@code ExecutionControl}) ni par une propriété. Filet de sécurité contre un {@code baseAmount} ou un multiplicateur erroné.
      */
-    public static final BigDecimal ABSOLUTE_MAX_ORDER_USD = new BigDecimal("10");
-    public static final BigDecimal ABSOLUTE_MAX_DAY_USD = new BigDecimal("50");
+    public static final BigDecimal ABSOLUTE_MAX_ORDER_USD = new BigDecimal("30");
+    public static final BigDecimal ABSOLUTE_MAX_DAY_USD = new BigDecimal("100");
 
     /** Plafonds par défaut en multiples du {@code baseAmount} du preset (ordre = 1 ×, jour/utilisateur = 2 ×). */
     public static final BigDecimal DEFAULT_MAX_ORDER_MULTIPLIER = BigDecimal.ONE;
@@ -80,9 +98,6 @@ public final class ExecutionDefaults {
     /** Fenêtre par défaut (jours) de la liste admin des plans. */
     public static final int ADMIN_PLAN_WINDOW_DAYS = 7;
 
-    /** Cotation forcée à la vente quand la paire {@code X-USDT} existe. */
-    public static final String FORCED_SELL_QUOTE = "USDT";
-
     public static final String FEE_TEST_WARN_PROPERTY = "tradeio.execution.fee-test.warn-pct";
     public static final String FEE_TEST_RED_PROPERTY = "tradeio.execution.fee-test.red-pct";
     public static final String MODE_PROPERTY = "tradeio.execution.mode";
@@ -103,10 +118,10 @@ public final class ExecutionDefaults {
     public static final String FORBIDDEN_NODES_PROPERTY = "tradeio.execution.forbidden-nodes";
     public static final String CATALOG_REFRESH_AFTER_PROPERTY = "tradeio.execution.instrument-catalog.refresh-after";
 
-    /** Nœuds interdits depuis la propriété (liste séparée par des virgules) ; vide => devises fiat. */
+    /** Nœuds interdits depuis la propriété (liste séparée par des virgules) ; vide => fiat + USDT. */
     public static Set<String> forbiddenNodes(String property) {
         if (property == null || property.isBlank()) {
-            return FIAT_CURRENCIES;
+            return DEFAULT_FORBIDDEN_NODES;
         }
         return Arrays.stream(property.split(",")).map(String::trim).filter(v -> !v.isEmpty()).map(String::toUpperCase)
                 .collect(Collectors.toSet());

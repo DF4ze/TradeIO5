@@ -138,6 +138,30 @@ public class StepRunner {
         return markUnknown(c, "NO_TERMINAL_STATE", null);
     }
 
+    /**
+     * Prépare le renvoi d'une étape refusée ou annulée (retry de la jambe 2) : nouvel identifiant client, résultats de
+     * l'envoi précédent effacés (conservés dans l'audit append-only). Jamais appelée pour une étape {@code UNKNOWN}.
+     */
+    public void restage(Long stepId, String newClOrdId) {
+        tx.executeWithoutResult(status -> {
+            RainbowLiveOrderStep step = steps.findById(stepId).orElseThrow();
+            step.setClOrdId(newClOrdId);
+            step.setStatus(StepStatus.PLANNED);
+            step.setOrdId(null);
+            step.setSentSz(null);
+            step.setFilledSz(null);
+            step.setAvgFillPx(null);
+            step.setFeeAmount(null);
+            step.setFeeCurrency(null);
+            step.setReceivedAmount(null);
+            step.setReceivedCurrency(null);
+            step.setRealSlippagePct(null);
+            step.setSubmittedAt(null);
+            step.setFinishedAt(null);
+            steps.save(step);
+        });
+    }
+
     // ------------------------------------------------------------------ réconciliation
 
     /** Relit l'ordre par {@code clOrdId} et clôt l'étape si possible. Ne renvoie jamais d'ordre. */

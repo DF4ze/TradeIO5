@@ -2,8 +2,11 @@ package fr.ses10doigts.tradeIO5.service.tree.indicator.external;
 
 import fr.ses10doigts.tradeIO5.model.dto.provider.web.ApiCredentialDTO;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
+
+import reactor.netty.http.client.HttpClient;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,6 +24,11 @@ public abstract class AbstractExternalIndicator {
     // échelle pour un usage par credential mis en cache).
     private static final int MAX_IN_MEMORY_SIZE_BYTES = 8 * 1024 * 1024;
 
+    // Le défaut reactor-netty (8192 octets) est trop bas pour les headers de réponse de
+    // youtube.com/watch (Set-Cookie nombreux) : "HTTP header is larger than 8192 bytes" faisait
+    // échouer tout fetch de transcript (2026-10-12).
+    private static final int MAX_RESPONSE_HEADER_SIZE_BYTES = 64 * 1024;
+
     private final Map<WebProviderCode, WebClient> clients = new ConcurrentHashMap<>();
 
     protected WebClient getWebClient(ApiCredentialDTO credential) {
@@ -28,6 +36,8 @@ public abstract class AbstractExternalIndicator {
                 credential.provider(),
                 p -> WebClient.builder()
                         .baseUrl(credential.baseUrl())
+                        .clientConnector(new ReactorClientHttpConnector(
+                                HttpClient.create().httpResponseDecoder(d -> d.maxHeaderSize(MAX_RESPONSE_HEADER_SIZE_BYTES))))
                         .exchangeStrategies(ExchangeStrategies.builder()
                                 .codecs(codecs -> codecs.defaultCodecs().maxInMemorySize(MAX_IN_MEMORY_SIZE_BYTES))
                                 .build())

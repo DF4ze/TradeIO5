@@ -65,7 +65,9 @@ public class RainbowLiveBindingRun {
             @AttributeOverride(name = "blockReason", column = @Column(name = "t2355_block_reason")),
             @AttributeOverride(name = "actionType", column = @Column(name = "t2355_action_type")),
             @AttributeOverride(name = "actionAmountUsdc", column = @Column(name = "t2355_action_amount_usdc")),
-            @AttributeOverride(name = "actionQuantity", column = @Column(name = "t2355_action_quantity"))
+            @AttributeOverride(name = "actionQuantity", column = @Column(name = "t2355_action_quantity")),
+            @AttributeOverride(name = "candleSource", column = @Column(name = "t2355_candle_source")),
+            @AttributeOverride(name = "candleSourceSubstituted", column = @Column(name = "t2355_candle_substituted"))
     })
     private RainbowLiveLiveBlock pass2355;
 
@@ -83,7 +85,9 @@ public class RainbowLiveBindingRun {
             @AttributeOverride(name = "blockReason", column = @Column(name = "t0005_block_reason")),
             @AttributeOverride(name = "actionType", column = @Column(name = "t0005_action_type")),
             @AttributeOverride(name = "actionAmountUsdc", column = @Column(name = "t0005_action_amount_usdc")),
-            @AttributeOverride(name = "actionQuantity", column = @Column(name = "t0005_action_quantity"))
+            @AttributeOverride(name = "actionQuantity", column = @Column(name = "t0005_action_quantity")),
+            @AttributeOverride(name = "candleSource", column = @Column(name = "t0005_candle_source")),
+            @AttributeOverride(name = "candleSourceSubstituted", column = @Column(name = "t0005_candle_substituted"))
     })
     private RainbowLiveLiveBlock pass0005;
 

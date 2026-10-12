@@ -20,7 +20,7 @@
     defaults: null, zones: new Map(), asset: null, presets: [], selectedId: null,
     formMode: null, formKind: 'FIXED', formPreset: null, formSource: null, uiMode: 'EXPERT', deleteTarget: null,
     charts: [], perf: null, retry: null,
-    live: new Map(), liveCheck: null, plan: null, exec: null, events: null
+    live: new Map(), liveCheck: null, routes: null, plan: null, exec: null, events: null
   };
 
   /* ------------------------------------------------------------------ utilitaires */
@@ -134,6 +134,7 @@
     $('rl-detail').classList.add('d-none');
     destroyCharts();
     state.liveCheck = null;
+    state.routes = null;
     return Promise.all([loadLive(), loadPresets()]);
   }
 
@@ -567,7 +568,7 @@
   const CHECK_TEXT = {
     OK: 'OK', WALLET_DISABLED: 'Wallet désactivé', CREDENTIAL_INVALID: 'Clé API invalide ou rejetée',
     PROVIDER_UNSUPPORTED: 'Exchange non pris en charge', BALANCE_UNAVAILABLE: 'Soldes illisibles',
-    TRADABLE_VIA_BRIDGE: 'Tradable via passerelle USD', NOT_TRADABLE_WITHOUT_FIAT: 'Non tradable sans monnaie fiat',
+    TRADABLE_VIA_INTERMEDIARY: 'Tradable via intermédiaire (ex. USDC > BTC > PAXG)', NOT_TRADABLE_WITHOUT_FIAT: 'Non tradable sans monnaie fiat',
     INSTRUMENT_UNAVAILABLE: 'Paire non vérifiable'
   };
 
@@ -765,8 +766,10 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
   /** Avertissement (texte seul) quand l'exécution est bloquée sur ce couple (actif, exchange). */
   function liveSnapshotView(l) {
     return el('div', null,
-      l.tradability === 'NOT_TRADABLE_WITHOUT_FIAT' && l.tradabilityMessage
-        ? el('div', { class: 'alert alert-warning py-1 px-2 mb-2', role: 'alert', text: l.tradabilityMessage }) : null,
+      l.tradabilityMessage
+        ? el('div', { class: 'alert ' + (l.tradability === 'NOT_TRADABLE_WITHOUT_FIAT' ? 'alert-warning' : 'alert-info') + ' py-1 px-2 mb-2',
+          role: 'alert', text: l.tradabilityMessage }) : null,
+      transitView(l),
       liveSnapshotBody(l));
   }
 
@@ -793,6 +796,53 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
   /** Détail du cash par membre du groupe USD (infobulle), vide si absent. */
   function cashDetail(byMember) {
     return byMember ? Object.keys(byMember).map((k) => k + ' ' + F2.format(byMember[k])).join(' · ') : '';
+  }
+
+  /** Stock en transit actif (intermédiaire dont la jambe 2 reste à terminer) : terminé au prochain plan, jamais compensé. */
+  function transitView(l) {
+    if (!l.transit || !l.transit.length) { return null; }
+    return el('div', { class: 'alert alert-warning py-1 px-2 mb-2', role: 'alert' },
+      el('strong', { text: 'Stock en transit : ' }),
+      l.transit.map((t) => qty(Number(t.quantity)) + ' ' + t.currency + (t.finishSide === 'SELL' ? ' (à vendre en stable)' : ' (jambe 2 à terminer sur ' + l.assetSymbol + ')')).join(' · '),
+      el('span', { class: 'ms-1', text: '— le prochain plan termine cette jambe avant tout nouvel ordre ; aucun ordre compensatoire.' }));
+  }
+
+  /** Routes d'achat chiffrées (lecture seule) côte à côte : coût, Fee Test, avertissements ; la route liée au lien est marquée. */
+  function routesView(l) {
+    const r = state.routes;
+    if (!r || r.bindingId !== l.bindingId) { return null; }
+    if (r.error) { return el('div', { class: 'small text-danger mt-2', text: r.error }); }
+    const q = r.quote;
+    if (!q.routes || !q.routes.length) {
+      return el('div', { class: 'small text-muted mt-2', text: 'Aucune route chiffrée (' + q.status + ').' });
+    }
+    const head = el('tr', null, ['Route', 'Jambes', 'Coût', 'Fee Test', 'Statut', 'Avertissements'].map((h) => el('th', { text: h })));
+    const rows = q.routes.map((rt) => {
+      const lvl = FEE_LEVEL[rt.feeTestLevel];
+      return el('tr', null,
+        el('td', null, el('span', { text: rt.routeKey.replace(/>/g, ' → ') }),
+          rt.routeKey === l.routeKey ? el('span', { class: 'badge bg-primary ms-1', text: 'liée' }) : null,
+          rt.chosen ? null : el('span', { class: 'badge bg-secondary ms-1', text: 'non choisie' })),
+        el('td', { text: rt.legs.map((g) => (g.side === 'BUY' ? 'Achat ' : 'Vente ') + g.instId).join(' ; ') }),
+        el('td', { text: rt.totalCostPct == null ? DASH : pct(Number(rt.totalCostPct)) }),
+        el('td', null, lvl ? el('span', { class: 'badge ' + lvl[0], text: lvl[1] }) : DASH),
+        el('td', { text: rt.status }),
+        el('td', { class: 'small', text: (rt.warnings || []).join(' ; ') }));
+    });
+    return el('div', { class: 'mt-2' },
+      el('div', { class: 'small text-muted', text: 'Devis pour ' + usd(Number(q.amount)) + ' — lecture seule, aucun ordre.' }),
+      el('div', { class: 'table-responsive' }, el('table', { class: 'table table-sm mb-1' }, el('thead', null, head), el('tbody', null, rows))),
+      q.warning ? el('div', { class: 'small text-warning-emphasis', text: q.warning }) : null);
+  }
+
+  async function quoteRoutes(l) {
+    const amount = l.snapshot && l.snapshot.liveActionAmountUsdc > 0 ? l.snapshot.liveActionAmountUsdc : 10;
+    try {
+      state.routes = { bindingId: l.bindingId, quote: await api('GET', '/bindings/' + l.bindingId + '/path-quote?amount=' + amount) };
+    } catch (e) {
+      state.routes = { bindingId: l.bindingId, error: 'Devis impossible : ' + e.message };
+    }
+    renderLive();
   }
 
   function liveCheckView(l) {
@@ -838,9 +888,12 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
         el('div', { class: 'col-auto' },
           el('button', { type: 'button', class: 'btn btn-sm btn-primary', text: 'Enregistrer', onclick: () => saveLive(l, select, bag) }),
           el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary ms-1', text: 'Vérifier la disponibilité',
-            title: 'Relit les soldes en lecture seule chez l\'exchange', onclick: () => checkLive(l) }))),
+            title: 'Relit les soldes en lecture seule chez l\'exchange', onclick: () => checkLive(l) }),
+          el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary ms-1', text: 'Comparer les routes',
+            title: 'Chiffre les routes d\'achat (frais réels, carnet) en lecture seule', onclick: () => quoteRoutes(l) }))),
       el('div', { id: 'rl-live-msg-' + l.bindingId, class: 'small text-danger mt-1' }),
       liveCheckView(l),
+      routesView(l),
       planView(l),
       executionView(l));
   }

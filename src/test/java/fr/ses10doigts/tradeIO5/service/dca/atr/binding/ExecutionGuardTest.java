@@ -24,13 +24,13 @@ class ExecutionGuardTest {
     }
 
     @Test
-    @DisplayName("NOT_TRADABLE_WITHOUT_FIAT et VIA_BRIDGE => refus")
-    void blockedOrBridge() {
+    @DisplayName("NOT_TRADABLE_WITHOUT_FIAT => refus ; VIA_INTERMEDIARY => autorisé")
+    void blockedOrIntermediary() {
         binding.recordCheck(new BindingCheckResult(BindingCheckStatus.NOT_TRADABLE_WITHOUT_FIAT, "x"), Instant.EPOCH);
         assertThrows(ExecutionBlockedException.class, () -> ExecutionGuard.requireExecutable(binding));
-        binding.recordCheck(new BindingCheckResult(BindingCheckStatus.TRADABLE_VIA_BRIDGE, "x", "USDT", "USDC/USDT"),
+        binding.recordCheck(new BindingCheckResult(BindingCheckStatus.TRADABLE_VIA_INTERMEDIARY, "x", "BTC", "USDC>BTC>PAXG"),
                 Instant.EPOCH);
-        assertThrows(ExecutionBlockedException.class, () -> ExecutionGuard.requireExecutable(binding));
+        assertDoesNotThrow(() -> ExecutionGuard.requireExecutable(binding));
     }
 
     @Test
@@ -38,17 +38,5 @@ class ExecutionGuardTest {
     void ok() {
         binding.recordCheck(new BindingCheckResult(BindingCheckStatus.OK, "OK", "USDC", null), Instant.EPOCH);
         assertDoesNotThrow(() -> ExecutionGuard.requireExecutable(binding));
-    }
-
-    @Test
-    @DisplayName("Avec chemin calculé : VIA_BRIDGE autorisé ; NOT_TRADABLE_WITHOUT_FIAT et jamais vérifié restent refusés")
-    void withComputedPath() {
-        binding.recordCheck(new BindingCheckResult(BindingCheckStatus.TRADABLE_VIA_BRIDGE, "x", "USDT", "USDC/USDT"),
-                Instant.EPOCH);
-        assertDoesNotThrow(() -> ExecutionGuard.requireExecutable(binding, true));
-        binding.recordCheck(new BindingCheckResult(BindingCheckStatus.NOT_TRADABLE_WITHOUT_FIAT, "x"), Instant.EPOCH);
-        assertThrows(ExecutionBlockedException.class, () -> ExecutionGuard.requireExecutable(binding, true));
-        assertThrows(ExecutionBlockedException.class, () -> ExecutionGuard.requireExecutable(
-                RainbowLiveBinding.builder().assetSymbol("BTC").wallet(Wallet.builder().id(1L).build()).build(), true));
     }
 }

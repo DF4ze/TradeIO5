@@ -15,6 +15,7 @@ import fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderPlan;
 import fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderStep;
 import fr.ses10doigts.tradeIO5.model.entity.execution.StepSide;
 import fr.ses10doigts.tradeIO5.model.entity.execution.StepStatus;
+import fr.ses10doigts.tradeIO5.model.entity.execution.TransitStock;
 import fr.ses10doigts.tradeIO5.model.enumerate.WalletSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.repository.WalletRepository;
@@ -22,6 +23,8 @@ import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository;
 import fr.ses10doigts.tradeIO5.repository.execution.RainbowLiveOrderPlanRepository;
 import fr.ses10doigts.tradeIO5.repository.execution.RainbowLiveOrderStepRepository;
+import fr.ses10doigts.tradeIO5.repository.execution.TransitStockRepository;
+import fr.ses10doigts.tradeIO5.service.execution.plan.ClOrdIds;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.ExecutionBlockedException;
@@ -35,25 +38,30 @@ import fr.ses10doigts.tradeIO5.service.market.instrument.FeeTest;
 import fr.ses10doigts.tradeIO5.service.market.instrument.InstrumentCatalog;
 import fr.ses10doigts.tradeIO5.service.market.instrument.PathFinder;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static fr.ses10doigts.tradeIO5.service.execution.run.OrderEventLog.payload;
+import static fr.ses10doigts.tradeIO5.service.market.instrument.ExecutionDefaults.CASH_STABLE;
 
 /**
  * Exécuteur d'un plan d'ordres : le SEUL appelant du {@code SpotOrderPort} (avec {@link StepRunner}). Déclenchement
@@ -78,10 +86,12 @@ public class OrderExecutor {
     }
 
     private record StepView(Long id, int rank, String asset, Long walletId, String instId, StepSide side, BigDecimal sz, BigDecimal px,
-                            BigDecimal quoteAmount, String clOrdId, BigDecimal plannedCostPct, StepStatus status,
-                            BigDecimal sentSz, BigDecimal mid) {
-        boolean bridge() {
-            return !instId.startsWith(asset + "-");
+                            BigDecimal quoteAmount, String clOrdId, BigDecimal feePct, BigDecimal plannedCostPct, StepStatus status,
+                            BigDecimal sentSz, BigDecimal mid, BigDecimal filledSz, BigDecimal avgPx, BigDecimal fee, String feeCcy,
+                            BigDecimal receivedAmount, String receivedCcy) {
+        /** Étape cotée en stable de cash : elle porte le notionnel USD des plafonds (les jambes cotées en intermédiaire, non). */
+        boolean cash() {
+            return instId.endsWith("-" + CASH_STABLE);
         }
     }
 
@@ -113,6 +123,8 @@ public class OrderExecutor {
     /** État mutable d'un déclenchement. */
     private static final class Run {
         private final Map<String, ExecutionBlockReason> blocks = new LinkedHashMap<>();
+        /** Première raison de non-envoi par actif (coût rouge, dérive, minimum…) : remontée à l'affichage du plan. */
+        private final Map<String, String> skips = new LinkedHashMap<>();
         private int sent;
     }
 
@@ -132,14 +144,29 @@ public class OrderExecutor {
     private final OrderEventLog events;
     private final FeeTest feeTest;
     private final DomainClock clock;
+    private final TransitStockRepository transit;
+    private final Duration retryDelay;
     private final TransactionTemplate tx;
 
+    @Autowired
     public OrderExecutor(ExecutionSettings settings, ExecutionControlService control, SpotOrderRouter router,
                          RainbowLiveOrderPlanRepository plans, RainbowLiveOrderStepRepository steps,
                          RainbowLiveBindingRepository bindings, RainbowLiveRunRepository runs, WalletRepository wallets,
                          UserRepository users, TradeCredentialResolver credentials, InstrumentCatalog catalog,
                          StepRequoter requoter, StepRunner stepRunner, OrderEventLog events, FeeTest feeTest, DomainClock clock,
-                         PlatformTransactionManager transactionManager) {
+                         TransitStockRepository transit, PlatformTransactionManager transactionManager) {
+        this(settings, control, router, plans, steps, bindings, runs, wallets, users, credentials, catalog, requoter, stepRunner, events,
+                feeTest, clock, transit, transactionManager, ExecutionDefaults.LEG2_RETRY_DELAY);
+    }
+
+    OrderExecutor(ExecutionSettings settings, ExecutionControlService control, SpotOrderRouter router,
+                  RainbowLiveOrderPlanRepository plans, RainbowLiveOrderStepRepository steps,
+                  RainbowLiveBindingRepository bindings, RainbowLiveRunRepository runs, WalletRepository wallets,
+                  UserRepository users, TradeCredentialResolver credentials, InstrumentCatalog catalog,
+                  StepRequoter requoter, StepRunner stepRunner, OrderEventLog events, FeeTest feeTest, DomainClock clock,
+                  TransitStockRepository transit, PlatformTransactionManager transactionManager, Duration retryDelay) {
+        this.transit = transit;
+        this.retryDelay = retryDelay;
         this.settings = settings;
         this.control = control;
         this.router = router;
@@ -386,10 +413,10 @@ public class OrderExecutor {
         BigDecimal orderCap = ctl.getMaxOrderMultiplier().multiply(binding.baseAmount());
         BigDecimal assetNotional = BigDecimal.ZERO;
         for (StepView step : assetSteps) {
-            if (step.quoteAmount().compareTo(ExecutionDefaults.ABSOLUTE_MAX_ORDER_USD) > 0) {
-                return Optional.of(ExecutionBlockReason.CAP_ABSOLUTE_ORDER);
-            }
-            if (!step.bridge()) {
+            if (step.cash()) {
+                if (step.quoteAmount().compareTo(ExecutionDefaults.ABSOLUTE_MAX_ORDER_USD) > 0) {
+                    return Optional.of(ExecutionBlockReason.CAP_ABSOLUTE_ORDER);
+                }
                 if (step.quoteAmount().compareTo(orderCap) > 0) {
                     return Optional.of(ExecutionBlockReason.CAP_ORDER);
                 }
@@ -398,7 +425,7 @@ public class OrderExecutor {
         }
         Instant dayStart = clock.now().truncatedTo(ChronoUnit.DAYS);
         BigDecimal daySpent = tx.execute(status -> steps.findSentSince(plan.user(), dayStart, SENT).stream()
-                .filter(s -> s.getInstId().startsWith(s.getAssetSymbol() + "-"))
+                .filter(s -> s.getInstId().endsWith("-" + CASH_STABLE))
                 .map(RainbowLiveOrderStep::getQuoteAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
         BigDecimal dayTotal = (daySpent == null ? BigDecimal.ZERO : daySpent).add(assetNotional);
         if (dayTotal.compareTo(ExecutionDefaults.ABSOLUTE_MAX_DAY_USD) > 0) {
@@ -416,92 +443,269 @@ public class OrderExecutor {
                           Map<String, InstrumentInfo> instruments, Run run) {
         BigDecimal planCost = asset.costPct() != null ? asset.costPct()
                 : assetSteps.stream().map(StepView::plannedCostPct).reduce(BigDecimal.ZERO, BigDecimal::add);
-        StepView bridge = null;
-        BigDecimal bridgeReceived = null;
-        String bridgeReceivedCcy = null;
+        // Quantités reçues par la chaîne et pas encore dépensées (devise -> quantité) : la jambe suivante n'utilise que le net reçu.
+        Map<String, BigDecimal> held = new HashMap<>();
         boolean stop = false;
         for (StepView step : assetSteps) {
             if (stop) {
-                skip(plan, step, "PREVIOUS_STEP_NOT_EXECUTED");
+                skip(plan, asset, run, step, "PREVIOUS_STEP_NOT_EXECUTED");
                 continue;
             }
             if (!liveAllowed()) {
-                skip(plan, step, ExecutionBlockReason.KILL_SWITCH.name());
+                skip(plan, asset, run, step, ExecutionBlockReason.KILL_SWITCH.name());
                 run.blocks.put(asset.key(), ExecutionBlockReason.KILL_SWITCH);
                 stop = true;
                 continue;
             }
             InstrumentInfo instrument = instruments.get(step.instId());
             if (instrument == null) {
-                skip(plan, step, "INSTRUMENT_UNKNOWN");
+                skip(plan, asset, run, step, "INSTRUMENT_UNKNOWN");
                 stop = true;
                 continue;
             }
-            BigDecimal sz = step.sz();
-            if (!step.bridge() && bridge != null) {
-                if (bridgeReceived == null || bridgeReceived.signum() <= 0
-                        || !instrument.quote().equalsIgnoreCase(bridgeReceivedCcy)) {
-                    skip(plan, step, "BRIDGE_RECEIVED_UNUSABLE");
-                    stop = true;
+            String spendCurrency = spendCurrency(step.side(), instrument);
+            BigDecimal feed = held.get(spendCurrency);
+            boolean leg2 = feed != null;
+            if (leg2 && feed.signum() <= 0) {
+                skip(plan, asset, run, step, "LEG_RECEIVED_UNUSABLE");
+                stop = true;
+                continue;
+            }
+            int maxAttempts = leg2 ? ExecutionDefaults.LEG2_MAX_ATTEMPTS : 1;
+            StepRunner.StepResult result = null;
+            String notSent = null;
+            int sends = 0;
+            for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+                if (attempt > 1) {
+                    pause();
+                    if (!liveAllowed()) {
+                        notSent = ExecutionBlockReason.KILL_SWITCH.name();
+                        run.blocks.put(asset.key(), ExecutionBlockReason.KILL_SWITCH);
+                        break;
+                    }
+                }
+                String clOrdId = ClOrdIds.attempt(step.clOrdId(), sends + 1);
+                if (sends > 0) {
+                    stepRunner.restage(step.id(), clOrdId);
+                }
+                BigDecimal sz = sizeOf(step, instrument, feed);
+                if (sz.signum() <= 0 || sz.compareTo(instrument.minSz()) < 0
+                        || (instrument.costMin() != null && sz.multiply(step.px()).compareTo(instrument.costMin()) < 0)) {
+                    notSent = "BELOW_MIN";
+                    break;
+                }
+                StepRequoter.Requote quote;
+                try {
+                    quote = requoter.requote(binding.provider(), binding.readCredential(), instrument, step.side(), sz,
+                            sz.multiply(step.px()));
+                } catch (RuntimeException e) {
+                    notSent = "REQUOTE_UNAVAILABLE";
                     continue;
                 }
-                BigDecimal bridgeTarget = bridge.quoteAmount().divide(BigDecimal.ONE.add(
-                        ExecutionDefaults.BRIDGE_FEE_MARGIN_PCT.divide(HUNDRED, 18, RoundingMode.HALF_UP)), 18, RoundingMode.HALF_UP);
-                BigDecimal heldBefore = step.quoteAmount().subtract(bridgeTarget).max(BigDecimal.ZERO);
-                BigDecimal affordable = PathFinder.roundToStep(heldBefore.add(bridgeReceived).divide(step.px(), 18, RoundingMode.DOWN),
-                        instrument.lotSz(), RoundingMode.DOWN);
-                sz = sz.min(affordable);
+                BigDecimal others = assetSteps.stream().filter(s -> !s.id().equals(step.id())).map(StepView::plannedCostPct)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal projected = others.add(quote.costPct());
+                events.record(plan.id(), step.id(), clOrdId, OrderEventType.STEP_REQUOTED,
+                        payload("legCostPct", quote.costPct(), "projectedPct", projected, "planCostPct", planCost, "mid", quote.mid(),
+                                "attempt", attempt));
+                if (feeTest.level(projected) == FeeTestLevel.RED) {
+                    notSent = "COST_RED";
+                    break;
+                }
+                if (projected.compareTo(planCost.add(ExecutionDefaults.COST_DRIFT_POINTS)) > 0) {
+                    notSent = "COST_DRIFT";
+                    break;
+                }
+                if (!liveAllowed()) {
+                    notSent = ExecutionBlockReason.KILL_SWITCH.name();
+                    run.blocks.put(asset.key(), ExecutionBlockReason.KILL_SWITCH);
+                    break;
+                }
+                notSent = null;
+                result = stepRunner.send(new StepRunner.StepContext(plan.id(), binding.walletId(), step.id(), clOrdId, step.instId(),
+                        step.side(), sz, step.px(), instrument, trade, quote.mid(), binding.provider()));
+                sends++;
+                run.sent++;
+                if (result.status().executed() || result.status().inFlight()) {
+                    break;
+                }
+                if (leg2 && attempt < maxAttempts) {
+                    events.record(plan.id(), step.id(), clOrdId, OrderEventType.ALERT,
+                            payload("reason", "LEG2_RETRY", "attempt", attempt, "status", result.status()));
+                    log.warn("Plan {} : jambe 2 {} non exécutée (essai {}/{}), re-devis puis nouvel essai", plan.id(), step.instId(),
+                            attempt, maxAttempts);
+                }
             }
-            if (sz.signum() <= 0 || sz.compareTo(instrument.minSz()) < 0
-                    || (instrument.costMin() != null && sz.multiply(step.px()).compareTo(instrument.costMin()) < 0)) {
-                skip(plan, step, "BELOW_MIN");
+            if (result == null) {
+                skip(plan, asset, run, step, notSent == null ? "NOT_SENT" : notSent);
                 stop = true;
                 continue;
             }
-            StepRequoter.Requote quote;
-            try {
-                quote = requoter.requote(binding.provider(), binding.readCredential(), instrument, step.side(), sz,
-                        sz.multiply(step.px()));
-            } catch (RuntimeException e) {
-                skip(plan, step, "REQUOTE_UNAVAILABLE");
+            if (result.status().executed()) {
+                FillAccounting.Outcome outcome = result.outcome();
+                if (feed != null) {
+                    held.merge(spendCurrency, spent(step.side(), outcome, instrument).negate(), BigDecimal::add);
+                } else {
+                    consumeTransit(plan, binding.walletId(), asset.symbol(), step.side(), spendCurrency,
+                            spent(step.side(), outcome, instrument));
+                }
+                held.merge(outcome.receivedCurrency(), outcome.received(), BigDecimal::add);
+                if (result.status() != StepStatus.FILLED) {
+                    stop = true;
+                }
+            } else {
                 stop = true;
-                continue;
-            }
-            BigDecimal others = assetSteps.stream().filter(s -> !s.id().equals(step.id())).map(StepView::plannedCostPct)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-            BigDecimal projected = others.add(quote.costPct());
-            events.record(plan.id(), step.id(), step.clOrdId(), OrderEventType.STEP_REQUOTED,
-                    payload("legCostPct", quote.costPct(), "projectedPct", projected, "planCostPct", planCost, "mid", quote.mid()));
-            if (feeTest.level(projected) == FeeTestLevel.RED) {
-                skip(plan, step, "COST_RED");
-                stop = true;
-                continue;
-            }
-            if (projected.compareTo(planCost.add(ExecutionDefaults.COST_DRIFT_POINTS)) > 0) {
-                skip(plan, step, "COST_DRIFT");
-                stop = true;
-                continue;
-            }
-            if (!liveAllowed()) {
-                skip(plan, step, ExecutionBlockReason.KILL_SWITCH.name());
-                run.blocks.put(asset.key(), ExecutionBlockReason.KILL_SWITCH);
-                stop = true;
-                continue;
-            }
-            StepRunner.StepResult result = stepRunner.send(new StepRunner.StepContext(plan.id(), binding.walletId(), step.id(),
-                    step.clOrdId(), step.instId(), step.side(), sz, step.px(), instrument, trade, quote.mid(), binding.provider()));
-            run.sent++;
-            if (!result.status().executed()) {
-                stop = true;
-            } else if (step.bridge()) {
-                bridge = step;
-                bridgeReceived = result.outcome().received();
-                bridgeReceivedCcy = result.outcome().receivedCurrency();
             }
         }
     }
 
-    private void skip(PlanView plan, StepView step, String reason) {
+    /**
+     * Taille d'une étape : la taille planifiée, ramenée à ce que la jambe précédente a réellement reçu (net de frais) quand
+     * l'étape en dépend ({@code feed} non nul), arrondie au lot.
+     */
+    private static BigDecimal sizeOf(StepView step, InstrumentInfo instrument, BigDecimal feed) {
+        if (feed == null) {
+            return step.sz();
+        }
+        BigDecimal affordable;
+        if (step.side() == StepSide.BUY) {
+            BigDecimal fee = BigDecimal.ONE.add(step.feePct().divide(HUNDRED, 18, RoundingMode.HALF_UP));
+            affordable = feed.divide(step.px().multiply(fee), 18, RoundingMode.DOWN);
+        } else {
+            affordable = feed;
+        }
+        return step.sz().min(PathFinder.roundToStep(affordable, instrument.lotSz(), RoundingMode.DOWN));
+    }
+
+    /** Devise dépensée par une étape : la cotation en achat, la base en vente. */
+    private static String spendCurrency(StepSide side, InstrumentInfo instrument) {
+        return side == StepSide.BUY ? instrument.quote() : instrument.base();
+    }
+
+    /** Quantité de la devise dépensée par une exécution (frais inclus quand ils sont prélevés dans cette devise). */
+    private static BigDecimal spent(StepSide side, FillAccounting.Outcome outcome, InstrumentInfo instrument) {
+        if (outcome.filledSz() == null || outcome.filledSz().signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+        if (side == StepSide.SELL) {
+            return outcome.filledSz();
+        }
+        BigDecimal notional = outcome.filledSz().multiply(outcome.avgPx());
+        return outcome.feeCurrency() != null && outcome.feeCurrency().equalsIgnoreCase(instrument.quote()) && outcome.fee() != null
+                ? notional.add(outcome.fee()) : notional;
+    }
+
+    /** Une étape qui dépense un stock en transit existant (et non la sortie d'une jambe de ce run) en diminue les lignes, du plus ancien au plus récent. */
+    private void consumeTransit(PlanView plan, Long walletId, String asset, StepSide side, String currency, BigDecimal spent) {
+        if (spent.signum() <= 0 || CASH_STABLE.equalsIgnoreCase(currency)) {
+            return;
+        }
+        tx.executeWithoutResult(status -> {
+            BigDecimal remaining = spent;
+            List<TransitStock> stocks = transit.findByWalletIdAndTargetAssetAndResolvedAtIsNull(walletId, asset).stream()
+                    .filter(s -> s.getCurrency().equalsIgnoreCase(currency)
+                            && (s.getFinishSide() == null ? StepSide.BUY : s.getFinishSide()) == side)
+                    .sorted(Comparator.comparing(TransitStock::getCreatedAt)).toList();
+            for (TransitStock stock : stocks) {
+                if (remaining.signum() <= 0) {
+                    break;
+                }
+                BigDecimal used = stock.getQuantity().min(remaining);
+                stock.setQuantity(stock.getQuantity().subtract(used));
+                remaining = remaining.subtract(used);
+                if (stock.getQuantity().signum() <= 0) {
+                    stock.setResolvedAt(clock.now());
+                }
+                transit.save(stock);
+            }
+        });
+        events.record(plan.id(), null, null, OrderEventType.ALERT,
+                payload("reason", "TRANSIT_STOCK_CONSUMED", "currency", currency, "spent", spent, "asset", asset));
+    }
+
+    /**
+     * Après un déclenchement ou une réconciliation : toute jambe 2 qui n'a pas été (entièrement) exécutée alors que la jambe
+     * précédente a reçu l'intermédiaire laisse un stock en transit (aucun ordre compensatoire ; le plan suivant termine la
+     * jambe 2 avant tout nouvel ordre). Idempotent par (plan, rang de l'étape d'origine, wallet, actif).
+     */
+    private void recordTransitStock(Long planId) {
+        PlanView plan = loadPlan(planId);
+        Map<String, InstrumentInfo> cache = new HashMap<>();
+        for (AssetView asset : plan.assets()) {
+            List<StepView> chain = plan.steps().stream().filter(asset::owns).sorted(Comparator.comparingInt(StepView::rank)).toList();
+            for (int i = 1; i < chain.size(); i++) {
+                StepView previous = chain.get(i - 1);
+                StepView next = chain.get(i);
+                if (!previous.status().executed() || previous.receivedAmount() == null || previous.receivedCcy() == null
+                        || next.status().inFlight()) {
+                    continue;
+                }
+                InstrumentInfo instrument = instrumentOfStep(plan, asset, next, cache);
+                if (instrument == null || !previous.receivedCcy().equalsIgnoreCase(spendCurrency(next.side(), instrument))
+                        || previous.receivedCcy().equalsIgnoreCase(CASH_STABLE) || previous.receivedCcy().equalsIgnoreCase(asset.symbol())) {
+                    continue;
+                }
+                BigDecimal quantity = previous.receivedAmount();
+                if (next.status() == StepStatus.FILLED) {
+                    continue;
+                }
+                if (next.status() == StepStatus.PARTIAL) {
+                    quantity = quantity.subtract(spentOf(next, instrument));
+                }
+                if (quantity.signum() <= 0 || transit.existsByOriginPlanIdAndOriginStepRankAndWalletIdAndTargetAsset(planId,
+                        previous.rank(), asset.walletId(), asset.symbol())) {
+                    continue;
+                }
+                BigDecimal stockQuantity = quantity;
+                tx.executeWithoutResult(status -> transit.save(TransitStock.builder().userId(plan.user().getId()).walletId(asset.walletId())
+                        .currency(previous.receivedCcy()).quantity(stockQuantity).targetAsset(asset.symbol()).finishSide(next.side())
+                        .originPlanId(planId).originStepRank(previous.rank()).createdAt(clock.now()).build()));
+                events.record(planId, next.id(), next.clOrdId(), OrderEventType.ALERT, payload("reason", "TRANSIT_STOCK",
+                        "currency", previous.receivedCcy(), "quantity", stockQuantity, "asset", asset.symbol(), "finishSide", next.side()));
+                log.warn("Plan {} : jambe 2 {} non exécutée, {} {} laissés en stock en transit (aucun ordre compensatoire)", planId,
+                        next.instId(), stockQuantity.toPlainString(), previous.receivedCcy());
+            }
+        }
+    }
+
+    private InstrumentInfo instrumentOfStep(PlanView plan, AssetView asset, StepView step, Map<String, InstrumentInfo> cache) {
+        if (cache.isEmpty()) {
+            try {
+                BindingView binding = loadBinding(plan, asset.symbol(), asset.walletId());
+                if (binding == null || binding.webProvider() == null) {
+                    return null;
+                }
+                cache.putAll(instrumentsOf(binding.webProvider()));
+            } catch (RuntimeException e) {
+                return null;
+            }
+        }
+        return cache.get(step.instId());
+    }
+
+    private static BigDecimal spentOf(StepView step, InstrumentInfo instrument) {
+        if (step.filledSz() == null || step.filledSz().signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return spent(step.side(), new FillAccounting.Outcome(step.status(), step.filledSz(), step.avgPx(), step.fee(), step.feeCcy(),
+                step.receivedAmount(), step.receivedCcy()), instrument);
+    }
+
+    private void pause() {
+        if (retryDelay.isZero()) {
+            return;
+        }
+        try {
+            Thread.sleep(retryDelay.toMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private void skip(PlanView plan, AssetView asset, Run run, StepView step, String reason) {
+        if (!"PREVIOUS_STEP_NOT_EXECUTED".equals(reason)) {
+            run.skips.putIfAbsent(asset.key(), reason);
+        }
         log.info("Plan {} : étape {} non envoyée ({})", plan.id(), step.clOrdId(), reason);
         events.record(plan.id(), step.id(), step.clOrdId(), OrderEventType.STEP_SKIPPED, payload("reason", reason));
     }
@@ -510,6 +714,7 @@ public class OrderExecutor {
 
     /** Statut du plan d'après ses étapes ; relit la base (les étapes ont été mises à jour par le runner). */
     private ExecutionResult finish(Long planId, Run run) {
+        recordTransitStock(planId);
         PlanStatus status = tx.execute(txStatus -> {
             RainbowLiveOrderPlan plan = plans.findById(planId).orElseThrow();
             List<StepStatus> statuses = plan.getSteps().stream().map(RainbowLiveOrderStep::getStatus).toList();
@@ -528,8 +733,10 @@ public class OrderExecutor {
                 next = PlanStatus.PLANNED;
             }
             plan.setStatus(next);
-            plan.setExecutionBlockReason(run.blocks.isEmpty() ? null : run.blocks.entrySet().stream()
-                    .map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(";")));
+            String reasons = Stream.concat(run.blocks.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()),
+                    run.skips.entrySet().stream().filter(e -> !run.blocks.containsKey(e.getKey())).map(e -> e.getKey() + ":" + e.getValue()))
+                    .collect(Collectors.joining(";"));
+            plan.setExecutionBlockReason(reasons.isEmpty() ? null : reasons.length() > 120 ? reasons.substring(0, 120) : reasons);
             plan.setExecutionFinishedAt(next == PlanStatus.EXECUTING || next == PlanStatus.PLANNED ? null : clock.now());
             if (next == PlanStatus.PLANNED) {
                 plan.setExecutionStartedAt(null);
@@ -555,9 +762,10 @@ public class OrderExecutor {
                 plan.getExpiresAt(), plan.getStatus(),
                 plan.getAssets().stream().map(a -> new AssetView(a.getAssetSymbol(), a.getWalletId(), a.getCostPct())).toList(),
                 plan.getSteps().stream().map(s -> new StepView(s.getId(), s.getRank(), s.getAssetSymbol(), s.getWalletId(), s.getInstId(), s.getSide(),
-                        s.getSz(), s.getPx(), s.getQuoteAmount(), s.getClOrdId(),
+                        s.getSz(), s.getPx(), s.getQuoteAmount(), s.getClOrdId(), s.getFeePct(),
                         s.getFeePct().add(s.getSpreadPct()).add(s.getSlippagePct()), s.getStatus(), s.getSentSz(),
-                        s.getQuoteMid())).toList())).orElse(null));
+                        s.getQuoteMid(), s.getFilledSz(), s.getAvgFillPx(), s.getFeeAmount(), s.getFeeCurrency(), s.getReceivedAmount(),
+                        s.getReceivedCurrency())).toList())).orElse(null));
         if (view == null) {
             throw new IllegalArgumentException("Plan inconnu : " + planId);
         }
@@ -573,7 +781,7 @@ public class OrderExecutor {
             Wallet wallet = binding.getWallet();
             boolean executable;
             try {
-                ExecutionGuard.requireExecutable(binding, true);
+                ExecutionGuard.requireExecutable(binding);
                 executable = true;
             } catch (ExecutionBlockedException e) {
                 executable = false;

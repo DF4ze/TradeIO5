@@ -78,20 +78,28 @@ class OrderPlannerTest {
     void setUp() {
         when(fees.getProviderCode()).thenReturn(WebProviderCode.OKX);
         when(books.getProviderCode()).thenReturn(WebProviderCode.OKX);
-        when(groups.members(AssetGroup.USD)).thenReturn(List.of("USDC", "USDT"));
+        when(groups.members(AssetGroup.USD)).thenReturn(List.of("USDC"));
         when(fees.getFeeRate(any(), anyString())).thenReturn(new FeeRate(d("0.05"), d("0.05")));
-        when(books.fetchBook(any(), eq("PAXG-USDT"), anyInt())).thenReturn(book("99.9", "100.1"));
+        when(books.fetchBook(any(), eq("PAXG-USDC"), anyInt())).thenReturn(book("99.9", "100.1"));
         when(books.fetchBook(any(), eq("BTC-USDC"), anyInt())).thenReturn(book("49990", "50010"));
-        when(books.fetchBook(any(), eq("BTC-USDT"), anyInt())).thenReturn(book("49990", "50010"));
-        when(books.fetchBook(any(), eq("USDC-USDT"), anyInt())).thenReturn(book("0.9999", "1.0001"));
+        when(books.fetchBook(any(), eq("ETH-USDC"), anyInt())).thenReturn(book("2999.5", "3000.5"));
+        when(books.fetchBook(any(), eq("PAXG-BTC"), anyInt())).thenReturn(book("0.07995", "0.08005"));
+        when(books.fetchBook(any(), eq("PAXG-ETH"), anyInt())).thenReturn(book("1.3300", "1.3340"));
         when(catalog.liveInstruments(okx)).thenReturn(okxInstruments());
         planner = new OrderPlanner(catalog, List.of(fees), List.of(books), groups, new PathFinder(new FeeTest()), new FeeTest(),
                 new ExecutionSettings(), "");
     }
 
+    /** Exchange à paires USDC directes (type OKX une fois USDT exclu). */
     private static List<InstrumentInfo> okxInstruments() {
-        return List.of(inst("PAXG", "USDT", "0.0001", "0.0001", "0.1"), inst("BTC", "USDC", "0.00001", "0.00001", "0.1"),
-                inst("BTC", "USDT", "0.00001", "0.00001", "0.1"), inst("USDC", "USDT", "1", "0.0001", "0.0001"));
+        return List.of(inst("PAXG", "USDC", "0.0001", "0.0001", "0.1"), inst("BTC", "USDC", "0.00001", "0.00001", "0.1"));
+    }
+
+    /** Exchange sans PAXG/USDC (type Kraken) : PAXG ne se cote qu'en fiat, BTC et ETH. */
+    private static List<InstrumentInfo> krakenInstruments() {
+        return List.of(inst("PAXG", "USD", "0.001", "0.00000001", "0.01"), inst("PAXG", "BTC", "0.001", "0.00001", "0.00001"),
+                inst("PAXG", "ETH", "0.001", "0.00001", "0.0001"), inst("BTC", "USDC", "0.00005", "0.00000001", "0.1"),
+                inst("ETH", "USDC", "0.001", "0.00000001", "0.01"));
     }
 
     private AssetInput buy(String asset, int priority, String amount, Map<String, BigDecimal> cash) {
@@ -101,11 +109,11 @@ class OrderPlannerTest {
 
     private AssetInput sell(String asset, int priority, String quantity, String amount) {
         return new AssetInput(asset, priority, true, 7L, WebProviderCode.OKX, credential, PortfolioStatus.OK,
-                RainbowLiveAction.SELL, d(amount), d(quantity), Map.of("USDC", BigDecimal.ZERO, "USDT", BigDecimal.ZERO));
+                RainbowLiveAction.SELL, d(amount), d(quantity), Map.of("USDC", BigDecimal.ZERO));
     }
 
-    private static Map<String, BigDecimal> cash(String usdc, String usdt) {
-        return Map.of("USDC", d(usdc), "USDT", d(usdt));
+    private static Map<String, BigDecimal> cash(String usdc) {
+        return Map.of("USDC", d(usdc));
     }
 
     private static PlanDraft.AssetDraft asset(PlanDraft plan, String symbol) {
@@ -113,15 +121,15 @@ class OrderPlannerTest {
     }
 
     @Test
-    @DisplayName("Achat PAXG/OKX avec USDT suffisant : 1 étape PAXG-USDT, limit IOC plafonné au-dessus de l'ask, GREEN")
-    void paxgBuyWithUsdt() {
-        PlanDraft plan = planner.plan(List.of(buy("PAXG", 0, "100", cash("0", "1000"))));
+    @DisplayName("Achat PAXG avec paire USDC directe : 1 étape, limit IOC plafonné au-dessus de l'ask, GREEN")
+    void paxgBuyDirectUsdc() {
+        PlanDraft plan = planner.plan(List.of(buy("PAXG", 0, "100", cash("1000"))));
 
         PlanDraft.AssetDraft a = asset(plan, "PAXG");
         assertEquals(AssetPlanOutcome.OK, a.outcome());
         assertEquals(1, a.steps().size());
         PlanDraft.StepDraft s = a.steps().getFirst();
-        assertEquals("PAXG-USDT", s.instId());
+        assertEquals("PAXG-USDC", s.instId());
         assertEquals(StepSide.BUY, s.side());
         assertEquals(1, s.rank());
         assertEquals(0, d("100").compareTo(s.quoteAmount()));
@@ -133,45 +141,72 @@ class OrderPlannerTest {
     }
 
     @Test
-    @DisplayName("Achat PAXG avec USDC seul : pont USDC-USDT (vente) puis PAXG-USDT, pont = manque + marge de frais")
-    void paxgBuyBridgesFromUsdc() {
-        PlanDraft plan = planner.plan(List.of(buy("PAXG", 0, "100", cash("1000", "0"))));
+    @DisplayName("Achat PAXG sans paire USDC : USDC -> BTC -> PAXG, jambe 2 sur le reçu net, avertissement « intermédiaire exposé », ETH non choisie")
+    void paxgBuyViaBtc() {
+        when(catalog.liveInstruments(okx)).thenReturn(krakenInstruments());
+
+        PlanDraft plan = planner.plan(List.of(buy("PAXG", 0, "100", cash("1000"))));
 
         PlanDraft.AssetDraft a = asset(plan, "PAXG");
+        assertEquals(AssetPlanOutcome.OK, a.outcome());
         assertEquals(2, a.steps().size());
-        PlanDraft.StepDraft bridge = a.steps().getFirst();
-        assertEquals("USDC-USDT", bridge.instId());
-        assertEquals(StepSide.SELL, bridge.side());
-        assertEquals(0, d("100.3").compareTo(bridge.quoteAmount()), "100 x (1 + 0,3 %)");
-        assertEquals(2, a.steps().get(1).rank());
-        assertEquals("PAXG-USDT", a.steps().get(1).instId());
-        assertEquals(0, d("100").compareTo(a.steps().get(1).quoteAmount()));
-        assertTrue(a.costPct().compareTo(d("0.2")) > 0 || a.costPct().compareTo(d("0.1")) > 0, "somme brute des 2 jambes");
+        PlanDraft.StepDraft leg1 = a.steps().getFirst();
+        PlanDraft.StepDraft leg2 = a.steps().get(1);
+        assertEquals(List.of(1, 2), a.steps().stream().map(PlanDraft.StepDraft::rank).toList());
+        assertEquals("BTC-USDC", leg1.instId());
+        assertEquals(StepSide.BUY, leg1.side());
+        assertEquals(0, d("100").compareTo(leg1.quoteAmount()));
+        assertEquals("PAXG-BTC", leg2.instId());
+        assertEquals(StepSide.BUY, leg2.side());
+        assertTrue(leg2.quoteAmount().compareTo(d("0.01")) < 0, "jambe 2 en BTC : " + leg2.quoteAmount());
+        // reçu net jambe 1 = 0.00199960 x 0.9995 ; sz2 = ⌊reçu / (0.08005 x 1.0005)⌋ au lot 1e-5
+        assertEquals(0, d("0.02495").compareTo(leg2.sz()), "sz jambe 2 = " + leg2.sz());
+        assertEquals(FeeTestLevel.GREEN, a.feeTestLevel());
+        assertTrue(a.warning().contains("Intermédiaire exposé"), a.warning());
+        assertTrue(a.warning().contains("USDC>ETH>PAXG non choisie"), a.warning());
     }
 
     @Test
-    @DisplayName("USDT partiel : le pont ne couvre que le reliquat (+ marge)")
-    void partialUsdtBridgesOnlyShortage() {
-        PlanDraft plan = planner.plan(List.of(buy("PAXG", 0, "100", cash("1000", "40"))));
+    @DisplayName("Jambe 2 sous le minimum sur le reçu net de la jambe 1 : BELOW_MIN")
+    void secondLegBelowMinOnNet() {
+        when(catalog.liveInstruments(okx)).thenReturn(krakenInstruments());
 
-        PlanDraft.AssetDraft a = asset(plan, "PAXG");
-        assertEquals(2, a.steps().size());
-        assertEquals(0, d("60.18").compareTo(a.steps().getFirst().quoteAmount()), "(100 - 40) x 1,003");
+        PlanDraft plan = planner.plan(List.of(buy("PAXG", 0, "3", cash("1000"))));
+
+        assertEquals(PlanBlockReason.BELOW_MIN, asset(plan, "PAXG").blockReason());
     }
 
     @Test
-    @DisplayName("Bilan virtuel : BTC consomme l'USDC, le pont PAXG est calculé sur le reliquat USDC ; fonds insuffisants => actif BLOCKED")
+    @DisplayName("Stock en transit : la jambe 2 du stock est planifiée en tête, avant le nouvel achat")
+    void transitStockFinishedFirst() {
+        when(catalog.liveInstruments(okx)).thenReturn(krakenInstruments());
+        AssetInput withStock = new AssetInput("PAXG", 0, true, 7L, WebProviderCode.OKX, credential, PortfolioStatus.OK,
+                RainbowLiveAction.BUY, d("100"), d("0.001"), cash("1000"), Map.of("BTC", d("0.002")));
+
+        PlanDraft.AssetDraft a = asset(planner.plan(List.of(withStock)), "PAXG");
+
+        assertEquals(3, a.steps().size());
+        PlanDraft.StepDraft finish = a.steps().getFirst();
+        assertEquals("PAXG-BTC", finish.instId());
+        assertEquals(StepSide.BUY, finish.side());
+        assertEquals(1, finish.rank());
+        assertEquals(0, d("0.002").compareTo(finish.quoteAmount()));
+        assertEquals(0, d("0.02497").compareTo(finish.sz()), "⌊0,002 / (0,08005 x 1,0005)⌋");
+        assertEquals("BTC-USDC", a.steps().get(1).instId());
+        assertEquals("PAXG-BTC", a.steps().get(2).instId());
+        assertTrue(a.warning().contains("stock en transit BTC"), a.warning());
+        assertNotEquals(OrderPlanner.inputsHash(List.of(withStock)),
+                OrderPlanner.inputsHash(List.of(buy("PAXG", 0, "100", cash("1000")))), "le stock fait partie des entrées");
+    }
+
+    @Test
+    @DisplayName("Bilan virtuel : BTC consomme l'USDC, PAXG est calculé sur le reliquat ; fonds insuffisants => actif BLOCKED")
     void virtualBalanceAcrossAssets() {
-        PlanDraft plan = planner.plan(List.of(buy("BTC", 0, "100", cash("200", "0")), buy("PAXG", 1, "50", cash("200", "0"))));
+        PlanDraft plan = planner.plan(List.of(buy("BTC", 0, "100", cash("200")), buy("PAXG", 1, "50", cash("200"))));
+        assertEquals(AssetPlanOutcome.OK, asset(plan, "BTC").outcome());
+        assertEquals(AssetPlanOutcome.OK, asset(plan, "PAXG").outcome());
 
-        PlanDraft.AssetDraft btc = asset(plan, "BTC");
-        assertEquals(1, btc.steps().size());
-        assertEquals("BTC-USDC", btc.steps().getFirst().instId());
-        PlanDraft.AssetDraft paxg = asset(plan, "PAXG");
-        assertEquals(2, paxg.steps().size());
-        assertEquals(0, d("50.15").compareTo(paxg.steps().getFirst().quoteAmount()), "pont sur les 100 USDC restants");
-
-        PlanDraft tooShort = planner.plan(List.of(buy("BTC", 0, "100", cash("120", "0")), buy("PAXG", 1, "50", cash("120", "0"))));
+        PlanDraft tooShort = planner.plan(List.of(buy("BTC", 0, "100", cash("120")), buy("PAXG", 1, "50", cash("120"))));
         assertEquals(AssetPlanOutcome.OK, asset(tooShort, "BTC").outcome());
         assertEquals(AssetPlanOutcome.BLOCKED, asset(tooShort, "PAXG").outcome());
         assertEquals(PlanBlockReason.INSUFFICIENT_FUNDS_AFTER_FEES, asset(tooShort, "PAXG").blockReason());
@@ -180,23 +215,23 @@ class OrderPlannerTest {
     }
 
     @Test
-    @DisplayName("Fonds insuffisants une fois les frais du pont ajoutés : plan BLOCKED")
-    void insufficientAfterFees() {
-        PlanDraft plan = planner.plan(List.of(buy("PAXG", 0, "100", cash("100", "0"))));
+    @DisplayName("Solde USDC inférieur au montant : plan BLOCKED")
+    void insufficientFunds() {
+        PlanDraft plan = planner.plan(List.of(buy("PAXG", 0, "100", cash("50"))));
 
         assertEquals(PlanBlockReason.INSUFFICIENT_FUNDS_AFTER_FEES, asset(plan, "PAXG").blockReason());
         assertEquals(PlanStatus.BLOCKED, plan.status());
     }
 
     @Test
-    @DisplayName("Vente BTC : BTC-USDT forcé quand la paire existe ; ventes non créditées au bilan du jour")
-    void sellForcesUsdtAndDoesNotCredit() {
-        PlanDraft plan = planner.plan(List.of(sell("BTC", 0, "0.01", "500"), buy("PAXG", 1, "50", cash("0", "0"))));
+    @DisplayName("Vente BTC : paire USDC directe ; ventes non créditées au bilan du jour")
+    void sellDirectAndDoesNotCredit() {
+        PlanDraft plan = planner.plan(List.of(sell("BTC", 0, "0.01", "500"), buy("PAXG", 1, "50", cash("0"))));
 
         PlanDraft.AssetDraft btc = asset(plan, "BTC");
         assertEquals(AssetPlanOutcome.OK, btc.outcome());
         PlanDraft.StepDraft s = btc.steps().getFirst();
-        assertEquals("BTC-USDT", s.instId());
+        assertEquals("BTC-USDC", s.instId());
         assertEquals(StepSide.SELL, s.side());
         assertEquals(0, d("0.01").compareTo(s.sz()));
         assertEquals(0, d("49940.0").compareTo(s.px()), "bid 49990 - 0,1 % arrondi au tick vers le bas");
@@ -206,22 +241,27 @@ class OrderPlannerTest {
     }
 
     @Test
-    @DisplayName("Vente sans paire X-USDT : cotation naturelle (USDC) + avertissement")
-    void sellNaturalQuote() {
-        when(catalog.liveInstruments(okx)).thenReturn(List.of(inst("BTC", "USDC", "0.00001", "0.00001", "0.1")));
+    @DisplayName("Vente PAXG sans paire USDC : PAXG -> BTC -> USDC, jambe 2 sur le reçu net, intermédiaire jamais conservé")
+    void sellPaxgViaBtc() {
+        when(catalog.liveInstruments(okx)).thenReturn(krakenInstruments());
 
-        PlanDraft.AssetDraft btc = asset(planner.plan(List.of(sell("BTC", 0, "0.01", "500"))), "BTC");
+        PlanDraft.AssetDraft a = asset(planner.plan(List.of(sell("PAXG", 0, "1", "4000"))), "PAXG");
 
-        assertEquals("BTC-USDC", btc.steps().getFirst().instId());
-        assertTrue(btc.warning().contains("pas de paire BTC-USDT") && btc.warning().contains("USDC"), btc.warning());
+        assertEquals(AssetPlanOutcome.OK, a.outcome());
+        assertEquals(List.of("PAXG-BTC", "BTC-USDC"), a.steps().stream().map(PlanDraft.StepDraft::instId).toList());
+        assertEquals(List.of(StepSide.SELL, StepSide.SELL), a.steps().stream().map(PlanDraft.StepDraft::side).toList());
+        assertEquals(0, d("1").compareTo(a.steps().getFirst().sz()));
+        // reçu net = 1 x 0.07995 x 0.9995 = 0.079910025 ; ⌊⌋ au lot 1e-8
+        assertEquals(0, d("0.07991002").compareTo(a.steps().get(1).sz()), "sz jambe 2 = " + a.steps().get(1).sz());
+        assertTrue(a.warning().contains("Intermédiaire exposé"), a.warning());
     }
 
     @Test
-    @DisplayName("Actif sans paire stable (Kraken PAXG) : BLOCKED NOT_TRADABLE_WITHOUT_FIAT ; lecture NOT_TRADABLE : idem sans appel marché")
+    @DisplayName("Actif sans route (PAXG fiat seul) : BLOCKED NOT_TRADABLE_WITHOUT_FIAT ; lecture NOT_TRADABLE : idem sans appel marché")
     void notTradableWithoutFiat() {
         when(catalog.liveInstruments(okx)).thenReturn(List.of(inst("PAXG", "USD", "0.003", "0.0001", "0.1"),
                 inst("PAXG", "EUR", "0.003", "0.0001", "0.1"), inst("BTC", "USDC", "0.00001", "0.00001", "0.1")));
-        PlanDraft plan = planner.plan(List.of(buy("PAXG", 0, "100", cash("1000", "0"))));
+        PlanDraft plan = planner.plan(List.of(buy("PAXG", 0, "100", cash("1000"))));
         assertEquals(PlanBlockReason.NOT_TRADABLE_WITHOUT_FIAT, asset(plan, "PAXG").blockReason());
         assertEquals(PlanStatus.BLOCKED, plan.status());
 
@@ -235,14 +275,14 @@ class OrderPlannerTest {
     @DisplayName("Fee Test : WARNING et RED => étapes + avertissement (pas de blocage)")
     void feeTest() {
         when(fees.getFeeRate(any(), anyString())).thenReturn(new FeeRate(d("0.1"), d("0.2")));
-        PlanDraft warn = planner.plan(List.of(buy("PAXG", 0, "100", cash("0", "1000"))));
+        PlanDraft warn = planner.plan(List.of(buy("PAXG", 0, "100", cash("1000"))));
         assertEquals(AssetPlanOutcome.OK, asset(warn, "PAXG").outcome());
         assertEquals(FeeTestLevel.WARNING, asset(warn, "PAXG").feeTestLevel());
         assertTrue(asset(warn, "PAXG").warning().contains("seuil d'alerte"), asset(warn, "PAXG").warning());
         assertEquals(FeeTestLevel.WARNING, warn.feeTestLevel());
 
         when(fees.getFeeRate(any(), anyString())).thenReturn(new FeeRate(d("0.5"), d("1")));
-        PlanDraft red = planner.plan(List.of(buy("PAXG", 0, "100", cash("0", "1000"))));
+        PlanDraft red = planner.plan(List.of(buy("PAXG", 0, "100", cash("1000"))));
         assertEquals(AssetPlanOutcome.OK, asset(red, "PAXG").outcome());
         assertEquals(FeeTestLevel.RED, asset(red, "PAXG").feeTestLevel());
         assertFalse(asset(red, "PAXG").steps().isEmpty());
@@ -253,7 +293,7 @@ class OrderPlannerTest {
     @Test
     @DisplayName("Sous le minimum de l'exchange : BELOW_MIN")
     void belowMin() {
-        PlanDraft plan = planner.plan(List.of(buy("PAXG", 0, "0.005", cash("0", "1000"))));
+        PlanDraft plan = planner.plan(List.of(buy("PAXG", 0, "0.005", cash("1000"))));
 
         assertEquals(PlanBlockReason.BELOW_MIN, asset(plan, "PAXG").blockReason());
     }
@@ -262,17 +302,17 @@ class OrderPlannerTest {
     @DisplayName("Binding non activé => DISABLED ; action NONE/BLOCKED ou lecture indisponible => aucune étape")
     void disabledNoActionUnavailable() {
         AssetInput disabled = new AssetInput("BTC", 0, false, 7L, WebProviderCode.OKX, credential, PortfolioStatus.OK,
-                RainbowLiveAction.BUY, d("100"), d("0.001"), cash("500", "0"));
+                RainbowLiveAction.BUY, d("100"), d("0.001"), cash("500"));
         PlanDraft onlyDisabled = planner.plan(List.of(disabled));
         assertEquals(AssetPlanOutcome.DISABLED, asset(onlyDisabled, "BTC").outcome());
         assertEquals(PlanStatus.DISABLED, onlyDisabled.status());
 
         AssetInput none = new AssetInput("ETH", 1, true, 7L, WebProviderCode.OKX, credential, PortfolioStatus.OK,
-                RainbowLiveAction.NONE, null, null, cash("500", "0"));
+                RainbowLiveAction.NONE, null, null, cash("500"));
         AssetInput upstreamBlocked = new AssetInput("PAXG", 2, true, 7L, WebProviderCode.OKX, credential, PortfolioStatus.OK,
-                RainbowLiveAction.BLOCKED, d("100"), d("0.001"), cash("500", "0"));
+                RainbowLiveAction.BLOCKED, d("100"), d("0.001"), cash("500"));
         AssetInput stale = new AssetInput("SOL", 3, true, 7L, WebProviderCode.OKX, credential, PortfolioStatus.STALE,
-                RainbowLiveAction.BUY, d("100"), d("0.001"), cash("500", "0"));
+                RainbowLiveAction.BUY, d("100"), d("0.001"), cash("500"));
         PlanDraft plan = planner.plan(List.of(none, upstreamBlocked, stale));
         assertEquals(AssetPlanOutcome.NO_ACTION, asset(plan, "ETH").outcome());
         assertEquals(AssetPlanOutcome.NO_ACTION, asset(plan, "PAXG").outcome());
@@ -284,9 +324,9 @@ class OrderPlannerTest {
     @Test
     @DisplayName("Marché illisible pour un actif : cet actif est bloqué, les autres sont planifiés")
     void marketFailureIsolatedPerAsset() {
-        when(fees.getFeeRate(any(), eq("PAXG-USDT"))).thenThrow(new IllegalStateException("fees down"));
+        when(fees.getFeeRate(any(), eq("PAXG-USDC"))).thenThrow(new IllegalStateException("fees down"));
 
-        PlanDraft plan = planner.plan(List.of(buy("BTC", 0, "100", cash("500", "0")), buy("PAXG", 1, "50", cash("500", "0"))));
+        PlanDraft plan = planner.plan(List.of(buy("BTC", 0, "100", cash("500")), buy("PAXG", 1, "50", cash("500"))));
 
         assertEquals(AssetPlanOutcome.OK, asset(plan, "BTC").outcome());
         assertEquals(PlanBlockReason.READING_UNAVAILABLE, asset(plan, "PAXG").blockReason());
@@ -295,18 +335,18 @@ class OrderPlannerTest {
     @Test
     @DisplayName("Un carnet n'est lu qu'une fois par plan et par instrument")
     void bookReadOncePerInstrument() {
-        planner.plan(List.of(buy("PAXG", 0, "100", cash("1000", "0")), buy("BTC", 1, "100", cash("1000", "0"))));
+        planner.plan(List.of(buy("BTC", 0, "100", cash("1000")), buy("BTC", 1, "100", cash("1000"))));
 
-        verify(books, times(1)).fetchBook(any(), eq("USDC-USDT"), anyInt());
+        verify(books, times(1)).fetchBook(any(), eq("BTC-USDC"), anyInt());
     }
 
     @Test
     @DisplayName("Hash des entrées : déterministe, insensible à l'ordre, sensible aux montants")
     void inputsHash() {
-        AssetInput a = buy("BTC", 0, "100", cash("500", "0"));
-        AssetInput b = buy("PAXG", 1, "50", cash("500", "0"));
+        AssetInput a = buy("BTC", 0, "100", cash("500"));
+        AssetInput b = buy("PAXG", 1, "50", cash("500"));
         assertEquals(OrderPlanner.inputsHash(List.of(a, b)), OrderPlanner.inputsHash(new ArrayList<>(List.of(b, a))));
-        assertNotEquals(OrderPlanner.inputsHash(List.of(a, b)), OrderPlanner.inputsHash(List.of(a, buy("PAXG", 1, "51", cash("500", "0")))));
+        assertNotEquals(OrderPlanner.inputsHash(List.of(a, b)), OrderPlanner.inputsHash(List.of(a, buy("PAXG", 1, "51", cash("500")))));
         assertEquals(64, OrderPlanner.inputsHash(List.of(a)).length());
     }
 

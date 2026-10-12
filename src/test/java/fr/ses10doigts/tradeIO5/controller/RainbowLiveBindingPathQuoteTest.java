@@ -129,9 +129,9 @@ class RainbowLiveBindingPathQuoteTest {
         when(fees.getProviderCode()).thenReturn(WebProviderCode.OKX);
         when(books.getProviderCode()).thenReturn(WebProviderCode.OKX);
         when(catalog.supports(WebProviderCode.OKX)).thenReturn(true);
-        when(groups.members(AssetGroup.USD)).thenReturn(List.of("USDC", "USDT"));
-        when(reader.getAvailableBalances(any())).thenReturn(Map.of("USDT", new BigDecimal("1000")));
-        when(catalog.liveInstruments(any())).thenReturn(List.of(new InstrumentInfo("PAXG-USDT", "PAXG", "USDT",
+        when(groups.members(AssetGroup.USD)).thenReturn(List.of("USDC"));
+        when(reader.getAvailableBalances(any())).thenReturn(Map.of("USDC", new BigDecimal("1000")));
+        when(catalog.liveInstruments(any())).thenReturn(List.of(new InstrumentInfo("PAXG-USDC", "PAXG", "USDC",
                 new BigDecimal("0.0001"), new BigDecimal("0.0001"), new BigDecimal("0.1"))));
         when(fees.getFeeRate(any(), anyString())).thenReturn(new FeeRate(new BigDecimal("0.05"), new BigDecimal("0.05")));
         when(books.fetchBook(any(), anyString(), anyInt())).thenReturn(new BookResult(new OrderBookSnapshot(
@@ -151,15 +151,15 @@ class RainbowLiveBindingPathQuoteTest {
     }
 
     @Test
-    @DisplayName("Propriétaire : devis OK, jambe PAXG-USDT, coût en %, niveau Fee Test, pas d'avertissement")
+    @DisplayName("Propriétaire : devis OK, jambe PAXG-USDC, coût en %, niveau Fee Test, pas d'avertissement")
     void owner() throws Exception {
         mvc.perform(get("/api/rainbow-live/bindings/" + aliceBindingId + "/path-quote").param("amount", "1000"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("OK"))
-                .andExpect(jsonPath("$.source").value("USDT"))
+                .andExpect(jsonPath("$.source").value("USDC"))
                 .andExpect(jsonPath("$.target").value("PAXG"))
                 .andExpect(jsonPath("$.legs.length()").value(1))
-                .andExpect(jsonPath("$.legs[0].instId").value("PAXG-USDT"))
+                .andExpect(jsonPath("$.legs[0].instId").value("PAXG-USDC"))
                 .andExpect(jsonPath("$.legs[0].side").value("BUY"))
                 .andExpect(jsonPath("$.totalCostPct").value(0.15))
                 .andExpect(jsonPath("$.feeTestLevel").value("GREEN"))
@@ -198,7 +198,7 @@ class RainbowLiveBindingPathQuoteTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("OKX : erreur API code=50113 msg=Invalid Sign"));
 
-        org.mockito.Mockito.doReturn(Map.of("USDT", new BigDecimal("1000"))).when(reader).getAvailableBalances(any());
+        org.mockito.Mockito.doReturn(Map.of("USDC", new BigDecimal("1000"))).when(reader).getAvailableBalances(any());
         when(books.fetchBook(any(), anyString(), anyInt()))
                 .thenThrow(new fr.ses10doigts.tradeIO5.service.connector.instrument.InstrumentLookupException("carnet et ticker indisponibles"));
         mvc.perform(get("/api/rainbow-live/bindings/" + aliceBindingId + "/path-quote").param("amount", "1000"))

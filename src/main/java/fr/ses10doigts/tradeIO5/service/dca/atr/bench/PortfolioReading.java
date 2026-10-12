@@ -9,7 +9,7 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * Lecture d'un portefeuille à un instant : cash USD (groupe USDC + USDT, détail par membre) et quantités par actif (BTC, ETH, PAXG uniquement). {@code walletId}
+ * Lecture d'un portefeuille à un instant : cash USD (groupe USDC, détail par membre) et quantités par actif (BTC, ETH, PAXG uniquement). {@code walletId}
  * est nul pour le wallet mock. Une lecture non {@link PortfolioStatus#OK} ne doit jamais servir à dimensionner une action.
  */
 public record PortfolioReading(double cash, Map<String, Double> cashByMember, Map<String, Double> positions,

@@ -19,6 +19,10 @@ Chaque fichier indique sa date de vérification par rapport au code (`Vérifié 
 
 Remarques collectées pour la phase d'audit : [`securite/remarques-audit.md`](securite/remarques-audit.md) (authentification, journalisation des actions).
 
+## Graphique
+
+Besoins d'interface et de charte graphique collectés au fil des chantiers (ex. régler les `asset_provider` depuis la GUI) : [`graphique/remarques-gui.md`](graphique/remarques-gui.md).
+
 ## Objectif en cours
 
 Automatiser le **DCA intelligent** (Rainbow ATR) : état de la chaîne et chantiers ouverts dans [`known-gaps/rainbow-dca-chantiers-ouverts.md`](known-gaps/rainbow-dca-chantiers-ouverts.md).

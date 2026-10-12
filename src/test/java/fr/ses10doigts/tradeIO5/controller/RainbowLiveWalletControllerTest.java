@@ -251,6 +251,6 @@ class RainbowLiveWalletControllerTest {
         for (Field f : RainbowLiveWalletQueryService.class.getDeclaredFields()) {
             assertTrue(f.getType().getSimpleName().endsWith("Repository"), "champ inattendu : " + f.getType().getName());
         }
-        assertEquals(2, List.of(RainbowLiveWalletQueryService.class.getDeclaredFields()).size());
+        assertEquals(3, List.of(RainbowLiveWalletQueryService.class.getDeclaredFields()).size());
     }
 }

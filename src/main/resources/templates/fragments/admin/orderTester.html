@@ -54,6 +54,19 @@
 		</div>
 	</form>
 
+	<div class="mt-3 border rounded p-2">
+		<h6>Route à deux jambes (validation seule)</h6>
+		<p class="small text-muted mb-2">Valide la jambe du formulaire ci-dessus puis la jambe 2 ci-dessous, <strong>sans rien envoyer</strong>. Kraken contrôle aussi le solde : la jambe 2 est refusée « fonds insuffisants » tant que l'intermédiaire (ex. BTC) n'est pas détenu, c'est attendu.</p>
+		<div class="row g-2">
+			<div class="col-12 col-md-3"><label class="form-label small" for="adm-ot-r2-inst">Paire jambe 2</label><input type="text" class="form-control form-control-sm" id="adm-ot-r2-inst" placeholder="PAXG-BTC"></div>
+			<div class="col-6 col-md-2"><label class="form-label small" for="adm-ot-r2-side">Sens</label><select class="form-select form-select-sm" id="adm-ot-r2-side"><option value="BUY">BUY</option><option value="SELL">SELL</option></select></div>
+			<div class="col-6 col-md-2"><label class="form-label small" for="adm-ot-r2-sz">Taille (base)</label><input type="text" inputmode="decimal" class="form-control form-control-sm" id="adm-ot-r2-sz"></div>
+			<div class="col-6 col-md-2"><label class="form-label small" for="adm-ot-r2-px">Prix limite</label><input type="text" inputmode="decimal" class="form-control form-control-sm" id="adm-ot-r2-px"></div>
+			<div class="col-6 col-md-3 d-flex align-items-end"><button type="button" class="btn btn-sm btn-outline-primary" id="adm-ot-route">Valider la route</button></div>
+		</div>
+		<ul class="small mt-2 mb-0 list-unstyled" id="adm-ot-route-result"></ul>
+	</div>
+
 	<div id="adm-ot-sent" class="mt-3 d-none border border-danger rounded p-2">
 		<h6 class="text-danger">Ordre réel</h6>
 		<div class="small" id="adm-ot-sent-text"></div>

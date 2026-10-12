@@ -28,6 +28,8 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrGlobals;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrTuning;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
+import fr.ses10doigts.tradeIO5.service.market.dataset.DailyDataset;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -58,6 +60,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 /**
@@ -112,6 +116,8 @@ class RainbowLiveRealCashTest {
     /** Liens (bindings) et lecture servie par le port simulé (par défaut, ou par wallet). */
     private final List<LiveSlot> slots = new ArrayList<>();
     private final Map<Long, PortfolioReading> readingByWallet = new HashMap<>();
+    /** Sources dont le provider est « indisponible » : le moteur sert alors BINANCE, marqué substitué. */
+    private final java.util.Set<MarketDataSource> substitutedSources = new java.util.HashSet<>();
     private PortfolioReading reading;
     private User alice;
     private Wallet wallet;
@@ -126,13 +132,18 @@ class RainbowLiveRealCashTest {
         for (String a : RainbowLiveDefaultPresets.ASSETS) {
             serve(a, flat(N, 100));
         }
-        when(datasetEngine.getDatasetForAsset(anyString(), eq(TimeFrame.D1), anyInt(), any(Instant.class)))
+        when(datasetEngine.getDailyDatasetForAsset(anyString(), anyInt(), any(Instant.class), any()))
                 .thenAnswer(inv -> {
-                    Instant endTime = inv.getArgument(3);
-                    List<MarketData> visible = candlesByAsset.get((String) inv.getArgument(0)).stream()
+                    String asset = inv.getArgument(0);
+                    Instant endTime = inv.getArgument(2);
+                    MarketDataSource wanted = inv.getArgument(3);
+                    List<MarketData> visible = candlesByAsset.get(asset).stream()
                             .filter(c -> !c.getTimestamp().isAfter(endTime)).toList();
-                    return MarketDataset.builder().pair(inv.getArgument(0)).timeFrame(TimeFrame.D1).marketDatas(visible)
-                            .size(visible.size()).isComplete(true).build();
+                    boolean substituted = wanted != null && substitutedSources.contains(wanted);
+                    MarketDataSource used = wanted == null ? MarketDataSource.BINANCE
+                            : substituted ? MarketDataSource.BINANCE : wanted;
+                    return new DailyDataset(MarketDataset.builder().pair(asset).timeFrame(TimeFrame.D1).marketDatas(visible)
+                            .size(visible.size()).isComplete(true).build(), used, "TEST", substituted);
                 });
         when(realSource.liveSlots(any(User.class))).thenAnswer(inv -> List.copyOf(slots));
         when(realSource.read(any(RainbowLiveBinding.class))).thenAnswer(inv -> {
@@ -197,9 +208,13 @@ class RainbowLiveRealCashTest {
 
     /** Lien (binding) du preset sur {@code w} : persisté (FK du run de lien) et déclaré au port simulé. */
     private RainbowLiveBinding bind(RainbowLivePreset p, int priority, double bagPercent, Wallet w) {
+        return bind(p, priority, bagPercent, w, null);
+    }
+
+    private RainbowLiveBinding bind(RainbowLivePreset p, int priority, double bagPercent, Wallet w, MarketDataSource source) {
         RainbowLiveBinding binding = bindingRepository.save(RainbowLiveBinding.builder().user(alice)
                 .assetSymbol(p.getAssetSymbol()).preset(p).wallet(w).bagPercent(bagPercent).priority(priority).build());
-        slots.add(new LiveSlot(binding.getId(), p.getId(), p.getAssetSymbol(), w.getId(), priority, bagPercent));
+        slots.add(new LiveSlot(binding.getId(), p.getId(), p.getAssetSymbol(), w.getId(), priority, bagPercent, source));
         return binding;
     }
 
@@ -215,6 +230,57 @@ class RainbowLiveRealCashTest {
 
     private RainbowLiveLiveBlock live0005(RainbowLiveBinding b) {
         return bindingRunRepository.findByBindingAndDay(b, LAST_DAY).orElseThrow().getPass0005();
+    }
+
+    @Test
+    @DisplayName("Signal par lien : chaque lien lit les candles de SA source ; le preset suit la source du lien prioritaire")
+    void signalPerLinkOnLinkSource() {
+        RainbowLivePreset btc = presetsAllAssets().get("BTC");
+        Wallet okxWallet = newWallet("okx-2");
+        RainbowLiveBinding kraken = bind(btc, 0, 50, wallet, MarketDataSource.KRAKEN);
+        RainbowLiveBinding okx = bind(btc, 1, 50, okxWallet, MarketDataSource.OKX);
+        reading = reading(PortfolioStatus.OK, 1000.0, Map.of());
+        readingByWallet.put(okxWallet.getId(), reading(okxWallet.getId(), PortfolioStatus.OK, 1000.0, Map.of()));
+
+        service.runPass(RainbowLivePass.T2355, ASOF_2355);
+
+        verify(datasetEngine, times(1)).getDailyDatasetForAsset(eq("BTC"),
+                eq(RainbowLiveDefaultPresets.D1_LOOKBACK_CANDLES), eq(ASOF_2355), eq(MarketDataSource.KRAKEN));
+        verify(datasetEngine, times(1)).getDailyDatasetForAsset(eq("BTC"),
+                eq(RainbowLiveDefaultPresets.D1_LOOKBACK_CANDLES), eq(ASOF_2355), eq(MarketDataSource.OKX));
+        verify(datasetEngine, never()).getDailyDatasetForAsset(eq("BTC"), anyInt(), any(Instant.class), isNull());
+        assertEquals(MarketDataSource.KRAKEN, live2355(kraken).getCandleSource());
+        assertEquals(false, live2355(kraken).getCandleSourceSubstituted());
+        assertEquals(MarketDataSource.OKX, live2355(okx).getCandleSource());
+        assertEquals(false, live2355(okx).getCandleSourceSubstituted());
+    }
+
+    @Test
+    @DisplayName("Source du lien indisponible : fallback bruyant, snapshot du lien marqué substitué")
+    void substitutedSourceIsFlaggedOnSnapshot() {
+        RainbowLivePreset btc = presetsAllAssets().get("BTC");
+        RainbowLiveBinding link = bind(btc, 0, 100, wallet, MarketDataSource.KRAKEN);
+        reading = reading(PortfolioStatus.OK, 1000.0, Map.of());
+        substitutedSources.add(MarketDataSource.KRAKEN);
+
+        service.runPass(RainbowLivePass.T2355, ASOF_2355);
+
+        RainbowLiveLiveBlock b = live2355(link);
+        assertEquals(MarketDataSource.BINANCE, b.getCandleSource());
+        assertEquals(true, b.getCandleSourceSubstituted());
+    }
+
+    @Test
+    @DisplayName("Lien sans exchange de marché : défauts asset_provider (source null), jamais marqué substitué")
+    void linkWithoutExchangeUsesDefaults() {
+        RainbowLivePreset btc = presetsAllAssets().get("BTC");
+        RainbowLiveBinding link = bind(btc, 0, 100);
+        reading = reading(PortfolioStatus.OK, 1000.0, Map.of());
+
+        service.runPass(RainbowLivePass.T2355, ASOF_2355);
+
+        verify(datasetEngine, times(1)).getDailyDatasetForAsset(eq("BTC"), anyInt(), any(Instant.class), isNull());
+        assertEquals(false, live2355(link).getCandleSourceSubstituted());
     }
 
     @Test

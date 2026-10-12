@@ -35,8 +35,9 @@ public class BinanceMarketDataApiClient implements MarketDataApiClient {
 
     private static final Logger logger = LoggerFactory.getLogger(BinanceMarketDataApiClient.class);
 
-    // Seul TimeFrame ingéré nativement par Bucket aujourd'hui (cf. Bucket.BASE_TIME_FRAME)
-    private static final Map<TimeFrame, String> NATIVE_INTERVALS = Map.of(TimeFrame.H1, "1h");
+    // H1 : TimeFrame ingéré par le Bucket (cf. Bucket.BASE_TIME_FRAME). D1 : chemin quotidien natif du Rainbow
+    // (MarketDatasetEngine#getDailyDatasetForAsset, hors Bucket).
+    private static final Map<TimeFrame, String> NATIVE_INTERVALS = Map.of(TimeFrame.H1, "1h", TimeFrame.D1, "1d");
 
     // Binance Spot API error codes, doc publique "Error Codes" : -1121 = "Invalid symbol."
     private static final int ERROR_CODE_INVALID_SYMBOL = -1121;
@@ -153,7 +154,7 @@ public class BinanceMarketDataApiClient implements MarketDataApiClient {
         String interval = NATIVE_INTERVALS.get(timeFrame);
         if (interval == null) {
             throw new IllegalArgumentException(
-                    "Binance market data client only supports TimeFrame.H1 natively, got: " + timeFrame);
+                    "Binance market data client only supports TimeFrame.H1 and TimeFrame.D1 natively, got: " + timeFrame);
         }
         return interval;
     }

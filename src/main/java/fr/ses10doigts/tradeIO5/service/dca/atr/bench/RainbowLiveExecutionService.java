@@ -10,7 +10,7 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePass;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
-import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveMockWalletRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
@@ -20,6 +20,7 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrEngine;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrGlobals;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrResult;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrTuning;
+import fr.ses10doigts.tradeIO5.service.market.dataset.DailyDataset;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
 import fr.ses10doigts.tradeIO5.service.tree.trend.TrendMixCalculator;
 import lombok.RequiredArgsConstructor;
@@ -32,12 +33,10 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * Exécution des passes quotidiennes du bench grandeur nature (23:55 / 00:05 UTC) : chargement D1, rejeu du
@@ -52,7 +51,13 @@ import java.util.Set;
  * partagent un {@link CashLedger} par wallet. Passe 00:05 : le snapshot de la passe 23:55 du lien est relu s'il est encore
  * frais (pas de nouvel appel exchange incohérent). Rejeu 23:55 : action live d'origine conservée.
  * <p>
- * Dataset D1 chargé UNE fois par (actif, passe) et partagé entre tous les presets/users. Une erreur sur un
+ * Signal par lien sur la source du lien : les candles D1 (720 j, chemin natif hors Bucket) viennent de l'exchange du wallet
+ * ({@link LiveCandleSource}). Le preset (simulation fictive) est calculé sur la source de son lien le plus prioritaire (défauts
+ * {@code asset_provider} sans lien) ; chaque lien d'un preset ATR sur une AUTRE source rejoue le moteur sur sa propre série.
+ * Un preset Trend Mix (machine d'état unique) partage son signal entre ses liens (WARN si sources différentes). Source
+ * indisponible : fallback avec WARN et {@code candleSourceSubstituted} sur le snapshot du lien.
+ * <p>
+ * Série D1 chargée UNE fois par (actif, source, passe) et partagée entre tous les presets/users. Une erreur sur un
  * (actif, preset, user) n'empêche jamais les autres. Pas de rattrapage des jours manqués.
  * <p>
  * Limite connue assumée : le rejeu (fenêtre du preset) repart d'une position moteur nulle ; le wallet mock est la
@@ -87,8 +92,30 @@ public class RainbowLiveExecutionService {
     public record PassSummary(RainbowLivePass pass, LocalDate day, int processed, int skipped, int errors) {
     }
 
-    /** Série D1 d'un actif tronquée au jour traité (la bougie du jour suivant, éventuelle, est ignorée). */
-    private record AssetSeries(RainbowAtrDataset dataset, int dayIdx, List<MarketData> candles) {
+    /** Série D1 d'un actif tronquée au jour traité (la bougie du jour suivant, éventuelle, est ignorée) et sa provenance. */
+    private record AssetSeries(RainbowAtrDataset dataset, int dayIdx, List<MarketData> candles, MarketDataSource source,
+                               boolean substituted) {
+    }
+
+    private record SeriesKey(String asset, MarketDataSource source) {
+    }
+
+    private enum SeriesOutcome { OK, SKIPPED, FAILED }
+
+    /** Résultat mémorisé du chargement d'une série (OK, bougie du jour absente, ou échec). */
+    private record SeriesLookup(AssetSeries series, SeriesOutcome outcome) {
+    }
+
+    /** Contexte d'une passe : séries déjà chargées par (actif, source). */
+    private record PassContext(RainbowLivePass pass, Instant asOf, LocalDate day, Map<SeriesKey, SeriesLookup> series) {
+    }
+
+    /** Signal d'un lien : demande dimensionnée + exchange réel des candles et substitution éventuelle. */
+    private record LinkSignal(LiveDemand demand, MarketDataSource source, boolean substituted) {
+    }
+
+    /** Rejeu ATR du preset sur une série. */
+    private record AtrSim(RainbowAtrTuning tuning, RainbowAtrResult result, RainbowAtrDataset dataset, int endIdx) {
     }
 
     /** Ce que veut le moteur ce jour-là, avant tout plafond : achat en USDC, vente en quantité. */
@@ -120,16 +147,9 @@ public class RainbowLiveExecutionService {
         Counters counters = new Counters();
 
         Map<Long, List<RainbowLivePreset>> presetsByUser = collectPresets(counters);
-        Map<String, Integer> presetCountByAsset = new HashMap<>();
-        presetsByUser.values().forEach(list -> list.forEach(p -> presetCountByAsset.merge(p.getAssetSymbol(), 1, Integer::sum)));
-
-        Map<String, AssetSeries> seriesByAsset = new HashMap<>();
-        Set<String> failedAssets = new HashSet<>();
-        for (Map.Entry<String, Integer> entry : presetCountByAsset.entrySet()) {
-            loadAsset(pass, asOf, day, entry.getKey(), entry.getValue(), seriesByAsset, failedAssets, counters);
-        }
+        PassContext ctx = new PassContext(pass, asOf, day, new HashMap<>());
         for (List<RainbowLivePreset> presets : presetsByUser.values()) {
-            runUser(pass, asOf, day, presets, seriesByAsset, failedAssets, counters);
+            runUser(ctx, presets, counters);
         }
 
         PassSummary summary = new PassSummary(pass, day, counters.processed, counters.skipped, counters.errors);
@@ -156,40 +176,50 @@ public class RainbowLiveExecutionService {
         return byUser;
     }
 
-    /** Charge la série D1 de l'actif UNE fois par passe (partagée entre users) ; absente/en échec ⇒ comptée sur ses presets. */
-    private void loadAsset(RainbowLivePass pass, Instant asOf, LocalDate day, String asset, int presetCount,
-                           Map<String, AssetSeries> seriesByAsset, Set<String> failedAssets, Counters counters) {
-        try {
-            AssetSeries series = loadSeries(asset, day, asOf);
-            if (series == null) {
-                counters.skipped += presetCount;
-            } else {
-                seriesByAsset.put(asset, series);
+    /** Série D1 de (actif, source) : chargée une seule fois par passe (mémorisée dans le contexte, y compris échec/absence). */
+    private SeriesLookup seriesFor(PassContext ctx, String asset, MarketDataSource source) {
+        return ctx.series().computeIfAbsent(new SeriesKey(asset, source), key -> {
+            try {
+                AssetSeries series = loadSeries(asset, source, ctx.day(), ctx.asOf());
+                return series == null ? new SeriesLookup(null, SeriesOutcome.SKIPPED)
+                        : new SeriesLookup(series, SeriesOutcome.OK);
+            } catch (Exception e) {
+                log.error("Bench Rainbow : chargement D1 impossible pour {} source={} (passe {}, jour {}), sauté",
+                        asset, source, ctx.pass(), ctx.day(), e);
+                return new SeriesLookup(null, SeriesOutcome.FAILED);
             }
-        } catch (Exception e) {
-            failedAssets.add(asset);
-            counters.errors += presetCount;
-            log.error("Bench Rainbow : chargement D1 impossible pour {} (passe {}, jour {}), actif sauté", asset, pass, day, e);
-        }
+        });
     }
 
     /**
-     * Utilisateur en deux temps : (1) simulation de chaque preset (signal partagé par tous ses liens, ordre sans importance) en
-     * collectant la {@link LiveDemand} ; (2) dimensionnement live de chaque lien par {@code priority} croissante, cash commun
-     * par wallet ({@link CashLedger}). Les presets sans lien restent en simulation pure.
+     * Utilisateur en deux temps : (1) simulation de chaque preset sur la source de son lien le plus prioritaire, en collectant
+     * la {@link LiveDemand} ; (2) signal puis dimensionnement live de chaque lien par {@code priority} croissante, cash commun
+     * par wallet ({@link CashLedger}). Les presets sans lien restent en simulation pure (source par défaut).
      */
-    private void runUser(RainbowLivePass pass, Instant asOf, LocalDate day, List<RainbowLivePreset> presets,
-                         Map<String, AssetSeries> seriesByAsset, Set<String> failedAssets, Counters counters) {
+    private void runUser(PassContext ctx, List<RainbowLivePreset> presets, Counters counters) {
+        User user = presets.getFirst().getUser();
+        List<LiveSlot> slots = liveSlotsOf(user, counters);
+        Map<Long, MarketDataSource> referenceSources = referenceSources(slots);
+
         List<RainbowLivePreset> ordered = new ArrayList<>(presets);
         ordered.sort(Comparator.comparingInt(p -> RainbowLiveDefaultPresets.ASSETS.indexOf(p.getAssetSymbol())));
+        Map<Long, RainbowLivePreset> presetById = new HashMap<>();
         Map<Long, LiveDemand> demands = new HashMap<>();
+        Map<Long, AssetSeries> presetSeries = new HashMap<>();
         for (RainbowLivePreset preset : ordered) {
-            AssetSeries series = seriesByAsset.get(preset.getAssetSymbol());
-            if (series == null) {
-                continue; // déjà comptée (sautée ou en échec) par loadAsset
+            presetById.put(preset.getId(), preset);
+            SeriesLookup lookup = seriesFor(ctx, preset.getAssetSymbol(), referenceSources.get(preset.getId()));
+            if (lookup.outcome() == SeriesOutcome.SKIPPED) {
+                counters.skipped++;
+                continue;
             }
+            if (lookup.outcome() == SeriesOutcome.FAILED) {
+                counters.errors++;
+                continue;
+            }
+            presetSeries.put(preset.getId(), lookup.series());
             try {
-                if (runPreset(pass, day, preset, series, demands)) {
+                if (runPreset(ctx.pass(), ctx.day(), preset, lookup.series(), demands)) {
                     counters.processed++;
                 } else {
                     counters.skipped++;
@@ -197,25 +227,79 @@ public class RainbowLiveExecutionService {
             } catch (Exception e) {
                 counters.errors++;
                 log.error("Bench Rainbow : échec preset={} actif={} user={} passe {} jour {}",
-                        preset.getId(), preset.getAssetSymbol(), preset.getUser().getId(), pass, day, e);
+                        preset.getId(), preset.getAssetSymbol(), preset.getUser().getId(), ctx.pass(), ctx.day(), e);
             }
         }
-        runLinks(pass, day, presets.getFirst().getUser(), demands, counters);
+        runLinks(ctx, user, slots, presetById, demands, presetSeries, referenceSources, counters);
+    }
+
+    /** Source de référence d'un preset = candles de son lien le plus prioritaire qui a un exchange ({@code slots} déjà triés). */
+    private static Map<Long, MarketDataSource> referenceSources(List<LiveSlot> slots) {
+        Map<Long, MarketDataSource> reference = new HashMap<>();
+        for (LiveSlot slot : slots) {
+            if (slot.candleSource() != null) {
+                reference.putIfAbsent(slot.presetId(), slot.candleSource());
+            }
+        }
+        return reference;
     }
 
     /** Liens live de l'utilisateur par {@code priority} croissante : cash commun par wallet, un snapshot par lien. */
-    private void runLinks(RainbowLivePass pass, LocalDate day, User user, Map<Long, LiveDemand> demands, Counters counters) {
-        List<LiveSlot> slots = liveSlotsOf(user, counters);
+    private void runLinks(PassContext ctx, User user, List<LiveSlot> slots, Map<Long, RainbowLivePreset> presetById,
+                          Map<Long, LiveDemand> demands, Map<Long, AssetSeries> presetSeries,
+                          Map<Long, MarketDataSource> referenceSources, Counters counters) {
         Map<Long, CashLedger> ledgers = new HashMap<>();
         for (LiveSlot slot : slots) {
             try {
-                runLink(pass, day, slot, demands.get(slot.presetId()), ledgers);
+                LinkSignal signal = signalOf(ctx, slot, presetById.get(slot.presetId()), demands, presetSeries,
+                        referenceSources, counters);
+                runLink(ctx.pass(), ctx.day(), slot, signal, ledgers);
             } catch (Exception e) {
                 counters.errors++;
                 log.error("Bench Rainbow : échec lien binding={} actif={} wallet={} user={} passe {} jour {}",
-                        slot.bindingId(), slot.assetSymbol(), slot.walletId(), user.getId(), pass, day, e);
+                        slot.bindingId(), slot.assetSymbol(), slot.walletId(), user.getId(), ctx.pass(), ctx.day(), e);
             }
         }
+    }
+
+    /**
+     * Signal du lien. Source du lien = référence du preset (ou lien sans exchange) : signal du preset. Autre source : preset
+     * ATR => rejeu sur la série de cette source (signal propre au lien) ; preset Trend Mix (machine d'état unique) => signal du
+     * preset partagé, marqué substitué + WARN. {@code null} si le preset n'a pas été simulé ce jour-là ou si la série manque.
+     */
+    private LinkSignal signalOf(PassContext ctx, LiveSlot slot, RainbowLivePreset preset, Map<Long, LiveDemand> demands,
+                                Map<Long, AssetSeries> presetSeries, Map<Long, MarketDataSource> referenceSources,
+                                Counters counters) {
+        LiveDemand presetDemand = demands.get(slot.presetId());
+        AssetSeries reference = presetSeries.get(slot.presetId());
+        if (preset == null || presetDemand == null || reference == null) {
+            return null;
+        }
+        MarketDataSource wanted = slot.candleSource();
+        if (wanted == null || wanted == referenceSources.get(slot.presetId())) {
+            return new LinkSignal(presetDemand, reference.source(), reference.substituted());
+        }
+        if (preset.isTrendMix()) {
+            log.warn("⚠️ Bench Rainbow : preset Trend Mix {} partagé entre liens de sources différentes : lien {} (source {}) "
+                            + "reçoit le signal calculé sur {} (machine d'état unique).",
+                    preset.getId(), slot.bindingId(), wanted, reference.source());
+            return new LinkSignal(presetDemand, reference.source(), true);
+        }
+        SeriesLookup lookup = seriesFor(ctx, slot.assetSymbol(), wanted);
+        if (lookup.outcome() != SeriesOutcome.OK) {
+            counters.errors += lookup.outcome() == SeriesOutcome.FAILED ? 1 : 0;
+            counters.skipped += lookup.outcome() == SeriesOutcome.SKIPPED ? 1 : 0;
+            log.warn("Bench Rainbow : série D1 {} source={} indisponible pour le lien {} ({}), lien non dimensionné",
+                    slot.assetSymbol(), wanted, slot.bindingId(), lookup.outcome());
+            return null;
+        }
+        AtrSim sim = simulateAtr(preset, lookup.series(), ctx.day());
+        if (sim == null) {
+            return null;
+        }
+        WantedAction action = wantedAction(sim.result(), sim.endIdx());
+        LiveDemand demand = LiveDemand.fixed(action.buyAmount(), action.sellQty(), sim.dataset().close(sim.endIdx()));
+        return new LinkSignal(demand, lookup.series().source(), lookup.series().substituted());
     }
 
     private List<LiveSlot> liveSlotsOf(User user, Counters counters) {
@@ -234,15 +318,20 @@ public class RainbowLiveExecutionService {
     }
 
     /**
-     * Charge le dataset D1 de l'actif (une fois par passe) et repère la bougie du jour. {@code null} ⇒ bougie du
-     * jour absente (WARN, passe sautée pour cet actif).
+     * Charge la série D1 (chemin natif, {@link RainbowLiveDefaultPresets#D1_LOOKBACK_CANDLES} jours) de l'actif sur la source
+     * demandée ({@code null} = défauts {@code asset_provider}) et repère la bougie du jour. {@code null} ⇒ bougie du jour absente
+     * (WARN, passe sautée pour cette série).
      */
-    private AssetSeries loadSeries(String asset, LocalDate day, Instant asOf) {
+    private AssetSeries loadSeries(String asset, MarketDataSource source, LocalDate day, Instant asOf) {
         long start = System.nanoTime();
-        MarketDataset dataset = datasetEngine.getDatasetForAsset(asset, TimeFrame.D1,
-                RainbowLiveDefaultPresets.D1_LOOKBACK_CANDLES, asOf);
+        DailyDataset daily = datasetEngine.getDailyDatasetForAsset(asset, RainbowLiveDefaultPresets.D1_LOOKBACK_CANDLES,
+                asOf, source);
+        MarketDataset dataset = daily == null ? null : daily.dataset();
+        MarketDataSource used = daily == null ? source : daily.source();
+        boolean substituted = daily != null && daily.substituted();
         List<MarketData> candles = dataset == null || dataset.getMarketDatas() == null ? List.of() : dataset.getMarketDatas();
-        log.info("Bench Rainbow : D1 {} chargé ({} bougies) en {} ms", asset, candles.size(), (System.nanoTime() - start) / 1_000_000);
+        log.info("Bench Rainbow : D1 {} chargé ({} bougies, source {}{}) en {} ms", asset, candles.size(), used,
+                substituted ? ", SUBSTITUÉE à " + source : "", (System.nanoTime() - start) / 1_000_000);
 
         int dayIdx = -1;
         for (int i = 0; i < candles.size(); i++) {
@@ -252,13 +341,13 @@ public class RainbowLiveExecutionService {
             }
         }
         if (dayIdx < 0) {
-            log.warn("Bench Rainbow : bougie D1 du {} absente pour {} (dernière : {}), passe sautée pour cet actif",
-                    day, asset, candles.isEmpty() ? "aucune" : candles.getLast().getTimestamp());
+            log.warn("Bench Rainbow : bougie D1 du {} absente pour {} source={} (dernière : {}), passe sautée pour cette série",
+                    day, asset, used, candles.isEmpty() ? "aucune" : candles.getLast().getTimestamp());
             return null;
         }
         // bougie du jour suivant (00:05) ignorée : la vraie clôture est la bougie du jour
         List<MarketData> upToDay = candles.subList(0, dayIdx + 1);
-        return new AssetSeries(RainbowAtrDataset.fromMarketData(upToDay), dayIdx, upToDay);
+        return new AssetSeries(RainbowAtrDataset.fromMarketData(upToDay), dayIdx, upToDay, used, substituted);
     }
 
     /**
@@ -270,27 +359,16 @@ public class RainbowLiveExecutionService {
         if (preset.isTrendMix()) {
             return runTrendPreset(pass, day, preset, series, demands);
         }
-        RainbowAtrConfig config = configResolver.config(preset);
-        RainbowAtrTuning tuning = config.toTuning();
-        RainbowAtrGlobals globals = config.toGlobals();
-        RainbowAtrDataset ds = series.dataset();
-        int endIdx = series.dayIdx();
-
-        int warmup = RainbowAtrDataset.warmup(tuning.smaPeriod(), tuning.atrPeriod());
-        if (endIdx < warmup + 1) {
-            log.warn("Bench Rainbow : dataset trop court pour preset={} actif={} ({} bougies, warmup {}), sauté",
-                    preset.getId(), preset.getAssetSymbol(), endIdx + 1, warmup);
+        AtrSim sim = simulateAtr(preset, series, day);
+        if (sim == null) {
             return false;
         }
-        int startIdx = Math.max(warmup, firstIndexOnOrAfter(ds, day.minusMonths(configResolver.analysisWindowMonths(preset))));
-        startIdx = Math.min(startIdx, endIdx);
-
-        RainbowAtrResult result = RainbowAtrEngine.simulate(ds, globals, new RainbowAtrTuning[]{tuning}, null,
-                startIdx, endIdx, true);
+        RainbowAtrResult result = sim.result();
+        int endIdx = sim.endIdx();
 
         PortfolioReading mock = mockPortfolioSource.read(preset);
-        RainbowLivePassBlock block = buildBlock(ds, endIdx, tuning, result);
-        double close = ds.close(endIdx);
+        RainbowLivePassBlock block = buildBlock(sim.dataset(), endIdx, sim.tuning(), result);
+        double close = sim.dataset().close(endIdx);
         WantedAction wanted = wantedAction(result, endIdx);
         sizeAction(block, wanted, close, mock, preset.getAssetSymbol());
 
@@ -300,6 +378,28 @@ public class RainbowLiveExecutionService {
                 preset.getId(), preset.getAssetSymbol(), day, pass, block.getActionType(),
                 block.getActionAmountUsdc(), block.getActionQuantity());
         return true;
+    }
+
+    /** Rejeu du moteur ATR sur la fenêtre d'analyse du preset ; {@code null} si la série est trop courte (WARN). */
+    private AtrSim simulateAtr(RainbowLivePreset preset, AssetSeries series, LocalDate day) {
+        RainbowAtrConfig config = configResolver.config(preset);
+        RainbowAtrTuning tuning = config.toTuning();
+        RainbowAtrGlobals globals = config.toGlobals();
+        RainbowAtrDataset ds = series.dataset();
+        int endIdx = series.dayIdx();
+
+        int warmup = RainbowAtrDataset.warmup(tuning.smaPeriod(), tuning.atrPeriod());
+        if (endIdx < warmup + 1) {
+            log.warn("Bench Rainbow : dataset trop court pour preset={} actif={} source={} ({} bougies, warmup {}), sauté",
+                    preset.getId(), preset.getAssetSymbol(), series.source(), endIdx + 1, warmup);
+            return null;
+        }
+        int startIdx = Math.max(warmup, firstIndexOnOrAfter(ds, day.minusMonths(configResolver.analysisWindowMonths(preset))));
+        startIdx = Math.min(startIdx, endIdx);
+
+        RainbowAtrResult result = RainbowAtrEngine.simulate(ds, globals, new RainbowAtrTuning[]{tuning}, null,
+                startIdx, endIdx, true);
+        return new AtrSim(tuning, result, ds, endIdx);
     }
 
     /** Preset {@code TREND_MIX} : un pas de la machine à partir de l'état persisté (cf. {@link RainbowTrendLiveService}). */
@@ -328,7 +428,7 @@ public class RainbowLiveExecutionService {
      * accès exchange par lien, le cache de soldes mutualise les liens d'un même wallet). Sans demande du preset (preset non
      * simulé ce jour-là), le lien n'est pas dimensionné.
      */
-    private void runLink(RainbowLivePass pass, LocalDate day, LiveSlot slot, LiveDemand demand,
+    private void runLink(RainbowLivePass pass, LocalDate day, LiveSlot slot, LinkSignal signal,
                          Map<Long, CashLedger> ledgers) {
         RainbowLiveBinding binding = bindingRepository.findById(slot.bindingId()).orElse(null);
         if (binding == null) {
@@ -344,7 +444,7 @@ public class RainbowLiveExecutionService {
             }
             return;
         }
-        if (demand == null) {
+        if (signal == null) {
             return;
         }
         PortfolioReading reading = null;
@@ -358,7 +458,9 @@ public class RainbowLiveExecutionService {
             reading = realPortfolioSource.read(binding);
         }
         RainbowLiveLiveBlock block = new RainbowLiveLiveBlock();
-        LiveSizing.of(asset, reading, ledgerOf(ledgers, slot.walletId(), reading), slot.bagPercent()).apply(block, demand);
+        LiveSizing.of(asset, reading, ledgerOf(ledgers, slot.walletId(), reading), slot.bagPercent()).apply(block, signal.demand());
+        block.setCandleSource(signal.source());
+        block.setCandleSourceSubstituted(signal.substituted());
         bindingRunService.upsertPass(binding, day, pass, block);
     }
 

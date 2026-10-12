@@ -38,6 +38,11 @@ final class KrakenAssetNames {
     private KrakenAssetNames() {
     }
 
+    /** Nom de paire de repli quand le catalogue n'a pas de {@code nativePair} : {@code PAXG-BTC -> PAXGXBT}. */
+    static String fallbackPair(String instId) {
+        return instId.toUpperCase(Locale.ROOT).replace("BTC", "XBT").replace("-", "");
+    }
+
     /** Symbole standard du solde, ou vide si la variante n'est pas immédiatement disponible (staking...). */
     static Optional<String> toSymbol(String krakenAsset) {
         String asset = krakenAsset.toUpperCase(Locale.ROOT);

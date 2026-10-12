@@ -101,8 +101,7 @@ public class RainbowLiveBindingController {
      * Lecture seule : un seul calcul, aucun ordre, aucune écriture.
      */
     @GetMapping("/{id}/path-quote")
-    public PathQuoteDto pathQuote(@PathVariable Long id, @RequestParam BigDecimal amount,
-                                  @RequestParam(required = false) String preferredQuote) {
-        return PathQuoteDto.of(pathQuoteService.quote(authenticationFacade.getConnectedUser(), id, amount, preferredQuote));
+    public PathQuoteDto pathQuote(@PathVariable Long id, @RequestParam BigDecimal amount) {
+        return PathQuoteDto.of(pathQuoteService.quote(authenticationFacade.getConnectedUser(), id, amount));
     }
 }

@@ -47,7 +47,8 @@ public class OkxMarketDataApiClient implements MarketDataApiClient {
     private static final String HISTORY_CANDLES_PATH = "/api/v5/market/history-candles";
 
     // Seul TimeFrame ingéré nativement par Bucket aujourd'hui (cf. Bucket.BASE_TIME_FRAME)
-    private static final Map<TimeFrame, String> NATIVE_BARS = Map.of(TimeFrame.H1, "1H");
+    // D1 : "1Dutc" (bougies alignées sur 00:00 UTC ; "1D" d'OKX est aligné sur UTC+8).
+    private static final Map<TimeFrame, String> NATIVE_BARS = Map.of(TimeFrame.H1, "1H", TimeFrame.D1, "1Dutc");
 
     // OKX error codes, doc publique "Error Code" : 51001 = "Instrument ID does not exist".
     private static final String ERROR_CODE_INSTRUMENT_NOT_FOUND = "51001";
@@ -267,7 +268,7 @@ public class OkxMarketDataApiClient implements MarketDataApiClient {
         String bar = NATIVE_BARS.get(timeFrame);
         if (bar == null) {
             throw new IllegalArgumentException(
-                    "OKX market data client only supports TimeFrame.H1 natively, got: " + timeFrame);
+                    "OKX market data client only supports TimeFrame.H1 and TimeFrame.D1 natively, got: " + timeFrame);
         }
         return bar;
     }

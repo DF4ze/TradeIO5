@@ -24,6 +24,8 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrState;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowSetSelector;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
+import fr.ses10doigts.tradeIO5.service.market.dataset.DailyDataset;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
 import fr.ses10doigts.tradeIO5.service.tree.trend.TrendMixCalculator;
 import org.junit.jupiter.api.BeforeEach;
@@ -102,12 +104,12 @@ class RainbowTrendLiveServiceTest {
             daily.add(new DailyCandle(d, c, c * 1.01, c * 0.99, c, 1));
         }
         when(fetcher.fetchFullHistory(anyString())).thenReturn(daily);
-        when(datasetEngine.getDatasetForAsset(anyString(), eq(TimeFrame.D1), anyInt(), any(Instant.class)))
+        when(datasetEngine.getDailyDatasetForAsset(anyString(), anyInt(), any(Instant.class), any()))
                 .thenAnswer(inv -> {
-                    Instant end = inv.getArgument(3);
+                    Instant end = inv.getArgument(2);
                     List<MarketData> visible = candles.stream().filter(c -> !c.getTimestamp().isAfter(end)).toList();
-                    return MarketDataset.builder().pair(inv.getArgument(0)).timeFrame(TimeFrame.D1).marketDatas(visible)
-                            .size(visible.size()).isComplete(true).build();
+                    return new DailyDataset(MarketDataset.builder().pair(inv.getArgument(0)).timeFrame(TimeFrame.D1).marketDatas(visible)
+                            .size(visible.size()).isComplete(true).build(), MarketDataSource.BINANCE, "TEST", false);
                 });
         User alice = userRepository.save(User.builder().username("alice").email("alice@example.com").password("x").enabled(true).build());
         btc = null;

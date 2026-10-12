@@ -48,6 +48,8 @@
 
   function stepRow(s) {
     return el('tr', null, el('td', { text: s.rank }), el('td', { text: s.instId }), el('td', { text: s.side }),
+      el('td', { text: s.sz == null ? core.DASH : s.sz }), el('td', { text: s.px == null ? core.DASH : s.px }),
+      el('td', { text: s.quoteAmount == null ? core.DASH : s.quoteAmount }),
       el('td', { text: s.status }), el('td', { text: s.filledSz == null ? core.DASH : s.filledSz }),
       el('td', { text: s.avgFillPx == null ? core.DASH : s.avgFillPx }),
       el('td', { text: s.feeAmount == null ? core.DASH : s.feeAmount + ' ' + (s.feeCurrency || '') }),
@@ -64,9 +66,13 @@
     const assets = plan.assets.map((a) => el('div', { class: 'small mt-1' },
       el('strong', { text: a.assetSymbol }), ' ' + a.action + ' → ' + a.outcome + (a.blockReason ? ' (' + a.blockReason + ')' : ''),
       a.steps.length ? el('table', { class: 'table table-sm mb-1' },
-        el('thead', null, el('tr', null, ['#', 'Paire', 'Sens', 'Statut', 'Rempli', 'Prix moy.', 'Frais', 'Erreur'].map((h) => el('th', { text: h })))),
+        el('thead', null, el('tr', null, ['#', 'Paire', 'Sens', 'Taille', 'Prix plafond', 'Montant', 'Statut', 'Rempli', 'Prix moy.', 'Frais', 'Erreur'].map((h) => el('th', { text: h })))),
         el('tbody', null, a.steps.map(stepRow))) : null));
-    box.replaceChildren(head, ...assets, ...core.explainBlocks(plan.blockReason), ...core.explainBlocks(plan.executionBlockReason));
+    const st = core.state;
+    const caps = st ? el('div', { class: 'small text-muted mt-1', text: 'Plafond par ordre = ' + st.maxOrderMultiplier
+      + ' × baseAmount du preset (max absolu ' + st.absoluteMaxOrderUsd + ' USD) · plafond jour = ' + st.maxDayMultiplier
+      + ' × somme des baseAmount (max absolu ' + st.absoluteMaxDayUsd + ' USD). Seules les étapes en USDC (colonne Montant) comptent.' }) : null;
+    box.replaceChildren(head, ...assets, caps, ...core.explainBlocks(plan.blockReason), ...core.explainBlocks(plan.executionBlockReason));
   }
 
   function setState(n, text, cls) {
@@ -97,6 +103,8 @@
     setState(2, !plan ? '—' : (ctx.bindings.length === 0 ? 'aucun binding à armer' : (ctx.armed ? '✔ armé' : 'à armer')), ctx.armed ? 'text-success' : 'text-muted');
     setState(3, ctx.confirmed ? '✔ confirmé par le propriétaire' : (ctx.armed ? '⏳ en attente du propriétaire' : '— (armer d\'abord)'),
       ctx.confirmed ? 'text-success' : 'text-muted');
+    byId('adm-btn-reset').disabled = !(plan && ['PLANNED', 'BLOCKED', 'EXPIRED', 'DISABLED', 'CANCELLED'].includes(plan.status)
+      && plan.assets.every((a) => a.steps.every((s) => s.status === 'PLANNED')));
     byId('adm-btn-lift').disabled = !(ctx.active && ctx.armed && ctx.confirmed && kill());
     setState(4, kill() ? 'engagé' : 'levé', kill() ? 'text-success' : 'text-danger');
     byId('adm-btn-run').disabled = !(plan && plan.status === 'PLANNED');
@@ -112,7 +120,9 @@
     box.className = 'border rounded p-2 small';
     box.replaceChildren(
       el('div', null, el('strong', { text: 'Plan #' + r.planId + ' : ' }), 'statut ' + r.status + ' · ordres envoyés ' + r.sent),
-      ...(Object.keys(r.blocked).length ? core.explainBlocks(r.blocked) : [el('div', { class: 'text-success', text: 'Aucun blocage.' })]),
+      ...(Object.keys(r.blocked).length ? core.explainBlocks(r.blocked)
+        : (selectedPlan() && selectedPlan().executionBlockReason ? core.explainBlocks(selectedPlan().executionBlockReason)
+          : [el('div', { class: 'text-success', text: 'Aucun blocage.' })])),
       extra ? el('div', { class: 'text-muted', text: extra }) : null);
   }
 
@@ -139,6 +149,18 @@
     box.className = 'border rounded p-2 small';
     box.textContent = 'Plan ' + s.day + ' ' + s.pass + ' : ' + s.planned + ' planifié(s), ' + s.blocked + ' bloqué(s), '
       + s.disabled + ' désactivé(s), ' + s.unchanged + ' inchangé(s), ' + s.skipped + ' ignoré(s), ' + s.errors + ' erreur(s).';
+    local.selectedId = null;
+    await reload();
+  }
+
+  /** Remise à zéro du plan sélectionné (bloqué / expiré / désactivé, aucun ordre parti) : nouvelle révision. */
+  async function resetPlan() {
+    const p = selectedPlan();
+    const s = await api('POST', EXEC + '/plans/' + p.id + '/reset');
+    const box = byId('adm-result');
+    box.className = 'border rounded p-2 small';
+    box.textContent = 'Plan #' + p.id + ' réinitialisé : ' + s.planned + ' planifié(s), ' + s.blocked + ' bloqué(s), '
+      + s.disabled + ' désactivé(s), ' + s.skipped + ' ignoré(s).';
     local.selectedId = null;
     await reload();
   }
@@ -174,6 +196,7 @@
 
   bind('adm-btn-pass', livePass);
   bind('adm-btn-plan', plan);
+  bind('adm-btn-reset', resetPlan);
   bind('adm-btn-lift', () => setKillSwitch(false));
   bind('adm-btn-run', runPlan);
   bind('adm-btn-reconcile', runPlan);

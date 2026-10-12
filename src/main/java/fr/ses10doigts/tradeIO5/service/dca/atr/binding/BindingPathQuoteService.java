@@ -77,14 +77,13 @@ public class BindingPathQuoteService {
 
     /**
      * @param amount montant nominal à acquérir, en USD (strictement positif)
-     * @param preferredQuote cotation à préférer pour la dernière jambe (ex. USDT), ou null
      * @throws IllegalArgumentException montant invalide
      * @throws PathQuoteUnavailableException wallet/credential inutilisable, frais ou carnet non pris en charge
      * @throws fr.ses10doigts.tradeIO5.service.connector.balance.CredentialRejectedException clé rejetée
      * @throws fr.ses10doigts.tradeIO5.service.connector.balance.BalanceUnavailableException soldes ou frais illisibles
      * @throws fr.ses10doigts.tradeIO5.service.connector.instrument.InstrumentLookupException catalogue ou carnet indisponible
      */
-    public Result quote(User user, Long bindingId, BigDecimal amount, String preferredQuote) {
+    public Result quote(User user, Long bindingId, BigDecimal amount) {
         if (amount == null || amount.signum() <= 0) {
             throw new IllegalArgumentException("amount doit être strictement positif");
         }
@@ -107,13 +106,18 @@ public class BindingPathQuoteService {
         List<InstrumentInfo> instruments = catalog.liveInstruments(credential.getWebProvider());
 
         PathFinder.Request request = new PathFinder.Request(instruments, forbiddenNodes, sources, binding.getAssetSymbol(),
-                amount, ExecutionDefaults.MAX_PATH_DEPTH, preferredQuote);
-        PathQuote quote = pathFinder.find(request, new ExchangeLegMarketSource(provider, credential, new HashSet<>(stables),
+                amount, ExecutionDefaults.MAX_PATH_DEPTH, displayOnlyIntermediaries());
+        PathQuote quote = pathFinder.find(request, new ExchangeLegMarketSource(provider, credential, new HashSet<>(stables), instruments,
                 feeProviders.get(provider), bookClients.get(provider)));
         String warning = warning(quote, provider, sources, instruments);
         log.info("Devis chemin binding={} actif={} montant={} : {} coût={}% Fee Test={}", bindingId, binding.getAssetSymbol(),
                 amount, quote.status(), quote.totalCostPct(), quote.feeTestLevel());
         return new Result(quote, warning);
+    }
+
+    private static Set<String> displayOnlyIntermediaries() {
+        return ExecutionDefaults.INTERMEDIARIES.stream().filter(i -> !ExecutionDefaults.CHOSEN_INTERMEDIARIES.contains(i))
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     private String warning(PathQuote quote, WebProviderCode provider, Map<String, BigDecimal> sources,
@@ -143,6 +147,10 @@ public class BindingPathQuoteService {
         if (quote.underfunded()) {
             messages.add("Solde insuffisant sur " + quote.source() + " pour ce montant");
         }
+        quote.routes().stream().filter(r -> r.routeKey().equals(quote.routeKey())).findFirst()
+                .ifPresent(r -> messages.addAll(r.warnings()));
+        quote.routes().stream().filter(r -> !r.chosen())
+                .forEach(r -> messages.add("Route " + r.routeKey() + " non choisie : " + pct(r.totalCostPct()) + " %"));
         return messages.isEmpty() ? null : String.join(" ; ", messages);
     }
 

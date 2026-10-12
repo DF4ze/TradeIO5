@@ -265,8 +265,8 @@
         wallet_id bigint not null,
         asset_symbol varchar(16) not null,
         quote_member varchar(16),
-        bridge_pair varchar(32),
-        tradability enum ('BALANCE_UNAVAILABLE','CREDENTIAL_INVALID','INSTRUMENT_UNAVAILABLE','NOT_TRADABLE_WITHOUT_FIAT','OK','PROVIDER_UNSUPPORTED','TRADABLE_VIA_BRIDGE','WALLET_DISABLED'),
+        route_key varchar(64),
+        tradability enum ('BALANCE_UNAVAILABLE','CREDENTIAL_INVALID','INSTRUMENT_UNAVAILABLE','NOT_TRADABLE_WITHOUT_FIAT','OK','PROVIDER_UNSUPPORTED','TRADABLE_VIA_INTERMEDIARY','WALLET_DISABLED'),
         primary key (id)
     ) engine=InnoDB;
 
@@ -650,6 +650,21 @@
         primary key (id)
     ) engine=InnoDB;
 
+    create table transit_stock (
+        origin_step_rank integer,
+        quantity decimal(38,18) not null,
+        created_at datetime(6) not null,
+        id bigint not null auto_increment,
+        origin_plan_id bigint,
+        resolved_at datetime(6),
+        user_id bigint not null,
+        wallet_id bigint not null,
+        currency varchar(16) not null,
+        target_asset varchar(16) not null,
+        finish_side enum ('BUY','SELL'),
+        primary key (id)
+    ) engine=InnoDB;
+
     create table user_roles (
         role_id integer not null,
         user_id bigint not null,
@@ -777,6 +792,9 @@
 
     alter table transaction 
        add constraint uk_transaction_ext_id unique (external_transaction_id);
+
+    create index idx_transit_stock_wallet 
+       on transit_stock (wallet_id, resolved_at);
 
     alter table user_trading_settings 
        add constraint uk_trading_settings_user unique (user_id);

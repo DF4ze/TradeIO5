@@ -21,7 +21,7 @@ public record PlanDraft(List<AssetDraft> assets, PlanStatus status, BigDecimal t
                              FeeTestLevel feeTestLevel, String warning, List<StepDraft> steps) {
     }
 
-    /** {@code rank} : 1 = première étape du chemin de l'actif (pont éventuel), puis l'achat / la vente. */
+    /** {@code rank} : 1 = première jambe du chemin de l'actif (stock en transit à terminer d'abord, puis jambe 1, jambe 2). */
     public record StepDraft(int rank, String assetSymbol, String instId, StepSide side, BigDecimal sz, BigDecimal px,
                             BigDecimal quoteAmount, BigDecimal feePct, BigDecimal spreadPct, BigDecimal slippagePct,
                             PathEstimation estimation) {

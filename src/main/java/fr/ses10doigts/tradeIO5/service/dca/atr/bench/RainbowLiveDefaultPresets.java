@@ -26,11 +26,12 @@ public final class RainbowLiveDefaultPresets {
     public static final double DEFAULT_INITIAL_CAPITAL_USDC = 1000.0;
 
     /**
-     * Historique D1 demandé à {@code MarketDatasetEngine#getDatasetForAsset} : couvre tout l'historique BTC/ETH
-     * (depuis 2017-08, ≈ 3300 j) pour un ATH/moon fidèles. D1 est un resampling de H1 : 4000 j × 24 = 96 000 H1,
-     * sous la capacité du bucket ({@code Bucket.BASE_MAX_ITEMS} = 100 000 ; au-delà : troncature silencieuse).
+     * Historique D1 demandé à {@code MarketDatasetEngine#getDailyDatasetForAsset} (chemin D1 natif, hors Bucket H1) : 720 j
+     * = limite native de Kraken ({@code OHLC} D1) et largement assez pour capter l'ATH de BTC, ETH et PAXG. L'ATH du moteur est
+     * le plus haut de cette fenêtre ; un actif sans ATH depuis 720 j est considéré mort. Si un actif exige un jour plus
+     * d'historique, il faudra agir (cf. docs/known-gaps/rainbow-dca-chantiers-ouverts.md).
      */
-    public static final int D1_LOOKBACK_CANDLES = 4000;
+    public static final int D1_LOOKBACK_CANDLES = 720;
     /** Fuseau explicite des jobs du bench (les autres jobs suivent le fuseau JVM). */
     public static final String SCHEDULER_ZONE = "UTC";
     public static final String PASS_2355_CRON_PROPERTY = "tradeio.rainbow-live.pass-2355-cron";

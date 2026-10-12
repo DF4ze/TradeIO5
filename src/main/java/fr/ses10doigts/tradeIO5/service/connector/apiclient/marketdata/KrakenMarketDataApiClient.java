@@ -39,9 +39,9 @@ public class KrakenMarketDataApiClient implements MarketDataApiClient {
     private static final String API_URL = "https://api.kraken.com";
     private static final String API_VERSION = "0";
 
-    // Seul TimeFrame ingéré nativement par Bucket aujourd'hui (cf. Bucket.BASE_TIME_FRAME)
-    // Kraken exprime son intervalle OHLC en minutes.
-    private static final Map<TimeFrame, Integer> NATIVE_INTERVALS = Map.of(TimeFrame.H1, 60);
+    // H1 : TimeFrame ingéré par le Bucket (cf. Bucket.BASE_TIME_FRAME). D1 : chemin quotidien natif du Rainbow
+    // (MarketDatasetEngine#getDailyDatasetForAsset, hors Bucket). Kraken exprime son intervalle OHLC en minutes.
+    private static final Map<TimeFrame, Integer> NATIVE_INTERVALS = Map.of(TimeFrame.H1, 60, TimeFrame.D1, 1440);
 
     private final WebClient webClient;
 
@@ -163,7 +163,7 @@ public class KrakenMarketDataApiClient implements MarketDataApiClient {
         Integer interval = NATIVE_INTERVALS.get(timeFrame);
         if (interval == null) {
             throw new IllegalArgumentException(
-                    "Kraken market data client only supports TimeFrame.H1 natively, got: " + timeFrame);
+                    "Kraken market data client only supports TimeFrame.H1 and TimeFrame.D1 natively, got: " + timeFrame);
         }
         return interval;
     }

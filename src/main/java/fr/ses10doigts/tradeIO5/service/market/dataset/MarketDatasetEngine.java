@@ -8,6 +8,7 @@ import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
 import fr.ses10doigts.tradeIO5.repository.AssetProviderRepository;
 import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.MarketDataApiClient;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.MarketDataProviderLimits;
 import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.exception.MarketDataProviderException;
 import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.exception.ProviderUnavailableException;
 import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.exception.SymbolNotFoundException;
@@ -21,6 +22,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.List;
@@ -44,6 +47,7 @@ public class MarketDatasetEngine {
     private final Map<MarketDataSource, MarketDataApiClient> webClientsBySource;
 
     public static final int DEFAULT_LIMIT = 500;
+
 
     public MarketDatasetEngine(
             MarketDatasetCache cache,
@@ -171,6 +175,105 @@ public class MarketDatasetEngine {
             }
         }
         throw new NoProviderAvailableException(symbol, lastError);
+    }
+
+    /**
+     * Série D1 NATIVE (hors Bucket H1) d'un actif, pour le Rainbow : un seul appel par exchange et par jour grâce au
+     * cache DB des bougies, {@code lookBack} bougies (720 j = limite native Kraken). Sans {@code preferred} : candidats
+     * {@code asset_provider} par {@code priority}, fallback silencieux (défauts). Avec {@code preferred} (source du lien) :
+     * cette source est tentée en premier, sa ligne {@code asset_provider} est créée à la volée si absente (exchanges de
+     * confiance seulement, cf. {@link ProviderSymbolMapper}) ; en cas d'échec, fallback sur les autres candidats AVEC un
+     * WARN bruyant et {@link DailyDataset#substituted()} = {@code true} (le signal n'est plus celui de l'exchange d'exécution).
+     * Cf. docs/etudes/etude-source-candles-provider-du-lien.md.
+     */
+    public DailyDataset getDailyDatasetForAsset(String symbol, int lookBack, Instant endTime, MarketDataSource preferred) {
+        List<AssetProvider> all = assetProviderRepository.findByAsset_SymbolOrderByPriorityAsc(symbol);
+        List<AssetProvider> ordered = new ArrayList<>(all.stream().filter(AssetProvider::isEnabled).toList());
+
+        if (preferred != null) {
+            AssetProvider wanted = resolvePreferred(symbol, preferred, all);
+            if (wanted != null) {
+                ordered.removeIf(c -> c.getSource() == preferred);
+                ordered.addFirst(wanted);
+            } else {
+                log.warn("Source {} demandée pour {} mais indisponible (désactivée ou non fiable) : fallback sur les défauts.",
+                        preferred, symbol);
+            }
+        }
+        if (ordered.isEmpty()) {
+            throw new NoProviderAvailableException(symbol, null);
+        }
+
+        MarketDataProviderException lastError = null;
+        for (AssetProvider candidate : ordered) {
+            MarketDataApiClient client = webClientsBySource.get(candidate.getSource());
+            if (client == null) {
+                log.warn("Aucun MarketDataApiClient injecté pour la source {} (asset_provider id={}), candidat ignoré.",
+                        candidate.getSource(), candidate.getId());
+                continue;
+            }
+            try {
+                MarketDataset dataset = fetchDaily(candidate, client, lookBack, endTime);
+                boolean substituted = preferred != null && candidate.getSource() != preferred;
+                if (substituted) {
+                    log.warn("⚠️⚠️⚠️ SUBSTITUTION DE SOURCE {} : candles D1 demandées sur {} mais servies par {} ({}). "
+                                    + "Le signal n'est PAS calculé sur l'exchange d'exécution.",
+                            symbol, preferred, candidate.getSource(), candidate.getProviderSymbol());
+                }
+                return new DailyDataset(dataset, candidate.getSource(), candidate.getProviderSymbol(), substituted);
+            } catch (SymbolNotFoundException | ProviderUnavailableException e) {
+                log.warn("D1 {} : provider {} ({}) indisponible : {}", symbol, candidate.getSource(),
+                        candidate.getProviderSymbol(), e.getMessage());
+                lastError = e;
+            }
+        }
+        throw new NoProviderAvailableException(symbol, lastError);
+    }
+
+    /** Ligne {@code asset_provider} de la source demandée : existante et activée, sinon créée à la volée (source de confiance). */
+    private AssetProvider resolvePreferred(String symbol, MarketDataSource preferred, List<AssetProvider> all) {
+        for (AssetProvider row : all) {
+            if (row.getSource() == preferred) {
+                return row.isEnabled() ? row : null; // kill switch manuel respecté
+            }
+        }
+        String providerSymbol = ProviderSymbolMapper.forSource(symbol, preferred);
+        if (providerSymbol == null || !webClientsBySource.containsKey(preferred) || all.isEmpty()) {
+            return null;
+        }
+        int priority = all.stream().mapToInt(AssetProvider::getPriority).max().orElse(0) + 1;
+        AssetProvider created = assetProviderRepository.save(AssetProvider.builder()
+                .asset(all.getFirst().getAsset())
+                .source(preferred)
+                .providerSymbol(providerSymbol)
+                .priority(priority)
+                .maxHorizonDays(preferred == MarketDataSource.KRAKEN ? MarketDataProviderLimits.KRAKEN_H1_MAX_HORIZON_DAYS : null)
+                .enabled(true)
+                .build());
+        log.warn("asset_provider créé à la volée : {} / {} ({}), priorité {} (les défauts ne changent pas).",
+                symbol, preferred, providerSymbol, priority);
+        return created;
+    }
+
+    private MarketDataset fetchDaily(AssetProvider candidate, MarketDataApiClient client, int lookBack, Instant endTime) {
+        Instant lastDay = endTime.truncatedTo(ChronoUnit.DAYS);
+        Instant since = TimeFrame.D1.removeTo(lastDay, lookBack - 1L);
+        List<MarketData> candles = client.getCandles(candidate.getProviderSymbol(), TimeFrame.D1, since, endTime, lookBack);
+        if (candles == null || candles.isEmpty()) {
+            throw new ProviderUnavailableException(candidate.getSource(), candidate.getProviderSymbol(),
+                    "aucune bougie D1 reçue", null);
+        }
+        MarketDatasetRequest request = new MarketDatasetRequest(candidate.getProviderSymbol(), TimeFrame.D1, lookBack,
+                endTime, candidate.getSource(), client);
+        return MarketDataset.builder()
+                .pair(candidate.getProviderSymbol())
+                .timeFrame(TimeFrame.D1)
+                .marketDatas(candles)
+                .size(candles.size())
+                .request(request)
+                .lastUpdate(endTime)
+                .isComplete(candles.size() >= lookBack)
+                .build();
     }
 
     // can throw IllegalStateException when getProvider didn't find

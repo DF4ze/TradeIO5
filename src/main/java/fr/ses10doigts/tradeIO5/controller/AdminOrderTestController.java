@@ -1,5 +1,7 @@
 package fr.ses10doigts.tradeIO5.controller;
 
+import fr.ses10doigts.tradeIO5.model.dto.admin.RouteValidationRequest;
+import fr.ses10doigts.tradeIO5.model.dto.admin.RouteValidationDto;
 import fr.ses10doigts.tradeIO5.model.dto.admin.OrderTestRequest;
 import fr.ses10doigts.tradeIO5.model.dto.admin.RealOrderRequest;
 import fr.ses10doigts.tradeIO5.model.dto.admin.RealOrderResultDto;
@@ -30,6 +32,12 @@ public class AdminOrderTestController {
     @PostMapping("/validate")
     public ValidationReportDto validate(@RequestBody OrderTestRequest request) {
         return orderTests.validate(request, authenticationFacade.getConnectedUser().getUsername());
+    }
+
+    /** Valide chaque jambe d'une route multi-jambes (aucun ordre créé). */
+    @PostMapping("/validate-route")
+    public RouteValidationDto validateRoute(@RequestBody RouteValidationRequest request) {
+        return orderTests.validateRoute(request, authenticationFacade.getConnectedUser().getUsername());
     }
 
     @PostMapping("/real")

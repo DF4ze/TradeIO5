@@ -7,6 +7,7 @@ import fr.ses10doigts.tradeIO5.model.dto.execution.PathEstimation;
 import fr.ses10doigts.tradeIO5.model.dto.execution.PathLeg;
 import fr.ses10doigts.tradeIO5.model.dto.execution.PathQuote;
 import fr.ses10doigts.tradeIO5.model.dto.execution.PathStatus;
+import fr.ses10doigts.tradeIO5.model.dto.execution.RouteQuote;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -25,18 +26,19 @@ import java.util.Set;
  * {@link LegMarketSource}). Lecture seule, aucun ordre.
  * <ul>
  *   <li>Graphe orienté par exchange : pour chaque paire {@code BASE-QUOTE}, arête BUY {@code QUOTE -> BASE} (à l'ask) et
- *       arête SELL {@code BASE -> QUOTE} (au bid). Toute paire touchant un nœud interdit (fiat) est ignorée.</li>
+ *       arête SELL {@code BASE -> QUOTE} (au bid). Toute paire touchant un nœud interdit (fiat, USDT) est ignorée ; une
+ *       arête n'existe que si {@link LegMarketSource#accepts} la valorise (cotation stable ou intermédiaire autorisé).</li>
  *   <li>Sources = devises détenues (solde &gt; 0) hors nœuds interdits. Profondeur bornée par
- *       {@link ExecutionDefaults#MAX_PATH_DEPTH} (jamais explorée au-delà). À profondeur ≤ 2 l'énumération des chemins
- *       est exhaustive : le résultat est le minimum exact du coût (équivalent Dijkstra, sûr même avec un rebate négatif).</li>
+ *       {@link ExecutionDefaults#MAX_PATH_DEPTH}. À profondeur ≤ 2 l'énumération est exhaustive : le résultat est le
+ *       minimum exact du coût.</li>
  *   <li>Coût d'une jambe = frais du compte + demi-spread + slippage au montant (en %) ; chemin = <b>somme brute</b>.
- *       Chaque jambe est valorisée au même montant nominal (USD) : les nœuds intermédiaires sont des stables
- *       (cf. {@link LegMarketSource#accepts}).</li>
- *   <li>Taille : ⌊⌋ au {@code lotSz} pour un BUY (dépense ≤ montant), ⌈⌉ pour un SELL (couvrir le montant) ; contrôle
- *       {@code minSz} => BELOW_MIN. Prix de référence arrondi au tick (BUY vers le haut, SELL vers le bas).</li>
- *   <li>Sources suffisantes (solde ≥ montant) préférées ; sinon meilleure source détenue, {@code underfunded = true}.</li>
- *   <li>{@code preferredQuote} : si un chemin se termine par l'achat sur cette cotation, seuls ces chemins sont retenus
- *       (ex. consommer le stock USDT) ; sans effet sinon. Par défaut (null) : coût minimal pur.</li>
+ *       Le notionnel de chaque jambe est converti en unités de sa cotation ({@code montant USD / prix USD de la devise}) ;
+ *       la jambe suivante est dimensionnée sur le <b>reçu net</b> de la précédente.</li>
+ *   <li>Taille : ⌊⌋ au {@code lotSz} ; contrôle {@code minSz} / {@code costMin} => BELOW_MIN. Prix de référence arrondi au
+ *       tick (BUY vers le haut, SELL vers le bas).</li>
+ *   <li>Sources suffisantes (solde valorisé en USD &ge; montant) préférées ; sinon meilleure source détenue,
+ *       {@code underfunded = true}.</li>
+ *   <li>Routes via un intermédiaire de {@link Request#displayOnly()} : chiffrées et listées dans {@code routes}, jamais choisies.</li>
  * </ul>
  */
 @Slf4j
@@ -44,24 +46,36 @@ import java.util.Set;
 public class PathFinder {
 
     private static final int PCT_SCALE = 6;
+    private static final int UNIT_SCALE = 18;
+    private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 
     /** Données de marché des jambes. {@code accepts} est un filtre sans réseau ; {@code market} peut appeler l'exchange. */
     public interface LegMarketSource {
 
-        /** Cette arête peut-elle être valorisée ? (ex. cotation stable uniquement) */
+        /** Cette arête peut-elle être valorisée ? (ex. cotation stable ou intermédiaire autorisé) */
         boolean accepts(InstrumentInfo instrument, LegSide side);
 
-        /** Marché pour un montant nominal ; vide si indisponible (profondeur insuffisante...) : l'arête est écartée. */
+        /** Marché pour un notionnel <b>en unités de la cotation</b> ; vide si indisponible (profondeur insuffisante...) : l'arête est écartée. */
         Optional<LegMarket> market(InstrumentInfo instrument, LegSide side, BigDecimal notionalAmount);
+
+        /** Prix en USD d'une unité de la devise (stables : 1) ; vide si inconnu. Défaut : 1 (devises toutes stables). */
+        default Optional<BigDecimal> usdPrice(String currency) {
+            return Optional.of(BigDecimal.ONE);
+        }
     }
 
     /**
-     * @param sources devise détenue -> solde disponible
+     * @param sources devise détenue -> solde disponible (en unités de la devise)
      * @param amount montant nominal à acquérir, en USD
-     * @param preferredQuote cotation à préférer pour la dernière jambe, ou null
+     * @param displayOnly intermédiaires chiffrés et affichés mais jamais choisis automatiquement (ex. ETH)
      */
     public record Request(List<InstrumentInfo> instruments, Set<String> forbiddenNodes, Map<String, BigDecimal> sources,
-                          String target, BigDecimal amount, int maxDepth, String preferredQuote) {
+                          String target, BigDecimal amount, int maxDepth, Set<String> displayOnly) {
+
+        public Request(List<InstrumentInfo> instruments, Set<String> forbiddenNodes, Map<String, BigDecimal> sources,
+                       String target, BigDecimal amount, int maxDepth) {
+            this(instruments, forbiddenNodes, sources, target, amount, maxDepth, Set.of());
+        }
     }
 
     private record Edge(InstrumentInfo instrument, LegSide side) {
@@ -78,6 +92,16 @@ public class PathFinder {
     }
 
     private record Priced(Candidate candidate, List<PathLeg> legs, BigDecimal totalCostPct, PathEstimation estimation) {
+        String routeKey() {
+            StringBuilder key = new StringBuilder(candidate.source());
+            candidate.edges().forEach(e -> key.append('>').append(e.to()));
+            return key.toString();
+        }
+
+        /** Nœud intermédiaire (chemin à deux jambes) ou null. */
+        String intermediate() {
+            return candidate.edges().size() > 1 ? candidate.edges().getFirst().to() : null;
+        }
     }
 
     private final FeeTest feeTest;
@@ -98,38 +122,54 @@ public class PathFinder {
             return PathQuote.noPath(request.target(), request.amount());
         }
 
-        boolean funded = candidates.stream().anyMatch(c -> sources.get(c.source()).compareTo(request.amount()) >= 0);
-        if (funded) {
-            candidates = candidates.stream().filter(c -> sources.get(c.source()).compareTo(request.amount()) >= 0).toList();
+        Map<String, BigDecimal> sourceUsd = new HashMap<>();
+        for (String source : sources.keySet()) {
+            marketSource.usdPrice(source).ifPresent(price -> sourceUsd.put(source, sources.get(source).multiply(price)));
         }
-        if (request.preferredQuote() != null) {
-            List<Candidate> preferred = candidates.stream()
-                    .filter(c -> c.edges().getLast().from().equals(request.preferredQuote())).toList();
-            if (!preferred.isEmpty()) {
-                candidates = preferred;
-            }
+        boolean funded = candidates.stream().anyMatch(c -> sourceUsd.getOrDefault(c.source(), BigDecimal.ZERO)
+                .compareTo(request.amount()) >= 0);
+        if (funded) {
+            candidates = candidates.stream().filter(c -> sourceUsd.getOrDefault(c.source(), BigDecimal.ZERO)
+                    .compareTo(request.amount()) >= 0).toList();
         }
 
         Map<String, Optional<LegMarket>> marketCache = new HashMap<>();
-        final List<Candidate> pool = candidates;
-        Optional<Priced> best = pool.stream()
+        List<Priced> priced = candidates.stream()
                 .map(c -> price(c, request, marketSource, marketCache))
                 .flatMap(Optional::stream)
-                .min(Comparator.comparing(Priced::totalCostPct)
+                .sorted(Comparator.comparing(Priced::totalCostPct)
                         .thenComparingInt(p -> p.legs().size())
-                        .thenComparing(p -> p.legs().stream().map(PathLeg::instId).reduce("", String::concat)));
+                        .thenComparing(p -> p.legs().stream().map(PathLeg::instId).reduce("", String::concat)))
+                .toList();
+        List<RouteQuote> routes = priced.stream().map(p -> route(p, request)).toList();
+        Optional<Priced> best = priced.stream().filter(p -> isChosen(p, request)).findFirst();
         if (best.isEmpty()) {
-            return PathQuote.noPath(request.target(), request.amount());
+            return PathQuote.noPath(request.target(), request.amount(), routes);
         }
 
         Priced p = best.get();
         boolean belowMin = p.legs().stream().anyMatch(PathLeg::belowMin);
         PathQuote quote = new PathQuote(belowMin ? PathStatus.BELOW_MIN : PathStatus.OK, p.candidate().source(),
                 request.target(), request.amount(), p.legs(), p.totalCostPct(), feeTest.level(p.totalCostPct()),
-                p.estimation(), !funded);
+                p.estimation(), !funded, p.routeKey(), routes);
         log.debug("PathFinder {} <- {} : {} jambes, coût {}%, {}", request.target(), quote.source(), p.legs().size(),
                 p.totalCostPct(), quote.status());
         return quote;
+    }
+
+    private static boolean isChosen(Priced p, Request request) {
+        return p.intermediate() == null || !request.displayOnly().contains(p.intermediate());
+    }
+
+    private RouteQuote route(Priced p, Request request) {
+        List<String> warnings = new ArrayList<>();
+        if (p.intermediate() != null) {
+            warnings.add("Intermédiaire exposé : " + p.intermediate() + " détenu entre les deux jambes (risque de prix)");
+            warnings.add("Liquidité croisée : " + p.legs().getLast().instId());
+        }
+        boolean belowMin = p.legs().stream().anyMatch(PathLeg::belowMin);
+        return new RouteQuote(p.routeKey(), p.candidate().source(), p.legs(), p.totalCostPct(), feeTest.level(p.totalCostPct()),
+                belowMin ? PathStatus.BELOW_MIN : PathStatus.OK, p.estimation(), isChosen(p, request), List.copyOf(warnings));
     }
 
     private static Map<String, List<Edge>> edgesFrom(Request request, LegMarketSource marketSource) {
@@ -180,35 +220,65 @@ public class PathFinder {
         }
     }
 
+    /**
+     * Chiffre un chemin jambe par jambe. Quantité détenue au départ = {@code montant USD / prix USD de la source} ; BUY :
+     * 1ʳᵉ jambe {@code ⌊détenu/ask⌋}, jambes suivantes {@code ⌊reçu/(ask×(1+frais))⌋} ; SELL : {@code ⌊détenu⌋} au lot.
+     * Reçu net : base × (1 − frais) après un BUY, cotation × bid × (1 − frais) après un SELL.
+     */
     private Optional<Priced> price(Candidate candidate, Request request, LegMarketSource marketSource,
                                    Map<String, Optional<LegMarket>> marketCache) {
+        Optional<BigDecimal> sourcePrice = marketSource.usdPrice(candidate.source());
+        if (sourcePrice.isEmpty() || sourcePrice.get().signum() <= 0) {
+            return Optional.empty();
+        }
+        BigDecimal held = request.amount().divide(sourcePrice.get(), UNIT_SCALE, RoundingMode.DOWN);
         List<PathLeg> legs = new ArrayList<>(candidate.edges().size());
         BigDecimal total = BigDecimal.ZERO;
         PathEstimation estimation = PathEstimation.BOOK;
-        for (Edge edge : candidate.edges()) {
-            String key = edge.instrument().instId() + ":" + edge.side();
+        for (int i = 0; i < candidate.edges().size(); i++) {
+            Edge edge = candidate.edges().get(i);
+            InstrumentInfo instrument = edge.instrument();
+            Optional<BigDecimal> notional = notional(edge, held, marketSource);
+            if (notional.isEmpty()) {
+                return Optional.empty();
+            }
+            String key = instrument.instId() + ":" + edge.side() + ":" + notional.get().stripTrailingZeros().toPlainString();
             Optional<LegMarket> market = marketCache.computeIfAbsent(key,
-                    k -> marketSource.market(edge.instrument(), edge.side(), request.amount()));
+                    k -> marketSource.market(instrument, edge.side(), notional.get()));
             if (market.isEmpty()) {
                 return Optional.empty();
             }
-            PathLeg leg = leg(edge, market.get(), request.amount());
+            BigDecimal fee = market.get().feePct().divide(HUNDRED, UNIT_SCALE, RoundingMode.HALF_UP);
+            BigDecimal sz;
+            if (edge.side() == LegSide.BUY) {
+                BigDecimal divisor = i == 0 ? market.get().ask() : market.get().ask().multiply(BigDecimal.ONE.add(fee));
+                sz = roundToStep(held.divide(divisor, UNIT_SCALE, RoundingMode.DOWN), instrument.lotSz(), RoundingMode.DOWN);
+            } else {
+                sz = roundToStep(held, instrument.lotSz(), RoundingMode.DOWN);
+            }
+            PathLeg leg = legOfSize(instrument, edge.side(), market.get(), sz);
             legs.add(leg);
             total = total.add(leg.costPct());
             if (market.get().estimation() == PathEstimation.TICKER) {
                 estimation = PathEstimation.TICKER;
             }
+            BigDecimal net = BigDecimal.ONE.subtract(fee);
+            held = edge.side() == LegSide.BUY ? sz.multiply(net) : sz.multiply(market.get().bid()).multiply(net);
         }
         return Optional.of(new Priced(candidate, legs, total.setScale(PCT_SCALE, RoundingMode.HALF_UP), estimation));
     }
 
-    private static PathLeg leg(Edge edge, LegMarket market, BigDecimal amount) {
-        InstrumentInfo i = edge.instrument();
-        BigDecimal price = edge.side() == LegSide.BUY ? market.ask() : market.bid();
-        BigDecimal sz = edge.side() == LegSide.BUY
-                ? roundToStep(amount.divide(price, 18, RoundingMode.DOWN), i.lotSz(), RoundingMode.DOWN)
-                : roundToStep(amount.divide(price, 18, RoundingMode.UP), i.lotSz(), RoundingMode.UP);
-        return legOfSize(i, edge.side(), market, sz);
+    /** Notionnel de la jambe en unités de sa cotation (BUY : le détenu ; SELL : le détenu en base converti en cotation). */
+    private static Optional<BigDecimal> notional(Edge edge, BigDecimal held, LegMarketSource marketSource) {
+        if (edge.side() == LegSide.BUY) {
+            return Optional.of(held);
+        }
+        Optional<BigDecimal> basePrice = marketSource.usdPrice(edge.instrument().base());
+        Optional<BigDecimal> quotePrice = marketSource.usdPrice(edge.instrument().quote());
+        if (basePrice.isEmpty() || quotePrice.isEmpty() || quotePrice.get().signum() <= 0) {
+            return Optional.empty();
+        }
+        return Optional.of(held.multiply(basePrice.get()).divide(quotePrice.get(), UNIT_SCALE, RoundingMode.HALF_UP));
     }
 
     /** Jambe pour une taille donnée (déjà arrondie au lot) : coûts du marché, prix de référence au tick, contrôle du minimum. */

@@ -2,23 +2,23 @@ package fr.ses10doigts.tradeIO5.service.dca.atr.binding;
 
 /**
  * Statut explicite + message lisible. Aucun solde n'est exposé. {@code quoteMember} : membre du groupe USD dans lequel
- * l'actif est coté (OK, VIA_BRIDGE) ; {@code bridgePair} : paire de passerelle {@code <membre préféré>/<quoteMember>}
- * (VIA_BRIDGE uniquement). Nuls sinon.
+ * la dernière jambe d'achat est cotée (USDC, ou l'intermédiaire) ; {@code routeKey} : route d'achat (ex.
+ * {@code USDC>PAXG}, {@code USDC>BTC>PAXG}). Nuls sinon.
  */
-public record BindingCheckResult(BindingCheckStatus status, String message, String quoteMember, String bridgePair) {
+public record BindingCheckResult(BindingCheckStatus status, String message, String quoteMember, String routeKey) {
 
     public BindingCheckResult(BindingCheckStatus status, String message) {
         this(status, message, null, null);
     }
 
-    /** Lecture du wallet autorisée (OK ou via passerelle). */
+    /** Lecture du wallet autorisée (OK ou via intermédiaire). */
     public boolean isOk() {
-        return status == BindingCheckStatus.OK || status == BindingCheckStatus.TRADABLE_VIA_BRIDGE;
+        return status == BindingCheckStatus.OK || status == BindingCheckStatus.TRADABLE_VIA_INTERMEDIARY;
     }
 
-    /** Exécution autorisée : paire directe uniquement tant que le chemin via passerelle n'est pas implémenté. */
+    /** Exécution autorisée : paire directe ou route via intermédiaire choisi. */
     public boolean isExecutable() {
-        return status == BindingCheckStatus.OK;
+        return isOk();
     }
 
     /** Couple (actif, exchange) sans chemin spot sans fiat : exécution interdite. */

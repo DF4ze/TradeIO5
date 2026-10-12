@@ -8,6 +8,7 @@ import fr.ses10doigts.tradeIO5.model.dto.execution.PathEstimation;
 import fr.ses10doigts.tradeIO5.model.dto.execution.PathLeg;
 import fr.ses10doigts.tradeIO5.model.dto.execution.PathQuote;
 import fr.ses10doigts.tradeIO5.model.dto.execution.PathStatus;
+import fr.ses10doigts.tradeIO5.model.dto.execution.RouteQuote;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -82,7 +83,7 @@ class PathFinderTest {
 
     private PathFinder.Request request(List<InstrumentInfo> instruments, Map<String, BigDecimal> sources, String target,
                                        String amount, String preferredQuote) {
-        return new PathFinder.Request(instruments, FIAT, sources, target, d(amount), 2, preferredQuote);
+        return new PathFinder.Request(instruments, FIAT, sources, target, d(amount), 2);
     }
 
     private static void assertPct(String expected, BigDecimal actual) {
@@ -124,7 +125,7 @@ class PathFinderTest {
         assertEquals("USDC", quote.source());
         assertEquals(List.of("USDC-USDT", "PAXG-USDT"), quote.legs().stream().map(PathLeg::instId).toList());
         assertEquals(List.of(LegSide.SELL, LegSide.BUY), quote.legs().stream().map(PathLeg::side).toList());
-        assertPct("1000.11", quote.legs().getFirst().sz());
+        assertPct("1000", quote.legs().getFirst().sz());
         assertPct("0.9999", quote.legs().getFirst().refPrice());
         assertPct("0.06", quote.legs().getFirst().costPct());
         assertPct("0.19", quote.legs().getLast().costPct());
@@ -225,12 +226,12 @@ class PathFinderTest {
         StubSource source = new StubSource(nodes);
         chain.forEach(i -> source.with(i.instId(), market("0.01", "1", "1", "0")));
 
-        PathQuote three = finder.find(new PathFinder.Request(chain, FIAT, Map.of("AAA", d("100")), "TGT", d("10"), 5, null), source);
+        PathQuote three = finder.find(new PathFinder.Request(chain, FIAT, Map.of("AAA", d("100")), "TGT", d("10"), 5), source);
 
         assertEquals(PathStatus.NO_PATH, three.status());
         assertEquals(0, source.marketCalls);
 
-        PathQuote two = finder.find(new PathFinder.Request(chain.subList(1, 3), FIAT, Map.of("BBB", d("100")), "TGT", d("10"), 5, null), source);
+        PathQuote two = finder.find(new PathFinder.Request(chain.subList(1, 3), FIAT, Map.of("BBB", d("100")), "TGT", d("10"), 5), source);
         assertEquals(PathStatus.OK, two.status());
         assertEquals(2, two.legs().size());
     }
@@ -273,20 +274,7 @@ class PathFinderTest {
         PathLeg sellLeg = finder.find(request(List.of(xxxUsdt), Map.of("XXX", d("50")), "USDT", "100", null), sell).legs().getFirst();
         assertEquals(LegSide.SELL, sellLeg.side());
         assertPct("99.8", sellLeg.refPrice());
-        assertPct("1.002", sellLeg.sz());
-    }
-
-    @Test
-    @DisplayName("preferredQuote : préfère PAXG-USDT quand il existe ; sans effet s'il n'existe pas ; par défaut coût minimal")
-    void preferredQuote() {
-        StubSource source = new StubSource(STABLES).with("PAXG-USDT", PAXG_MARKET)
-                .with("PAXG-USDC", market("0.05", "99.95", "100.05", "0"));
-        List<InstrumentInfo> instruments = List.of(PAXG_USDT, PAXG_USDC);
-        Map<String, BigDecimal> sources = Map.of("USDT", d("1000"), "USDC", d("1000"));
-
-        assertEquals("PAXG-USDC", finder.find(request(instruments, sources, "PAXG", "1000", null), source).legs().getFirst().instId());
-        assertEquals("PAXG-USDT", finder.find(request(instruments, sources, "PAXG", "1000", "USDT"), source).legs().getFirst().instId());
-        assertEquals("PAXG-USDC", finder.find(request(instruments, sources, "PAXG", "1000", "EUR"), source).legs().getFirst().instId());
+        assertPct("100", sellLeg.sz());
     }
 
     @Test
@@ -327,5 +315,132 @@ class PathFinderTest {
         assertPct("1", quote.totalCostPct());
         assertEquals(FeeTestLevel.RED, quote.feeTestLevel());
         assertEquals(PathEstimation.TICKER, quote.estimation());
+    }
+
+    // ------------------------------------------------------------------ routes via intermédiaire non stable
+
+    /** Source de marché qui valorise aussi BTC/ETH comme cotations et donne leur prix USD. */
+    static class CryptoSource extends StubSource {
+        final Map<String, BigDecimal> usd = new HashMap<>(Map.of("USDC", BigDecimal.ONE, "BTC", new BigDecimal("50000"),
+                "ETH", new BigDecimal("3000")));
+
+        CryptoSource() {
+            super(Set.of("USDC", "BTC", "ETH"));
+        }
+
+        @Override
+        public Optional<BigDecimal> usdPrice(String currency) {
+            return Optional.ofNullable(usd.get(currency));
+        }
+    }
+
+    private static final InstrumentInfo BTC_USDC_K = inst("BTC", "USDC", "0.00005", "0.00000001", "0.1");
+    private static final InstrumentInfo ETH_USDC_K = inst("ETH", "USDC", "0.001", "0.00000001", "0.01");
+    private static final InstrumentInfo PAXG_BTC = inst("PAXG", "BTC", "0.001", "0.00000001", "0.00001");
+    private static final InstrumentInfo PAXG_ETH = inst("PAXG", "ETH", "0.001", "0.00000001", "0.0001");
+    private static final InstrumentInfo PAXG_USD = inst("PAXG", "USD", "0.001", "0.00000001", "0.01");
+    private static final List<InstrumentInfo> KRAKEN = List.of(BTC_USDC_K, ETH_USDC_K, PAXG_BTC, PAXG_ETH, PAXG_USD);
+
+    private CryptoSource krakenSource() {
+        return (CryptoSource) new CryptoSource()
+                .with("BTC-USDC", market("0.08", "49999", "50001", "0"))
+                .with("ETH-USDC", market("0.08", "2999.9", "3000.1", "0"))
+                .with("PAXG-BTC", market("0.08", "0.07999", "0.08001", "0"))
+                .with("PAXG-ETH", market("0.08", "1.3300", "1.3340", "0"));
+    }
+
+    private PathFinder.Request krakenRequest(Map<String, BigDecimal> sources, String amount, Set<String> displayOnly) {
+        return new PathFinder.Request(KRAKEN, FIAT_AND_USDT, sources, "PAXG", d(amount), 2, displayOnly);
+    }
+
+    private static final Set<String> FIAT_AND_USDT = ExecutionDefaults.DEFAULT_FORBIDDEN_NODES;
+
+    @Test
+    @DisplayName("PAXG/Kraken : USDC>BTC>PAXG choisi (2 jambes), jambe 2 dimensionnée sur le reçu net de la jambe 1")
+    void paxgViaBtc() {
+        PathQuote quote = finder.find(krakenRequest(Map.of("USDC", d("1000")), "100", Set.of("ETH")), krakenSource());
+
+        assertEquals(PathStatus.OK, quote.status());
+        assertEquals("USDC>BTC>PAXG", quote.routeKey());
+        assertEquals(List.of("BTC-USDC", "PAXG-BTC"), quote.legs().stream().map(PathLeg::instId).toList());
+        PathLeg leg1 = quote.legs().get(0);
+        PathLeg leg2 = quote.legs().get(1);
+        assertPct("0.00199996", leg1.sz()); // ⌊100 / 50001⌋ au lot 1e-8
+        // reçu net = sz × (1 - 0,08 %) ; sz2 = ⌊reçu / (ask × (1 + 0,08 %))⌋
+        BigDecimal received = leg1.sz().multiply(d("0.9992"));
+        BigDecimal expected = PathFinder.roundToStep(received.divide(d("0.08001").multiply(d("1.0008")), 18, RoundingMode.DOWN),
+                d("0.00000001"), RoundingMode.DOWN);
+        assertEquals(0, expected.compareTo(leg2.sz()), "jambe 2 = " + leg2.sz());
+        assertFalse(leg2.belowMin());
+        assertFalse(quote.underfunded());
+        // somme brute : frais + demi-spread de chaque jambe
+        assertEquals(0, leg1.costPct().add(leg2.costPct()).setScale(6, RoundingMode.HALF_UP).compareTo(quote.totalCostPct()));
+    }
+
+    @Test
+    @DisplayName("Route ETH chiffrée dans routes mais jamais choisie, même moins chère ; route BTC listée avec avertissements")
+    void ethDisplayedNeverChosen() {
+        CryptoSource source = krakenSource();
+        source.with("PAXG-BTC", market("0.5", "0.07999", "0.08001", "0")); // BTC volontairement plus chère
+
+        PathQuote quote = finder.find(krakenRequest(Map.of("USDC", d("1000")), "100", Set.of("ETH")), source);
+
+        assertEquals("USDC>BTC>PAXG", quote.routeKey());
+        assertEquals(2, quote.routes().size());
+        RouteQuote eth = quote.routes().stream().filter(r -> r.routeKey().equals("USDC>ETH>PAXG")).findFirst().orElseThrow();
+        RouteQuote btc = quote.routes().stream().filter(r -> r.routeKey().equals("USDC>BTC>PAXG")).findFirst().orElseThrow();
+        assertFalse(eth.chosen());
+        assertTrue(btc.chosen());
+        assertTrue(eth.totalCostPct().compareTo(btc.totalCostPct()) < 0, "ETH moins chère mais non choisie");
+        assertTrue(btc.warnings().stream().anyMatch(w -> w.contains("Intermédiaire exposé")));
+        assertTrue(btc.warnings().stream().anyMatch(w -> w.contains("PAXG-BTC")));
+        // sans displayOnly, ETH moins chère serait choisie
+        assertEquals("USDC>ETH>PAXG", finder.find(krakenRequest(Map.of("USDC", d("1000")), "100", Set.of()), source).routeKey());
+    }
+
+    @Test
+    @DisplayName("Fiat (PAXG-USD) et USDT jamais dans un chemin ; notionnel converti en unités de la cotation (BTC)")
+    void fiatIgnoredAndNotionalInQuoteUnits() {
+        List<BigDecimal> notionals = new java.util.ArrayList<>();
+        CryptoSource source = new CryptoSource() {
+            @Override
+            public Optional<LegMarket> market(InstrumentInfo instrument, LegSide side, BigDecimal notionalAmount) {
+                notionals.add(notionalAmount);
+                return super.market(instrument, side, notionalAmount);
+            }
+        };
+        source.with("BTC-USDC", market("0.08", "49999", "50001", "0")).with("PAXG-BTC", market("0.08", "0.07999", "0.08001", "0"));
+
+        PathQuote quote = finder.find(krakenRequest(Map.of("USDC", d("1000"), "USDT", d("1000")), "100", Set.of("ETH")), source);
+
+        assertEquals("USDC>BTC>PAXG", quote.routeKey());
+        assertEquals(0, d("100").compareTo(notionals.get(0)), "jambe 1 en USDC");
+        assertTrue(notionals.get(1).compareTo(d("0.01")) < 0, "jambe 2 en BTC (~0,002), pas en dollars : " + notionals.get(1));
+    }
+
+    @Test
+    @DisplayName("Jambe 2 sous le minimum sur le reçu net => BELOW_MIN ; coût toujours chiffré")
+    void secondLegBelowMinOnNet() {
+        // 10 $ ≈ 0,00019998 BTC ≈ 0,0025 PAXG < minSz 0,001 ? non : 0,0025 > 0,001 ; 3 $ => 0,00075 PAXG < 0,001
+        PathQuote quote = finder.find(krakenRequest(Map.of("USDC", d("1000")), "3", Set.of("ETH")), krakenSource());
+
+        assertEquals(PathStatus.BELOW_MIN, quote.status());
+        assertTrue(quote.legs().getLast().belowMin());
+        assertNotNullPct(quote.totalCostPct());
+    }
+
+    private static void assertNotNullPct(BigDecimal value) {
+        assertTrue(value != null && value.signum() > 0);
+    }
+
+    @Test
+    @DisplayName("Cache de marché par (instrument, côté, notionnel) : un candidat identique n'est lu qu'une fois")
+    void marketCacheKeyedByNotional() {
+        CryptoSource source = krakenSource();
+
+        finder.find(krakenRequest(Map.of("USDC", d("1000")), "100", Set.of("ETH")), source);
+
+        // BTC-USDC, ETH-USDC, PAXG-BTC, PAXG-ETH : 4 arêtes, chacune lue une fois pour ce montant
+        assertEquals(4, source.marketCalls);
     }
 }

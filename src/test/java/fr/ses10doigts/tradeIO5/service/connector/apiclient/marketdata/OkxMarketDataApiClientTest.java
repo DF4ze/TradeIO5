@@ -104,6 +104,11 @@ class OkxMarketDataApiClientTest extends AbstractMarketDataApiClientContractTest
     }
 
     @Test
+    void nativeBar_returnsOkxUtcCodeForD1() {
+        assertEquals("1Dutc", OkxMarketDataApiClient.nativeBar(TimeFrame.D1));
+    }
+
+    @Test
     void nativeBar_throwsForUnsupportedTimeFrame() {
         assertThrows(IllegalArgumentException.class,
                 () -> OkxMarketDataApiClient.nativeBar(TimeFrame.MIN5));

@@ -8,6 +8,7 @@ import fr.ses10doigts.tradeIO5.model.dto.execution.PathEstimation;
 import fr.ses10doigts.tradeIO5.model.dto.execution.PathLeg;
 import fr.ses10doigts.tradeIO5.model.dto.execution.PathQuote;
 import fr.ses10doigts.tradeIO5.model.dto.execution.PathStatus;
+import fr.ses10doigts.tradeIO5.model.dto.execution.RouteQuote;
 import fr.ses10doigts.tradeIO5.model.entity.currency.AssetGroup;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
@@ -53,12 +54,12 @@ import java.util.stream.Collectors;
  * lectures de (a) seulement (catalogue en base, frais du compte en cache, carnet public). Service pur vis-à-vis de la base :
  * les entrées arrivent en {@link AssetInput}.
  * <ul>
- *   <li>Par wallet, un <b>bilan virtuel</b> par membre du groupe USD (initialisé du cash du snapshot de la passe) est
+ *   <li>Par wallet, un <b>bilan virtuel</b> par membre du groupe USD (USDC) est initialisé du cash du snapshot de la passe et
  *       parcouru par {@code priority} croissante, comme le {@code CashLedger} du bench. Les ventes ne le créditent pas.</li>
- *   <li>Achat : pour chaque cotation terminale {@code T} (paire directe {@code A-T}), si le solde {@code T} couvre le
- *       montant => 1 étape ; sinon une jambe pont ({@code S -> T}) pour le seul <b>manque</b> + marge de frais. Le
- *       candidat de coût brut minimal est retenu (ex æquo : moins d'étapes).</li>
- *   <li>Vente : cotation USDT forcée quand la paire existe, sinon cotation naturelle la moins chère + avertissement.</li>
+ *   <li>Achat : {@link PathFinder} choisit la route la moins chère (directe {@code USDC -> actif}, ou {@code USDC -> BTC -> actif}
+ *       via un intermédiaire choisi ; ETH est chiffré et affiché, jamais choisi). Un stock en transit du wallet visant l'actif
+ *       voit sa jambe 2 terminée <b>avant</b> tout nouvel achat.</li>
+ *   <li>Vente : cotation stable directe, sinon {@code actif -> BTC -> USDC} (l'intermédiaire n'est jamais conservé).</li>
  *   <li>Fee Test : WARNING et RED => étapes + avertissement (jamais de blocage).</li>
  * </ul>
  */
@@ -118,13 +119,6 @@ public class OrderPlanner {
         }
     }
 
-    /** Un candidat d'achat : cotation terminale, devis de la jambe d'achat, pont éventuel et son montant. */
-    private record BuyCandidate(String quote, PathQuote main, PathQuote bridge, BigDecimal bridgeAmount, BigDecimal totalCostPct) {
-        int stepCount() {
-            return bridge == null ? 1 : 2;
-        }
-    }
-
     /** Ordre de passage du cash : priorité du lien, puis actif, puis wallet. */
     private static final Comparator<AssetInput> INPUT_ORDER = Comparator.comparingInt(AssetInput::priority)
             .thenComparing(AssetInput::assetSymbol)
@@ -172,7 +166,7 @@ public class OrderPlanner {
         List<String> members = groupService.members(AssetGroup.USD);
         Set<String> stables = Set.copyOf(members);
         List<InstrumentInfo> instruments = catalog.liveInstruments(in.credential().getWebProvider());
-        ExchangeLegMarketSource market = new ExchangeLegMarketSource(in.provider(), in.credential(), stables,
+        ExchangeLegMarketSource market = new ExchangeLegMarketSource(in.provider(), in.credential(), stables, instruments,
                 feeProviders.get(in.provider()), bookClients.get(in.provider()));
         return new WalletContext(instruments, stables, market, cash);
     }
@@ -184,92 +178,109 @@ public class OrderPlanner {
         if (amount == null || amount.signum() <= 0) {
             return draft(in, AssetPlanOutcome.NO_ACTION, null, null, null, null, List.of());
         }
-        List<BuyCandidate> viable = new ArrayList<>();
-        PlanBlockReason failure = null;
-        for (String quote : ctx.stables.stream().sorted().toList()) {
-            PathQuote main = pathFinder.find(new PathFinder.Request(ctx.instruments, forbiddenNodes, Map.of(quote, amount),
-                    in.assetSymbol(), amount, 1, quote), ctx.market);
-            if (main.status() == PathStatus.NO_PATH) {
-                continue;
-            }
-            BigDecimal held = ctx.held(quote);
-            PathQuote bridge = null;
-            BigDecimal bridgeAmount = null;
-            if (held.compareTo(amount) < 0) {
-                bridgeAmount = amount.subtract(held).multiply(BigDecimal.ONE
-                        .add(ExecutionDefaults.BRIDGE_FEE_MARGIN_PCT.divide(HUNDRED, AMOUNT_SCALE, RoundingMode.HALF_UP)));
-                Map<String, BigDecimal> others = new HashMap<>(ctx.virtual);
-                others.remove(quote);
-                bridge = pathFinder.find(new PathFinder.Request(ctx.instruments, forbiddenNodes, others, quote, bridgeAmount, 1,
-                        null), ctx.market);
-                if (bridge.status() == PathStatus.NO_PATH) {
-                    failure = worst(failure, others.values().stream().anyMatch(b -> b.signum() > 0)
-                            ? PlanBlockReason.NO_PATH : PlanBlockReason.INSUFFICIENT_FUNDS_AFTER_FEES);
-                    continue;
-                }
-                if (bridge.underfunded()) {
-                    failure = worst(failure, PlanBlockReason.INSUFFICIENT_FUNDS_AFTER_FEES);
-                    continue;
-                }
-            }
-            if (main.status() == PathStatus.BELOW_MIN || (bridge != null && bridge.status() == PathStatus.BELOW_MIN)) {
-                failure = worst(failure, PlanBlockReason.BELOW_MIN);
-                continue;
-            }
-            BigDecimal total = main.totalCostPct().add(bridge == null ? BigDecimal.ZERO : bridge.totalCostPct());
-            viable.add(new BuyCandidate(quote, main, bridge, bridgeAmount, total));
-        }
+        List<PlanDraft.StepDraft> steps = new ArrayList<>();
+        List<String> notes = new ArrayList<>();
+        finishTransitLegs(in, ctx, steps, notes);
 
-        Optional<BuyCandidate> best = viable.stream().min(Comparator.comparing(BuyCandidate::totalCostPct)
-                .thenComparingInt(BuyCandidate::stepCount).thenComparing(BuyCandidate::quote));
-        if (best.isEmpty()) {
-            PlanBlockReason reason = failure != null ? failure : noStablePair(in.assetSymbol(), ctx)
-                    ? PlanBlockReason.NOT_TRADABLE_WITHOUT_FIAT : PlanBlockReason.NO_PATH;
+        Map<String, BigDecimal> sources = new HashMap<>(ctx.virtual);
+        PathQuote quote = pathFinder.find(new PathFinder.Request(ctx.instruments, forbiddenNodes, sources, in.assetSymbol(), amount,
+                ExecutionDefaults.MAX_PATH_DEPTH, displayOnlyIntermediaries()), ctx.market);
+        if (quote.status() == PathStatus.NO_PATH) {
+            PlanBlockReason reason = sources.values().stream().noneMatch(b -> b.signum() > 0)
+                    ? PlanBlockReason.INSUFFICIENT_FUNDS_AFTER_FEES
+                    : noRoute(in.assetSymbol(), ctx) ? PlanBlockReason.NOT_TRADABLE_WITHOUT_FIAT : PlanBlockReason.NO_PATH;
             return blocked(in, reason);
         }
-        BuyCandidate c = best.get();
-        FeeTestLevel level = feeTest.level(c.totalCostPct());
-
-        List<PlanDraft.StepDraft> steps = new ArrayList<>();
-        if (c.bridge() != null) {
-            steps.add(step(steps.size() + 1, in.assetSymbol(), c.bridge().legs().getFirst(), c.bridgeAmount(),
-                    c.bridge().estimation(), ctx));
+        if (quote.underfunded()) {
+            return blocked(in, PlanBlockReason.INSUFFICIENT_FUNDS_AFTER_FEES);
         }
-        steps.add(step(steps.size() + 1, in.assetSymbol(), c.main().legs().getFirst(), amount, c.main().estimation(), ctx));
-        if (c.bridge() != null) {
-            ctx.spend(c.bridge().source(), c.bridgeAmount());
-            ctx.spend(c.quote(), ctx.held(c.quote())); // le reliquat éventuel du pont n'est pas compté (prudence)
-        } else {
-            ctx.spend(c.quote(), amount);
+        if (quote.status() == PathStatus.BELOW_MIN) {
+            return blocked(in, PlanBlockReason.BELOW_MIN);
         }
-        PathEstimation estimation = steps.stream().anyMatch(s -> s.estimation() == PathEstimation.TICKER)
-                ? PathEstimation.TICKER : PathEstimation.BOOK;
-        String warning = warnings(level, c.totalCostPct(), estimation, null);
-        log.info("Plan d'ordres achat {} : {} étape(s) via {} coût={}% Fee Test={}", in.assetSymbol(), steps.size(), c.quote(),
-                c.totalCostPct(), level);
+        FeeTestLevel level = quote.feeTestLevel();
+        for (int i = 0; i < quote.legs().size(); i++) {
+            PathLeg leg = quote.legs().get(i);
+            BigDecimal quoteAmount = i == 0 ? amount : leg.sz().multiply(leg.refPrice());
+            steps.add(step(steps.size() + 1, in.assetSymbol(), leg, quoteAmount, quote.estimation(), ctx));
+        }
+        ctx.spend(quote.source(), amount);
+        notes.addAll(routeNotes(quote));
+        String warning = warnings(level, quote.totalCostPct(), quote.estimation(), notes.isEmpty() ? null : String.join(" ; ", notes));
+        log.info("Plan d'ordres achat {} : {} étape(s) route {} coût={}% Fee Test={}", in.assetSymbol(), steps.size(),
+                quote.routeKey(), quote.totalCostPct(), level);
         return new PlanDraft.AssetDraft(in.assetSymbol(), in.priority(), in.walletId(), in.action(), AssetPlanOutcome.OK, null,
-                c.totalCostPct(), level, warning, steps);
+                quote.totalCostPct(), level, warning, steps);
     }
 
-    private static PlanBlockReason worst(PlanBlockReason current, PlanBlockReason candidate) {
-        if (current == null) {
-            return candidate;
+    /**
+     * Termine d'abord la jambe 2 de chaque stock en transit du wallet visant l'actif : achat ({@code BUY <actif>-<devise>}, taille
+     * ⌊stock / (ask × (1 + frais))⌋) ou vente ({@code SELL <devise>-<stable>}, taille ⌊stock⌋ au lot). Jamais d'ordre
+     * compensatoire ; ces étapes précèdent tout nouvel ordre. Une jambe sous le minimum de l'exchange est signalée, le stock
+     * reste en transit.
+     */
+    private void finishTransitLegs(AssetInput in, WalletContext ctx, List<PlanDraft.StepDraft> steps, List<String> notes) {
+        boolean sell = in.action() == RainbowLiveAction.SELL;
+        for (Map.Entry<String, BigDecimal> stock : new TreeMap<>(in.transitStock()).entrySet()) {
+            BigDecimal quantity = stock.getValue();
+            String currency = stock.getKey();
+            Optional<InstrumentInfo> pair = sell
+                    ? ctx.instruments.stream().filter(i -> i.base().equals(currency) && ctx.stables.contains(i.quote())
+                            && !forbiddenNodes.contains(i.quote())).min(Comparator.comparing(InstrumentInfo::instId))
+                    : Optional.ofNullable(ctx.byId.get(in.assetSymbol() + "-" + currency));
+            if (quantity == null || quantity.signum() <= 0 || pair.isEmpty()) {
+                notes.add("Stock en transit " + currency + " ignoré (aucune paire " + (sell ? currency + "-stable" : in.assetSymbol() + "-" + currency) + ")");
+                continue;
+            }
+            LegSide legSide = sell ? LegSide.SELL : LegSide.BUY;
+            Optional<LegMarket> market = ctx.market.market(pair.get(), legSide, sell
+                    ? quantity.multiply(ctx.market.usdPrice(currency).orElse(BigDecimal.ONE)) : quantity);
+            if (market.isEmpty()) {
+                notes.add("Stock en transit " + currency + " : carnet trop peu profond, jambe 2 reportée");
+                continue;
+            }
+            BigDecimal sz;
+            if (sell) {
+                sz = PathFinder.roundToStep(quantity, pair.get().lotSz(), RoundingMode.DOWN);
+            } else {
+                BigDecimal fee = market.get().feePct().divide(HUNDRED, AMOUNT_SCALE, RoundingMode.HALF_UP);
+                sz = PathFinder.roundToStep(quantity.divide(market.get().ask().multiply(BigDecimal.ONE.add(fee)), AMOUNT_SCALE,
+                        RoundingMode.DOWN), pair.get().lotSz(), RoundingMode.DOWN);
+            }
+            PathLeg leg = PathFinder.legOfSize(pair.get(), legSide, market.get(), sz);
+            if (leg.belowMin()) {
+                notes.add("Stock en transit " + currency + " sous le minimum de " + pair.get().instId() + " : conservé");
+                continue;
+            }
+            steps.add(step(steps.size() + 1, in.assetSymbol(), leg, quantity, market.get().estimation(), ctx));
+            notes.add("Termine d'abord la jambe 2 du stock en transit " + currency + " (" + pct(quantity) + ")");
+            log.info("Plan d'ordres {} : jambe 2 du stock en transit {} {} ajoutée en tête", in.assetSymbol(), pct(quantity), currency);
         }
-        return rank(candidate) > rank(current) ? candidate : current;
     }
 
-    private static int rank(PlanBlockReason reason) {
-        return switch (reason) {
-            case INSUFFICIENT_FUNDS_AFTER_FEES -> 3;
-            case BELOW_MIN -> 2;
-            default -> 1;
-        };
+    /** Avertissements de la route choisie et routes chiffrées mais non choisies (ex. ETH). */
+    private static List<String> routeNotes(PathQuote quote) {
+        List<String> notes = new ArrayList<>();
+        quote.routes().stream().filter(r -> r.routeKey().equals(quote.routeKey())).findFirst()
+                .ifPresent(r -> notes.addAll(r.warnings()));
+        quote.routes().stream().filter(r -> !r.chosen())
+                .forEach(r -> notes.add("Route " + r.routeKey() + " non choisie : " + pct(r.totalCostPct()) + " %"));
+        return notes;
     }
 
-    /** Vrai si l'actif n'a aucune paire cotée en stable (pas de chemin possible sans monnaie fiat). */
-    private boolean noStablePair(String asset, WalletContext ctx) {
-        return ctx.instruments.stream().noneMatch(i -> i.base().equals(asset) && ctx.stables.contains(i.quote())
-                && !forbiddenNodes.contains(i.quote()));
+    private static Set<String> displayOnlyIntermediaries() {
+        return ExecutionDefaults.INTERMEDIARIES.stream().filter(i -> !ExecutionDefaults.CHOSEN_INTERMEDIARIES.contains(i))
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    /** Vrai si l'actif n'a aucune paire exploitable (cotée en stable, ou en intermédiaire choisi lui-même coté en stable). */
+    private boolean noRoute(String asset, WalletContext ctx) {
+        return ctx.instruments.stream().noneMatch(i -> i.base().equals(asset) && !forbiddenNodes.contains(i.quote())
+                && (ctx.stables.contains(i.quote()) || viaChosenIntermediary(i.quote(), ctx)));
+    }
+
+    private boolean viaChosenIntermediary(String quote, WalletContext ctx) {
+        return ExecutionDefaults.CHOSEN_INTERMEDIARIES.contains(quote) && ctx.instruments.stream()
+                .anyMatch(i -> i.base().equals(quote) && ctx.stables.contains(i.quote()) && !forbiddenNodes.contains(i.quote()));
     }
 
     // ------------------------------------------------------------------ vente
@@ -279,44 +290,93 @@ public class OrderPlanner {
         if (qty == null || qty.signum() <= 0) {
             return draft(in, AssetPlanOutcome.NO_ACTION, null, null, null, null, List.of());
         }
-        List<InstrumentInfo> pairs = ctx.instruments.stream()
-                .filter(i -> i.base().equals(in.assetSymbol()) && ctx.stables.contains(i.quote())
-                        && !forbiddenNodes.contains(i.quote()))
+        BigDecimal notionalUsd = in.amountUsd() != null && in.amountUsd().signum() > 0 ? in.amountUsd() : BigDecimal.ONE;
+        List<PlanDraft.StepDraft> transitSteps = new ArrayList<>();
+        List<String> transitNotes = new ArrayList<>();
+        finishTransitLegs(in, ctx, transitSteps, transitNotes);
+        List<InstrumentInfo> direct = ctx.instruments.stream()
+                .filter(i -> i.base().equals(in.assetSymbol()) && ctx.stables.contains(i.quote()) && !forbiddenNodes.contains(i.quote()))
                 .sorted(Comparator.comparing(InstrumentInfo::instId)).toList();
-        if (pairs.isEmpty()) {
-            return blocked(in, PlanBlockReason.NOT_TRADABLE_WITHOUT_FIAT);
-        }
-        Optional<InstrumentInfo> forced = pairs.stream().filter(i -> i.quote().equals(ExecutionDefaults.FORCED_SELL_QUOTE)).findFirst();
-        BigDecimal notional = in.amountUsd() != null && in.amountUsd().signum() > 0 ? in.amountUsd() : BigDecimal.ONE;
 
-        PathLeg best = null;
-        LegMarket bestMarket = null;
-        for (InstrumentInfo pair : forced.map(List::of).orElse(pairs)) {
-            Optional<LegMarket> market = ctx.market.market(pair, LegSide.SELL, notional);
-            if (market.isEmpty()) {
-                continue;
-            }
-            BigDecimal sz = PathFinder.roundToStep(qty, pair.lotSz(), RoundingMode.DOWN);
-            PathLeg leg = PathFinder.legOfSize(pair, LegSide.SELL, market.get(), sz);
-            if (best == null || leg.costPct().compareTo(best.costPct()) < 0) {
-                best = leg;
-                bestMarket = market.get();
+        List<SellRoute> routes = new ArrayList<>();
+        for (InstrumentInfo pair : direct) {
+            Optional<LegMarket> market = ctx.market.market(pair, LegSide.SELL, notionalUsd);
+            if (market.isPresent()) {
+                BigDecimal sz = PathFinder.roundToStep(qty, pair.lotSz(), RoundingMode.DOWN);
+                routes.add(new SellRoute(List.of(PathFinder.legOfSize(pair, LegSide.SELL, market.get(), sz)), market.get().estimation()));
             }
         }
-        if (best == null) {
-            return blocked(in, PlanBlockReason.NO_PATH);
+        if (direct.isEmpty()) {
+            for (String intermediary : ExecutionDefaults.CHOSEN_INTERMEDIARIES.stream().sorted().toList()) {
+                sellViaIntermediary(in, ctx, qty, notionalUsd, intermediary).ifPresent(routes::add);
+            }
         }
-        if (best.belowMin()) {
+        if (routes.isEmpty()) {
+            return blocked(in, direct.isEmpty() && noRoute(in.assetSymbol(), ctx) ? PlanBlockReason.NOT_TRADABLE_WITHOUT_FIAT
+                    : PlanBlockReason.NO_PATH);
+        }
+        SellRoute best = routes.stream().min(Comparator.comparing(SellRoute::costPct)
+                .thenComparingInt(r -> r.legs().size())).orElseThrow();
+        if (best.legs().stream().anyMatch(PathLeg::belowMin)) {
             return blocked(in, PlanBlockReason.BELOW_MIN);
         }
-        FeeTestLevel level = feeTest.level(best.costPct());
-        InstrumentInfo instrument = ctx.byId.get(best.instId());
-        String naturalQuote = forced.isEmpty() ? "pas de paire " + in.assetSymbol() + "-" + ExecutionDefaults.FORCED_SELL_QUOTE
-                + " : cotation " + instrument.quote() : null;
-        PlanDraft.StepDraft step = step(1, in.assetSymbol(), best, best.sz().multiply(best.refPrice()), bestMarket.estimation(), ctx);
-        log.info("Plan d'ordres vente {} : {} coût={}% Fee Test={}", in.assetSymbol(), best.instId(), best.costPct(), level);
+        BigDecimal cost = best.costPct();
+        FeeTestLevel level = feeTest.level(cost);
+        List<PlanDraft.StepDraft> steps = new ArrayList<>(transitSteps);
+        for (int i = 0; i < best.legs().size(); i++) {
+            PathLeg leg = best.legs().get(i);
+            steps.add(step(steps.size() + 1, in.assetSymbol(), leg, leg.sz().multiply(leg.refPrice()), best.estimation(), ctx));
+        }
+        String extra = best.legs().size() > 1 ? "Intermédiaire exposé : " + ctx.byId.get(best.legs().getFirst().instId()).quote()
+                + " détenu entre les deux jambes (risque de prix)" : null;
+        if (!transitNotes.isEmpty()) {
+            extra = (extra == null ? "" : extra + " ; ") + String.join(" ; ", transitNotes);
+        }
+        log.info("Plan d'ordres vente {} : {} coût={}% Fee Test={}", in.assetSymbol(),
+                best.legs().stream().map(PathLeg::instId).collect(Collectors.joining(">")), cost, level);
         return new PlanDraft.AssetDraft(in.assetSymbol(), in.priority(), in.walletId(), in.action(), AssetPlanOutcome.OK, null,
-                best.costPct(), level, warnings(level, best.costPct(), bestMarket.estimation(), naturalQuote), List.of(step));
+                cost, level, warnings(level, cost, best.estimation(), extra), steps);
+    }
+
+    /** Une route de vente : jambes dans l'ordre et estimation la moins fiable. */
+    private record SellRoute(List<PathLeg> legs, PathEstimation estimation) {
+        BigDecimal costPct() {
+            return legs.stream().map(PathLeg::costPct).reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
+    }
+
+    /**
+     * Vente {@code actif -> intermédiaire -> stable} (l'intermédiaire n'est jamais conservé) : jambe 1 {@code SELL actif-I} sur la
+     * quantité, jambe 2 {@code SELL I-stable} dimensionnée sur le reçu net de la jambe 1 (⌊⌋ au lot).
+     */
+    private Optional<SellRoute> sellViaIntermediary(AssetInput in, WalletContext ctx, BigDecimal qty, BigDecimal notionalUsd,
+                                                    String intermediary) {
+        InstrumentInfo first = ctx.byId.get(in.assetSymbol() + "-" + intermediary);
+        Optional<InstrumentInfo> second = ctx.instruments.stream()
+                .filter(i -> i.base().equals(intermediary) && ctx.stables.contains(i.quote()) && !forbiddenNodes.contains(i.quote()))
+                .min(Comparator.comparing(InstrumentInfo::instId));
+        Optional<BigDecimal> intermediaryUsd = ctx.market.usdPrice(intermediary);
+        if (first == null || second.isEmpty() || intermediaryUsd.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<LegMarket> market1 = ctx.market.market(first, LegSide.SELL, notionalUsd.divide(intermediaryUsd.get(), AMOUNT_SCALE,
+                RoundingMode.HALF_UP));
+        if (market1.isEmpty()) {
+            return Optional.empty();
+        }
+        BigDecimal sz1 = PathFinder.roundToStep(qty, first.lotSz(), RoundingMode.DOWN);
+        PathLeg leg1 = PathFinder.legOfSize(first, LegSide.SELL, market1.get(), sz1);
+        BigDecimal net1 = sz1.multiply(market1.get().bid())
+                .multiply(BigDecimal.ONE.subtract(market1.get().feePct().divide(HUNDRED, AMOUNT_SCALE, RoundingMode.HALF_UP)));
+        BigDecimal sz2 = PathFinder.roundToStep(net1, second.get().lotSz(), RoundingMode.DOWN);
+        Optional<LegMarket> market2 = ctx.market.market(second.get(), LegSide.SELL, net1.multiply(intermediaryUsd.get()));
+        if (market2.isEmpty()) {
+            return Optional.empty();
+        }
+        PathLeg leg2 = PathFinder.legOfSize(second.get(), LegSide.SELL, market2.get(), sz2);
+        PathEstimation estimation = market1.get().estimation() == PathEstimation.TICKER || market2.get().estimation() == PathEstimation.TICKER
+                ? PathEstimation.TICKER : PathEstimation.BOOK;
+        return Optional.of(new SellRoute(List.of(leg1, leg2), estimation));
     }
 
     // ------------------------------------------------------------------ communs
@@ -400,6 +460,8 @@ public class OrderPlanner {
                     .append(i.walletId()).append('|').append(i.status()).append('|').append(i.action()).append('|')
                     .append(plain(i.amountUsd())).append('|').append(plain(i.quantity())).append('|');
             new TreeMap<>(i.cashByMember()).forEach((member, value) -> canonical.append(member).append('=').append(plain(value)).append(','));
+            canonical.append('|');
+            new TreeMap<>(i.transitStock()).forEach((currency, value) -> canonical.append(currency).append('=').append(plain(value)).append(','));
             canonical.append(';');
         });
         try {

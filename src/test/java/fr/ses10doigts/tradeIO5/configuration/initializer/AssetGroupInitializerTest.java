@@ -41,18 +41,16 @@ class AssetGroupInitializerTest {
     }
 
     @Test
-    @DisplayName("Groupe absent => USD créé avec USDC puis USDT, valorisation nominale")
+    @DisplayName("Groupe absent => USD créé avec USDC seul (USDT exclu), valorisation nominale")
     void createsUsdGroup() {
         initializer.run();
 
         AssetGroup usd = groupRepository.findByCode(AssetGroup.USD).orElseThrow();
         assertEquals(AssetGroupValuation.NOMINAL, usd.getValuation());
         List<AssetGroupMember> members = memberRepository.findAllWithAssetAndGroup();
-        assertEquals(2, members.size());
+        assertEquals(1, members.size());
         assertEquals("USDC", members.getFirst().getAsset().getSymbol());
         assertEquals(0, members.getFirst().getPosition());
-        assertEquals("USDT", members.getLast().getAsset().getSymbol());
-        assertEquals(1, members.getLast().getPosition());
     }
 
     @Test
@@ -66,7 +64,7 @@ class AssetGroupInitializerTest {
         initializer.run();
 
         assertEquals(1, groupRepository.count());
-        assertEquals(2, memberRepository.count());
+        assertEquals(1, memberRepository.count());
         assertEquals("Renommé à la main", groupRepository.findByCode(AssetGroup.USD).orElseThrow().getName());
     }
 

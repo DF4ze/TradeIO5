@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -40,5 +41,11 @@ public class ExecutionPlanAdminController {
         LocalDate target = day != null ? day : RainbowLiveExecutionService.dayFor(pass, clock.now());
         log.info("ExecutionPlanAdminController : déclenchement manuel du plan jour={} passe={}", target, pass);
         return ResponseEntity.ok(planService.plan(target, pass, authenticationFacade.getConnectedUser().getUsername()));
+    }
+
+    /** Remise à zéro d'un plan non envoyé (bloqué, expiré, désactivé…) : nouvelle révision même si les entrées sont inchangées. */
+    @PostMapping("/plans/{id}/reset")
+    public ResponseEntity<OrderPlanService.PlanSummary> reset(@PathVariable Long id) {
+        return ResponseEntity.ok(planService.reset(id, authenticationFacade.getConnectedUser().getUsername()));
     }
 }

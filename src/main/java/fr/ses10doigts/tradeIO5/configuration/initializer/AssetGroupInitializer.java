@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.configuration.initializer;
 
+import fr.ses10doigts.tradeIO5.service.market.instrument.ExecutionDefaults;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Seed des {@link AssetGroup} (après {@link AssetInitializer}). Idempotent, élément par élément : un groupe ou un membre
- * absent est créé, un existant n'est jamais modifié. Seul groupe : USD = USDC (position 0) + USDT (position 1).
+ * absent est créé, un existant n'est jamais modifié. Seul groupe : USD = USDC seul (USDT exclu, cf. {@code ExecutionDefaults#EXCLUDED_STABLE}) ; le mécanisme de groupe est conservé.
  */
 @Slf4j
 @Component
@@ -31,7 +32,7 @@ public class AssetGroupInitializer implements CommandLineRunner {
     }
 
     private static final List<GroupSeed> GROUP_SEEDS = List.of(
-            new GroupSeed(AssetGroup.USD, "Dollar (stablecoins)", AssetGroupValuation.NOMINAL, List.of("USDC", "USDT")));
+            new GroupSeed(AssetGroup.USD, "Dollar (stablecoins)", AssetGroupValuation.NOMINAL, List.of(ExecutionDefaults.CASH_STABLE)));
 
     private final AssetGroupRepository groupRepository;
     private final AssetGroupMemberRepository memberRepository;

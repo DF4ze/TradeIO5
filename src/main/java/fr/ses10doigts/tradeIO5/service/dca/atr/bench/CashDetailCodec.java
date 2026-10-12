@@ -7,7 +7,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-/** (Dé)sérialise le détail du cash par membre de groupe (ex : {@code {"USDC":120.0,"USDT":30.0}}) stocké en JSON. */
+/** (Dé)sérialise le détail du cash par membre de groupe (ex : {@code {"USDC":120.0}}) stocké en JSON. */
 final class CashDetailCodec {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

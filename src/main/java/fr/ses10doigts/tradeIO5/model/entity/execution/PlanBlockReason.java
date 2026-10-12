@@ -6,10 +6,9 @@ public enum PlanBlockReason {
     NO_PATH,
     /** Une jambe est sous le minimum de l'exchange. */
     BELOW_MIN,
-    /** Fee Test rouge : coût du chemin au-dessus du seuil rouge. */
-    /** Les soldes ne couvrent pas le montant une fois les frais du pont ajoutés. */
+    /** Le solde du groupe USD (USDC) ne couvre pas le montant. */
     INSUFFICIENT_FUNDS_AFTER_FEES,
-    /** Aucune paire stable pour cet actif sur l'exchange : il faudrait passer par une monnaie fiat. */
+    /** Aucune route (paire stable, ou intermédiaire choisi coté en stable) pour cet actif sur l'exchange : il faudrait passer par une monnaie fiat. */
     NOT_TRADABLE_WITHOUT_FIAT,
     /** Lecture du portefeuille ou des marchés indisponible, périmée ou absente. */
     READING_UNAVAILABLE

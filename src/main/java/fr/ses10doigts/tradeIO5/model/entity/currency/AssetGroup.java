@@ -15,7 +15,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Plusieurs {@link Asset} regroupés sous un seul « actif » affiché et compté (ex : USD = USDC + USDT). Les membres sont
+ * Plusieurs {@link Asset} regroupés sous un seul « actif » affiché et compté (ex : USD = USDC). Les membres sont
  * portés par {@link AssetGroupMember}. Donnée de paramétrage : semée par {@code AssetGroupInitializer}, jamais écrasée.
  */
 @Entity
@@ -27,7 +27,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AssetGroup {
 
-    /** Code du groupe des stablecoins dollar (USDC, USDT). Seule définition de ce code. */
+    /** Code du groupe des stablecoins dollar (USDC seul, USDT exclu). Seule définition de ce code. */
     public static final String USD = "USD";
 
     @Id

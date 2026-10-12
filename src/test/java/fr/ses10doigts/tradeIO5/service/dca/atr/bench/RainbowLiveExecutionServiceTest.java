@@ -23,6 +23,8 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrTuning;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveExecutionService.PassSummary;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
+import fr.ses10doigts.tradeIO5.service.market.dataset.DailyDataset;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -53,6 +55,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -120,17 +123,17 @@ class RainbowLiveExecutionServiceTest {
         for (String a : RainbowLiveDefaultPresets.ASSETS) {
             serve(a, flat(N, 100));
         }
-        when(datasetEngine.getDatasetForAsset(anyString(), eq(TimeFrame.D1), anyInt(), any(Instant.class)))
+        when(datasetEngine.getDailyDatasetForAsset(anyString(), anyInt(), any(Instant.class), any()))
                 .thenAnswer(inv -> {
                     String asset = inv.getArgument(0);
-                    Instant endTime = inv.getArgument(3);
+                    Instant endTime = inv.getArgument(2);
                     List<MarketData> all = candlesByAsset.get(asset);
                     if (all == null) {
                         throw new IllegalStateException("provider KO pour " + asset);
                     }
                     List<MarketData> visible = all.stream().filter(c -> !c.getTimestamp().isAfter(endTime)).toList();
-                    return MarketDataset.builder().pair(asset).timeFrame(TimeFrame.D1).marketDatas(visible)
-                            .size(visible.size()).isComplete(true).build();
+                    return new DailyDataset(MarketDataset.builder().pair(asset).timeFrame(TimeFrame.D1).marketDatas(visible)
+                            .size(visible.size()).isComplete(true).build(), MarketDataSource.BINANCE, "TEST", false);
                 });
     }
 
@@ -202,10 +205,11 @@ class RainbowLiveExecutionServiceTest {
     }
 
     @Test
-    @DisplayName("Constante D1 : lookBack × 24 H1 ≤ capacité du bucket (sinon troncature silencieuse)")
-    void d1LookbackFitsBucket() {
-        assertTrue(RainbowLiveDefaultPresets.D1_LOOKBACK_CANDLES * 24 <= fr.ses10doigts.tradeIO5.service.market.dataset.Bucket.BASE_MAX_ITEMS);
-        assertTrue(RainbowLiveDefaultPresets.D1_LOOKBACK_CANDLES >= 3300, "doit couvrir BTC/ETH depuis 2017-08");
+    @DisplayName("Constante D1 : 720 j = limite native Kraken (OHLC D1), assez pour l'ATH de BTC/ETH/PAXG")
+    void d1LookbackIsKrakenNativeWindow() {
+        assertEquals(720, RainbowLiveDefaultPresets.D1_LOOKBACK_CANDLES);
+        assertTrue(RainbowLiveDefaultPresets.D1_LOOKBACK_CANDLES
+                <= fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.MarketDataProviderLimits.KRAKEN_OHLC_MAX);
     }
 
     // ---------------------------------------------------------------- parité
@@ -532,8 +536,8 @@ class RainbowLiveExecutionServiceTest {
         PassSummary s = service.runPass(RainbowLivePass.T2355, ASOF_2355);
 
         assertEquals(7, s.processed());
-        verify(datasetEngine, times(1)).getDatasetForAsset(eq("BTC"), eq(TimeFrame.D1), anyInt(), any(Instant.class));
-        verify(datasetEngine, times(1)).getDatasetForAsset(eq("ETH"), eq(TimeFrame.D1), anyInt(), any(Instant.class));
+        verify(datasetEngine, times(1)).getDailyDatasetForAsset(eq("BTC"), anyInt(), any(Instant.class), isNull());
+        verify(datasetEngine, times(1)).getDailyDatasetForAsset(eq("ETH"), anyInt(), any(Instant.class), isNull());
     }
 
     @Test
@@ -544,7 +548,7 @@ class RainbowLiveExecutionServiceTest {
             serve(a, flat(N, 100));
         }
         service.runPass(RainbowLivePass.T2355, ASOF_2355);
-        verify(datasetEngine).getDatasetForAsset("BTC", TimeFrame.D1, RainbowLiveDefaultPresets.D1_LOOKBACK_CANDLES, ASOF_2355);
+        verify(datasetEngine).getDailyDatasetForAsset("BTC", RainbowLiveDefaultPresets.D1_LOOKBACK_CANDLES, ASOF_2355, null);
     }
 
     // ---------------------------------------------------------------- presets / users

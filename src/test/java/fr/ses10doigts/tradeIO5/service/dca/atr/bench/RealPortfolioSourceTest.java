@@ -6,8 +6,10 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
+import fr.ses10doigts.tradeIO5.model.entity.execution.TransitStock;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
+import fr.ses10doigts.tradeIO5.repository.execution.TransitStockRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceUnavailableException;
 import fr.ses10doigts.tradeIO5.service.connector.balance.ReadOnlyBalanceReader;
@@ -47,6 +49,7 @@ class RealPortfolioSourceTest {
     private RainbowLivePreset preset;
     private RainbowLiveBinding binding;
     private final AssetGroupService groups = mock(AssetGroupService.class);
+    private final TransitStockRepository transit = mock(TransitStockRepository.class);
     private RealPortfolioSource source;
 
     @BeforeEach
@@ -60,7 +63,7 @@ class RealPortfolioSourceTest {
         when(reader.getProviderCode()).thenReturn(WebProviderCode.OKX);
         when(groups.members(AssetGroup.USD)).thenReturn(List.of("USDC", "USDT"));
         when(groups.byMember(eq(AssetGroup.USD), any())).thenCallRealMethod();
-        source = new RealPortfolioSource(bindings, bindingCheck, List.of(reader), groups, new FixedDomainClock(NOW),
+        source = new RealPortfolioSource(bindings, bindingCheck, List.of(reader), groups, transit, new FixedDomainClock(NOW),
                 Duration.ofMinutes(30));
     }
 
@@ -78,6 +81,21 @@ class RealPortfolioSourceTest {
         assertEquals(0.0, r.quantity("DOGE"), 0);
         assertEquals(9L, r.walletId());
         assertEquals(NOW, r.fetchedAt());
+    }
+
+    @Test
+    @DisplayName("Stock en transit actif : position du lien BTC = solde réel - stock en transit (jamais négative)")
+    void transitStockIsDeductedFromPosition() {
+        when(reader.getAvailableBalances(credential)).thenReturn(Map.of("USDC", new BigDecimal("100"), "BTC", new BigDecimal("1")));
+        when(transit.findByWalletIdAndResolvedAtIsNull(9L)).thenReturn(List.of(
+                TransitStock.builder().walletId(9L).currency("BTC").quantity(new BigDecimal("0.3")).targetAsset("PAXG").build()));
+
+        assertEquals(0.7, source.read(binding).quantity("BTC"), 1e-12);
+
+        when(transit.findByWalletIdAndResolvedAtIsNull(9L)).thenReturn(List.of(
+                TransitStock.builder().walletId(9L).currency("BTC").quantity(new BigDecimal("5")).targetAsset("PAXG").build()));
+
+        assertEquals(0.0, source.read(binding).quantity("BTC"), 0);
     }
 
     @Test

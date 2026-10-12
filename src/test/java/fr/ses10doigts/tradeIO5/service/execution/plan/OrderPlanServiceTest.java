@@ -15,6 +15,7 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBindingRun;
 import fr.ses10doigts.tradeIO5.model.entity.execution.AssetPlanOutcome;
 import fr.ses10doigts.tradeIO5.model.entity.execution.PlanStatus;
+import fr.ses10doigts.tradeIO5.model.entity.execution.StepStatus;
 import fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderPlan;
 import fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderStep;
 import fr.ses10doigts.tradeIO5.model.entity.execution.StepSide;
@@ -24,6 +25,7 @@ import fr.ses10doigts.tradeIO5.repository.WalletRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRunRepository;
 import fr.ses10doigts.tradeIO5.repository.execution.RainbowLiveOrderPlanRepository;
+import fr.ses10doigts.tradeIO5.repository.execution.TransitStockRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
@@ -51,6 +53,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -91,6 +94,7 @@ class OrderPlanServiceTest {
     @Autowired private OrderPlanQueryService queryService;
     @Autowired private RainbowLiveBindingRepository bindingRepository;
     @Autowired private RainbowLiveBindingRunRepository runRepository;
+    @Autowired private TransitStockRepository transitRepository;
     @Autowired private RainbowLiveOrderPlanRepository planRepository;
     @Autowired private WalletRepository walletRepository;
     @Autowired private UserRepository userRepository;
@@ -113,7 +117,7 @@ class OrderPlanServiceTest {
     }
 
     private OrderPlanService service(ExecutionSettings settings) {
-        return new OrderPlanService(userRepository, bindingRepository, runRepository, planRepository, planner, settings, clock,
+        return new OrderPlanService(userRepository, bindingRepository, runRepository, planRepository, transitRepository, planner, settings, clock,
                 transactionManager);
     }
 
@@ -206,6 +210,43 @@ class OrderPlanServiceTest {
         assertEquals(1, again.unchanged());
         assertEquals(1, planRepository.count());
         verify(planner, times(1)).plan(anyList());
+    }
+
+    @Test
+    @DisplayName("Reset : plan expiré sans ordre parti => nouvelle révision malgré des entrées identiques")
+    void resetExpiredPlan() {
+        seed(alice, "PAXG", 50, true);
+        when(planner.plan(anyList())).thenReturn(draft("PAXG", PlanStatus.PLANNED));
+        service.planAll(DAY, RainbowLivePass.T2355);
+        RainbowLiveOrderPlan first = planRepository.findAll().getFirst();
+        CLOCK.set(NOW.plus(java.time.Duration.ofHours(3)));
+
+        OrderPlanService.PlanSummary reset = service.resetPlan(first.getId());
+
+        assertEquals(1, reset.planned());
+        assertEquals(2, planRepository.count());
+        assertEquals(2, planRepository.findFirstByUserAndDayAndPassOrderByRevisionDesc(alice, DAY, RainbowLivePass.T2355).orElseThrow().getRevision());
+        assertEquals(PlanStatus.SUPERSEDED, planRepository.findById(first.getId()).orElseThrow().getStatus());
+    }
+
+    @Test
+    @DisplayName("Reset refusé : plan remplacé, ou dont un ordre est parti")
+    void resetRefused() {
+        seed(alice, "PAXG", 50, true);
+        when(planner.plan(anyList())).thenReturn(draft("PAXG", PlanStatus.PLANNED));
+        service.planAll(DAY, RainbowLivePass.T2355);
+        RainbowLiveOrderPlan first = planRepository.findAll().getFirst();
+        service.resetPlan(first.getId());
+        Long oldId = first.getId();
+        assertThrows(IllegalArgumentException.class, () -> service.resetPlan(oldId), "révision remplacée");
+
+        RainbowLiveOrderPlan current = planRepository.findFirstByUserAndDayAndPassOrderByRevisionDesc(alice, DAY, RainbowLivePass.T2355).orElseThrow();
+        current.getSteps().forEach(st -> st.setStatus(StepStatus.FILLED));
+        current.setStatus(PlanStatus.EXECUTED);
+        planRepository.saveAndFlush(current);
+        Long currentId = current.getId();
+        assertThrows(IllegalArgumentException.class, () -> service.resetPlan(currentId), "ordre parti");
+        assertEquals(2, planRepository.count());
     }
 
     @Test

@@ -44,7 +44,7 @@ class BindingCheckTest {
     void setUp() {
         when(reader.getProviderCode()).thenReturn(WebProviderCode.OKX);
         when(instruments.supports(WebProviderCode.OKX)).thenReturn(true);
-        when(groups.members(AssetGroup.USD)).thenReturn(List.of("USDC", "USDT"));
+        when(groups.members(AssetGroup.USD)).thenReturn(List.of("USDC"));
         check = new BindingCheck(List.of(reader), instruments, groups);
         ApiCredential credential = ApiCredential.builder().id(1L).webProvider(okx).apiKey("k").secretKey("s")
                 .passphrase("p").enabled(true).build();
@@ -119,27 +119,37 @@ class BindingCheckTest {
     }
 
     @Test
-    @DisplayName("OKX PAXG : PAXG/USDC absente, PAXG/USDT et USDC/USDT présentes => TRADABLE_VIA_BRIDGE")
-    void viaBridge() {
+    @DisplayName("Kraken PAXG : PAXG/USDC absente, PAXG/BTC et BTC/USDC présentes => TRADABLE_VIA_INTERMEDIARY, route mémorisée")
+    void viaIntermediary() {
         when(reader.getAvailableBalances(any())).thenReturn(Map.of());
-        when(instruments.isTradable(any(), eq("PAXG"), eq("USDT"))).thenReturn(true);
-        when(instruments.isTradable(any(), eq("USDC"), eq("USDT"))).thenReturn(true);
+        when(instruments.isTradable(any(), eq("PAXG"), eq("BTC"))).thenReturn(true);
+        when(instruments.isTradable(any(), eq("BTC"), eq("USDC"))).thenReturn(true);
 
         BindingCheckResult result = check.check(wallet, "PAXG");
 
-        assertEquals(BindingCheckStatus.TRADABLE_VIA_BRIDGE, result.status());
-        assertEquals("USDT", result.quoteMember());
-        assertEquals("USDC/USDT", result.bridgePair());
+        assertEquals(BindingCheckStatus.TRADABLE_VIA_INTERMEDIARY, result.status());
+        assertEquals("BTC", result.quoteMember());
+        assertEquals("USDC>BTC>PAXG", result.routeKey());
         assertTrue(result.isOk());
-        assertFalse(result.isExecutable());
+        assertTrue(result.isExecutable());
         assertFalse(result.isBlocked());
     }
 
     @Test
-    @DisplayName("PAXG/USDT présente mais passerelle USDC/USDT absente => NOT_TRADABLE_WITHOUT_FIAT")
-    void bridgeMissing() {
+    @DisplayName("PAXG/BTC présente mais BTC/USDC absente => NOT_TRADABLE_WITHOUT_FIAT")
+    void intermediaryWithoutStablePair() {
         when(reader.getAvailableBalances(any())).thenReturn(Map.of());
-        when(instruments.isTradable(any(), eq("PAXG"), eq("USDT"))).thenReturn(true);
+        when(instruments.isTradable(any(), eq("PAXG"), eq("BTC"))).thenReturn(true);
+
+        assertEquals(BindingCheckStatus.NOT_TRADABLE_WITHOUT_FIAT, check.check(wallet, "PAXG").status());
+    }
+
+    @Test
+    @DisplayName("Seule la route ETH existe (ETH jamais choisi automatiquement) => NOT_TRADABLE_WITHOUT_FIAT")
+    void ethIsNeverChosen() {
+        when(reader.getAvailableBalances(any())).thenReturn(Map.of());
+        when(instruments.isTradable(any(), eq("PAXG"), eq("ETH"))).thenReturn(true);
+        when(instruments.isTradable(any(), eq("ETH"), eq("USDC"))).thenReturn(true);
 
         assertEquals(BindingCheckStatus.NOT_TRADABLE_WITHOUT_FIAT, check.check(wallet, "PAXG").status());
     }

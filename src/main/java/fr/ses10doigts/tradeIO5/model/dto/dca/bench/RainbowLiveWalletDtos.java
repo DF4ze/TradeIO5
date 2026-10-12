@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.model.dto.dca.bench;
 
+import java.util.List;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.LiveBlockReason;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
@@ -23,7 +24,14 @@ public final class RainbowLiveWalletDtos {
     public record LiveAssetDto(String assetSymbol, Long bindingId, Long presetId, String presetName, Long walletId,
                                String walletName, String exchange, double bagPercent, int priority,
                                String tradability, String tradabilityMessage, boolean executionEnabled, boolean firstLiveArmed,
-                               boolean firstLiveConfirmed, LiveSnapshotDto snapshot) {
+                               boolean firstLiveConfirmed, String routeKey, List<TransitDto> transit, LiveSnapshotDto snapshot) {
+    }
+
+    /**
+     * Stock en transit actif du wallet visant cet actif : intermédiaire acquis par la jambe 1 dont la jambe 2 reste à terminer
+     * ({@code finishSide} : BUY de l'actif visé, ou SELL de l'intermédiaire en stable).
+     */
+    public record TransitDto(String currency, java.math.BigDecimal quantity, String finishSide, Instant createdAt) {
     }
 
     /**

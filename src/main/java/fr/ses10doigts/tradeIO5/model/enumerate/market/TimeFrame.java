@@ -85,7 +85,7 @@ public enum TimeFrame {
     }
 
     public Instant removeTo(Instant instant) {
-        return addTo(instant, 1);
+        return removeTo(instant, 1);
     }
 
     private static int unitRank(ChronoUnit unit) {
