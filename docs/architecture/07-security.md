@@ -45,6 +45,6 @@ Vérifié le : 2026-10-10 (`security/WebSecurityConfig`, `security/apikey/ApiKey
 - Journal d'audit `admin_action_log` (append-only, lecture `ROLE_ADMIN` via `GET /api/admin/actions`) : actions admin d'exécution et saisies de credentials, charge utile filtrée des secrets ([`10-execution-reelle.md`](10-execution-reelle.md)).
 - Endpoints de pilotage (`/api/admin/execution/**`, `/api/admin/credentials`, `/api/admin/bindings`, `/api/admin/actions`, `/api/admin/catalog/**`, `/api/admin/execution/order-test/**`) : `ROLE_ADMIN` strict (test `ExecutionAdminSecurityTest`) ; interrupteur et confirmation du 1ᵉʳ ordre : propriétaire du binding seulement (autre user ⇒ 404).
 
-## Accès propriétaire (bench Rainbow)
+## Accès propriétaire (Rainbow live)
 
 `RainbowLiveController` (`/api/rainbow-live`) : `@PreAuthorize("isAuthenticated()")` au niveau classe (test `RainbowLiveControllerSecurityTest`, qui active réellement la sécurité par méthode), pas de `ROLE_API_AGENT`. Isolation par propriétaire : un preset d'un autre utilisateur est indiscernable d'un preset inexistant (404, pas de fuite d'existence).

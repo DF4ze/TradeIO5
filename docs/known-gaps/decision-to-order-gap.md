@@ -32,7 +32,7 @@ TradeIO5 calcule des signaux et produit des `Decision`/`ActionStep` en base. Les
 2. Brancher `WalletSnapshot` sur les vraies données (`ProviderApiService#getUserBalance` déjà existant) — **pas fait**.
 3. Ajouter un profil de risque persistant côté `User` + endpoint — **pas fait** (curseur 0-10 existant à part, cf. ci-dessus).
 4. Écrire la règle de sizing réelle — **pas fait**, formule à spécifier.
-5. Écrire le composant d'exécution réelle d'ordres — **fait pour le bench Rainbow** (plans, plafonds, kill switch, réconciliation, audit), validé par un 1ᵉʳ ordre réel minimal, **verrouillé par défaut** et non relié au moteur de décision.
+5. Écrire le composant d'exécution réelle d'ordres — **fait pour le Rainbow live** (plans, plafonds, kill switch, réconciliation, audit), validé par un 1ᵉʳ ordre réel minimal, **verrouillé par défaut** et non relié au moteur de décision.
 6. Calendrier macro comme garde-fou avant exécution — partiellement fait différemment : `MacroRiskWindowModulator` module déjà la confidence en amont (2026-08-14), mais ne bloque/ne suspend aucune exécution puisque l'exécution elle-même (point 5) n'existe pas.
 7. Réactivation du scheduler de génération de décision — explicitement postposée, à reprendre une fois 2-5 solides.
 
