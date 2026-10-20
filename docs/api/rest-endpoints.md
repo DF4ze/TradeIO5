@@ -1,6 +1,6 @@
 # Endpoints REST
 
-Vérifié le : 2026-10-11 (`controller/**`, dont `RainbowLiveController`, `RainbowLiveBindingController`).
+Vérifié le : 2026-10-13 (`controller/**`, dont `RainbowLiveController`, `RainbowLiveBindingController`).
 
 ## Web (Thymeleaf, `MainController`)
 
@@ -66,7 +66,7 @@ Tous ces endpoints partagent le préfixe `/api/admin/decision`. Introduits progr
 | GET | `/api/admin/execution/plans/{id}/events[?page=&size=]` | ADMIN | Audit du plan (tous users), même forme que côté propriétaire ; inconnu ⇒ 404 |
 | GET | `/api/admin/credentials` | ADMIN | `[{id, userId, username, provider, scope, enabled, createdAt, apiKeyHint}]` ; `apiKeyHint` = 4 derniers caractères (READ) ou `chiffrée` (TRADE) ; jamais de secret |
 | PUT | `/api/admin/credentials/{id}/enabled` | ADMIN | Corps `{enabled}` ⇒ `AdminCredentialDto` ; inconnu ⇒ 404 ; journalisé (`CREDENTIAL_ENABLED`) |
-| GET | `/api/admin/bindings` | ADMIN | Bindings de tous les users : `{id, userId, username, assetSymbol, exchange, walletId, walletName, presetId, presetName, bagPercent, priority, executionEnabled, tradability, firstLiveArmed, firstLiveConfirmed}` (aucun solde) |
+| GET | `/api/admin/bindings` | ADMIN | Bindings de tous les users : `{id, userId, username, assetSymbol, exchange, walletId, walletName, presetId, presetName, bagPercent, priority, baseAmount, executionEnabled, tradability, firstLiveArmed, firstLiveConfirmed}` (aucun solde) |
 | GET | `/api/admin/catalog/instruments?provider=&q=` | ADMIN | Paires du catalogue d'un exchange (filtre `q` sur `instId`, 200 max, lecture seule) : `[{instId, base, quote, state, minSz, lotSz, tickSz, costMin, nativePair, feeCurrency}]` ; catalogue indisponible ⇒ 503 `{error}` |
 | POST | `/api/admin/execution/order-test/real` | ADMIN | Envoi d'un ordre RÉEL (testeur) : corps `{order: {userId, provider, instId, side, sz\|quoteAmount, px}, confirm: "ENVOYER"}` ⇒ `{status SENT\|BLOCKED\|REFUSED\|REJECTED\|UNKNOWN, validation, clOrdId, ordId, phase, filledSz, avgPx, fills[{tradeId, px, sz, fee, feeCcy}], message}` ; confirmation absente ⇒ 400 ; kill switch levé requis puis rengagé ; journal `ORDER_SEND` |
 | POST | `/api/admin/execution/order-test/reconcile` | ADMIN | Relecture seule d'un ordre du testeur : corps `{userId, provider, instId, clOrdId}` ⇒ même forme (`RECONCILED\|NOT_FOUND\|BLOCKED\|UNKNOWN`) ; journal `ORDER_READ` |
@@ -75,6 +75,8 @@ Tous ces endpoints partagent le préfixe `/api/admin/decision`. Introduits progr
 | GET | `/api/admin/actions[?page=&size=]` | ADMIN | Journal `admin_action_log`, plus récent d'abord : `{page, size, totalElements, items[{id, actor, action, target, payload, outcome, createdAt}]}` ; `size` borné (max 100) |
 | POST | `/api/credentials/trade` | authentifié | Saisie de **sa propre** clé TRADE : corps `{provider (OKX|KRAKEN), apiKey, secretKey, passphrase, enabled?}` (aucun `userId` : toujours l'utilisateur connecté) ⇒ 201 `{id, provider, scope:TRADE, enabled}` ; sans `TRADEIO_MASTER_KEY` ⇒ 409 ; journalisé (`CREDENTIAL_STORED`, sans secret) |
 | GET | `/api/rainbow-live/wallets` | authentifié | Wallets de l'utilisateur connecté : `[{id, name, exchange}]` (liste déroulante de la création de binding) |
+| POST | `/api/rainbow-live/onboarding/link` | authentifié | Corps `{walletId}` : `BindingCheck` puis un lien **inactif** par actif BTC/ETH/PAXG sur le preset système ; réponse `[{assetSymbol, outcome (LINKED\|ALREADY_LINKED\|NOT_LINKED), bindingId, presetName, status, message}]` (non lié : statut du check + raison). Idempotent ; wallet d'un autre user ⇒ 404 |
+| GET | `/api/rainbow-live/onboarding/proposals?walletId=&days=` | authentifié | `days` optionnel = durée d'étalement du cash (défaut : `autonomyDays` admin ; hors bornes absolues 7–365 ⇒ 400) ; réponse `{autonomy{defaultDays, minDays, maxDays}, proposals[{bindingId, assetSymbol, currentBaseAmount, presetBaseAmount, cashAllocated, averageMultiplier, autonomyDays, proposedBaseAmount, belowMinimum, feeTestLevel, warning}], suggestedBand{exposureMin, exposureMax}}` ; lecture seule (soldes + devis du chemin), rien enregistré : l'application passe par `PUT /bindings/{id}` `{baseAmount}` |
 
 Erreurs des endpoints de la page Admin (`AdminControllerAdvice`) : 404/409/400 en JSON `{error}`.
 
@@ -86,11 +88,11 @@ Authentifié, scopé à l'user ; binding / preset / wallet d'un autre user ou in
 
 | Méthode | Chemin | Description |
 |---|---|---|
-| GET | `` | Liste `BindingDto` `{id, assetSymbol, presetId, presetName, walletId, walletName, exchange, bagPercent, priority, tradability?, quoteMember?, routeKey?, executionEnabled, firstLiveArmed, firstLiveConfirmed}` (par priorité ; `tradability` = dernier statut `BindingCheck` persisté) |
-| POST | `` | Corps `{assetSymbol, presetId, walletId, bagPercent?, priority?}` (défauts : 100, rang de l'actif) ⇒ 201 `{binding, check}` ; binding existant pour (actif, wallet) ⇒ 409 (un même preset peut alimenter plusieurs bindings) ; preset d'un autre actif / `bagPercent` hors [0,100] / actif inconnu ⇒ 400 |
+| GET | `` | Liste `BindingDto` `{id, assetSymbol, presetId, presetName, walletId, walletName, exchange, bagPercent, priority, baseAmount?, tradability?, quoteMember?, routeKey?, executionEnabled, firstLiveArmed, firstLiveConfirmed}` (par priorité ; `tradability` = dernier statut `BindingCheck` persisté) |
+| POST | `` | Corps `{assetSymbol, presetId, walletId, bagPercent?, priority?, baseAmount?}` (défauts : 100, rang de l'actif, montant du preset) ⇒ 201 `{binding, check}` ; binding existant pour (actif, wallet) ⇒ 409 (un même preset peut alimenter plusieurs bindings) ; preset d'un autre actif / `bagPercent` hors [0,100] / actif inconnu ⇒ 400 |
 | GET | `/candidates?walletId=&asset=` | Presets proposables pour (wallet, actif) (crée au besoin les presets système de l'user) : `[{id, name, mode (FIXED|TREND_MIX), origin (SYSTEM|CUSTOM), alreadyLinkedBindingId?}]` ; wallet d'un autre user ⇒ 404, actif inconnu ⇒ 400 |
 | GET | `/{id}` | `BindingDto` |
-| PUT | `/{id}` | Corps `{presetId?, walletId?, bagPercent?, priority?}` (actif immuable, champs nuls inchangés) ⇒ `{binding, check}` ; changer `presetId` = bascule du preset live |
+| PUT | `/{id}` | Corps `{presetId?, walletId?, bagPercent?, priority?, baseAmount?, resetBaseAmount?}` (actif immuable, champs nuls inchangés ; `baseAmount` > 0 sinon 400 ; `resetBaseAmount=true` = retour au montant du preset) ⇒ `{binding, check}` ; changer `presetId` = bascule du preset live |
 | DELETE | `/{id}` | 204 (le preset reste) |
 | PUT | `/{id}/execution` | Corps `{enabled}` : interrupteur d'exécution du binding (défaut éteint) ⇒ `BindingDto` |
 | POST | `/{id}/confirm-first-live` | Confirmation du 1ᵉʳ ordre réel par le propriétaire ; sans armement admin préalable ⇒ 409 ⇒ `BindingDto` |
@@ -99,7 +101,19 @@ Authentifié, scopé à l'user ; binding / preset / wallet d'un autre user ou in
 
 ## Wallet réel des presets live (utilisateur, `RainbowLiveWalletController`, `GET /api/rainbow-live/live-wallet`)
 
-Authentifié, scopé à l'user. Lit **uniquement la base** (bindings + dernier `RainbowLiveBindingRun` de chaque lien) : aucun appel exchange. Liste vide sans binding ; une entrée par binding (un actif sur deux wallets ⇒ deux éléments). Élément `LiveAssetDto` : `{assetSymbol, bindingId, presetId, presetName, walletId, walletName, exchange, bagPercent, priority, tradability, tradabilityMessage (texte d'avertissement si `NOT_TRADABLE_WITHOUT_FIAT`, sinon nul), executionEnabled, firstLiveArmed, firstLiveConfirmed, routeKey, transit[{currency, quantity, finishSide BUY\|SELL, createdAt}], snapshot}` ; `snapshot` nul tant qu'aucun run live n'est joué, sinon `{day, status (OK|UNAVAILABLE|NOT_TRADABLE), fetchedAt, cashUsd (groupe USD), cashByMember {USDC, USDT}, positionQty, tradableQty, cashReserved, blockReason (NONE|INSUFFICIENT_CASH|UNAVAILABLE|NOT_TRADABLE_WITHOUT_FIAT), liveActionType (BUY|SELL|NONE|BLOCKED), liveActionAmountUsdc, liveActionQuantity}`. L'action live est **recommandée, non exécutée**. Ni credential, ni secret, ni solde hors périmètre.
+Authentifié, scopé à l'user. Lit **uniquement la base** (bindings + dernier `RainbowLiveBindingRun` de chaque lien) : aucun appel exchange. Liste vide sans binding ; une entrée par binding (un actif sur deux wallets ⇒ deux éléments). Élément `LiveAssetDto` : `{assetSymbol, bindingId, presetId, presetName, walletId, walletName, exchange, bagPercent, priority, tradability, tradabilityMessage (texte d'avertissement si `NOT_TRADABLE_WITHOUT_FIAT`, sinon nul), executionEnabled, firstLiveArmed, firstLiveConfirmed, routeKey, transit[{currency, quantity, finishSide BUY\|SELL, createdAt}], snapshot}` ; `snapshot` nul tant qu'aucun run live n'est joué, sinon `{day, status (OK|UNAVAILABLE|NOT_TRADABLE), fetchedAt, cashUsd (groupe USD), cashByMember {USDC, USDT}, positionQty, tradableQty, cashReserved, blockReason (NONE|INSUFFICIENT_CASH|UNAVAILABLE|NOT_TRADABLE_WITHOUT_FIAT), liveActionType (BUY|SELL|NONE|BLOCKED), liveActionAmountUsdc, liveActionQuantity, modulation (journal JSON de modulation ou nul)}`. L'action live est **recommandée, non exécutée**. Ni credential, ni secret, ni solde hors périmètre.
+
+## Patrimoine et performance (utilisateur, `PortfolioController`)
+
+Base seule (instantanés quotidiens `portfolio_snapshot` et transactions), aucun appel exchange, scopé à l'utilisateur connecté.
+
+| Endpoint | Réponse |
+|---|---|
+| `GET /api/portfolio/summary?period=7d\|30d\|90d\|1y\|all` (défaut `30d`) | `PortfolioSummaryDto` : `series[{day, total, stable, assets, exposurePct}]` (un point par jour, wallets additionnés ; valeurs nulles si un wallet n'était pas exploitable), `current` (dernier point), `pnl{amount, pct, since}` = variation de valeur entre le premier et le dernier point exploitable (nul sous deux points), `autonomyDays` (stable ÷ dépense quotidienne moyenne des liens, nul si indéterminable), `flowsIncluded=false` : **dépôts/retraits non suivis** (mention à afficher). Période inconnue ⇒ 400 |
+| `GET /api/portfolio/assets` | `[AssetPerformanceDto]` par actif du dernier instantané : `quantity, price, value, investedNet` (achats − ventes, frais exclus), `pnl` (valeur − investi net), `pnlPct`, `avgBuyPrice` ; nuls si le prix manque |
+| `GET /api/rainbow-live/bindings/{id}/bands?period=` (`RainbowLiveBandsController`, défaut `90d`) | `RainbowBandsDto` : bandes **figées** (valeurs vues par le moteur à chaque passe) du preset du lien, un point par jour joué `{day, close, sma, atr, boundDown2, boundDown1, boundUp1, boundUp2, boundUp3, zone, activeSet, trendRegime}`, `simulated=false` (bandes recalculées avant le premier run : non faites). Période invalide ⇒ 400 ; lien d'autrui ou inconnu ⇒ 404 |
+| `GET /api/rainbow-live/next-pass` (`RainbowLiveNextPassController`) | `{enabled, nextRunAt}` : prochain déclenchement du cron de la passe (UTC) ; `enabled=false` et `nextRunAt` nul si le planificateur est désactivé |
+| `GET /api/rainbow-live/bindings/{id}/transactions` | `BindingTradesDto` : `avgBuyPrice` et `trades[{id, timestamp, side, quantity, price, fee, feeCurrency}]` du wallet et de l'actif du lien ; lien inconnu ou d'un autre utilisateur ⇒ 404 |
 
 ## Plans d'ordres (utilisateur, `RainbowLiveExecutionPlanController`, `/api/rainbow-live/execution-plans`)
 
@@ -107,7 +121,7 @@ Authentifié, propriétaire seulement (jamais le plan d'un autre user), lecture 
 
 | Méthode | Chemin | Description |
 |---|---|---|
-| GET | `?from=&to=` | Plans courants (hors révisions remplacées) entre deux jours UTC inclus (défaut : 30 derniers jours), du plus récent au plus ancien. `PlanDto` `{id, day, revision, status PLANNED\|BLOCKED\|EXPIRED\|DISABLED, mode, totalCostPct, feeTestLevel, blockReason?, createdAt, expiresAt, assets[{assetSymbol, action, outcome OK\|BLOCKED\|DISABLED\|NO_ACTION, blockReason?, costPct, feeTestLevel, warning?, steps[{rank, instId, side, ordType, sz, px, quoteAmount, clOrdId, feePct, spreadPct, slippagePct, estimation}], walletId}]}` ; `status` effectif : `EXPIRED` après `expiresAt` (5 min) |
+| GET | `?from=&to=` | Plans courants (hors révisions remplacées) entre deux jours UTC inclus (défaut : 30 derniers jours), du plus récent au plus ancien. `PlanDto` `{id, day, revision, status PLANNED\|BLOCKED\|EXPIRED\|DISABLED, mode, totalCostPct, feeTestLevel, blockReason?, createdAt, expiresAt, assets[{assetSymbol, action, outcome OK\|BLOCKED\|DISABLED\|NO_ACTION, blockReason?, costPct, feeTestLevel, warning?, steps[{rank, instId, side, ordType, sz, px, quoteAmount, clOrdId, feePct, spreadPct, slippagePct, estimation}], walletId, carryInUsd, carryOutUsd}]}` ; `status` effectif : `EXPIRED` après `expiresAt` (5 min) |
 | GET | `/latest` | Plan courant le plus récent ; 204 sans plan. `status` ∈ `PLANNED\|BLOCKED\|EXPIRED\|DISABLED\|EXECUTING\|EXECUTED\|PARTIAL\|FAILED\|CANCELLED` ; en plus : `executionBlockReason?`, `executionStartedAt?`, `executionFinishedAt?` ; par étape : `status`, `filledSz?`, `avgFillPx?`, `feeAmount?`, `feeCurrency?`, `receivedAmount?`, `receivedCurrency?`, `realSlippagePct?`, `lastError?` |
 | GET | `/{id}/events?page=0&size=20` | Audit du plan en lecture seule, du plus ancien au plus récent (taille bornée à 100) : `{page, size, totalElements, items[{id, stepId?, clOrdId?, type, payload (JSON texte, sans secret), createdAt}]}` ; plan d'un autre user ou inexistant ⇒ 404 |
 
@@ -137,6 +151,17 @@ Réponses (noms de champs) :
 - `StrategyDto` : `id, assetSymbol, name, mode, revision, updatedAt, analysisWindowMonths, config{tuning, globals}, trendConfig?` (Trend Mix).
 - `PresetEventDto` : `id, assetSymbol, type (ENABLE|DISABLE|DETACH|LIVE_SWITCH|STRATEGY_CHANGED), presetBeforeId?, presetBeforeName?, presetAfterId?, presetAfterName?, strategyRevision?, occurredAt, reason?`.
 - Erreurs : `{"error": "<message>"}` (400 / 404 / 409, `RainbowLiveControllerAdvice` ; 409 = nom déjà pris ou preset qui suit une stratégie (verrouillé)).
+
+## Modulation Rainbow (paramètres admin et réglages utilisateur)
+
+Les réglages module les quantités des achats/ventes du Rainbow (cf. [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md)) ; aucun ordre n'est créé par la modulation.
+
+| Méthode | Chemin | Rôle | Description |
+|---|---|---|---|
+| GET | `/api/admin/rainbow-modulation` | ADMIN | `{parameters{<nom>{value, defaultValue, min, max}}, updatedAt, updatedBy}` (8 paramètres, bornes absolues incluses) |
+| PUT | `/api/admin/rainbow-modulation` | ADMIN | Corps = jeu complet `{regulationMarginPct, sellBoostMax, biasMax, powerMin, powerMax, minBandWidthPts, modulationProductMax, autonomyDays}` ⇒ même forme que le GET ; hors bornes ou `powerMin ≤ 1 ≤ powerMax` violé ⇒ 400 `{error}` ; journal `MODULATION` |
+| GET | `/api/user/modulation-settings` | authentifié | `{settings{exposureMin, exposureMax, power, bias} (stockés ou neutres 0/100/1/0), limits{minBandWidthPts, powerMin, powerMax, biasMax}}` |
+| PUT | `/api/user/modulation-settings` | authentifié | Corps `{exposureMin, exposureMax, power, bias}` (tous obligatoires) ⇒ même forme que le GET ; validation contre les limites admin courantes, 400 `{error}` sinon ; `riskCursor` inchangé. Pris en compte à la passe suivante (valeurs clampées aux bornes admin à ce moment-là) |
 
 ## Veille média (admin, `MediaWatchAdminController`)
 

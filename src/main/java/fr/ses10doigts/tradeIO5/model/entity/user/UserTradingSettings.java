@@ -3,6 +3,8 @@ package fr.ses10doigts.tradeIO5.model.entity.user;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -16,9 +18,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Réglages de trading propres à un utilisateur. Palier 2 (2026-08) : ne porte pour l'instant que
- * le curseur de risque continu (étude §4/§11). Le calcul de sizing qui le consommera n'existe pas
- * encore (§4/§7, volontairement hors scope de ce lot).
+ * Réglages de trading propres à un utilisateur : curseur de risque continu (étude §4/§11) et réglages de modulation Rainbow
+ * (bande d'exposition, puissance, biais). Les réglages de modulation sont <b>nullables</b> (sur base existante,
+ * {@code ddl-auto=update} initialiserait des primitives à 0) : {@code null} => valeur neutre
+ * ({@code ModulationDefaults.NEUTRAL_*}). Rien n'est encore appliqué aux montants.
  */
 @Entity
 @Table(name = "user_trading_settings",
@@ -40,4 +43,36 @@ public class UserTradingSettings {
     /** Curseur de risque continu, 0 = conservateur, 10 = super agressif. Cf. étude §4. */
     @Column(nullable = false)
     private int riskCursor;
+
+    /** Borne basse de la bande d'exposition, en % (null => 0). */
+    private Double exposureMin;
+
+    /** Borne haute de la bande d'exposition, en % (null => 100). */
+    private Double exposureMax;
+
+    /** Puissance : multiplicateur des montants d'achat et de vente (null => 1). */
+    private Double power;
+
+    /** Biais achat/vente, signé (null => 0). */
+    private Double bias;
+
+    /** Profil de départ choisi à l'onboarding (null => aucun) ; il a posé la bande d'exposition de départ. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private StartingProfile startingProfile;
+
+    /** Thème d'affichage (null => sombre). */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 8)
+    private UiTheme theme;
+
+    /** Types d'alertes coupés par l'utilisateur, noms séparés par des virgules (null => aucun). */
+    @Column(length = 200)
+    private String alertsDisabled;
+
+    /** Plafond personnel par ordre, en USD, toujours <= plafond absolu (null => plafond absolu seul). */
+    private Double maxOrderUsd;
+
+    /** Plafond personnel par jour, en USD, toujours <= plafond absolu (null => plafond absolu seul). */
+    private Double maxDayUsd;
 }

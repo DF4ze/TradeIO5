@@ -113,7 +113,7 @@ public class RainbowTrendLiveService {
         LiveDemand demand = new LiveDemand(order.buyAmount().doubleValue(),
                 tradable -> new ReferenceSizer(BigDecimal.valueOf(base))
                         .size(signal, BigDecimal.valueOf(close), BigDecimal.valueOf(tradable)).sellQuantity().doubleValue(),
-                close);
+                close, base);
 
         long candleTime = ds.time(dayIdx);
         RainbowAtrState next = step.state();

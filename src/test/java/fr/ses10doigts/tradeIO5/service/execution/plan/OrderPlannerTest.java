@@ -298,6 +298,44 @@ class OrderPlannerTest {
         assertEquals(PlanBlockReason.BELOW_MIN, asset(plan, "PAXG").blockReason());
     }
 
+    private AssetInput buyWithCarry(String amount, String carryIn) {
+        return new AssetInput("PAXG", 0, true, 7L, WebProviderCode.OKX, credential, PortfolioStatus.OK, RainbowLiveAction.BUY,
+                d(amount), d("0.001"), cash("1000"), Map.of(), d(carryIn), null);
+    }
+
+    @Test
+    @DisplayName("Carry : achat BELOW_MIN => toute la mise effective est reportée")
+    void carryOnBelowMin() {
+        PlanDraft.AssetDraft a = asset(planner.plan(List.of(buyWithCarry("0.005", "0.002"))), "PAXG");
+
+        assertEquals(PlanBlockReason.BELOW_MIN, a.blockReason());
+        assertEquals(0, d("0.002").compareTo(a.carryInUsd()));
+        assertEquals(0, d("0.007").compareTo(a.carryOutUsd()));
+    }
+
+    @Test
+    @DisplayName("Carry : le carry entrant s'ajoute à la mise ; achat passé => carry consommé")
+    void carryConsumedWhenOrderPasses() {
+        PlanDraft.AssetDraft a = asset(planner.plan(List.of(buyWithCarry("0.005", "0.01"))), "PAXG");
+
+        assertEquals(AssetPlanOutcome.OK, a.outcome());
+        assertEquals(0, d("0.015").compareTo(a.steps().getFirst().quoteAmount()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(a.carryOutUsd()));
+    }
+
+    @Test
+    @DisplayName("Carry : vente, autre blocage ou rien à faire => carry inchangé")
+    void carryUntouchedOutsideBuy() {
+        AssetInput sellInput = new AssetInput("PAXG", 0, true, 7L, WebProviderCode.OKX, credential, PortfolioStatus.OK,
+                RainbowLiveAction.SELL, d("100"), d("1"), Map.of("USDC", BigDecimal.ZERO), Map.of(), d("4"), null);
+        AssetInput none = new AssetInput("BTC", 1, true, 7L, WebProviderCode.OKX, credential, PortfolioStatus.OK,
+                RainbowLiveAction.NONE, null, null, cash("1000"), Map.of(), d("2"), null);
+        PlanDraft plan = planner.plan(List.of(sellInput, none));
+
+        assertEquals(0, d("4").compareTo(asset(plan, "PAXG").carryOutUsd()));
+        assertEquals(0, d("2").compareTo(asset(plan, "BTC").carryOutUsd()));
+    }
+
     @Test
     @DisplayName("Binding non activé => DISABLED ; action NONE/BLOCKED ou lecture indisponible => aucune étape")
     void disabledNoActionUnavailable() {

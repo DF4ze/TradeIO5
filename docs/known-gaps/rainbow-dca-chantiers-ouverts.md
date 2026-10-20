@@ -14,7 +14,7 @@ Vérifié le : 2026-10-11 (code + décisions de Clem). Objectif n°1 du projet :
 | Run Rainbow quotidien 23:55 UTC (signal des presets actifs, page web ; sans simulation de wallet ni performance) | fait, tourne chaque jour sur le VPS — [`08`](../architecture/08-rainbow-live.md) |
 | Candles du signal par lien (D1 natif 720 j, source = exchange du wallet) | fait en code, tests ciblés verts, **pas encore déployé ni exécuté en réel** (colonnes `candle_source*` ajoutées par `ddl-auto=update` au 1ᵉʳ démarrage). Reste : affichage page, ATH Trend Mix sur la source du lien, bascule Binance au-delà de 720 j — §8bis, [étude](../etudes/etude-source-candles-provider-du-lien.md) |
 | Recréation d'une base (Flyway + initializers) | fait : `V1__init.sql` généré (non activé), défauts créés par les initializers, stratégies Actif pilotées par System (presets qui les suivent) — [`operations/flyway.md`](../operations/flyway.md). données historiques (`candle`, `etf_flow_snapshot`) sauvegardées chaque semaine et rechargées au démarrage. **Ouvert** : sauvegarde récurrente de la branche décisionnelle (branche en pause) |
-| Curseur d'exposition | non fait — [spec V1 §2](../etudes/spec-rainbow-v1-trend-global-exposition-risque-macro.md) |
+| Bande d'exposition, puissance, biais, onboarding | design validé, non fait — [spec V1 §2, §4–§7](../etudes/spec-rainbow-v1-trend-global-exposition-risque-macro.md) |
 | Risque macro (`riskCursor`) | non fait — spec V1 §3 |
 | Wallet réel (lecture seule) branché au preset live | fait : connecteurs, bindings, moteur sur vrai cash, page ; lecture OKX et Kraken vérifiée en réel (Home affiche PAXG Kraken) ; reste la bascule preset / `bagPercent` et les cas BLOCKED / UNAVAILABLE en conditions réelles, cf. §5 ; `WalletSnapshot` (branche décisionnelle) non branché — [`decision-to-order-gap.md`](decision-to-order-gap.md) |
 | Exécution d'ordres réels | partiel : exécuteur, audit, kill switch, plafonds faits ; 1ᵉʳ ordre réel OKX (BTC-USDC) et vente via le testeur d'ordre validés, 1ᵉʳ achat réel PAXG sur Kraken (USDC → BTC → PAXG) exécuté depuis la Console, `LIVE` verrouillé par défaut ; cron d'exécution désactivé — cf. §5c |
@@ -29,9 +29,9 @@ Le branchement Trend → jeux Bull/Bear est fait (cf. tableau). Décisions : Tre
 
 Reste : les constantes du Trend Mix ont été réglées à la main sur BTC et servent par défaut à ETH et PAXG ; à valider par actif à l'œil sous le pine (le bench automatique n'apporte pas d'edge, cf. §1).
 
-## 3. Curseur d'exposition
+## 3. Bande d'exposition, puissance et biais
 
-Intention (pas de code) : cible d'exposition crypto/stablecoin pilotée par l'utilisateur, agissant sur les quantités achetées **et** vendues ; l'écart exposition voulue / réelle accélérerait achats ou ventes via les facteurs buy/sell. Repose sur le wallet réel (lecture seule) et, à terme, sur un capital commun à tous les actifs. Un achat et une vente simultanés sur la même bougie sont aujourd'hui impossibles (la vente l'emporte) et pourraient devenir possibles.
+Implémenté (étapes 1–2, 2026-10-13) ; écrans et onboarding restent à faire. Design : l'utilisateur fixe une **bande** `[min, max]` d'exposition (actifs ÷ total), modulation des achats/ventes Rainbow uniquement dans les marges près des bornes (hors bande : achat ramené à 0 ou vente accentuée, **jamais d'ordre de rééquilibrage** : seul le Rainbow déclenche) ; **puissance** (un scalaire sur le montant) et **biais** achat/vente ; journal des modulateurs à chaque action ; paramètres globaux réglables par l'admin. Détail : [spec V1 §2, §4–§7](../etudes/spec-rainbow-v1-trend-global-exposition-risque-macro.md). S'applique dans `LiveSizing`, par lien. Un achat et une vente simultanés sur la même bougie sont aujourd'hui impossibles (la vente l'emporte).
 
 ## 4. Risque macro
 
@@ -62,6 +62,11 @@ Ordre voulu : d'abord boucler le fonctionnel du back, puis :
 - **Lot B, étape a faite** (catalogue d'instruments, frais réels `trade-fee`, carnet, `PathFinder`, Fee Test, `GET …/bindings/{id}/path-quote` ; cf. [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md)) : le chemin le moins coûteux est chiffré en lecture seule. 
 - **Lot B, étape b faite** : plan d'ordres dry-run enregistré et affiché (job `ExecutionPlanJob` désactivé par défaut, bilan virtuel USDC, achats + ventes, `clOrdId` déterministes, expiration 5 min, mode global `OFF|DRY_RUN`, `LIVE` refusé au démarrage) — [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md). 
 - **Lots C1 (back-end) et C2 (panneau d'exécution sur la page) faits** : clé TRADE chiffrée, port d'ordres + client OKX (inactif par défaut), exécuteur avec réconciliation, audit append-only, kill switch, plafonds, double validation du 1ᵉʳ ordre — [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md). **1ᵉʳ ordre réel validé (BTC-USDC, minimal) ; `LIVE` verrouillé par défaut.** **Reste** : exécution manuelle quelques jours avant tout cron ; filtrage du catalogue par instruments du compte ; chiffrement optionnel des clés READ ; plafonds absolus (30 USD par ordre, 100 USD par jour, constantes) et multiplicateurs relatifs (table `execution_control`, SQL seulement) à rendre configurables par utilisateur dans la page, avec avertissement à l'approche des seuils.
+
+## 5d. Carry des mises sous le minimum du provider (back fait, UI à faire)
+
+- **Fait** : un achat `BELOW_MIN` est reporté et cumulé jusqu'à ce que l'ordre passe ; remis à zéro si le base amount change ; pas de sur-achat ; seul `BELOW_MIN` côté achat déclenche le report (vente et autres blocages : carry inchangé). Cf. [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md) § Carry. Exposé en lecture (`carryInUsd` / `carryOutUsd` par actif du plan).
+- **Reste** : UI (journal des exécutions, signalement du carry et de sa somme, choix de l'utilisateur), cf. [`../graphique/remarques-gui.md`](../graphique/remarques-gui.md) §2. Pas de report des échecs d'exécution réelle (`PARTIAL` / `FAILED`) : l'échec reste visible. Report sur `INSUFFICIENT_FUNDS` : idée UX, non faite.
 
 ## 6. Preset Bull PAXG
 
@@ -99,3 +104,18 @@ Signal par lien sur l'exchange du wallet, D1 natif sur 720 j ([`../architecture/
 Au lieu de repasser par USDC, utiliser un actif comme monnaie de cotation d'un autre : acheter BTC avec le Rainbow BTC/USDC, puis PAXG avec le Rainbow **PAXG/BTC** (pas PAXG/USDC). Complexe (capital commun multi-cotations, presets sur ratios) : après la passerelle non stable ([`../etudes/etude-passerelle-actif-non-stable.md`](../etudes/etude-passerelle-actif-non-stable.md)).
 
 Point PAXG (2026-10-12) : pour l'instant le signal et l'exécution PAXG restent sur PAXG/USDC (route `USDC -> BTC -> PAXG` déjà complète). Lire le signal sur PAXG/BTC (cotation de la jambe 2) est un dilemme à traiter dans une étude à part entière ; le Rainbow PAXG se comportant très différemment selon le provider (constat TradingView), cette étude suppose d'abord la source de candles propre au lien ([`../etudes/etude-source-candles-provider-du-lien.md`](../etudes/etude-source-candles-provider-du-lien.md)).
+
+## 10. Onboarding : limites assumées
+- **Carry** : changer le `baseAmount` d'un lien ne remet pas le carry du plan d'ordres à zéro.
+- **Déclenchement** : la liaison est un bouton (carte « Démarrage ») ; la sauvegarde d'une clé TRADE ne lie pas automatiquement.
+- **Bande** : proposition neutre (pas de profil utilisateur) ; pas de borne par le minimum du catalogue, seulement un avertissement `BELOW_MIN`.
+
+## 11. Chaîner les traitements quotidiens plutôt que des crons indépendants (étude à faire)
+
+Idée de Clem (2026-10-19). Aujourd'hui la chaîne quotidienne repose sur des crons séparés : passe Rainbow `tradeio.rainbow-live.pass-2355-cron` (23:55 UTC), plan d'ordres `tradeio.execution.plan-cron` (23:58), exécution `tradeio.execution.run-cron` (désactivé). Chaque étape est calée sur une heure fixe, sans savoir si la précédente est terminée.
+
+Question : vaut-il mieux enchaîner les étapes (la fin de l'une déclenche la suivante) ?
+
+Risque à étudier : si une étape devient plus longue (plus d'actifs, de liens, de providers, candles lentes ; la passe prend déjà ~8 s pour 3 presets), l'étape suivante peut démarrer alors que la précédente n'est pas finie et lire des runs incomplets. Les plans d'ordres expirent 5 min après leur création (`plan-ttl=PT5M`) : un enchaînement par cron doit donc rester dans cette fenêtre, ce que le chaînage garantirait mieux.
+
+À couvrir par l'étude : orchestrateur unique ou événements, comportement en cas d'échec d'une étape (arrêt de la chaîne ou poursuite), reprise, idempotence, observabilité, lien avec le kill switch et le `DecisionOrchestrator` (cron 06:00).

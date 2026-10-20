@@ -43,3 +43,6 @@ Vérifié le : 2026-10-11.
 - **Double validation du 1ᵉʳ ordre** — l'admin arme le binding, puis son propriétaire confirme ; indispensable avant tout premier ordre réel.
 - **Étape UNKNOWN** — ordre dont l'issue est inconnue (timeout) : jamais renvoyé, relu par `clOrdId` (réconciliation).
 - **Plafond absolu** — constantes de code (30 USD par ordre, 100 USD par jour et par user en phase de test) qui bornent les multiplicateurs configurables.
+- **Bande d'exposition** — intervalle `[exposureMin, exposureMax]` (en % de la valeur du portefeuille) réglé par l'utilisateur (`UserTradingSettings`), largeur ≥ `minBandWidthPts` ; garde-fou, pas une cible. Elle module les quantités du Rainbow près des bornes (marges de régulation) et plafonne les quantités pour ne jamais franchir une borne ; elle ne déclenche aucun ordre.
+- **Puissance** — multiplicateur unique (`power`, dans `[powerMin, powerMax]`, neutre 1) des montants d'achat et de vente.
+- **Biais** — réglage signé (`bias`, `|bias| ≤ biasMax`, neutre 0) qui déséquilibre achat/vente de la puissance.

@@ -15,8 +15,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/** Mapping d'erreurs limité à {@link RainbowLiveController} et {@link RainbowLiveBindingController} (pas de handler global). */
-@RestControllerAdvice(assignableTypes = {RainbowLiveController.class, RainbowLiveBindingController.class})
+/** Mapping d'erreurs limité à {@link RainbowLiveController}, {@link RainbowLiveBindingController} et {@link RainbowLiveOnboardingController} (pas de handler global). */
+@RestControllerAdvice(assignableTypes = {RainbowLiveController.class, RainbowLiveBindingController.class,
+        RainbowLiveOnboardingController.class})
 public class RainbowLiveControllerAdvice {
 
     public record ErrorResponse(String error) {

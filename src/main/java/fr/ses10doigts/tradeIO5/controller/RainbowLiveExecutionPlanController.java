@@ -33,13 +33,18 @@ public class RainbowLiveExecutionPlanController {
     private final IAuthenticationFacade authenticationFacade;
     private final DomainClock clock;
 
-    /** Plans entre {@code from} et {@code to} inclus (défaut : 30 derniers jours). */
+    /** Plans entre {@code from} et {@code to} inclus (défaut : 30 derniers jours), filtrables par actif, wallet, statut et raison de blocage. */
     @GetMapping
     public List<PlanDto> plans(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-                               @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+                               @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                               @RequestParam(required = false) String assetSymbol,
+                               @RequestParam(required = false) Long walletId,
+                               @RequestParam(required = false) fr.ses10doigts.tradeIO5.model.entity.execution.PlanStatus status,
+                               @RequestParam(required = false) String blockReason) {
         LocalDate end = to != null ? to : clock.now().atOffset(ZoneOffset.UTC).toLocalDate();
         LocalDate start = from != null ? from : end.minusDays(DEFAULT_WINDOW_DAYS);
-        return queryService.plans(authenticationFacade.getConnectedUser(), start, end);
+        return queryService.plans(authenticationFacade.getConnectedUser(), start, end,
+                new OrderPlanQueryService.PlanFilter(assetSymbol, walletId, status, blockReason));
     }
 
     /** Audit du plan (lecture seule, paginé, du plus ancien au plus récent) ; plan d'un autre utilisateur ou inexistant => 404. */

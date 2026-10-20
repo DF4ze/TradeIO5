@@ -8,5 +8,7 @@ public enum LiveBlockReason {
     /** Lecture du portefeuille réel indisponible ou périmée. */
     UNAVAILABLE,
     /** Couple (actif, exchange) non tradable sans passer par une monnaie fiat : exécution bloquée. */
-    NOT_TRADABLE_WITHOUT_FIAT
+    NOT_TRADABLE_WITHOUT_FIAT,
+    /** Quantité du signal ramenée à 0 par la modulation (bande d'exposition, plafond dur). */
+    BAND_LIMIT
 }

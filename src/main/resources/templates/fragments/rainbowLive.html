@@ -17,6 +17,79 @@
     <!-- Wallet réel du preset live de l'actif (affiché seulement si un binding existe ; rendu par rainbow-live.js) -->
     <div id="rl-live-panel" class="rl-live-panel d-none my-3"></div>
 
+    <!-- Onboarding : explication, liaison automatique d'un wallet (liens inactifs), montants de base proposés (rendu par rainbow-live.js) -->
+    <div id="rl-onb-panel" class="card my-3 d-none">
+      <div class="card-body">
+        <h5 class="card-title">Démarrage</h5>
+        <details class="small mb-3">
+          <summary>Comment ça marche ?</summary>
+          <ol class="mb-0 mt-2">
+            <li>La <b>Trend</b> du jour choisit un jeu de paramètres (<b>Bull</b> ou <b>Bear</b>).</li>
+            <li>Le jeu et la position dans les <b>zones</b> de prix décident d'acheter, de vendre ou d'attendre : seul le Rainbow déclenche un ordre.</li>
+            <li>Le <b>montant de base</b> du lien, multiplié par le coefficient de la zone, fixe la quantité d'un achat.</li>
+            <li>Ensuite la <b>bande d'exposition</b>, la <b>puissance</b> et le <b>biais</b> (bloc Modulation) ne font que moduler cette quantité.</li>
+            <li>Les liens créés ici sont <b>inactifs</b> : tu les actives toi-même, et le premier ordre réel demande une double validation.</li>
+          </ol>
+        </details>
+        <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
+          <div>
+            <label class="form-label small mb-0" for="rl-onb-wallet">Wallet</label>
+            <select class="form-select form-select-sm" id="rl-onb-wallet"></select>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" id="rl-onb-link" title="Crée un lien inactif par actif tradable (BTC, ETH, PAXG) sur le preset système">Lier mes actifs</button>
+          <div>
+            <label class="form-label small mb-0" for="rl-onb-duration">Étaler le cash sur</label>
+            <div class="input-group input-group-sm">
+              <input type="number" class="form-control" id="rl-onb-duration" min="1" step="1" style="max-width:5.5rem">
+              <select class="form-select" id="rl-onb-unit" aria-label="Unité">
+                <option value="1">jours</option><option value="30">mois</option>
+              </select>
+            </div>
+          </div>
+          <button type="button" class="btn btn-outline-primary btn-sm" id="rl-onb-propose" title="Montant de base = cash / (jours d'autonomie × multiplicateur moyen des zones)">Montants proposés</button>
+        </div>
+        <div id="rl-onb-msg" class="small mb-2"></div>
+        <ul class="list-unstyled small mb-2" id="rl-onb-links"></ul>
+        <div class="table-responsive d-none" id="rl-onb-table-wrap">
+          <table class="table table-sm align-middle mb-1">
+            <thead><tr><th>Actif</th><th>Cash alloué</th><th>Montant actuel</th><th>Proposé</th><th title="Durée que tient le cash alloué avec le montant proposé">Autonomie proposée</th><th title="Durée que tient le cash alloué avec le montant en place (lien, sinon preset)">Autonomie actuelle</th><th></th></tr></thead>
+            <tbody id="rl-onb-body"></tbody>
+          </table>
+          <div class="small text-muted" id="rl-onb-band"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modulation de l'utilisateur : bande d'exposition, puissance, biais (rendu par rainbow-live.js, /api/user/modulation-settings) -->
+    <div id="rl-mod-panel" class="card my-3 d-none">
+      <div class="card-body">
+        <h5 class="card-title">Modulation</h5>
+        <p class="small text-muted mb-2">Le Rainbow décide seul des achats et des ventes ; ces réglages ne modulent que les quantités.
+           Près des bornes de la bande, on achète moins en haut et on vend plus fort ; en bas, l'inverse.</p>
+        <div id="rl-mod-gauge" class="rl-mod-gauge mb-2" aria-hidden="true"></div>
+        <div id="rl-mod-exposure" class="small mb-3"></div>
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label" for="rl-mod-min">Exposition mini : <span id="rl-mod-min-v"></span> %</label>
+            <input type="range" class="form-range" id="rl-mod-min" min="0" max="100" step="1">
+            <label class="form-label" for="rl-mod-max">Exposition maxi : <span id="rl-mod-max-v"></span> %</label>
+            <input type="range" class="form-range" id="rl-mod-max" min="0" max="100" step="1">
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label" for="rl-mod-power">Puissance : ×<span id="rl-mod-power-v"></span></label>
+            <input type="range" class="form-range" id="rl-mod-power" step="0.05">
+            <label class="form-label" for="rl-mod-bias">Biais : <span id="rl-mod-bias-v"></span> <span class="text-muted small">(− vend plus · + achète plus)</span></label>
+            <input type="range" class="form-range" id="rl-mod-bias" step="0.05">
+          </div>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <button type="button" class="btn btn-primary btn-sm" id="rl-mod-save">Enregistrer</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="rl-mod-neutral" title="Bande 0–100 %, puissance ×1, biais 0 : aucune modulation">Neutre</button>
+          <span class="small" id="rl-mod-msg"></span>
+        </div>
+      </div>
+    </div>
+
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 my-3">
       <h5 class="mb-0">Presets de l'actif <span id="rl-asset-label" class="fw-bold"></span></h5>
       <div class="d-flex flex-wrap align-items-center gap-2">

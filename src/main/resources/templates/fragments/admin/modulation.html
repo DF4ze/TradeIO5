@@ -1,0 +1,12 @@
+<div th:fragment="modulation" class="tab-pane fade" id="adm-pane-modulation" role="tabpanel">
+	<h5>Modulation (bande, puissance, biais)</h5>
+	<p class="text-muted small">Paramètres globaux du moteur de quantités. Le Rainbow seul déclenche achats et ventes ; ces réglages ne font que moduler les quantités. Chaque champ est borné (bornes absolues) ; la sauvegarde est refusée hors bornes.</p>
+	<form id="adm-mod-form" class="row g-3" novalidate>
+		<div id="adm-mod-fields" class="row g-3"></div>
+		<div class="col-12 d-flex flex-wrap align-items-center gap-2">
+			<button type="submit" class="btn btn-primary" id="adm-mod-save">Enregistrer</button>
+			<button type="button" class="btn btn-outline-secondary" id="adm-mod-defaults">Remettre les défauts</button>
+			<span class="small text-muted" id="adm-mod-meta"></span>
+		</div>
+	</form>
+</div>

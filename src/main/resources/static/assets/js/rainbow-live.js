@@ -64,7 +64,7 @@
   async function api(method, path, body) {
     let res;
     try {
-      res = await fetch(API + path, {
+      res = await fetch(path.startsWith('/api/') ? path : API + path, {
         method, credentials: 'same-origin', redirect: 'follow',
         headers: body === undefined ? { Accept: 'application/json' }
           : { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -765,7 +765,224 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
         card('Position réelle ' + l.assetSymbol, qty(s.positionQty)),
         card('Position tradable (' + pct(l.bagPercent) + ')', qty(s.tradableQty), '', 'Part de la position réelle offerte à la stratégie'),
         card('Cash déjà réservé', usd(s.cashReserved), '', 'Consommé par les actifs servis avant (cash commun)')),
-      liveAction(s));
+      liveAction(s), whyAmountView(s));
+  }
+
+  /* ------------------------------------------------------------------ modulation utilisateur */
+
+  const MOD_PATH = '/api/user/modulation-settings';
+  const mod = { limits: null };
+  const modInput = (k) => $('rl-mod-' + k);
+
+  /** Jauge 0–100 % : bande, marges de régulation (illustration à 25 % de la largeur, valeur admin par défaut) et repère d'exposition. */
+  function bandGauge(min, max, exposure) {
+    const seg = (left, width, cls) => el('div', { class: 'rl-mod-seg ' + cls,
+      style: 'left:' + left + '%;width:' + Math.max(0, width) + '%' });
+    const margin = Math.min(25, (max - min) / 4);
+    const nodes = [seg(0, min, 'rl-mod-out'), seg(min, max - min, 'rl-mod-in'), seg(max, 100 - max, 'rl-mod-out')];
+    if (max < 100 && margin > 0) { nodes.push(seg(max - margin, margin, 'rl-mod-margin')); }
+    if (min > 0 && margin > 0) { nodes.push(seg(min, margin, 'rl-mod-margin')); }
+    if (isNum(exposure)) { nodes.push(el('div', { class: 'rl-mod-mark', style: 'left:' + exposure + '%', title: 'Exposition actuelle ' + pct(exposure) })); }
+    return nodes;
+  }
+
+  /** Dernière exposition connue : journal de modulation des liens (exposureAfter, sinon exposureBefore). */
+  function lastExposure() {
+    let found = null;
+    for (const links of state.live.values()) {
+      for (const l of links) {
+        const j = parseModulation(l.snapshot);
+        const v = j && (isNum(j.exposureAfter) ? j.exposureAfter : j.exposureBefore);
+        if (isNum(v)) { found = v; }
+      }
+    }
+    return found;
+  }
+
+  function renderMod() {
+    const min = Number(modInput('min').value); const max = Number(modInput('max').value);
+    modInput('min-v').textContent = min; modInput('max-v').textContent = max;
+    modInput('power-v').textContent = F2.format(Number(modInput('power').value));
+    modInput('bias-v').textContent = F2.format(Number(modInput('bias').value));
+    const exposure = lastExposure();
+    $('rl-mod-gauge').replaceChildren(...bandGauge(min, max, exposure));
+    $('rl-mod-exposure').textContent = isNum(exposure)
+      ? 'Exposition actuelle : ' + pct(exposure) + (exposure > max ? ' — au-dessus de la bande (achats freinés, ventes renforcées).'
+        : exposure < min ? ' — sous la bande (achats renforcés, ventes freinées).' : ' — dans la bande.')
+      : 'Exposition actuelle : inconnue (prix indisponible ou aucune passe) — la bande ne module pas, puissance et biais restent appliqués.';
+    const width = max - min; const minW = mod.limits.minBandWidthPts;
+    $('rl-mod-msg').textContent = width < minW ? 'Bande plus étroite que ' + minW + ' pts : elle sera élargie autour de son centre.' : '';
+    $('rl-mod-msg').className = 'small text-warning';
+  }
+
+  function fillMod(dto) {
+    mod.limits = dto.limits;
+    const s = dto.settings; const lim = dto.limits;
+    modInput('min').value = s.exposureMin; modInput('max').value = s.exposureMax;
+    Object.assign(modInput('power'), { min: lim.powerMin, max: lim.powerMax, value: s.power });
+    Object.assign(modInput('bias'), { min: -lim.biasMax, max: lim.biasMax, value: s.bias });
+    renderMod();
+  }
+
+  async function loadMod() {
+    try {
+      fillMod(await api('GET', MOD_PATH));
+      $('rl-mod-panel').classList.remove('d-none');
+    } catch (e) {
+      $('rl-mod-panel').classList.add('d-none');
+    }
+  }
+
+  async function saveMod(neutral) {
+    const body = neutral ? { exposureMin: 0, exposureMax: 100, power: 1, bias: 0 } : {
+      exposureMin: Number(modInput('min').value), exposureMax: Number(modInput('max').value),
+      power: Number(modInput('power').value), bias: Number(modInput('bias').value) };
+    try {
+      fillMod(await api('PUT', MOD_PATH, body));
+      $('rl-mod-msg').textContent = 'Enregistré.'; $('rl-mod-msg').className = 'small text-success';
+    } catch (e) {
+      $('rl-mod-msg').textContent = e.message; $('rl-mod-msg').className = 'small text-danger';
+    }
+  }
+
+  function bindMod() {
+    ['min', 'max', 'power', 'bias'].forEach((k) => modInput(k).addEventListener('input', () => { if (mod.limits) { renderMod(); } }));
+    $('rl-mod-save').addEventListener('click', () => saveMod(false));
+    $('rl-mod-neutral').addEventListener('click', () => saveMod(true));
+  }
+
+  /* ------------------------------------------------------------------ onboarding */
+
+  const LINK_TEXT = { LINKED: ['text-success', 'lié (inactif)'], ALREADY_LINKED: ['text-muted', 'déjà lié'],
+    NOT_LINKED: ['text-danger', 'non lié'] };
+  const onbWallet = () => Number($('rl-onb-wallet').value);
+
+  async function loadOnboarding() {
+    try {
+      const wallets = await api('GET', '/wallets');
+      $('rl-onb-wallet').replaceChildren(...wallets.map((w) => el('option', { value: w.id,
+        text: w.name + (w.exchange ? ' (' + w.exchange + ')' : '') })));
+      $('rl-onb-panel').classList.toggle('d-none', !wallets.length);
+    } catch (e) {
+      $('rl-onb-panel').classList.add('d-none');
+    }
+  }
+
+  function onbMessage(text, cls) { $('rl-onb-msg').textContent = text; $('rl-onb-msg').className = 'small mb-2 ' + (cls || ''); }
+
+  async function onbLink() {
+    onbMessage('Vérification des actifs…', 'text-muted');
+    try {
+      const results = await api('POST', '/onboarding/link', { walletId: onbWallet() });
+      $('rl-onb-links').replaceChildren(...results.map((r) => {
+        const t = LINK_TEXT[r.outcome];
+        return el('li', null, el('span', { class: 'fw-semibold', text: r.assetSymbol + ' : ' }),
+          el('span', { class: t[0], text: t[1] }),
+          r.presetName ? el('span', { class: 'text-muted', text: ' — ' + r.presetName }) : null,
+          r.message ? el('span', { text: ' — ' + r.message }) : null);
+      }));
+      onbMessage('Liens à vérifier puis activer un par un dans le panneau de chaque actif.', 'text-muted');
+      await loadLive();
+    } catch (e) { onbMessage(e.message, 'text-danger'); }
+  }
+
+  /** Jours tenus par le cash alloué au montant actuel, dans un jour de zone « moyenne » du preset. */
+  function autonomyText(p) {
+    const base = isNum(p.currentBaseAmount) ? p.currentBaseAmount : p.presetBaseAmount;
+    if (!isNum(p.cashAllocated) || !isNum(base) || base <= 0 || !isNum(p.averageMultiplier) || p.averageMultiplier <= 0) { return DASH; }
+    return '~' + Math.floor(p.cashAllocated / (base * p.averageMultiplier)) + ' jours';
+  }
+
+  async function applyBase(p, button) {
+    button.disabled = true;
+    try {
+      await api('PUT', '/bindings/' + p.bindingId, { baseAmount: p.proposedBaseAmount });
+      onbMessage(p.assetSymbol + ' : montant de base ' + usd(p.proposedBaseAmount) + ' appliqué (prochaine passe).', 'text-success');
+      await onbPropose();
+    } catch (e) { onbMessage(e.message, 'text-danger'); button.disabled = false; }
+  }
+
+  function proposalRow(p) {
+    const apply = el('button', { type: 'button', class: 'btn btn-sm btn-outline-success', text: 'Appliquer',
+      disabled: !isNum(p.proposedBaseAmount) });
+    apply.addEventListener('click', () => applyBase(p, apply));
+    const notes = [p.belowMinimum ? 'sous le minimum de l\'exchange' : null,
+      p.feeTestLevel && p.feeTestLevel !== 'GREEN' ? 'Fee Test ' + p.feeTestLevel : null, p.warning].filter(Boolean);
+    return [el('tr', null, el('td', { text: p.assetSymbol }), el('td', { text: usd(p.cashAllocated) }),
+      el('td', { text: usd(isNum(p.currentBaseAmount) ? p.currentBaseAmount : p.presetBaseAmount)
+        + (isNum(p.currentBaseAmount) ? '' : ' (preset)') }),
+      el('td', { text: usd(p.proposedBaseAmount) }),
+      el('td', { text: isNum(p.proposedBaseAmount) ? p.autonomyDays + ' jours' : DASH }),
+      el('td', { text: autonomyText(p) }), el('td', null, apply)),
+      notes.length ? el('tr', null, el('td', { colspan: 7, class: 'small text-warning', text: notes.join(' · ') })) : null];
+  }
+
+  /** Durée choisie en jours (jours ou mois de 30 j) ; vide => défaut admin. */
+  function onbDays() {
+    const v = Number($('rl-onb-duration').value);
+    return v > 0 ? Math.round(v * Number($('rl-onb-unit').value)) : null;
+  }
+
+  /** Défaut admin en placeholder (en mois si multiple de 30) et bornes en infobulle. */
+  function onbRange(a) {
+    const input = $('rl-onb-duration');
+    const months = a.defaultDays % 30 === 0;
+    input.placeholder = String(months ? a.defaultDays / 30 : a.defaultDays) + (months ? ' mois' : ' j');
+    input.title = 'Entre ' + a.minDays + ' et ' + a.maxDays + ' jours (défaut ' + a.defaultDays + ')';
+  }
+
+  async function onbPropose() {
+    onbMessage('Lecture des soldes et devis…', 'text-muted');
+    try {
+      const days = onbDays();
+      const dto = await api('GET', '/onboarding/proposals?walletId=' + onbWallet() + (days ? '&days=' + days : ''));
+      onbRange(dto.autonomy);
+      $('rl-onb-body').replaceChildren(...dto.proposals.flatMap(proposalRow).filter(Boolean));
+      $('rl-onb-table-wrap').classList.toggle('d-none', !dto.proposals.length);
+      $('rl-onb-band').textContent = 'Bande proposée : ' + dto.suggestedBand.exposureMin + ' – ' + dto.suggestedBand.exposureMax
+        + ' % (neutre, aucune modulation de bande) ; à ajuster dans le bloc Modulation. Proposé = cash alloué / (' + (days || dto.autonomy.defaultDays) + ' jours × '
+        + 'multiplicateur moyen des zones), cash réparti à parts égales entre les liens du wallet.';
+      onbMessage(dto.proposals.length ? '' : 'Aucun lien sur ce wallet : lie d\'abord tes actifs.', 'text-muted');
+    } catch (e) { onbMessage(e.message, 'text-danger'); }
+  }
+
+  function bindOnboarding() {
+    $('rl-onb-link').addEventListener('click', onbLink);
+    $('rl-onb-propose').addEventListener('click', onbPropose);
+    ['rl-onb-duration', 'rl-onb-unit', 'rl-onb-wallet'].forEach((id) => $(id).addEventListener('change', () => {
+      if (!$('rl-onb-table-wrap').classList.contains('d-none')) { onbPropose(); }
+    }));
+  }
+
+  /* ------------------------------------------------------------------ « pourquoi ce montant » */
+
+  function parseModulation(snapshot) {
+    if (!snapshot || !snapshot.modulation) { return null; }
+    try { return JSON.parse(snapshot.modulation); } catch (e) { return null; }
+  }
+
+  /** Détail repliable du calcul de la quantité : signal -> puissance/biais -> bande -> plafonds -> montant final. */
+  function whyAmountView(s) {
+    const j = parseModulation(s);
+    if (!j) { return null; }
+    const x = (v) => '×' + dec(v);
+    const rows = [
+      ['Signal Rainbow', j.signalBuyUsd > 0 ? 'achat ' + usd(j.signalBuyUsd) : j.signalSellQty > 0 ? 'vente ' + qty(j.signalSellQty) : 'aucune action'],
+      ['Puissance · biais', 'puissance ' + x(j.power) + ', biais ' + dec(j.bias) + ' => achat ' + x(j.sideBuy) + ' / vente ' + x(j.sideSell)],
+      ['Bande ' + dec(j.bandMin) + '–' + dec(j.bandMax) + ' %', j.exposureStatus === 'UNKNOWN' ? 'exposition inconnue : bande sans effet'
+        : 'exposition ' + pct(j.exposureBefore) + ' => achat ' + x(j.bandBuy) + ' / vente ' + x(j.bandSell)],
+      ['Plafonds', (j.productCapped ? 'produit des facteurs plafonné à ' + x(j.productMax) : 'produit des facteurs OK')
+        + (j.hardCap ? ' · plafond dur de bande atteint' : '')],
+      ['Après modulation', j.modulatedBuyUsd > 0 ? 'achat ' + usd(j.modulatedBuyUsd) : j.modulatedSellQty > 0 ? 'vente ' + qty(j.modulatedSellQty) : 'rien']
+    ];
+    if (j.finalAmountUsd != null || j.finalQuantity != null) {
+      rows.push(['Montant final (après cash/position)', j.action === 'SELL' ? 'vente ' + qty(j.finalQuantity)
+        : j.action === 'BUY' ? 'achat ' + usd(j.finalAmountUsd) : 'aucune action']);
+    }
+    if (isNum(j.exposureAfter)) { rows.push(['Exposition après', pct(j.exposureAfter)]); }
+    return el('details', { class: 'mt-2 small' }, el('summary', { text: 'Pourquoi ce montant ?' }),
+      el('table', { class: 'table table-sm mb-0' }, el('tbody', null,
+        rows.map((r) => el('tr', null, el('th', { class: 'fw-normal text-muted', text: r[0] }), el('td', { text: r[1] }))))));
   }
 
   /** Détail du cash par membre du groupe USD (infobulle), vide si absent. */
@@ -833,6 +1050,7 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
     const links = livesOf(state.asset);
     panel.classList.toggle('d-none', !links.length);
     panel.replaceChildren(...links.map(liveSection));
+    if (mod.limits) { renderMod(); }
   }
 
   /** Un bloc par lien (actif, wallet/provider) : snapshot, preset lié, plan et exécution de ce lien. */
@@ -938,6 +1156,10 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
 
   async function init() {
     bindEvents();
+    bindMod();
+    loadMod();
+    bindOnboarding();
+    loadOnboarding();
     try {
       state.defaults = await api('GET', '/defaults');
     } catch (e) {

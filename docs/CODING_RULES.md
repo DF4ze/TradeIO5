@@ -23,4 +23,5 @@ Règles de développement pour ce projet, à respecter par tout contributeur (hu
 - **Utiliser Lombok**
 - **Loguer** Mettre en INFO les points clés comme les changements d'état, mettre en DEBUG les valeurs clés.
 - **Utiliser getFirst()/getLast() sur les List/Collection**, ne pas faire de .get(0) ou autre pour récupérer ces valeurs.
+- **Rester dans les clous fiscaux (France)** : aucun chemin d'ordre ni fonctionnalité ne doit créer un événement taxable (pas de nœud fiat, cf. `ExecutionDefaults.FIAT_CURRENCIES`). Ne le signaler au propriétaire que si une demande fait sortir des clous.
 <!-- Ajouter ici les futures règles, au fil des décisions prises avec Clem. -->

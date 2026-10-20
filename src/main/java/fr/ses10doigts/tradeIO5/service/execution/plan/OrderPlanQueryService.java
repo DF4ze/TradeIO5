@@ -58,12 +58,43 @@ public class OrderPlanQueryService {
         return new EventPageDto(page, size, result.getTotalElements(), items);
     }
 
+    /** Filtres du journal, tous facultatifs : actif et wallet (un actif du plan correspond), statut du plan, raison de blocage. */
+    public record PlanFilter(String assetSymbol, Long walletId, PlanStatus status, String blockReason) {
+        public static PlanFilter none() {
+            return new PlanFilter(null, null, null, null);
+        }
+
+        boolean matches(PlanDto plan) {
+            if (status != null && plan.status() != status) {
+                return false;
+            }
+            if (blockReason != null && !hasReason(plan)) {
+                return false;
+            }
+            return (assetSymbol == null && walletId == null) || plan.assets().stream().anyMatch(a ->
+                    (assetSymbol == null || assetSymbol.equalsIgnoreCase(a.assetSymbol()))
+                            && (walletId == null || walletId.equals(a.walletId())));
+        }
+
+        private boolean hasReason(PlanDto plan) {
+            return blockReason.equals(plan.blockReason())
+                    || (plan.executionBlockReason() != null && plan.executionBlockReason().contains(blockReason))
+                    || plan.assets().stream().anyMatch(a -> a.blockReason() != null && blockReason.equals(a.blockReason().name()));
+        }
+    }
+
     /** Plans courants (hors remplacés) entre deux jours inclus, du plus récent au plus ancien. */
     @Transactional(readOnly = true)
     public List<PlanDto> plans(User user, LocalDate from, LocalDate to) {
+        return plans(user, from, to, PlanFilter.none());
+    }
+
+    /** Idem, filtrés côté serveur (journal). */
+    @Transactional(readOnly = true)
+    public List<PlanDto> plans(User user, LocalDate from, LocalDate to, PlanFilter filter) {
         Instant now = clock.now();
         return planRepository.findByUserAndStatusNotAndDayBetweenOrderByDayDescCreatedAtDesc(user, PlanStatus.SUPERSEDED, from, to)
-                .stream().map(p -> toDto(p, now)).toList();
+                .stream().map(p -> toDto(p, now)).filter(filter::matches).toList();
     }
 
     @Transactional(readOnly = true)
@@ -90,6 +121,6 @@ public class OrderPlanQueryService {
                         s.getReceivedCurrency(), s.getRealSlippagePct(), s.getLastError()))
                 .toList();
         return new AssetDto(a.getAssetSymbol(), a.getAction(), a.getOutcome(), a.getBlockReason(), a.getCostPct(),
-                a.getFeeTestLevel(), a.getWarning(), steps, a.getWalletId());
+                a.getFeeTestLevel(), a.getWarning(), steps, a.getWalletId(), a.getCarryInUsd(), a.getCarryOutUsd());
     }
 }

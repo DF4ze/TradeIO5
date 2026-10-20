@@ -26,3 +26,11 @@ body > .modal-backdrop { z-index: 10040; }
 #rainbow-live .rl-live-panel { border: 1px solid #198754; border-left-width: 4px; border-radius: 6px; padding: 10px 14px; background: #f6fbf8; }
 #rainbow-live .rl-live-panel .rl-live-meta { font-size: 13px; color: #6c757d; }
 #rainbow-live .rl-badge-live { background: #198754; letter-spacing: .05em; }
+
+/* Jauge de bande d'exposition (bloc Modulation) */
+#rainbow-live .rl-mod-gauge { position: relative; height: 14px; border-radius: 7px; overflow: hidden; background: #e9ecef; }
+#rainbow-live .rl-mod-seg { position: absolute; top: 0; bottom: 0; }
+#rainbow-live .rl-mod-out { background: #dee2e6; }
+#rainbow-live .rl-mod-in { background: #198754; }
+#rainbow-live .rl-mod-margin { background: #ffc107; opacity: .85; }
+#rainbow-live .rl-mod-mark { position: absolute; top: -2px; bottom: -2px; width: 3px; margin-left: -1px; background: #212529; }

@@ -8,7 +8,7 @@
         actor varchar(64) not null,
         target varchar(120),
         payload varchar(1000),
-        action enum ('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','ORDER_READ','ORDER_SEND','ORDER_VALIDATE','PLAN','RECONCILE','RUN') not null,
+        action enum ('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','MODULATION','ORDER_READ','ORDER_SEND','ORDER_VALIDATE','PLAN','RECONCILE','RUN') not null,
         outcome enum ('ERROR','OK','REFUSED') not null,
         primary key (id)
     ) engine=InnoDB;
@@ -185,6 +185,34 @@
         primary key (id)
     ) engine=InnoDB;
 
+    create table portfolio_snapshot (
+        assets_value float(53),
+        cash_usd float(53),
+        exposure_max float(53),
+        exposure_min float(53),
+        exposure_pct float(53),
+        snapshot_day date not null,
+        total_value float(53),
+        fetched_at datetime(6),
+        id bigint not null auto_increment,
+        recorded_at datetime(6) not null,
+        user_id bigint not null,
+        wallet_id bigint not null,
+        price_basis enum ('D1_OPEN_2355') not null,
+        status enum ('NOT_TRADABLE','OK','UNAVAILABLE') not null,
+        primary key (id)
+    ) engine=InnoDB;
+
+    create table portfolio_snapshot_asset (
+        asset_value float(53),
+        price float(53),
+        quantity float(53) not null,
+        id bigint not null auto_increment,
+        snapshot_id bigint not null,
+        asset_symbol varchar(255) not null,
+        primary key (id)
+    ) engine=InnoDB;
+
     create table provider (
         enabled bit not null,
         created_at datetime(6),
@@ -253,6 +281,7 @@
 
     create table rainbow_live_binding (
         bag_percent float(53) not null,
+        base_amount float(53),
         execution_enabled bit not null,
         priority integer not null,
         first_live_approved_at datetime(6),
@@ -283,9 +312,10 @@
         id bigint not null auto_increment,
         live_fetched_at datetime(6),
         live_wallet_id bigint,
+        live_modulation varchar(2000),
         live_cash_detail varchar(255),
         live_action_type enum ('BLOCKED','BUY','NONE','SELL'),
-        live_block_reason enum ('INSUFFICIENT_CASH','NONE','NOT_TRADABLE_WITHOUT_FIAT','UNAVAILABLE'),
+        live_block_reason enum ('BAND_LIMIT','INSUFFICIENT_CASH','NONE','NOT_TRADABLE_WITHOUT_FIAT','UNAVAILABLE'),
         live_candle_source enum ('BINANCE','CHAINLINK','COINBASE','DATABASE','FILE','KRAKEN','MEMORY','OKX','SUSHISWAP','UNISWAP'),
         live_status enum ('NOT_TRADABLE','OK','UNAVAILABLE'),
         primary key (id)
@@ -342,6 +372,9 @@
     ) engine=InnoDB;
 
     create table rainbow_live_order_plan_asset (
+        base_amount decimal(24,8),
+        carry_in_usd decimal(24,8),
+        carry_out_usd decimal(24,8),
         cost_pct decimal(12,6),
         priority integer not null,
         id bigint not null auto_increment,
@@ -551,6 +584,21 @@
         primary key (id)
     ) engine=InnoDB;
 
+    create table rainbow_modulation_control (
+        autonomy_days integer not null,
+        bias_max decimal(10,4) not null,
+        min_band_width_pts decimal(10,4) not null,
+        modulation_product_max decimal(10,4) not null,
+        power_max decimal(10,4) not null,
+        power_min decimal(10,4) not null,
+        regulation_margin_pct decimal(10,4) not null,
+        sell_boost_max decimal(10,4) not null,
+        id bigint not null,
+        updated_at datetime(6) not null,
+        updated_by varchar(64),
+        primary key (id)
+    ) engine=InnoDB;
+
     create table roles (
         id integer not null auto_increment,
         name enum ('ROLE_ADMIN','ROLE_MODERATOR','ROLE_SYS','ROLE_USER'),
@@ -620,6 +668,10 @@
     ) engine=InnoDB;
 
     create table user_trading_settings (
+        bias float(53),
+        exposure_max float(53),
+        exposure_min float(53),
+        power float(53),
         risk_cursor integer not null,
         id bigint not null auto_increment,
         user_id bigint not null,
@@ -695,6 +747,12 @@
 
     alter table indicator_parameter_set 
        add constraint uk_indicatorparamset_code_name unique (indicator_code, name);
+
+    alter table portfolio_snapshot 
+       add constraint uk_portfolio_snapshot_user_wallet_day unique (user_id, wallet_id, snapshot_day);
+
+    alter table portfolio_snapshot_asset 
+       add constraint uk_portfolio_snapshot_asset_snapshot_asset unique (snapshot_id, asset_symbol);
 
     alter table provider 
        add constraint uk_provider_code unique (code);
@@ -790,6 +848,24 @@
        add constraint FKaawwq1abtmd8sk0yq7cnpubo5 
        foreign key (video_content_id) 
        references video_contents (id);
+
+    alter table portfolio_snapshot 
+       add constraint FKf4lqarj6egnuq0ug61k42skgx 
+       foreign key (user_id) 
+       references users (id) 
+       on delete cascade;
+
+    alter table portfolio_snapshot 
+       add constraint FK6cedt4mxubp9ab1wcgtwm89eh 
+       foreign key (wallet_id) 
+       references wallet (id) 
+       on delete cascade;
+
+    alter table portfolio_snapshot_asset 
+       add constraint FKr6v3bdb3ud7tnk2dc11csx1we 
+       foreign key (snapshot_id) 
+       references portfolio_snapshot (id) 
+       on delete cascade;
 
     alter table rainbow_live_binding 
        add constraint FK8tc0bup9xpf2lbwwkl252gak3 

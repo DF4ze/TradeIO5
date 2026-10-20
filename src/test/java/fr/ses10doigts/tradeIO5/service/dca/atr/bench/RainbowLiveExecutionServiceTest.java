@@ -1,5 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
+import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
+import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlService;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
@@ -60,7 +62,8 @@ import static org.mockito.Mockito.when;
 @DataJpaTest
 @Import({RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class, RainbowLivePresetService.class, RainbowAssetStrategyService.class, RainbowLiveRunService.class, RainbowLiveBindingRunService.class, RainbowLiveExecutionService.class,
         RainbowTrendLiveService.class, RainbowAthService.class,
-        RainbowLiveExecutionServiceTest.ClockConfig.class})
+        RainbowLiveExecutionServiceTest.ClockConfig.class, UserTradingSettingsService.class, RainbowModulationControlService.class,
+        fr.ses10doigts.tradeIO5.service.portfolio.PortfolioSnapshotService.class})
 @DisplayName("Live Rainbow : service d'exécution (passe quotidienne 23:55 UTC)")
 class RainbowLiveExecutionServiceTest {
 

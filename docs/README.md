@@ -21,7 +21,13 @@ Remarques collectées pour la phase d'audit : [`securite/remarques-audit.md`](se
 
 ## Graphique
 
+**Maquettes / GUI : commencer par** [`graphique/inventaire-options-affichage.md`](graphique/inventaire-options-affichage.md) — liste unique de ce sur quoi l'utilisateur peut agir et des informations remontées à l'affichage, avec ce qui reste à implémenter côté back. À mettre à jour à chaque changement d'endpoint, de DTO ou de réglage utilisateur.
+
 Besoins d'interface et de charte graphique collectés au fil des chantiers (ex. régler les `asset_provider` depuis la GUI) : [`graphique/remarques-gui.md`](graphique/remarques-gui.md).
+
+Organisation de l'interface (hiérarchie de l'information, navigation, écrans, modes, admin) : [`etudes/etude-architecture-interface.md`](etudes/etude-architecture-interface.md).
+
+Charte graphique (tokens, typographie, Rainbow, composants, graphiques, widgets) : [`graphique/charte-graphique.md`](graphique/charte-graphique.md).
 
 ## Objectif en cours
 

@@ -69,7 +69,8 @@ class OrderPlanServiceIsolationTest {
         }
         when(planner.plan(anyList())).thenThrow(new IllegalStateException("boom"))
                 .thenReturn(new PlanDraft(List.of(), PlanStatus.PLANNED, null, (FeeTestLevel) null, null));
-        OrderPlanService service = new OrderPlanService(users, bindings, runs, plans, mock(TransitStockRepository.class), planner, new ExecutionSettings(),
+        OrderPlanService service = new OrderPlanService(users, bindings, runs, plans, mock(fr.ses10doigts.tradeIO5.repository.execution.RainbowLiveOrderPlanAssetRepository.class),
+                mock(fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository.class), mock(TransitStockRepository.class), planner, new ExecutionSettings(),
                 new FixedDomainClock(Instant.parse("2026-10-09T23:58:00Z")), mock(PlatformTransactionManager.class));
 
         OrderPlanService.PlanSummary summary = service.planAll(DAY);

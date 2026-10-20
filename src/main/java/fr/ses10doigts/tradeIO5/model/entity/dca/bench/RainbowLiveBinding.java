@@ -65,6 +65,13 @@ public class RainbowLiveBinding {
     @Column(nullable = false)
     private double bagPercent;
 
+    /**
+     * Montant de base (USDC) propre au lien, choisi par l'utilisateur ; nul => celui du preset. Met à l'échelle les achats
+     * (proportionnels au montant de base), jamais les ventes.
+     */
+    @Column(name = "base_amount")
+    private Double baseAmount;
+
     /** Ordre de passage du cash commun (plus petit = servi en premier). */
     @Column(nullable = false)
     private int priority;

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import fr.ses10doigts.tradeIO5.security.model.User;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -21,4 +22,7 @@ public interface RainbowLiveBindingRunRepository extends JpaRepository<RainbowLi
     @Query("select r from RainbowLiveBindingRun r where r.binding in :bindings "
             + "and r.day = (select max(r2.day) from RainbowLiveBindingRun r2 where r2.binding = r.binding)")
     List<RainbowLiveBindingRun> latestByBindings(@Param("bindings") Collection<RainbowLiveBinding> bindings);
+
+    /** Runs de lien d'un utilisateur entre deux jours inclus, du plus récent au plus ancien (journal des décisions). */
+    List<RainbowLiveBindingRun> findByBindingUserAndDayBetweenOrderByDayDesc(User user, LocalDate from, LocalDate to);
 }

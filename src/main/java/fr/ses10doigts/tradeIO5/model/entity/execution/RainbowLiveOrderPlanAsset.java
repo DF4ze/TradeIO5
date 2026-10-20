@@ -77,4 +77,16 @@ public class RainbowLiveOrderPlanAsset {
     /** Avertissement (Fee Test orange, cotation naturelle à la vente, estimation sur ticker...). */
     @Column(length = 255)
     private String warning;
+
+    /** Carry entrant (USD) : achats reportés ajoutés à la mise du jour. */
+    @Column(name = "carry_in_usd", precision = 24, scale = 8)
+    private BigDecimal carryInUsd;
+
+    /** Carry sortant (USD) : somme encore reportée après ce plan (0 si l'achat est passé). */
+    @Column(name = "carry_out_usd", precision = 24, scale = 8)
+    private BigDecimal carryOutUsd;
+
+    /** Base amount du preset au jour du plan (instantané) : un changement de base remet le carry à zéro. */
+    @Column(name = "base_amount", precision = 24, scale = 8)
+    private BigDecimal baseAmount;
 }

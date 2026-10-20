@@ -131,9 +131,30 @@ public class OrderPlanner {
         Map<Long, Map<String, BigDecimal>> pools = new HashMap<>();
         List<PlanDraft.AssetDraft> drafts = new ArrayList<>();
         for (AssetInput input : ordered) {
-            drafts.add(planAsset(input, contexts, pools));
+            drafts.add(withCarry(input, planAsset(input, contexts, pools)));
         }
         return summarize(drafts);
+    }
+
+    /**
+     * Carry (achat sous le minimum du provider) : l'achat BELOW_MIN reporte toute la mise effective (jour + carry entrant) ; un
+     * achat passé le consomme ; tout autre cas (vente, désactivé, rien à faire, autre blocage) laisse le carry inchangé.
+     */
+    private static PlanDraft.AssetDraft withCarry(AssetInput in, PlanDraft.AssetDraft draft) {
+        BigDecimal carryIn = in.carryInUsd();
+        boolean buy = in.action() == RainbowLiveAction.BUY;
+        if (buy && draft.outcome() == AssetPlanOutcome.OK) {
+            return draft.withCarry(carryIn, BigDecimal.ZERO);
+        }
+        if (buy && draft.outcome() == AssetPlanOutcome.BLOCKED && draft.blockReason() == PlanBlockReason.BELOW_MIN) {
+            return draft.withCarry(carryIn, effectiveAmount(in));
+        }
+        return draft.withCarry(carryIn, carryIn);
+    }
+
+    /** Mise du jour + carry entrant. */
+    private static BigDecimal effectiveAmount(AssetInput in) {
+        return in.amountUsd().add(in.carryInUsd());
     }
 
     private PlanDraft.AssetDraft planAsset(AssetInput in, Map<Long, WalletContext> contexts,
@@ -174,10 +195,10 @@ public class OrderPlanner {
     // ------------------------------------------------------------------ achat
 
     private PlanDraft.AssetDraft planBuy(AssetInput in, WalletContext ctx) {
-        BigDecimal amount = in.amountUsd();
-        if (amount == null || amount.signum() <= 0) {
+        if (in.amountUsd() == null || in.amountUsd().signum() <= 0) {
             return draft(in, AssetPlanOutcome.NO_ACTION, null, null, null, null, List.of());
         }
+        BigDecimal amount = effectiveAmount(in);
         List<PlanDraft.StepDraft> steps = new ArrayList<>();
         List<String> notes = new ArrayList<>();
         finishTransitLegs(in, ctx, steps, notes);
@@ -458,7 +479,7 @@ public class OrderPlanner {
         inputs.stream().sorted(INPUT_ORDER).forEach(i -> {
             canonical.append(i.assetSymbol()).append('|').append(i.priority()).append('|').append(i.executionEnabled()).append('|')
                     .append(i.walletId()).append('|').append(i.status()).append('|').append(i.action()).append('|')
-                    .append(plain(i.amountUsd())).append('|').append(plain(i.quantity())).append('|');
+                    .append(plain(i.amountUsd())).append('|').append(plain(i.quantity())).append('|').append(plain(i.carryInUsd())).append('|');
             new TreeMap<>(i.cashByMember()).forEach((member, value) -> canonical.append(member).append('=').append(plain(value)).append(','));
             canonical.append('|');
             new TreeMap<>(i.transitStock()).forEach((currency, value) -> canonical.append(currency).append('=').append(plain(value)).append(','));

@@ -1,6 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
 import fr.ses10doigts.tradeIO5.controller.RainbowLiveAdminController;
+import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
 import fr.ses10doigts.tradeIO5.service.scheduler.RainbowLivePass2355Job;
 import org.junit.jupiter.api.DisplayName;
@@ -38,6 +39,10 @@ class RainbowLiveNoExchangeDependencyTest {
     private static final String PROJECT_PACKAGE = "fr.ses10doigts.tradeIO5.";
 
     private static boolean isForbidden(Class<?> type) {
+        // réglages utilisateur (bande, puissance, biais) : simple lecture en base, son nom « Trading…Service » n'est pas un chemin d'ordre
+        if (type == UserTradingSettingsService.class) {
+            return false;
+        }
         String name = type.getName();
         String simple = type.getSimpleName();
         return name.endsWith(".ProviderApiService") || name.endsWith(".WalletService")

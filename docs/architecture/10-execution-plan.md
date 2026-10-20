@@ -17,6 +17,10 @@ Vérifié le : 2026-10-12 (`service/execution/**`, `model/entity/execution/**`, 
 
 - Un plan `EXPIRED` n'est pas régénéré tant que les entrées (hash) sont identiques : la réponse est `unchanged`. Pour repartir de zéro sans changement d'entrées, `OrderPlanService#resetPlan` (console admin, bouton « Réinitialiser le plan », `POST /api/admin/execution/plans/{id}/reset`) force une nouvelle révision, uniquement si aucune étape n'est partie (statut `PLANNED`/expiré/`BLOCKED`/`DISABLED`/`CANCELLED`, toutes étapes `PLANNED`) ; mêmes `clOrdId` (rien n'a été envoyé). Un plan exécuté, partiel, en échec ou à réconcilier ne se réinitialise jamais. `clOrdId` ne contient pas de révision. Les plafonds lisent le `baseAmount` du run du preset au `run_day` du plan (`NO_BASE_AMOUNT` sinon).
 
+## Carry : état dérivé, pas de compteur
+
+Le carry n'est pas stocké sur le binding : `carry_in` = `carry_out` de la dernière ligne d'actif (même user, wallet et actif) d'un plan courant (hors `SUPERSEDED`) **strictement antérieur** au jour planifié, quel que soit l'écart de jours (Rainbow n'achète pas tous les jours). Rejeu, révision et reset d'un plan recalculent donc la même valeur. Il est remis à zéro quand le `base_amount` du preset a changé depuis cette ligne (`base_amount` = instantané du `baseAmount` du run du preset au jour du plan) ; base inconnue d'un côté : carry conservé. Il suit sinon les changements de preset et de wallet-actif du binding (clé = user × wallet × actif). Il entre dans le hash des entrées.
+
 ## Entrées et idempotence (`OrderPlanService`)
 
 Par user (une transaction par user) : bindings par `priority` + bloc live du `RainbowLiveBindingRun` du jour pour chaque binding (`status`, `actionType`, `actionAmountUsdc` = montant USD nominal figé au 23:55, `actionQuantity`, `cashDetail` par membre). Un même actif peut avoir plusieurs bindings (un par wallet) : chacun donne son propre actif de plan, planifié et exécuté indépendamment. Le **hash des entrées** (SHA-256 : bindings + blocs, jamais les données de marché) pilote l'idempotence : même hash ⇒ rien ne change (rejeu 23:55 ⇒ plan identique, mêmes `clOrdId`) ; hash différent ⇒ la révision courante passe `SUPERSEDED` (ligne d'audit conservée) et une révision `n+1` est créée.
@@ -30,6 +34,7 @@ Pas de persistance, pas d'écriture, aucune dépendance à un port d'ordre ; lec
 - **Vente** : quantité du bloc arrondie au `lotSz` (↓), vendue en USDC (route `X>USDC`, ou `X>BTC>USDC` quand seule cette route existe, ex PAXG sur Kraken) ; l'intermédiaire n'est jamais conservé.
 - **Fee Test** (somme brute des jambes) : `WARNING` et `RED` ⇒ étapes + avertissement (le niveau est conservé, aucun blocage).
 - **Raisons de blocage** (`PlanBlockReason`) : `NO_PATH`, `BELOW_MIN` (taille < `minSz` ou coût < `costMin` du catalogue), `INSUFFICIENT_FUNDS_AFTER_FEES`, `NOT_TRADABLE_WITHOUT_FIAT` (aucune route sans fiat, ou lecture `NOT_TRADABLE`), `READING_UNAVAILABLE` (lecture `UNAVAILABLE`/absente, marché ou catalogue illisible). Action `NONE`/`BLOCKED` du bloc ⇒ `NO_ACTION`, aucune étape. Un actif bloqué n'empêche pas les autres.
+- **Carry (achat sous le minimum du provider)** : la mise effective d'un achat = `actionAmountUsdc` du jour + `carry_in`. Si le chemin est `BELOW_MIN`, toute la mise effective est reportée (`carry_out` = mise effective, plan `BLOCKED` pour cet actif, raison conservée) ; si l'achat passe, le carry est consommé (`carry_out` = 0) ; vente, `NO_ACTION`, `DISABLED` et tout autre blocage laissent le carry inchangé (`carry_out` = `carry_in`). Pas de sur-achat jusqu'au minimum.
 - **Statut du plan** : `DISABLED` si tous les actifs le sont ; `PLANNED` dès qu'un actif a des étapes (ou rien à faire) ; `BLOCKED` si des actions voulues n'ont donné aucune étape. `totalCostPct` / `feeTestLevel` du plan = le pire parmi les actifs exécutables ; `blockReason` = `BTC:NO_PATH;PAXG:BELOW_MIN`.
 
 ## Entités (`model/entity/execution`)
@@ -37,7 +42,7 @@ Pas de persistance, pas d'écriture, aucune dépendance à un port d'ordre ; lec
 | Table | Contenu |
 |---|---|
 | `rainbow_live_order_plan` | user, `run_day`, `revision` (unique avec les 2 précédents), `status` (`PLANNED|BLOCKED|DISABLED|SUPERSEDED|EXECUTING|EXECUTED|PARTIAL|FAILED|CANCELLED` persistés ; les quatre derniers de l'exécution réelle), `mode`, coût, niveau Fee Test, `block_reason`, `inputs_hash`, `created_at`, `expires_at` |
-| `rainbow_live_order_plan_asset` | par actif : priorité, wallet, action voulue, `outcome` (`OK|BLOCKED|DISABLED|NO_ACTION`), raison, coût, niveau, avertissement (FK plan, `ON DELETE CASCADE`) |
+| `rainbow_live_order_plan_asset` | par actif : priorité, wallet, action voulue, `outcome` (`OK|BLOCKED|DISABLED|NO_ACTION`), raison, coût, niveau, avertissement, `carry_in_usd`, `carry_out_usd`, `base_amount` (FK plan, `ON DELETE CASCADE`) |
 | `rainbow_live_order_event` | audit **append-only** de l'exécution (plan, étape, `clOrdId`, type, charge JSON) ; `execution_control` : ligne unique (kill switch, multiplicateurs) |
 | `rainbow_live_order_step` | `step_rank`, actif, `wallet_id`, `inst_id`, `side`, `ord_type` (`LIMIT_IOC`), `sz`, `px` (plafond), `quote_amount`, `cl_ord_id`, frais / spread / slippage %, `status` (`PLANNED|SUBMITTED|FILLED|PARTIAL|REJECTED|CANCELED|UNKNOWN`), `estimation` (`BOOK|TICKER`), et après exécution : `ord_id`, tailles envoyée / remplie, prix moyen, frais (+ devise), quantité reçue, mid du re-devis, slippage réel, horodatages, dernière erreur (FK plan, `ON DELETE CASCADE`) |
 

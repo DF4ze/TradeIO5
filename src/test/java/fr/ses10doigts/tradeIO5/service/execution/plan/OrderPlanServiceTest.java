@@ -49,6 +49,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Optional;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -115,9 +116,88 @@ class OrderPlanServiceTest {
         service = service(new ExecutionSettings());
     }
 
+    @Autowired private fr.ses10doigts.tradeIO5.repository.execution.RainbowLiveOrderPlanAssetRepository planAssetRepository;
+    @Autowired private fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository presetRunRepository;
+
     private OrderPlanService service(ExecutionSettings settings) {
-        return new OrderPlanService(userRepository, bindingRepository, runRepository, planRepository, transitRepository, planner, settings, clock,
-                transactionManager);
+        return service(settings, presetRunRepository);
+    }
+
+    private OrderPlanService service(ExecutionSettings settings, fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository presetRuns) {
+        return new OrderPlanService(userRepository, bindingRepository, runRepository, planRepository, planAssetRepository, presetRuns,
+                transitRepository, planner, settings, clock, transactionManager);
+    }
+
+    /** Plan courant d'un jour antérieur dont l'actif porte le carry sortant donné, pour le wallet du binding existant. */
+    private void priorPlan(User user, LocalDate day, String asset, String carryOut, Double base) {
+        RainbowLiveBinding binding = bindingRepository.findAll().getFirst();
+        RainbowLiveOrderPlan old = RainbowLiveOrderPlan.builder().user(user).day(day).revision(1).status(PlanStatus.PLANNED)
+                .mode(fr.ses10doigts.tradeIO5.service.execution.ExecutionMode.DRY_RUN).inputsHash("x").createdAt(NOW).expiresAt(NOW).build();
+        old.addAsset(fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderPlanAsset.builder().assetSymbol(asset).priority(0)
+                .walletId(binding.getWallet().getId()).action(RainbowLiveAction.BUY).outcome(AssetPlanOutcome.BLOCKED)
+                .blockReason(fr.ses10doigts.tradeIO5.model.entity.execution.PlanBlockReason.BELOW_MIN)
+                .carryInUsd(BigDecimal.ZERO).carryOutUsd(new BigDecimal(carryOut))
+                .baseAmount(base == null ? null : BigDecimal.valueOf(base)).build());
+        planRepository.save(old);
+    }
+
+    private static fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository runsWithBase(double base) {
+        var runs = mock(fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository.class);
+        when(runs.findByPresetAndDay(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(Optional.of(
+                fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun.builder()
+                        .config(RainbowAtrConfig.builder().baseAmount(base).build()).build()));
+        return runs;
+    }
+
+    @Test
+    @DisplayName("Carry : repris du dernier plan antérieur même à plusieurs jours d'écart, base inchangée")
+    void carryFromEarlierDay() {
+        seed(alice, "PAXG", 1, true);
+        priorPlan(alice, DAY.minusDays(4), "PAXG", "3.5", 1.0);
+        List<AssetInput> seen = new java.util.ArrayList<>();
+        when(planner.plan(anyList())).thenAnswer(inv -> {
+            seen.addAll(inv.getArgument(0));
+            return draft("PAXG", PlanStatus.PLANNED);
+        });
+
+        service(new ExecutionSettings(), runsWithBase(1.0)).planAll(DAY);
+
+        assertEquals(0, new BigDecimal("3.5").compareTo(seen.getFirst().carryInUsd()));
+    }
+
+    @Test
+    @DisplayName("Carry remis à zéro quand le base amount du preset a changé")
+    void carryResetOnBaseChange() {
+        seed(alice, "PAXG", 5, true);
+        priorPlan(alice, DAY.minusDays(2), "PAXG", "3.5", 1.0);
+        List<AssetInput> seen = new java.util.ArrayList<>();
+        when(planner.plan(anyList())).thenAnswer(inv -> {
+            seen.addAll(inv.getArgument(0));
+            return draft("PAXG", PlanStatus.PLANNED);
+        });
+
+        service(new ExecutionSettings(), runsWithBase(5.0)).planAll(DAY);
+
+        assertEquals(0, BigDecimal.ZERO.compareTo(seen.getFirst().carryInUsd()));
+    }
+
+    @Test
+    @DisplayName("Carry sortant enregistré sur la ligne d'actif du plan")
+    void carryOutPersisted() {
+        seed(alice, "PAXG", 1, true);
+        Long walletId = bindingRepository.findAll().getFirst().getWallet().getId();
+        when(planner.plan(anyList())).thenAnswer(inv -> {
+            PlanDraft.AssetDraft a = new PlanDraft.AssetDraft("PAXG", 0, walletId, RainbowLiveAction.BUY, AssetPlanOutcome.BLOCKED,
+                    fr.ses10doigts.tradeIO5.model.entity.execution.PlanBlockReason.BELOW_MIN, null, null, null, List.of(),
+                    BigDecimal.ZERO, new BigDecimal("1"));
+            return new PlanDraft(List.of(a), PlanStatus.BLOCKED, null, null, "PAXG:BELOW_MIN");
+        });
+
+        service(new ExecutionSettings(), runsWithBase(1.0)).planAll(DAY);
+
+        var asset = planRepository.findFirstByUserAndDayOrderByRevisionDesc(alice, DAY).orElseThrow().getAssets().getFirst();
+        assertEquals(0, BigDecimal.ONE.compareTo(asset.getCarryOutUsd()));
+        assertEquals(0, BigDecimal.ONE.compareTo(asset.getBaseAmount()));
     }
 
     private void seed(User user, String asset, double amount, boolean enabled) {

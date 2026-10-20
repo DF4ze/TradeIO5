@@ -1,5 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
+import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
+import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlService;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.LiveBlockReason;
@@ -67,8 +69,8 @@ import static org.mockito.Mockito.when;
  */
 @DataJpaTest
 @Import({RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class, RainbowLivePresetService.class, RainbowAssetStrategyService.class, RainbowLiveRunService.class,
-        RainbowLiveExecutionService.class, RainbowLiveBindingRunService.class, RainbowTrendLiveService.class, RainbowAthService.class,
-        RainbowLiveRealCashTest.ClockConfig.class})
+        RainbowLiveExecutionService.class, RainbowLiveBindingRunService.class, RainbowTrendLiveService.class, RainbowAthService.class, fr.ses10doigts.tradeIO5.service.portfolio.PortfolioSnapshotService.class,
+        RainbowLiveRealCashTest.ClockConfig.class, UserTradingSettingsService.class, RainbowModulationControlService.class})
 @DisplayName("Bench Rainbow : preset live sur vrai cash (ledger, blocage, indisponibilité, rejeu, jour suivant)")
 class RainbowLiveRealCashTest {
 
@@ -104,6 +106,7 @@ class RainbowLiveRealCashTest {
     @Autowired private RainbowLiveBindingRepository bindingRepository;
     @Autowired private RainbowLiveBindingRunRepository bindingRunRepository;
     @Autowired private WalletRepository realWalletRepository;
+    @Autowired private fr.ses10doigts.tradeIO5.repository.portfolio.PortfolioSnapshotRepository snapshotRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private jakarta.persistence.EntityManager em;
 
@@ -426,6 +429,23 @@ class RainbowLiveRealCashTest {
         assertEquals(RainbowLiveAction.BUY, b.getActionType());
         assertEquals(1000.0, b.getCashUsd(), 1e-12);
         assertEquals(LiveBlockReason.NONE, b.getBlockReason());
+        verify(realSource, times(1)).read(any(RainbowLiveBinding.class));
+    }
+
+    @Test
+    @DisplayName("Patrimoine : un instantané par wallet et jour, lecture de la passe réutilisée, rejeu sans doublon")
+    void passRecordsOneSnapshotPerWalletDay() {
+        RainbowLivePreset btc = presetsAllAssets().get("BTC");
+        bind(btc, 0, 100);
+        reading = reading(PortfolioStatus.OK, 1000.0, Map.of("BTC", 2.0));
+
+        service.runPass(ASOF_2355);
+        service.runPass(ASOF_2355);
+
+        var snapshots = snapshotRepository.findByUserIdAndDayBetweenOrderByDayAsc(alice.getId(), LAST_DAY, LAST_DAY);
+        assertEquals(1, snapshots.size());
+        assertEquals(1200.0, snapshots.getFirst().getTotalValue(), 1e-9);
+        assertEquals(1000.0, snapshots.getFirst().getCashUsd(), 1e-9);
         verify(realSource, times(1)).read(any(RainbowLiveBinding.class));
     }
 

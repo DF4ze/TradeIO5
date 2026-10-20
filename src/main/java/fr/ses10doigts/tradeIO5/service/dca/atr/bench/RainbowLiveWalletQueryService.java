@@ -83,6 +83,6 @@ public class RainbowLiveWalletQueryService {
         return new LiveSnapshotDto(run.getDay(), b.getStatus(), b.getFetchedAt(), b.getCashUsd(),
                 CashDetailCodec.read(b.getCashDetail()),
                 b.getPositionQty(), b.getTradableQty(), b.getCashReserved(), b.getBlockReason(),
-                b.getActionType(), b.getActionAmountUsdc(), b.getActionQuantity());
+                b.getActionType(), b.getActionAmountUsdc(), b.getActionQuantity(), b.getModulation());
     }
 }

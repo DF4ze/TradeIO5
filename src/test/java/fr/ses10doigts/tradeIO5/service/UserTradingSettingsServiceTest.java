@@ -3,6 +3,7 @@ package fr.ses10doigts.tradeIO5.service;
 import fr.ses10doigts.tradeIO5.model.entity.user.UserTradingSettings;
 import fr.ses10doigts.tradeIO5.repository.UserTradingSettingsRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
+import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +27,9 @@ class UserTradingSettingsServiceTest {
     @Mock
     private UserTradingSettingsRepository userTradingSettingsRepository;
 
+    @Mock
+    private RainbowModulationControlService modulationControl;
+
     private final User user = User.builder().id(1L).username("alice").build();
 
     @Test
@@ -33,7 +37,7 @@ class UserTradingSettingsServiceTest {
     void getRiskCursor_noExistingRow_returnsDefault() {
         when(userTradingSettingsRepository.findByUser(user)).thenReturn(Optional.empty());
 
-        UserTradingSettingsService service = new UserTradingSettingsService(userTradingSettingsRepository);
+        UserTradingSettingsService service = new UserTradingSettingsService(userTradingSettingsRepository, modulationControl);
 
         assertEquals(UserTradingSettingsService.DEFAULT_RISK_CURSOR, service.getRiskCursor(user));
     }
@@ -44,7 +48,7 @@ class UserTradingSettingsServiceTest {
         when(userTradingSettingsRepository.findByUser(user))
                 .thenReturn(Optional.of(UserTradingSettings.builder().user(user).riskCursor(9).build()));
 
-        UserTradingSettingsService service = new UserTradingSettingsService(userTradingSettingsRepository);
+        UserTradingSettingsService service = new UserTradingSettingsService(userTradingSettingsRepository, modulationControl);
 
         assertEquals(9, service.getRiskCursor(user));
     }
@@ -52,7 +56,7 @@ class UserTradingSettingsServiceTest {
     @Test
     @DisplayName("setRiskCursor hors [0,10] lève IllegalArgumentException")
     void setRiskCursor_outOfRange_throws() {
-        UserTradingSettingsService service = new UserTradingSettingsService(userTradingSettingsRepository);
+        UserTradingSettingsService service = new UserTradingSettingsService(userTradingSettingsRepository, modulationControl);
 
         assertThrows(IllegalArgumentException.class, () -> service.setRiskCursor(user, -1));
         assertThrows(IllegalArgumentException.class, () -> service.setRiskCursor(user, 11));
@@ -63,7 +67,7 @@ class UserTradingSettingsServiceTest {
     void setRiskCursor_noExistingRow_createsNewRow() {
         when(userTradingSettingsRepository.findByUser(user)).thenReturn(Optional.empty());
 
-        UserTradingSettingsService service = new UserTradingSettingsService(userTradingSettingsRepository);
+        UserTradingSettingsService service = new UserTradingSettingsService(userTradingSettingsRepository, modulationControl);
         service.setRiskCursor(user, 6);
 
         ArgumentCaptor<UserTradingSettings> captor = ArgumentCaptor.forClass(UserTradingSettings.class);
@@ -78,7 +82,7 @@ class UserTradingSettingsServiceTest {
         UserTradingSettings existing = UserTradingSettings.builder().id(100L).user(user).riskCursor(2).build();
         when(userTradingSettingsRepository.findByUser(user)).thenReturn(Optional.of(existing));
 
-        UserTradingSettingsService service = new UserTradingSettingsService(userTradingSettingsRepository);
+        UserTradingSettingsService service = new UserTradingSettingsService(userTradingSettingsRepository, modulationControl);
         service.setRiskCursor(user, 4);
         service.setRiskCursor(user, 8);
 

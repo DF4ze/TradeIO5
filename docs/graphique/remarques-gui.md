@@ -2,7 +2,9 @@
 
 Section de collecte, comme [`../securite/remarques-audit.md`](../securite/remarques-audit.md) : on y note au fil des chantiers tout besoin d'interface ou de charte graphique ; ils seront traités ensemble quand le back sera bouclé (ordre voulu, cf. [`../known-gaps/rainbow-dca-chantiers-ouverts.md`](../known-gaps/rainbow-dca-chantiers-ouverts.md) §5b). État décrit : **actuel** (un besoin traité est supprimé, pas historisé).
 
-Dernière mise à jour : 2026-10-12.
+Organisation des écrans, navigation et modes : [`../etudes/etude-architecture-interface.md`](../etudes/etude-architecture-interface.md). Les besoins ci-dessous y trouvent leur place (§1 → page Admin « Données », §2 → Journal utilisateur et page Admin « Exploitation »).
+
+Dernière mise à jour : 2026-10-15.
 
 ## 1. Régler les `asset_provider` depuis la GUI
 
@@ -15,3 +17,14 @@ Besoin : pouvoir régler ses `asset_provider` depuis la GUI, au minimum :
 - voir quel exchange a réellement servi les candles du signal d'un lien et si c'était une **substitution** (`candleSource` / `candleSourceSubstituted` du snapshot du lien, aujourd'hui stockés mais non affichés).
 
 À cadrer : réservé à l'admin (une ligne modifiée change les candles de tous les utilisateurs) ; l'`AssetInitializer` resynchronise `providerSymbol` / `priority` / `maxHorizonDays` à chaque démarrage et écraserait une édition GUI de ces champs (seul `enabled` est préservé) — à trancher avant de construire l'écran.
+
+## 2. Journal des exécutions et carry (mise sous le minimum du provider)
+
+Besoin : une vue **liste des exécutions** (plans/étapes réels) avec pour chacune : état, mise, chemin, frais (réels et Fee Test), slippage, raison de blocage, horodatages, tous les détails ; **filtrer et rechercher** (par période, actif, binding/wallet, statut, raison).
+
+Carry (chantier décidé, non codé, cf. [`../known-gaps/rainbow-dca-chantiers-ouverts.md`](../known-gaps/rainbow-dca-chantiers-ouverts.md) §5d) : quand la mise du jour est sous le minimum du provider (`BELOW_MIN`), elle est reportée au run suivant, cumulée jusqu'à ce que l'ordre passe. L'interface doit :
+- **signaler** qu'un binding est en carry (badge sur le binding et sur l'exécution concernée) et afficher la **somme actuelle reportée** ;
+- rendre visible que l'utilisateur a le choix : **augmenter sa mise** ou laisser le report continuer ;
+- afficher dans le journal le carry entrant et sortant de chaque exécution ;
+- rendre l'option de carry **toujours visible** pour l'utilisateur ; le carry est remis à zéro quand il modifie son base amount (le prévenir : sinon un achat plus gros que prévu surprendrait) ;
+- idée : proposer aussi le carry sur `INSUFFICIENT_FUNDS` (aujourd'hui seul `BELOW_MIN` reporte).

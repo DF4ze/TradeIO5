@@ -14,5 +14,7 @@ public enum AdminAction {
     RECONCILE,
     CREDENTIAL_STORED,
     CREDENTIAL_ENABLED,
-    AUTO_REENGAGE
+    AUTO_REENGAGE,
+    /** Modification des paramètres admin de la modulation Rainbow. */
+    MODULATION
 }

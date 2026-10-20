@@ -77,6 +77,9 @@
 						<li class="nav-item" role="presentation">
 							<button type="button" class="nav-link" id="adm-tab-journal" data-adm-tab="journal" data-bs-toggle="tab" data-bs-target="#adm-pane-journal" role="tab">Journal</button>
 						</li>
+						<li class="nav-item" role="presentation">
+							<button type="button" class="nav-link" id="adm-tab-modulation" data-adm-tab="modulation" data-bs-toggle="tab" data-bs-target="#adm-pane-modulation" role="tab">Modulation</button>
+						</li>
 					</ul>
 
 					<div class="tab-content pt-3">
@@ -84,6 +87,7 @@
 						<div th:replace="~{fragments/admin/credentials :: credentials}"></div>
 						<div th:replace="~{fragments/admin/bindings :: bindings}"></div>
 						<div th:replace="~{fragments/admin/orderTester :: orderTester}"></div>
+						<div th:replace="~{fragments/admin/modulation :: modulation}"></div>
 						<div th:replace="~{fragments/admin/journal :: journal}"></div>
 					</div>
 				</div>
@@ -114,6 +118,7 @@
 		<script src="assets/js/admin/credentials.js"></script>
 		<script src="assets/js/admin/bindings.js"></script>
 		<script src="assets/js/admin/orderTester.js"></script>
+		<script src="assets/js/admin/modulation.js"></script>
 		<script src="assets/js/admin/journal.js"></script>
 		<script>AdminCore.start();</script>
 

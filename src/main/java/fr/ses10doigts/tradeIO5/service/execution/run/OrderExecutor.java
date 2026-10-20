@@ -32,6 +32,7 @@ import fr.ses10doigts.tradeIO5.service.execution.ExecutionControlService;
 import fr.ses10doigts.tradeIO5.service.execution.ExecutionSettings;
 import fr.ses10doigts.tradeIO5.service.execution.credential.TradeCredentialResolver;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
+import fr.ses10doigts.tradeIO5.service.preferences.UserPreferencesService;
 import fr.ses10doigts.tradeIO5.service.market.instrument.ExecutionDefaults;
 import fr.ses10doigts.tradeIO5.service.market.instrument.FeeTest;
 import fr.ses10doigts.tradeIO5.service.market.instrument.InstrumentCatalog;
@@ -146,6 +147,7 @@ public class OrderExecutor {
     private final TransitStockRepository transit;
     private final Duration retryDelay;
     private final TransactionTemplate tx;
+    private final UserPreferencesService preferences;
 
     @Autowired
     public OrderExecutor(ExecutionSettings settings, ExecutionControlService control, SpotOrderRouter router,
@@ -153,9 +155,10 @@ public class OrderExecutor {
                          RainbowLiveBindingRepository bindings, RainbowLiveRunRepository runs, WalletRepository wallets,
                          UserRepository users, TradeCredentialResolver credentials, InstrumentCatalog catalog,
                          StepRequoter requoter, StepRunner stepRunner, OrderEventLog events, FeeTest feeTest, DomainClock clock,
-                         TransitStockRepository transit, PlatformTransactionManager transactionManager) {
+                         TransitStockRepository transit, PlatformTransactionManager transactionManager,
+                         UserPreferencesService preferences) {
         this(settings, control, router, plans, steps, bindings, runs, wallets, users, credentials, catalog, requoter, stepRunner, events,
-                feeTest, clock, transit, transactionManager, ExecutionDefaults.LEG2_RETRY_DELAY);
+                feeTest, clock, transit, transactionManager, ExecutionDefaults.LEG2_RETRY_DELAY, preferences);
     }
 
     OrderExecutor(ExecutionSettings settings, ExecutionControlService control, SpotOrderRouter router,
@@ -163,7 +166,9 @@ public class OrderExecutor {
                   RainbowLiveBindingRepository bindings, RainbowLiveRunRepository runs, WalletRepository wallets,
                   UserRepository users, TradeCredentialResolver credentials, InstrumentCatalog catalog,
                   StepRequoter requoter, StepRunner stepRunner, OrderEventLog events, FeeTest feeTest, DomainClock clock,
-                  TransitStockRepository transit, PlatformTransactionManager transactionManager, Duration retryDelay) {
+                  TransitStockRepository transit, PlatformTransactionManager transactionManager, Duration retryDelay,
+                  UserPreferencesService preferences) {
+        this.preferences = preferences;
         this.transit = transit;
         this.retryDelay = retryDelay;
         this.settings = settings;
@@ -409,7 +414,11 @@ public class OrderExecutor {
             return Optional.of(ExecutionBlockReason.NO_BASE_AMOUNT);
         }
         ExecutionControl ctl = control.current();
+        UserPreferencesService.UserCaps userCaps = preferences == null ? null : preferences.caps(plan.user());
         BigDecimal orderCap = ctl.getMaxOrderMultiplier().multiply(binding.baseAmount());
+        if (userCaps != null && userCaps.maxOrderUsd() != null) {
+            orderCap = orderCap.min(userCaps.maxOrderUsd());
+        }
         BigDecimal assetNotional = BigDecimal.ZERO;
         for (StepView step : assetSteps) {
             if (step.cash()) {
@@ -430,7 +439,11 @@ public class OrderExecutor {
         if (dayTotal.compareTo(ExecutionDefaults.ABSOLUTE_MAX_DAY_USD) > 0) {
             return Optional.of(ExecutionBlockReason.CAP_ABSOLUTE_DAY);
         }
-        if (dayTotal.compareTo(ctl.getMaxDayMultiplier().multiply(binding.userBaseSum())) > 0) {
+        BigDecimal dayCap = ctl.getMaxDayMultiplier().multiply(binding.userBaseSum());
+        if (userCaps != null && userCaps.maxDayUsd() != null) {
+            dayCap = dayCap.min(userCaps.maxDayUsd());
+        }
+        if (dayTotal.compareTo(dayCap) > 0) {
             return Optional.of(ExecutionBlockReason.CAP_DAY);
         }
         return Optional.empty();

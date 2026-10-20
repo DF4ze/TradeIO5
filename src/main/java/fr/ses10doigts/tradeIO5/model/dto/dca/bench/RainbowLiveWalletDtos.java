@@ -40,6 +40,6 @@ public final class RainbowLiveWalletDtos {
     public record LiveSnapshotDto(LocalDate day, PortfolioStatus status, Instant fetchedAt,
                                   Double cashUsd, Map<String, Double> cashByMember, Double positionQty, Double tradableQty, Double cashReserved,
                                   LiveBlockReason blockReason, RainbowLiveAction liveActionType,
-                                  Double liveActionAmountUsdc, Double liveActionQuantity) {
+                                  Double liveActionAmountUsdc, Double liveActionQuantity, String modulation) {
     }
 }

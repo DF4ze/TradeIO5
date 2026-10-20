@@ -1,6 +1,6 @@
 # Flyway et défauts d'initialisation
 
-Vérifié le : 2026-10-11 (`pom.xml`, `application.properties`, `src/main/resources/db/migration/V1__init.sql`, `src/test/.../flyway/FlywaySchemaTest`, `configuration/initializer/*`).
+Vérifié le : 2026-10-13 (`pom.xml`, `application.properties`, `src/main/resources/db/migration/V1__init.sql`, `src/test/.../flyway/FlywaySchemaTest`, `configuration/initializer/*`).
 
 ## État
 
@@ -9,6 +9,12 @@ Flyway est **préparé mais non activé** : dépendances `flyway-core` + `flyway
 `V1__init.sql` ne contient ni wallet fictif ni colonnes de simulation (`rainbow_live_run` ne porte que le signal `signal_*`, `rainbow_live_binding_run` le bloc `live_*`) : une base existante issue d'un schéma antérieur doit être recréée depuis ce script.
 
 Tables du plan d'ordres dry-run (`rainbow_live_order_plan`, `rainbow_live_order_plan_asset`, `rainbow_live_order_step`, FK `ON DELETE CASCADE`) et colonne `rainbow_live_binding.execution_enabled` : créées par `ddl-auto=update` tant que Flyway est inactif, présentes dans `V1__init.sql` (cf. [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md)). Défaut `execution_enabled = false` porté par la colonne (donnée utilisateur, pas un défaut d'initializer).
+
+Carry des mises sous le minimum : colonnes `rainbow_live_order_plan_asset.carry_in_usd`, `carry_out_usd` et `base_amount` (nullables), dans `V1__init.sql`, ajoutées par `ddl-auto=update` sur base existante.
+
+Modulation Rainbow (socle) : table `rainbow_modulation_control` (singleton, initializer `@Order(71)`), colonnes nullables `user_trading_settings.exposure_min|exposure_max|power|bias` (null ⇒ valeurs neutres) valeur d'enum `MODULATION` de `admin_action_log.action`, colonne `rainbow_live_binding.base_amount` (nullable), colonne `rainbow_live_binding_run.live_modulation` (journal JSON, nullable) et valeur d'enum `BAND_LIMIT` de `live_block_reason`, toutes dans `V1__init.sql`.
+
+Historisation du patrimoine : tables `portfolio_snapshot` (unique user/wallet/jour) et `portfolio_snapshot_asset` (unique snapshot/actif), `ON DELETE CASCADE`, dans `V1__init.sql` ; créées par `ddl-auto=update` tant que Flyway est inactif.
 
 Passerelle actif non stable : table `transit_stock` et colonnes `transit_stock.finish_side` et `rainbow_live_binding.route_key` (remplace `bridge_pair`), dans `V1__init.sql`.
 
@@ -32,10 +38,11 @@ ALTER TABLE rainbow_live_binding DROP INDEX uk_rainbow_live_binding_user_asset;
 
 `rainbow_live_order_step.wallet_id` (nullable) est ajoutée par `ddl-auto=update` ; les étapes existantes restent à `NULL`. 
 
-Catalogue : colonnes `exchange_instrument.cost_min`, `native_pair`, `fee_currency` (nullables) ajoutées par `ddl-auto=update`, présentes dans `V1__init.sql`. **Base existante : `admin_action_log.action` est un `ENUM` MySQL natif, Hibernate n'y ajoute pas les valeurs `ORDER_VALIDATE`, `ORDER_SEND` et `ORDER_READ`** ⇒ SQL manuel avant le déploiement :
+Catalogue : colonnes `exchange_instrument.cost_min`, `native_pair`, `fee_currency` (nullables) ajoutées par `ddl-auto=update`, présentes dans `V1__init.sql`. **Base existante : `admin_action_log.action` est un `ENUM` MySQL natif, Hibernate n'y ajoute pas les valeurs `ORDER_VALIDATE`, `ORDER_SEND`, `ORDER_READ` et `MODULATION`** ⇒ SQL manuel avant le déploiement :
 
 ```sql
-ALTER TABLE admin_action_log MODIFY action ENUM('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','ORDER_READ','ORDER_SEND','ORDER_VALIDATE','PLAN','RECONCILE','RUN') NOT NULL;
+ALTER TABLE rainbow_live_binding_run MODIFY live_block_reason ENUM('BAND_LIMIT','INSUFFICIENT_CASH','NONE','NOT_TRADABLE_WITHOUT_FIAT','UNAVAILABLE');
+ALTER TABLE admin_action_log MODIFY action ENUM('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','MODULATION','ORDER_READ','ORDER_SEND','ORDER_VALIDATE','PLAN','RECONCILE','RUN') NOT NULL;
 ``` Le catalogue se remplit à nouveau au prochain rafraîchissement (ou `refresh(provider)`) : tant que `native_pair` est nul, Kraken ne peut recevoir aucun ordre (`PAIR_UNKNOWN`).
 
 ## Principe
@@ -75,7 +82,7 @@ Tout nouveau « défaut » de l'application (donnée de paramétrage devant exis
 
 Tables de cache de données publiques (non seedées par un initializer) : `exchange_instrument` (catalogue des paires, rempli à la demande par `InstrumentCatalog`).
 
-Initializers existants : `AssetInitializer` (1), `AssetGroupInitializer` (2, groupe `USD` = USDC seul), `RoleInitializer` (10), `UserInitializer` (20), `HistoricalDataInitializer` (5, recharge `candle` et `etf_flow_snapshot` depuis les fichiers de backup si la table est vide), `ApiCredentialInitializer` (40, tous profils : clés du user System (CoinStats, Coinalyze, Twelve Data, Finnhub, SoSoValue) et clés Binance/Kraken/OKX d'OKlm lues dans les propriétés `tradeio.<fournisseur>.apiKey|secretKey` (OKX : `tradeio.okx.read.*` et `tradeio.okx.trade.*`, avec `passphrase`) des `application-*.properties` (gitignorés) ; clé absente => warning, rien semé), `WalletInitializer` (45), `WebProviderInitializer` (dont OKX, `https://www.okx.com`), `ContentSourceInitializer` (50), `RainbowAssetStrategyInitializer` (60, stratégies Actif Rainbow, jamais écrasées ensuite : System les modifie en base ; chaque utilisateur reçoit un preset qui la suit à sa première utilisation, cf. [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md)).
+Initializers existants : `AssetInitializer` (1), `AssetGroupInitializer` (2, groupe `USD` = USDC seul), `RoleInitializer` (10), `UserInitializer` (20), `HistoricalDataInitializer` (5, recharge `candle` et `etf_flow_snapshot` depuis les fichiers de backup si la table est vide), `ApiCredentialInitializer` (40, tous profils : clés du user System (CoinStats, Coinalyze, Twelve Data, Finnhub, SoSoValue) et clés Binance/Kraken/OKX d'OKlm lues dans les propriétés `tradeio.<fournisseur>.apiKey|secretKey` (OKX : `tradeio.okx.read.*` et `tradeio.okx.trade.*`, avec `passphrase`) des `application-*.properties` (gitignorés) ; clé absente => warning, rien semé), `WalletInitializer` (45), `WebProviderInitializer` (dont OKX, `https://www.okx.com`), `ContentSourceInitializer` (50), `ExecutionControlInitializer` (70, ligne `execution_control` kill switch engagé), `RainbowModulationControlInitializer` (71, ligne `rainbow_modulation_control` aux défauts de `ModulationDefaults`, jamais modifiée ensuite), `RainbowAssetStrategyInitializer` (60, stratégies Actif Rainbow, jamais écrasées ensuite : System les modifie en base ; chaque utilisateur reçoit un preset qui la suit à sa première utilisation, cf. [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md)).
 
 ## Données non recréées par les initializers
 

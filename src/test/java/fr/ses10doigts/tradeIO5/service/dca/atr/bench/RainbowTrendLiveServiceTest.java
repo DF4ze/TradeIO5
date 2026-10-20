@@ -1,5 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
+import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
+import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlService;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAthReference;
@@ -54,8 +56,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @DataJpaTest
-@Import({RainbowAssetStrategyService.class, RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class, RainbowLivePresetService.class, RainbowLiveRunService.class, RainbowLiveBindingRunService.class, RainbowLiveExecutionService.class,
-        RainbowTrendLiveService.class, RainbowAthService.class, RainbowTrendLiveServiceTest.ClockConfig.class})
+@Import({RainbowAssetStrategyService.class, RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class, RainbowLivePresetService.class, RainbowLiveRunService.class, RainbowLiveBindingRunService.class, RainbowLiveExecutionService.class, fr.ses10doigts.tradeIO5.service.portfolio.PortfolioSnapshotService.class,
+        RainbowTrendLiveService.class, RainbowAthService.class, RainbowTrendLiveServiceTest.ClockConfig.class, UserTradingSettingsService.class, RainbowModulationControlService.class})
 @DisplayName("Live Rainbow : presets Trend Mix (état persisté, ATH en base)")
 class RainbowTrendLiveServiceTest {
 

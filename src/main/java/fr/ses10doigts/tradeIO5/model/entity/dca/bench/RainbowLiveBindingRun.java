@@ -67,7 +67,8 @@ public class RainbowLiveBindingRun {
             @AttributeOverride(name = "actionAmountUsdc", column = @Column(name = "live_action_amount_usdc")),
             @AttributeOverride(name = "actionQuantity", column = @Column(name = "live_action_quantity")),
             @AttributeOverride(name = "candleSource", column = @Column(name = "live_candle_source")),
-            @AttributeOverride(name = "candleSourceSubstituted", column = @Column(name = "live_candle_substituted"))
+            @AttributeOverride(name = "candleSourceSubstituted", column = @Column(name = "live_candle_substituted")),
+            @AttributeOverride(name = "modulation", column = @Column(name = "live_modulation", length = 2000))
     })
     private RainbowLiveLiveBlock live;
 

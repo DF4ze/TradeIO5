@@ -6,6 +6,11 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
+import fr.ses10doigts.tradeIO5.model.entity.modulation.RainbowModulationControl;
+import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
+import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService.ModulationSettings;
+import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlService;
+import fr.ses10doigts.tradeIO5.service.portfolio.PortfolioSnapshotService;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
@@ -80,6 +85,9 @@ public class RainbowLiveExecutionService {
     private final RainbowLiveBindingRunService bindingRunService;
     private final RainbowTrendLiveService trendService;
     private final RealPortfolioSource realPortfolioSource;
+    private final UserTradingSettingsService userSettingsService;
+    private final RainbowModulationControlService modulationControl;
+    private final PortfolioSnapshotService snapshotService;
 
     /** Récapitulatif d'une passe (log + réponse de l'endpoint admin). */
     public record PassSummary(LocalDate day, int processed, int skipped, int errors) {
@@ -108,7 +116,8 @@ public class RainbowLiveExecutionService {
     }
 
     /** Rejeu ATR du preset sur une série. */
-    private record AtrSim(RainbowAtrTuning tuning, RainbowAtrResult result, RainbowAtrDataset dataset, int endIdx) {
+    private record AtrSim(RainbowAtrTuning tuning, RainbowAtrResult result, RainbowAtrDataset dataset, int endIdx,
+                          double baseAmount) {
     }
 
     /** Ce que veut le moteur ce jour-là, avant tout plafond : achat en USDC, vente en quantité. */
@@ -241,17 +250,49 @@ public class RainbowLiveExecutionService {
                           Map<Long, LiveDemand> demands, Map<Long, AssetSeries> presetSeries,
                           Map<Long, MarketDataSource> referenceSources, Counters counters) {
         Map<Long, CashLedger> ledgers = new HashMap<>();
+        ModulationPass modulation = new ModulationPass(userSettingsService.effectiveSettings(user), modulationControl.current(),
+                closesOf(presetById, demands), new ExposureBook(), new HashMap<>());
         for (LiveSlot slot : slots) {
             try {
                 LinkSignal signal = signalOf(ctx, slot, presetById.get(slot.presetId()), demands, presetSeries,
                         referenceSources, counters);
-                runLink(ctx.day(), slot, signal, ledgers);
+                runLink(ctx.day(), slot, signal, ledgers, modulation);
             } catch (Exception e) {
                 counters.errors++;
                 log.error("Bench Rainbow : échec lien binding={} actif={} wallet={} user={} jour {}",
                         slot.bindingId(), slot.assetSymbol(), slot.walletId(), user.getId(), ctx.day(), e);
             }
         }
+        recordSnapshots(ctx.day(), user, slots, modulation);
+    }
+
+    /**
+     * Instantané quotidien immuable par wallet de l'utilisateur, à partir de la lecture déjà faite par la passe (aucun accès
+     * exchange supplémentaire ; rien si le wallet n'a pas été lu ce jour-là ou si l'instantané du jour existe). Une erreur ici ne perturbe ni la passe ni les autres wallets.
+     */
+    private void recordSnapshots(LocalDate day, User user, List<LiveSlot> slots, ModulationPass modulation) {
+        Map<Long, List<LiveSlot>> byWallet = new LinkedHashMap<>();
+        for (LiveSlot slot : slots) {
+            byWallet.computeIfAbsent(slot.walletId(), id -> new ArrayList<>()).add(slot);
+        }
+        byWallet.forEach((walletId, walletSlots) -> {
+            try {
+                if (snapshotService.exists(user.getId(), walletId, day)) {
+                    return;
+                }
+                PortfolioReading reading = modulation.readings().get(walletId);
+                RainbowLiveBinding binding = reading == null ? null
+                        : bindingRepository.findById(walletSlots.getFirst().bindingId()).orElse(null);
+                if (binding == null) {
+                    return;
+                }
+                snapshotService.record(user, binding.getWallet(), day, reading,
+                        walletSlots.stream().map(LiveSlot::assetSymbol).distinct().toList(), modulation.closes(),
+                        modulation.settings());
+            } catch (Exception e) {
+                log.error("Bench Rainbow : instantané patrimoine impossible user={} wallet={} jour {}", user.getId(), walletId, day, e);
+            }
+        });
     }
 
     /**
@@ -290,7 +331,7 @@ public class RainbowLiveExecutionService {
             return null;
         }
         WantedAction action = wantedAction(sim.result(), sim.endIdx());
-        LiveDemand demand = LiveDemand.fixed(action.buyAmount(), action.sellQty(), sim.dataset().close(sim.endIdx()));
+        LiveDemand demand = LiveDemand.fixed(action.buyAmount(), action.sellQty(), sim.dataset().close(sim.endIdx()), sim.baseAmount());
         return new LinkSignal(demand, lookup.series().source(), lookup.series().substituted());
     }
 
@@ -361,7 +402,7 @@ public class RainbowLiveExecutionService {
         applyWanted(block, wanted, close);
 
         runService.upsert(preset, day, block);
-        demands.put(preset.getId(), LiveDemand.fixed(wanted.buyAmount(), wanted.sellQty(), close));
+        demands.put(preset.getId(), LiveDemand.fixed(wanted.buyAmount(), wanted.sellQty(), close, sim.baseAmount()));
         log.info("Bench Rainbow : preset={} actif={} jour={} action voulue={} montant={} qté={}",
                 preset.getId(), preset.getAssetSymbol(), day, block.getActionType(),
                 block.getActionAmountUsdc(), block.getActionQuantity());
@@ -420,7 +461,7 @@ public class RainbowLiveExecutionService {
 
         RainbowAtrResult result = RainbowAtrEngine.simulate(ds, globals, new RainbowAtrTuning[]{tuning}, null,
                 startIdx, endIdx, true);
-        return new AtrSim(tuning, result, ds, endIdx);
+        return new AtrSim(tuning, result, ds, endIdx, globals.baseAmount());
     }
 
     /** Preset {@code TREND_MIX} : un pas de la machine à partir de l'état persisté (cf. {@link RainbowTrendLiveService}). */
@@ -445,7 +486,8 @@ public class RainbowLiveExecutionService {
      * réservé dans le pool. Sinon lecture du portefeuille réel (un seul accès exchange par lien, le cache de soldes mutualise
      * les liens d'un même wallet). Sans demande du preset (preset non calculé ce jour-là), le lien n'est pas dimensionné.
      */
-    private void runLink(LocalDate day, LiveSlot slot, LinkSignal signal, Map<Long, CashLedger> ledgers) {
+    private void runLink(LocalDate day, LiveSlot slot, LinkSignal signal, Map<Long, CashLedger> ledgers,
+                         ModulationPass modulation) {
         RainbowLiveBinding binding = bindingRepository.findById(slot.bindingId()).orElse(null);
         if (binding == null) {
             return;
@@ -458,17 +500,41 @@ public class RainbowLiveExecutionService {
             if (ledger != null && previous.getActionType() == RainbowLiveAction.BUY) {
                 ledger.forceReserve(previous.getActionAmountUsdc() == null ? 0.0 : previous.getActionAmountUsdc());
             }
+            if (previous.getActionType() != null && previous.getActionAmountUsdc() != null) {
+                modulation.book().replay(slot.walletId(), previous.getActionType(), previous.getActionAmountUsdc());
+            }
             return;
         }
         if (signal == null) {
             return;
         }
         PortfolioReading reading = realPortfolioSource.read(binding);
+        modulation.readings().putIfAbsent(slot.walletId(), reading);
         RainbowLiveLiveBlock block = new RainbowLiveLiveBlock();
-        LiveSizing.of(asset, reading, ledgerOf(ledgers, slot.walletId(), reading), slot.bagPercent()).apply(block, signal.demand());
+        ExposureLedger exposure = modulation.book().ledgerFor(slot.walletId(), reading, modulation.closes());
+        LiveModulation linkModulation = new LiveModulation(modulation.settings(), modulation.limits(), exposure);
+        LiveSizing.of(asset, reading, ledgerOf(ledgers, slot.walletId(), reading), slot.bagPercent(), linkModulation)
+                .apply(block, signal.demand().withLinkBaseAmount(binding.getBaseAmount()));
         block.setCandleSource(signal.source());
         block.setCandleSourceSubstituted(signal.substituted());
         bindingRunService.upsert(binding, day, block);
+    }
+
+    /** Clôture D1 du jour par actif d'après les demandes des presets de la passe (aucun appel exchange supplémentaire). */
+    private static Map<String, Double> closesOf(Map<Long, RainbowLivePreset> presetById, Map<Long, LiveDemand> demands) {
+        Map<String, Double> closes = new HashMap<>();
+        demands.forEach((presetId, demand) -> {
+            RainbowLivePreset preset = presetById.get(presetId);
+            if (preset != null) {
+                closes.putIfAbsent(preset.getAssetSymbol(), demand.close());
+            }
+        });
+        return closes;
+    }
+
+    /** Modulation d'un utilisateur pour la passe : réglages effectifs, paramètres admin, clôtures et expositions par wallet. */
+    private record ModulationPass(ModulationSettings settings, RainbowModulationControl limits, Map<String, Double> closes,
+                                  ExposureBook book, Map<Long, PortfolioReading> readings) {
     }
 
     /** Ledger du pool (créé à la première lecture {@code OK} du wallet) ; {@code null} si la lecture n'est pas exploitable. */

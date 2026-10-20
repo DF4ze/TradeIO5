@@ -50,6 +50,13 @@ public class RainbowLiveLiveBlock {
     /** Vrai si la source du lien était indisponible et que le signal vient d'un AUTRE exchange (fallback, WARN). */
     private Boolean candleSourceSubstituted;
 
+    /**
+     * Journal de modulation JSON (puissance, biais, bande, exposition avant/après, facteurs, plafonds, paramètres admin
+     * utilisés, montant final), {@code null} sans modulation. Hors du hash d'entrées du plan d'ordres.
+     */
+    @Column(length = 2000)
+    private String modulation;
+
     /** Vrai si le bloc porte un snapshot (une lecture a été tentée pour cette passe). */
     public boolean hasLiveSnapshot() {
         return status != null;

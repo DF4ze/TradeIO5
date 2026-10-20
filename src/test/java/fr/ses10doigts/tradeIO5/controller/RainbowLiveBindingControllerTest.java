@@ -42,6 +42,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -230,6 +231,24 @@ class RainbowLiveBindingControllerTest {
                 .param("asset", "BTC")).andExpect(status().isNotFound());
         mvc.perform(get("/api/rainbow-live/bindings/candidates").param("walletId", aliceWallet.getId().toString())
                 .param("asset", "SOL")).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("baseAmount du lien : nul par défaut, posé/remis à nul, refusé si <= 0")
+    void linkBaseAmount() {
+        RainbowLivePreset p1 = preset(alice, "BTC", "p1");
+        RainbowLiveBinding created = bindingService.create(alice, new RainbowLiveBindingService.CreateRequest("BTC",
+                p1.getId(), aliceWallet.getId(), null, null)).binding();
+        assertNull(created.getBaseAmount());
+        Long id = created.getId();
+        assertEquals(25.0, bindingService.update(alice, id, new RainbowLiveBindingService.UpdateRequest(null, null, null, null,
+                25.0, false)).binding().getBaseAmount());
+        assertEquals(25.0, bindingService.update(alice, id, new RainbowLiveBindingService.UpdateRequest(null, null, 50.0, null))
+                .binding().getBaseAmount());
+        assertThrows(IllegalArgumentException.class, () -> bindingService.update(alice, id,
+                new RainbowLiveBindingService.UpdateRequest(null, null, null, null, 0.0, false)));
+        assertNull(bindingService.update(alice, id, new RainbowLiveBindingService.UpdateRequest(null, null, null, null, null, true))
+                .binding().getBaseAmount());
     }
 
     @Test

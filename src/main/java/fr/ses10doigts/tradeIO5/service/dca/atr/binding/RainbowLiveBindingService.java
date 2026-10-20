@@ -41,11 +41,19 @@ public class RainbowLiveBindingService {
     private final DomainClock clock;
 
     /** Création : {@code bagPercent} et {@code priority} nuls => défauts (100 %, rang de l'actif). */
-    public record CreateRequest(String assetSymbol, Long presetId, Long walletId, Double bagPercent, Integer priority) {
+    public record CreateRequest(String assetSymbol, Long presetId, Long walletId, Double bagPercent, Integer priority,
+                                Double baseAmount) {
+        public CreateRequest(String assetSymbol, Long presetId, Long walletId, Double bagPercent, Integer priority) {
+            this(assetSymbol, presetId, walletId, bagPercent, priority, null);
+        }
     }
 
     /** Modification : l'actif est immuable ; {@code bagPercent} / {@code priority} nuls => inchangés. */
-    public record UpdateRequest(Long presetId, Long walletId, Double bagPercent, Integer priority) {
+    public record UpdateRequest(Long presetId, Long walletId, Double bagPercent, Integer priority, Double baseAmount,
+                                boolean resetBaseAmount) {
+        public UpdateRequest(Long presetId, Long walletId, Double bagPercent, Integer priority) {
+            this(presetId, walletId, bagPercent, priority, null, false);
+        }
     }
 
     /** Origine d'un preset candidat : suit la stratégie système, ou détaché/créé par l'utilisateur. */
@@ -75,7 +83,7 @@ public class RainbowLiveBindingService {
 
         RainbowLiveBinding saved = bindingRepository.save(RainbowLiveBinding.builder()
                 .user(user).assetSymbol(req.assetSymbol()).preset(preset).wallet(wallet)
-                .bagPercent(bag).priority(priority).build());
+                .bagPercent(bag).priority(priority).baseAmount(optionalBaseAmount(req.baseAmount())).build());
         eventService.record(user, saved.getAssetSymbol(), RainbowLivePresetEventType.LIVE_SWITCH, null, preset,
                 strategyRevision(preset), "Preset live défini");
         log.info("Binding créé id={} user={} actif={} preset={} wallet={} bag={}% priorité={}",
@@ -109,6 +117,11 @@ public class RainbowLiveBindingService {
         }
         if (req.priority() != null) {
             binding.setPriority(req.priority());
+        }
+        if (req.resetBaseAmount()) {
+            binding.setBaseAmount(null);
+        } else if (req.baseAmount() != null) {
+            binding.setBaseAmount(optionalBaseAmount(req.baseAmount()));
         }
         RainbowLiveBinding saved = bindingRepository.save(binding);
         log.info("Binding modifié id={} user={} actif={} preset={} wallet={} bag={}% priorité={}",
@@ -236,6 +249,14 @@ public class RainbowLiveBindingService {
             throw new IllegalArgumentException("bagPercent doit être compris entre 0 et 100 : " + bagPercent);
         }
         return bagPercent;
+    }
+
+    /** Montant de base du lien : nul (celui du preset) ou strictement positif et fini. */
+    private static Double optionalBaseAmount(Double baseAmount) {
+        if (baseAmount != null && (Double.isNaN(baseAmount) || Double.isInfinite(baseAmount) || baseAmount <= 0)) {
+            throw new IllegalArgumentException("baseAmount doit être > 0 : " + baseAmount);
+        }
+        return baseAmount;
     }
 
     private static void requireAllowedAsset(String asset) {

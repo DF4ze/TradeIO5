@@ -1,6 +1,6 @@
-# Spec V1 — DCA Rainbow : Trend global, Curseur d'exposition, Embrayage risque macro
+# Spec V1 — DCA Rainbow : bande d'exposition, puissance et biais, embrayage risque macro
 
-> **Mise à jour 2026-10-04** : le §1 (4 combos de bornes **%**) est **caduc** — le Rainbow est passé aux bornes ATR (`service/dca/atr`) et le paramétrage par trend est **Bull/Bear (2 jeux par actif, pas de Sideways)**. La question ouverte est le branchement d'une Trend (simple, ou double global/local) vers ces jeux : [`known-gaps/rainbow-dca-chantiers-ouverts.md`](../known-gaps/rainbow-dca-chantiers-ouverts.md) §2. Le §2 (curseur d'exposition) et le §3 (risque macro) restent des intentions non implémentées.
+> **Mise à jour 2026-10-04** : le §1 (4 combos de bornes **%**) est **caduc** — le Rainbow est passé aux bornes ATR (`service/dca/atr`) et le paramétrage par trend est **Bull/Bear (2 jeux par actif, pas de Sideways)**. La question ouverte est le branchement d'une Trend (simple, ou double global/local) vers ces jeux : [`known-gaps/rainbow-dca-chantiers-ouverts.md`](../known-gaps/rainbow-dca-chantiers-ouverts.md) §2. Le §2 (bande d'exposition) et les §4 à §7 (puissance, biais, journal, onboarding, paramètres admin) sont un design validé par Clem le 2026-10-13, non implémenté ; le §3 (risque macro) reste une intention.
 
 Date : 2026-09-25. Fait suite à [[tradeio5_rainbow_etude_2026-09-25_regime_exposition_risque]] et aux
 échanges du même jour avec Clem. Les décisions ci-dessous sont actées par Clem ; les points marqués
@@ -65,41 +65,25 @@ simplement parce que le régime a basculé) — accepté par Clem.
 
 ---
 
-## 2. Curseur d'exposition (achat + vente, piloté par l'utilisateur)
+## 2. Bande d'exposition (garde-fou du portefeuille, réglé par l'utilisateur)
 
-**Décision** : "Exposition" = % de la valeur totale en cryptos vs % en stablecoin. Un futur curseur
-utilisateur (page web à venir, hors scope de cette spec) fixe une **exposition cible** (0-100%). Le
-mécanisme Rainbow doit interpréter cette cible comme une **intention directionnelle explicite**, pas
-juste une correction : à 0%, Rainbow ne doit plus que vendre (peu importe la zone) ; à 100%, ne plus
-qu'acheter. Entre les deux, l'intensité d'achat/vente doit être réglable en continu.
+**Décision (2026-10-13)** : l'idée d'un curseur-cible est abandonnée. Une consigne fixe s'oublie (100 % puis un bear : plus aucune vente) et, à l'équilibre, elle supprime toute activité alors que le wallet doit vivre. L'exposition devient une **bande** ; le régime reste géré par le Trend (jeux Bull/Bear) et les zones Rainbow, la bande ne pilote rien : elle borne.
 
-**Architecture proposée** :
-- Nouveau service dédié de sizing (`ExposureSizingService` ou équivalent), séparé de
-  `RainbowZone`/`RainbowDcaBacktestService` qui restent inchangés dans leur rôle (classification de
-  zone / orchestration du backtest). Ce service prend en entrée : `zoneMultiplier` (sortie actuelle
-  de `resolveIntermediateMultiplier`), `expositionActuelle`, `expositionCible` — et retourne les
-  montants/fractions finaux d'achat et de vente.
-- Pour V1 en **backtest**, pas besoin d'attendre le vrai `WalletSnapshot` (toujours vide en prod,
-  cf. étude §1.3) : le backtest connaît déjà en interne sa position et peut simuler un wallet
-  fictif (solde stablecoin de départ + valeur position courante), donc calculer une exposition
-  simulée sans dépendance externe. Nouveau(x) champ(s) sur `RainbowDcaBacktestRequest` :
-  `initialWalletValue` (ou équivalent) + `targetExposurePercent`.
-- Formule de départ proposée (à valider/calibrer, pas figée) :
-  `intensitéAchat = zoneMultiplier × clamp(expositionCible − expositionActuelle, 0, 1) × k_achat`
-  `intensitéVente = sellFraction_base × clamp(expositionActuelle − expositionCible, 0, 1) × k_vente`
-  avec gestion explicite des cas dégénérés cible=0% (achat forcé à 0 quelle que soit la zone) et
-  cible=100% (vente forcée à 0).
-- En production/live (au-delà du backtest), ce même service consommerait le vrai `WalletSnapshot`
-  une fois `openPositions`/`investedValue` peuplés (chantier séparé, non prérequis pour tester le
-  concept en V1 backtest).
-
-**À trancher à l'implémentation** :
-- Forme exacte de la fonction d'intensité (linéaire proposée ci-dessus vs autre courbe) — sujet à
-  calibration comme les autres paramètres Rainbow.
-- Le curseur influence-t-il aussi `cooldownDays` post-vente, ou seulement les quantités ? (Ouvert.)
-- Priorité en cas de conflit entre signal de zone Rainbow et signal d'exposition (ex. zone
-  EXTREME_BAS mais déjà à 100% d'exposition cible → on bloque l'achat, on le réduit, ou on ignore la
-  cible ponctuellement ?).
+- **Exposition** = valeur des actifs du périmètre (BTC/ETH/PAXG) ÷ (actifs + cash USDC), calculée sur la lecture portefeuille réelle (`PortfolioReading`), par wallet comme le `CashLedger` *(à confirmer ; agrégé multi-exchange = plus tard)*.
+- L'utilisateur fixe `[min, max]` (ex. 30–90 %). Largeur minimale `minBandWidthPts` (§7).
+- **Zone libre au centre** : aucune modulation, les achats/ventes Rainbow passent tels quels. La régulation n'existe que dans les marges de largeur `m = 25 % × (max − min)` à l'intérieur de chaque borne.
+- **Marge haute** : `s = clamp((exp − (max − m)) / m, 0, 1)`, `l = s²(3 − 2s)` (smoothstep, courbe continue) :
+  - achat × `(1 − l)` (0 à la borne) ;
+  - vente × `(1 + (G − 1)·l)`, `G = 2` : ×1 → ×2.
+- **Marge basse** : symétrique (`s` mesuré depuis `min + m`) : vente × `(1 − l)`, achat × `(1 + (G − 1)·l)`.
+- Exemple, bande 30–90 (`m` = 15 pts) : la régulation haute démarre à 75 % ; à 80 %, `s = 0,33`, `l ≈ 0,26` ⇒ achat ×0,74, vente ×1,26.
+- Même famille que la modulation par ATH (facteur continu sur le montant), mais axée sur le poids du portefeuille ; les deux se multiplient.
+- **Plafond dur après ordre** : `achat ≤ max·V − P`, `vente ≤ P − min·V` (`V` valeur totale, `P` valeur des actifs). Un ordre seul ne franchit jamais une borne.
+- **Hors bande** (variation de prix, dépôt, retrait) : **aucun ordre de rééquilibrage** (décision de Clem, 2026-10-13 : on n'achète et ne vend que quand le Rainbow le dit). Au-delà d'une borne, `l = 1` : l'achat qui s'en rapproche est ramené à 0, la vente est accentuée (×G), et le plafond dur empêche tout ordre de franchir la borne.
+- **Anti flip-flop** : courbe continue, plafond dur après ordre, largeur de bande minimale, produit des modulateurs plafonné (§5), cooldowns Rainbow existants conservés ; pas de mécanisme dédié supplémentaire (décision de Clem).
+- **Oubli** : pas d'alerte de bande (l'alerte utilisateur concerne surtout le bag vide) ; côté écran, informer l'utilisateur de l'exposition et de l'effet de ses réglages pour qu'il puisse corriger.
+- Cas limites : `min = 0` (pas de marge basse) et `max = 100` (pas de marge haute).
+- Backtest : non couvert (aucun wallet simulé dans le run live) ; à spécifier à part si besoin.
 
 ---
 
@@ -140,23 +124,65 @@ personnelle statique. C'est un **gain/embrayage** appliqué à un **score de ris
 **À trancher à l'implémentation** :
 - Quels indicateurs macro exacts entrent dans le score, et avec quelle pondération (nouveau sujet
   de calibration, pas de valeur "par défaut" identifiée dans le code existant).
-- Formule exacte de combinaison de `effetRisque` avec les facteurs Trend (§1) et Exposition (§2) —
-  ordre de priorité entre les 3 mécanismes si tous actifs simultanément.
+- Signe exact de `effetRisque` (frein à l'achat seul, ou aussi accélération de la vente) : sa place dans la chaîne est fixée au §5.
 - Portée : ce score de risque doit-il rester propre au DCA Rainbow, ou est-il conçu dès le départ
   pour être réutilisable par le chantier Decision→Order plus large (qui a le même besoin non résolu,
   cf. `PLACEHOLDER_QUANTITY` dans `DefaultMarketScenario`) ?
 
 ---
 
-## Hors scope de cette spec (V1)
-- Page web de pilotage du curseur d'exposition (mentionnée par Clem, à spécifier séparément).
-- Wallet réel branché (`WalletSnapshot.openPositions`/`investedValue`) — reste un chantier séparé.
-- Historisation des séries macro pour un backtest de risque rejouable (si l'option (b) du §3 est
-  retenue).
-- Multi-actif (ETH, etc.) — tout reste BTC seul comme V0.
+## 4. Puissance et biais achat/vente (réglés par l'utilisateur)
 
-## Prochaine étape suggérée
-Rédiger un prompt d'implémentation par point (comme pour V0), dans l'ordre suggéré : §1 (Trend
-global, le plus autonome et le moins dépendant des deux autres) → §2 (Exposition, testable en
-backtest avec wallet fictif) → §3 (Risque macro, nécessite d'abord de trancher live-vs-backtest).
-À confirmer avec Clem avant de lancer la rédaction des prompts.
+- **Puissance `P`** : un seul scalaire, multiplicateur du montant des achats **et** des ventes (baisser si la macro est mauvaise, monter par beau temps). Bornes `[powerMin, powerMax]` (§7), défaut 1. Pas de curseurs achat/vente séparés (ils s'enchevêtreraient avec l'exposition).
+- **Biais `β`** : `P_achat = P·(1 + β)`, `P_vente = P·(1 − β)`, `β ∈ [−biasMax, +biasMax]` (§7, ±0,5), défaut 0. Dérive dirigée de l'exposition (β > 0 pousse vers la borne haute), bornée par la bande (§2).
+- `riskCursor` (§3) reste le gain de l'embrayage macro **automatique** ; la puissance est le levier **manuel**. Les deux se multiplient.
+- Réglages portés par l'utilisateur (bande `min`/`max`, `P`, `β`), portés par `UserTradingSettings` (colonnes nullables, `null` ⇒ valeurs neutres : bande 0–100, `P` = 1, `β` = 0). Appliqués dans `LiveSizing`, par lien, jamais dans le signal (partagé par preset, il reste comparable).
+- Vente : `P_vente` s'applique à la quantité voulue, puis plafond à la position tradable (`bagPercent`).
+- Montant sous `minSz`/`costMin` : report (carry) déjà décidé, cf. [`known-gaps/rainbow-dca-chantiers-ouverts.md`](../known-gaps/rainbow-dca-chantiers-ouverts.md) §5d.
+
+## 5. Chaîne de composition et journal de modulation
+
+Achat : `base × facteurATH × multZone` (signal, `ReferenceSizer`) → `× P_achat` → `× (1 − effetRisque)` (§3, sens à définir) → **modulation de bande** (§2) → plafond dur → cash du ledger → `minSz`/`costMin`. Vente : même ordre avec `P_vente` et la fraction × position.
+Le produit des modulateurs (puissance, biais, macro, bande) est plafonné à `modulationProductMax` (§7).
+
+**Journal** : chaque action du lien enregistre dans son bloc live (`RainbowLiveLiveBlock`) la valeur de chaque terme pour expliquer un montant après coup :
+- `base`, `facteurATH`, `multZone` ;
+- `P`, `β`, `P_achat`/`P_vente`, `effetRisque` ;
+- exposition avant et après, bande, `s`, `l`, facteur de bande appliqué ;
+- plafonds atteints (bande, cash, `minSz`/`costMin`) et montant final ;
+- valeurs des paramètres admin utilisées (§7), car elles peuvent changer entre deux passes.
+La page affiche « pourquoi ce montant » à partir de ce journal.
+
+## 6. Onboarding
+
+- **Explication** du fonctionnement : Trend → jeu Bull/Bear → zones → montant ; puis bande, puissance, biais.
+- **Binding automatique** : quand l'utilisateur ajoute un exchange (clés valides), `BindingCheck` puis création d'un lien par actif du périmètre (BTC/ETH/PAXG) avec le preset système. Les liens restent **inactifs** (activation explicite conservée). Un actif `NOT_TRADABLE` n'est pas lié, la raison est affichée.
+- **Amount proposé** après lecture des soldes et de la capacité du wallet : `baseAmount = cash alloué / (autonomyDays × multiplicateur moyen des zones du preset)`, borné par le minimum du catalogue (`costMin`/`minSz` avec marge) et vérifié au Fee Test. L'écran affiche « le cash tient ~N jours en zone extrême » ; valeur modifiable (changer le `baseAmount` remet le carry à zéro, cf. [`graphique/remarques-gui.md`](../graphique/remarques-gui.md) §2).
+- Proposition de bande par défaut selon le profil, modifiable.
+
+## 7. Paramètres administrables
+
+Globaux (tous utilisateurs), modifiables depuis l'interface admin sans redéploiement, sur le modèle de `ExecutionControl` (ligne singleton, relue à chaque passe sans cache, `updatedAt`/`updatedBy`). Ligne absente ⇒ défauts en constantes mutualisées ; **bornes absolues en constante**, que la base ne peut pas relever ; validation à l'écriture ; chaque modification écrite dans `admin_action_log` ; effet à la prochaine passe, runs passés figés (valeurs utilisées dans le journal, §5).
+
+| Paramètre | Défaut | Bornes absolues | Rôle |
+|---|---|---|---|
+| `regulationMarginPct` (m) | 25 % de la largeur de bande | 5–50 % | largeur des marges de régulation (§2) |
+| `sellBoostMax` (G) | 2 | 1–4 | accentuation max de la vente (achat à la borne basse) |
+| `biasMax` | 0,5 | 0–1 | amplitude du biais β |
+| `powerMin` / `powerMax` | 0,25 / 2 | 0–3 | bornes de la puissance |
+| `minBandWidthPts` | 10 | 5–50 | largeur minimale de la bande |
+| `modulationProductMax` | 2,5 | 1–5 | plafond du produit des modulateurs |
+| `autonomyDays` | 90 | 7–365 | jours d'autonomie du cash pour l'amount proposé (§6) |
+
+Défauts validés par Clem (2026-10-13), y compris les propositions initiales.
+API : `GET`/`PUT /api/admin/rainbow-modulation` (ADMIN). Écran : onglet « Modulation » de la page Admin (champ numérique + valeur par défaut affichée + réinitialisation, aperçu optionnel des courbes achat/vente selon l'exposition). Voir [`graphique/remarques-gui.md`](../graphique/remarques-gui.md) §3.
+
+---
+
+## Hors scope de cette spec (V1)
+- Wallet agrégé multi-exchange pour le calcul d'exposition.
+- Backtest de la bande / de la puissance.
+- Historisation des séries macro pour un backtest de risque rejouable (si l'option (b) du §3 est retenue).
+
+## Séquencement
+Roadmap en 4 étapes : [`../prompts/prompt-roadmap-modulation-bande-puissance.md`](../prompts/prompt-roadmap-modulation-bande-puissance.md). §3 (risque macro) reste conditionné à l'arbitrage live-vs-backtest.

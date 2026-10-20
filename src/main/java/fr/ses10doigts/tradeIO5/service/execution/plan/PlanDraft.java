@@ -15,10 +15,24 @@ import java.util.List;
 public record PlanDraft(List<AssetDraft> assets, PlanStatus status, BigDecimal totalCostPct, FeeTestLevel feeTestLevel,
                         String blockReason) {
 
-    /** {@code steps} vide sauf si {@code outcome = OK}. */
+    /** {@code steps} vide sauf si {@code outcome = OK}. {@code carryIn/Out} : report d'achat entrant / sortant (USD). */
     public record AssetDraft(String assetSymbol, int priority, Long walletId, RainbowLiveAction action,
                              AssetPlanOutcome outcome, PlanBlockReason blockReason, BigDecimal costPct,
-                             FeeTestLevel feeTestLevel, String warning, List<StepDraft> steps) {
+                             FeeTestLevel feeTestLevel, String warning, List<StepDraft> steps, BigDecimal carryInUsd,
+                             BigDecimal carryOutUsd) {
+
+        /** Sans carry. */
+        public AssetDraft(String assetSymbol, int priority, Long walletId, RainbowLiveAction action, AssetPlanOutcome outcome,
+                          PlanBlockReason blockReason, BigDecimal costPct, FeeTestLevel feeTestLevel, String warning,
+                          List<StepDraft> steps) {
+            this(assetSymbol, priority, walletId, action, outcome, blockReason, costPct, feeTestLevel, warning, steps,
+                    BigDecimal.ZERO, BigDecimal.ZERO);
+        }
+
+        public AssetDraft withCarry(BigDecimal in, BigDecimal out) {
+            return new AssetDraft(assetSymbol, priority, walletId, action, outcome, blockReason, costPct, feeTestLevel, warning,
+                    steps, in, out);
+        }
     }
 
     /** {@code rank} : 1 = première jambe du chemin de l'actif (stock en transit à terminer d'abord, puis jambe 1, jambe 2). */

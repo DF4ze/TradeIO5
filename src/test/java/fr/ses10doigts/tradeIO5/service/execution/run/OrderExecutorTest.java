@@ -91,6 +91,8 @@ class OrderExecutorTest {
     private RainbowLiveOrderStepRepository steps;
     private TradeCredentialResolver credentials;
     private TransitStockRepository transitRepo;
+    private final fr.ses10doigts.tradeIO5.service.preferences.UserPreferencesService preferences =
+            mock(fr.ses10doigts.tradeIO5.service.preferences.UserPreferencesService.class);
     private StepRequoter requoter;
     private UserRepository users;
     private RainbowLiveOrderPlan plan;
@@ -163,7 +165,7 @@ class OrderExecutorTest {
         StepRunner runner = new StepRunner(ports, steps, mock(FillRecorder.class), events, new FixedDomainClock(NOW), tm,
                 Duration.ZERO, 2);
         return new OrderExecutor(settings, controlService, ports, plans, steps, bindings, runs, wallets, users,
-                credentials, catalog, requoter, runner, events, new FeeTest(), new FixedDomainClock(NOW), transitRepo, tm, Duration.ZERO);
+                credentials, catalog, requoter, runner, events, new FeeTest(), new FixedDomainClock(NOW), transitRepo, tm, Duration.ZERO, preferences);
     }
 
     private ExecutionResult runLive() {
@@ -269,6 +271,21 @@ class OrderExecutorTest {
                 .quoteAmount(new BigDecimal("95")).status(StepStatus.FILLED).build();
         when(steps.findSentSince(any(), any(), any())).thenReturn(List.of(earlier));
         assertEquals(ExecutionBlockReason.CAP_ABSOLUTE_DAY, runLive().blocked().get("BTC@10"));
+        assertEquals(0, exchange.totalCalls());
+    }
+
+    @Test
+    @DisplayName("Plafonds personnels : resserrent le plafond par ordre et par jour, jamais au-dessus des plafonds absolus")
+    void userCapsTighten() {
+        addAsset("BTC", btcUsdc, "8", 100L);
+        baseAmount = new BigDecimal("50");
+        when(preferences.caps(any())).thenReturn(
+                new fr.ses10doigts.tradeIO5.service.preferences.UserPreferencesService.UserCaps(new BigDecimal("5"), null));
+        assertEquals(ExecutionBlockReason.CAP_ORDER, runLive().blocked().get("BTC@10"));
+        plan.setStatus(PlanStatus.PLANNED);
+        when(preferences.caps(any())).thenReturn(
+                new fr.ses10doigts.tradeIO5.service.preferences.UserPreferencesService.UserCaps(null, new BigDecimal("6")));
+        assertEquals(ExecutionBlockReason.CAP_DAY, runLive().blocked().get("BTC@10"));
         assertEquals(0, exchange.totalCalls());
     }
 
