@@ -22,7 +22,10 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.CreateRequest;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
+import fr.ses10doigts.tradeIO5.model.dto.portfolio.RainbowBandsDto;
 import fr.ses10doigts.tradeIO5.service.portfolio.RainbowBandsQueryService;
+import fr.ses10doigts.tradeIO5.service.portfolio.RainbowBandsSimulator;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -59,6 +62,7 @@ class RainbowLiveBandsControllerTest {
     }
 
     @Autowired private RainbowBandsQueryService service;
+    @MockBean private RainbowBandsSimulator simulator;
     @Autowired private RainbowLivePresetService presetService;
     @Autowired private RainbowLiveBindingRepository bindingRepository;
     @Autowired private RainbowLiveRunRepository runRepository;
@@ -107,6 +111,19 @@ class RainbowLiveBandsControllerTest {
                 .andExpect(jsonPath("$.points[1].boundUp3").value(218.0))
                 .andExpect(jsonPath("$.points[1].zone").value(2));
         mvc.perform(get(url).param("period", "all")).andExpect(jsonPath("$.points.length()").value(3));
+    }
+
+    @Test
+    @DisplayName("simulated=true : points recalculés par le simulateur, marqués simulés")
+    void simulatedBands() throws Exception {
+        when(simulator.simulate(org.mockito.ArgumentMatchers.eq(binding), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of(new RainbowBandsDto.Point(
+                java.time.LocalDate.of(2026, 10, 18), 100.0, 98.0, 2.0, 90.0, 94.0, 102.0, 106.0, 110.0, 1, "BEAR", "BEAR")));
+        mvc.perform(get("/api/rainbow-live/bindings/" + binding.getId() + "/bands").param("simulated", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.simulated").value(true))
+                .andExpect(jsonPath("$.points.length()").value(1))
+                .andExpect(jsonPath("$.points[0].boundUp3").value(110.0));
     }
 
     @Test

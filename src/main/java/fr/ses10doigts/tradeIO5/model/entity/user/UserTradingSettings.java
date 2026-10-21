@@ -66,6 +66,11 @@ public class UserTradingSettings {
     @Column(length = 8)
     private UiTheme theme;
 
+    /** Mode d'affichage ; nul = simple. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private DisplayMode displayMode;
+
     /** Types d'alertes coupés par l'utilisateur, noms séparés par des virgules (null => aucun). */
     @Column(length = 200)
     private String alertsDisabled;

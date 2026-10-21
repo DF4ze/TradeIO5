@@ -1,6 +1,7 @@
 package fr.ses10doigts.tradeIO5.model.entity.exchange;
 
 import fr.ses10doigts.tradeIO5.security.model.User;
+import fr.ses10doigts.tradeIO5.service.connector.credential.ReadSecretConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -40,17 +41,23 @@ public class ApiCredential {
     @Column(nullable = false, length = 8)
     private CredentialScope scope = CredentialScope.READ;
 
-    /** Clé en clair pour {@code READ} ; valeur chiffrée AES-GCM ({@code enc:v1:...}) pour {@code TRADE}. */
+    /**
+     * {@code TRADE} : valeur chiffrée AES-GCM ({@code enc:v1:...}) par le service. {@code READ} : chiffrée en base
+     * ({@code encr:v1:...}) par {@link ReadSecretConverter}, en clair dans l'entité.
+     */
     @ToString.Exclude
+    @Convert(converter = ReadSecretConverter.class)
     @Column(nullable = false, length = 512)
     private String apiKey;
 
     @ToString.Exclude
+    @Convert(converter = ReadSecretConverter.class)
     @Column(length = 512)
     private String secretKey;
 
     /** Requise par certains exchanges (OKX) ; nulle sinon. */
     @ToString.Exclude
+    @Convert(converter = ReadSecretConverter.class)
     @Column(length = 512)
     private String passphrase;
 

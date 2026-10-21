@@ -52,7 +52,7 @@ Hors Rainbow : branchement `WalletSnapshot`, sizing réel, composant d'exécutio
 Ordre voulu : d'abord boucler le fonctionnel du back, puis :
 - **Architecture des pages** : définir les pages, leur organisation, les menus.
 - **Charte graphique** à définir. Besoins d'interface déjà collectés (réglage des `asset_provider` depuis la GUI, affichage de la source des candles d'un lien) : [`../graphique/remarques-gui.md`](../graphique/remarques-gui.md).
-- **Saisie des credentials d'exchange** : faite pour la clé **TRADE OKX** (page `/admin`, onglet Credentials, `POST /api/credentials/trade`, cf. [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md)). Reste à faire : saisie des clés **READ** (aujourd'hui `ApiCredentialInitializer` ou SQL direct), des autres exchanges et des wallets, hors `application-*.properties`.
+- **Saisie des credentials d'exchange** : faite pour la clé **TRADE OKX** (page `/admin`, onglet Credentials, `POST /api/credentials/trade`, cf. [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md)). Saisie des clés **READ** : `POST /api/credentials/read` (chiffrées, wallet créé). Reste à faire : autres exchanges que OKX/Kraken, gestion fine des wallets (renommer, désactiver).
 
 ## 5c. Chemin d'achat via intermédiaire non stable (vérifié le 2026-10-12)
 

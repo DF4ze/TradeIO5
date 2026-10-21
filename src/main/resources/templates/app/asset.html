@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr" th:attr="data-theme=${theme}">
+<head th:replace="~{app/fragments :: head(${title})}"></head>
+<body class="tio" th:attr="data-page=${page},data-mode=${displayMode},data-user=${username},data-symbol=${symbol}">
+<div class="tio-app">
+  <nav th:replace="~{app/fragments :: nav}"></nav>
+  <main class="tio-main" id="app"></main>
+</div>
+<script th:src="@{/assets/app/vendor/lightweight-charts.standalone.production.js}"></script>
+<th:block th:replace="~{app/fragments :: scripts}"></th:block>
+</body>
+</html>

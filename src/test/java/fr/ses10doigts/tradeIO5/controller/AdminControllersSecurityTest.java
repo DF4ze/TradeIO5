@@ -75,7 +75,7 @@ class AdminControllersSecurityTest {
         @Bean AdminBindingController bindings() { return new AdminBindingController(BINDINGS); }
         @Bean AdminOrderTestController orderTests() { return new AdminOrderTestController(ORDER_TESTS, FACADE); }
         @Bean AdminCatalogController catalog() { return new AdminCatalogController(CATALOG); }
-        @Bean OwnCredentialController own() { return new OwnCredentialController(CREDENTIALS, FACADE); }
+        @Bean OwnCredentialController own() { return new OwnCredentialController(CREDENTIALS, mock(fr.ses10doigts.tradeIO5.service.connector.credential.ReadCredentialService.class), FACADE); }
         @Bean RainbowLiveWalletOptionsController wallets() { return new RainbowLiveWalletOptionsController(BINDING_SERVICE, FACADE); }
     }
 

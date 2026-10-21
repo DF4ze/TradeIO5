@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Bandes Rainbow figées d'un lien de l'utilisateur (lecture base). Période invalide ⇒ 400 ; lien d'autrui ou inconnu ⇒ 404. */
+/** Bandes Rainbow d'un lien de l'utilisateur : figées (lecture base) ou, avec {@code simulated=true}, recalculées sur les bougies D1. Période invalide ⇒ 400 ; lien d'autrui ou inconnu ⇒ 404. */
 @RestController
 @RequestMapping("/api/rainbow-live/bindings/{id}/bands")
 @PreAuthorize("isAuthenticated()")
@@ -28,8 +28,9 @@ public class RainbowLiveBandsController {
     private final IAuthenticationFacade authenticationFacade;
 
     @GetMapping
-    public RainbowBandsDto bands(@PathVariable Long id, @RequestParam(defaultValue = "90d") String period) {
-        return service.bands(authenticationFacade.getConnectedUser(), id, PortfolioPeriod.of(period));
+    public RainbowBandsDto bands(@PathVariable Long id, @RequestParam(defaultValue = "90d") String period,
+                                @RequestParam(defaultValue = "false") boolean simulated) {
+        return service.bands(authenticationFacade.getConnectedUser(), id, PortfolioPeriod.of(period), simulated);
     }
 
     @ExceptionHandler(RainbowLiveBindingNotFoundException.class)

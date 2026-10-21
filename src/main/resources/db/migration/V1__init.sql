@@ -671,10 +671,16 @@
         bias float(53),
         exposure_max float(53),
         exposure_min float(53),
+        max_day_usd float(53),
+        max_order_usd float(53),
         power float(53),
         risk_cursor integer not null,
         id bigint not null auto_increment,
         user_id bigint not null,
+        alerts_disabled varchar(200),
+        display_mode enum ('ADVANCED','EXPERT','SIMPLE'),
+        starting_profile enum ('BALANCED','DYNAMIC','PRUDENT'),
+        theme enum ('DARK','LIGHT'),
         primary key (id)
     ) engine=InnoDB;
 

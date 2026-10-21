@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr">
+<head th:fragment="head(title)">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <title th:text="${title} + ' · TradeIO'">TradeIO</title>
+  <link rel="preload" th:href="@{/assets/app/fonts/manrope-latin-600-normal.woff2}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" th:href="@{/assets/app/css/tradeio.css}">
+</head>
+<body>
+<nav th:fragment="nav" class="tio-nav" aria-label="Navigation principale">
+  <a class="skip" href="#app">Aller au contenu</a>
+  <a class="logo" th:href="@{/app}"><i aria-hidden="true"></i>TradeIO</a>
+  <a class="tab" th:href="@{/app}" th:attr="aria-current=${page == 'home'} ? 'page' : null">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4v-5h-6v5H5a1 1 0 0 1-1-1z"/></svg><span>Accueil</span></a>
+  <a class="tab" th:href="@{/app/assets}" th:attr="aria-current=${page == 'assets' or page == 'asset'} ? 'page' : null">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg><span>Mes actifs</span></a>
+  <a class="tab" th:href="@{/app/journal}" th:attr="aria-current=${page == 'journal'} ? 'page' : null">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg><span>Journal</span></a>
+  <a class="tab" th:href="@{/app/settings}" th:attr="aria-current=${page == 'settings'} ? 'page' : null">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h9M18 7h1M5 17h1M10 17h9"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg><span>Réglages</span></a>
+  <a class="tab side-only" th:if="${admin}" th:href="@{/admin}" th:attr="aria-current=${page == 'admin'} ? 'page' : null"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.2 7.7 8 9 4.8-1.3 8-4.5 8-9V6z"/></svg><span>Administration</span></a>
+  <a class="tab side-only" th:if="${admin}" th:href="@{/info}" th:attr="aria-current=${page == 'info'} ? 'page' : null"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>Info</span></a>
+  <a class="tab side-only" th:href="@{/user}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg><span>Espace Expert</span></a>
+  <div class="me"><span class="avatar" aria-hidden="true" th:text="${initial}">C</span><span th:text="${username}">clem</span><a th:href="@{/api/auth/signoutForm}">Se déconnecter</a></div>
+</nav>
+<th:block th:fragment="scripts">
+  <script th:src="@{/assets/app/js/core.js}"></script>
+  <script th:src="@{/assets/app/js/demo.js}"></script>
+  <script th:src="@{/assets/app/js/ui.js}"></script>
+  <script th:src="@{/assets/app/js/charts.js}"></script>
+  <script th:src="@{/assets/app/js/explain.js}"></script>
+  <script th:src="@{/assets/app/js/asset-chart.js}"></script>
+  <script th:src="@{/assets/app/js/app.js}"></script>
+  <script th:src="@{/assets/app/js/page-{p}.js(p=${page})}"></script>
+</th:block>
+</body>
+</html>

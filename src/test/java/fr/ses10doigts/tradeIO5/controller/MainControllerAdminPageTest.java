@@ -46,10 +46,13 @@ class MainControllerAdminPageTest {
     void setUp() {
         Authentication auth = mock(Authentication.class);
         when(auth.getName()).thenReturn("clem");
+        org.mockito.Mockito.doReturn(java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN")))
+                .when(auth).getAuthorities();
         IAuthenticationFacade facade = mock(IAuthenticationFacade.class);
         when(facade.getAuthentication()).thenReturn(auth);
         MainController controller = new MainController();
         ReflectionTestUtils.setField(controller, "authenticationFacade", facade);
+        // Préférences : service absent du test ⇒ thème sombre et mode simple par défaut (le contrôleur tolère l'échec de lecture).
 
         ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
         resolver.setPrefix("templates/");
@@ -74,7 +77,8 @@ class MainControllerAdminPageTest {
     void adminPageContainsTabs() throws Exception {
         String html = page();
 
-        assertTrue(html.contains("Welcome in Admin's Page"), "contenu existant conservé");
+        assertTrue(html.contains("Welcome in Admin's Page") && html.contains("data-theme=\"dark\""), "contenu existant conservé, charte sombre par défaut");
+        assertTrue(html.contains("assets/app/css/tradeio.css") && html.contains("admin-compat.css") && !html.contains("bootstrap"), "charte, sans Bootstrap");
         assertTrue(html.contains("data-username=\"clem\""), "nom de l'admin transmis au JS");
         assertTrue(html.contains("Se déconnecter"), "navbar existante conservée");
         for (String id : new String[] {"adm-banner", "adm-mode", "adm-live", "adm-master", "adm-ks", "adm-alert"}) {

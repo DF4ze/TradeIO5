@@ -1,6 +1,7 @@
 package fr.ses10doigts.tradeIO5.controller;
 
 import fr.ses10doigts.tradeIO5.controller.RainbowLiveControllerAdvice.ErrorResponse;
+import fr.ses10doigts.tradeIO5.model.entity.user.DisplayMode;
 import fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile;
 import fr.ses10doigts.tradeIO5.model.entity.user.UiTheme;
 import fr.ses10doigts.tradeIO5.model.enumerate.AlertType;
@@ -33,8 +34,8 @@ public class UserPreferencesController {
     private final UserPreferencesService service;
     private final IAuthenticationFacade authenticationFacade;
 
-    /** Corps du PUT : {@code theme} nul = sombre ; {@code maxOrderUsd} / {@code maxDayUsd} nuls = pas de plafond personnel. */
-    public record PreferencesRequest(UiTheme theme, Set<AlertType> alertsDisabled, Double maxOrderUsd, Double maxDayUsd) {
+    /** Corps du PUT : {@code theme} nul = sombre ; {@code displayMode} nul = simple ; {@code maxOrderUsd} / {@code maxDayUsd} nuls = pas de plafond personnel. */
+    public record PreferencesRequest(UiTheme theme, DisplayMode displayMode, Set<AlertType> alertsDisabled, Double maxOrderUsd, Double maxDayUsd) {
     }
 
     public record ProfileRequest(StartingProfile profile) {
@@ -47,7 +48,7 @@ public class UserPreferencesController {
 
     @PutMapping
     public Preferences put(@RequestBody PreferencesRequest request) {
-        return service.update(authenticationFacade.getConnectedUser(), request.theme(), request.alertsDisabled(),
+        return service.update(authenticationFacade.getConnectedUser(), request.theme(), request.displayMode(), request.alertsDisabled(),
                 request.maxOrderUsd(), request.maxDayUsd());
     }
 

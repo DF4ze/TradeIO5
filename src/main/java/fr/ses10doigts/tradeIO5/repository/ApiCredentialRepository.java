@@ -6,6 +6,10 @@ import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -35,4 +39,16 @@ public interface ApiCredentialRepository extends JpaRepository<ApiCredential, Lo
 			WebProviderCode code) {
 		return findByUserAndScopeAndEnabledTrueAndWebProvider_CodeAndWebProvider_EnabledTrue(user, CredentialScope.READ, code);
 	}
+
+	/** Valeurs brutes (id, api_key, secret_key, passphrase) des clés READ, telles que stockées. */
+	@Query(value = "select id, api_key, secret_key, passphrase from api_credentials where scope = 'READ'", nativeQuery = true)
+	List<Object[]> findRawReadSecrets();
+
+	/** Écrit les valeurs brutes, sans passer par le convertisseur (migration de chiffrement des clés READ). */
+	@Transactional
+	@Modifying
+	@Query(value = "update api_credentials set api_key = :apiKey, secret_key = :secretKey, passphrase = :passphrase where id = :id",
+			nativeQuery = true)
+	int updateRawSecrets(@Param("id") Long id, @Param("apiKey") String apiKey, @Param("secretKey") String secretKey,
+			@Param("passphrase") String passphrase);
 }

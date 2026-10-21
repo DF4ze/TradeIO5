@@ -6,19 +6,24 @@ import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
 import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlService;
+import fr.ses10doigts.tradeIO5.service.market.DomainClock;
+import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import fr.ses10doigts.tradeIO5.service.preferences.UserPreferencesService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -30,9 +35,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @DataJpaTest
-@Import({UserPreferencesService.class, UserTradingSettingsService.class, RainbowModulationControlService.class})
+@Import({UserPreferencesService.class, UserTradingSettingsService.class, RainbowModulationControlService.class,
+        UserPreferencesControllerTest.ClockConfig.class})
 @DisplayName("UserPreferencesController : thème, alertes, plafonds personnels, profil de départ")
 class UserPreferencesControllerTest {
+
+    @TestConfiguration
+    static class ClockConfig {
+        @Bean
+        DomainClock domainClock() {
+            return new FixedDomainClock(Instant.parse("2026-10-20T12:00:00Z"));
+        }
+    }
 
     private static final String URL = "/api/user/preferences";
 
@@ -58,6 +72,7 @@ class UserPreferencesControllerTest {
     void defaults() throws Exception {
         mvc.perform(get(URL)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.theme").value("DARK"))
+                .andExpect(jsonPath("$.displayMode").value("SIMPLE"))
                 .andExpect(jsonPath("$.startingProfile").doesNotExist())
                 .andExpect(jsonPath("$.alertsDisabled.length()").value(0))
                 .andExpect(jsonPath("$.caps.absoluteMaxOrderUsd").value(30.0))
@@ -69,9 +84,10 @@ class UserPreferencesControllerTest {
     @DisplayName("PUT : thème, alertes coupées et plafonds enregistrés ; avertissement proche du plafond absolu")
     void putStores() throws Exception {
         mvc.perform(put(URL).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"theme\":\"LIGHT\",\"alertsDisabled\":[\"TRANSIT_STOCK\"],\"maxOrderUsd\":25,\"maxDayUsd\":40}"))
+                        .content("{\"theme\":\"LIGHT\",\"displayMode\":\"ADVANCED\",\"alertsDisabled\":[\"TRANSIT_STOCK\"],\"maxOrderUsd\":25,\"maxDayUsd\":40}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.theme").value("LIGHT"))
+                .andExpect(jsonPath("$.displayMode").value("ADVANCED"))
                 .andExpect(jsonPath("$.alertsDisabled[0]").value("TRANSIT_STOCK"))
                 .andExpect(jsonPath("$.caps.maxOrderUsd").value(25.0))
                 .andExpect(jsonPath("$.warnings.length()").value(1));

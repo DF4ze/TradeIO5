@@ -37,5 +37,5 @@ Cible (à préciser à l'audit) : étendre `admin_action_log` aux actions User s
 - Nonce Kraken : compteur strictement croissant tenu **en mémoire du processus** (par empreinte SHA-256 de la clé) ; deux instances de l'app utilisant la même clé se disputeraient les nonces (`EAPI:Invalid nonce`, traité comme « issue inconnue », jamais renvoyé). Une clé Trade par instance.
 - Réponse brute de `validate` renvoyée à l'admin : réduite à une liste blanche (`error`, `result.descr`), tronquée à 4 Ko ; journal `ORDER_VALIDATE` sans secret.
 - Exécution : tests au plus près de la prod — **aucun passe-droit** en test (cf. règle dans l'étude UX Admin) ; tout verrou non levé = échec.
-- Credentials READ stockées en clair en base (chiffrement optionnel non décidé) ; credentials TRADE chiffrées (AES-256-GCM, clé maître en variable d'environnement).
+- Credentials READ et TRADE chiffrées au repos (AES-256-GCM, clé maître en variable d'environnement) ; sans clé maître les READ restent en clair (dev/tests) et la saisie utilisateur est refusée. Le clair vit en mémoire dans l'entité après chargement.
 - Secrets de dev dans `ApiCredentialInitializer` (valeurs en dur, Binance testnet) : cf. note GitGardian, non bloquant mais à nettoyer.

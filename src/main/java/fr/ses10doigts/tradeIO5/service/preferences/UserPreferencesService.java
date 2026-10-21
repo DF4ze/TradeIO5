@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.preferences;
 
+import fr.ses10doigts.tradeIO5.model.entity.user.DisplayMode;
 import fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile;
 import fr.ses10doigts.tradeIO5.model.entity.user.UiTheme;
 import fr.ses10doigts.tradeIO5.model.entity.user.UserTradingSettings;
@@ -39,7 +40,7 @@ public class UserPreferencesService {
     public record UserCaps(BigDecimal maxOrderUsd, BigDecimal maxDayUsd) {
     }
 
-    public record Preferences(UiTheme theme, StartingProfile startingProfile, Set<AlertType> alertsDisabled, Caps caps,
+    public record Preferences(UiTheme theme, DisplayMode displayMode, StartingProfile startingProfile, Set<AlertType> alertsDisabled, Caps caps,
                               List<String> warnings) {
     }
 
@@ -54,13 +55,15 @@ public class UserPreferencesService {
         return repository.findByUser(user).map(UserPreferencesService::toPreferences).orElseGet(() -> toPreferences(null));
     }
 
-    /** Remplace thème, alertes coupées et plafonds ; {@link IllegalArgumentException} (rien écrit) si un plafond est invalide. */
+    /** Remplace thème, mode d'affichage, alertes coupées et plafonds ; {@link IllegalArgumentException} (rien écrit) si un plafond est invalide. */
     @Transactional
-    public Preferences update(User user, UiTheme theme, Set<AlertType> alertsDisabled, Double maxOrderUsd, Double maxDayUsd) {
+    public Preferences update(User user, UiTheme theme, DisplayMode displayMode, Set<AlertType> alertsDisabled, Double maxOrderUsd,
+                              Double maxDayUsd) {
         requireCap("par ordre", maxOrderUsd, ExecutionDefaults.ABSOLUTE_MAX_ORDER_USD);
         requireCap("par jour", maxDayUsd, ExecutionDefaults.ABSOLUTE_MAX_DAY_USD);
         UserTradingSettings s = settingsOf(user);
         s.setTheme(theme);
+        s.setDisplayMode(displayMode);
         s.setAlertsDisabled(alertsDisabled == null || alertsDisabled.isEmpty() ? null
                 : alertsDisabled.stream().map(Enum::name).sorted().collect(Collectors.joining(",")));
         s.setMaxOrderUsd(maxOrderUsd);
@@ -112,7 +115,7 @@ public class UserPreferencesService {
         warn(warnings, "par ordre", order, ExecutionDefaults.ABSOLUTE_MAX_ORDER_USD);
         warn(warnings, "par jour", day, ExecutionDefaults.ABSOLUTE_MAX_DAY_USD);
         return new Preferences(s == null || s.getTheme() == null ? UiTheme.DARK : s.getTheme(),
-                s == null ? null : s.getStartingProfile(), s == null ? EnumSet.noneOf(AlertType.class) : parse(s.getAlertsDisabled()),
+                s == null || s.getDisplayMode() == null ? DisplayMode.SIMPLE : s.getDisplayMode(), s == null ? null : s.getStartingProfile(), s == null ? EnumSet.noneOf(AlertType.class) : parse(s.getAlertsDisabled()),
                 new Caps(order, day, ExecutionDefaults.ABSOLUTE_MAX_ORDER_USD.doubleValue(),
                         ExecutionDefaults.ABSOLUTE_MAX_DAY_USD.doubleValue()), warnings);
     }

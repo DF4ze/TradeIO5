@@ -36,7 +36,7 @@ Vérifié le : 2026-10-11.
 - **Groupe d'actifs** — plusieurs actifs regroupés sous un seul (ex : `USD` = USDC seul), valorisation nominale 1:1, tables `asset_group` / `asset_group_member`.
 - **TrendRegime** — `UP` / `DOWN` / `RANGE`, sortie du Trend unifié ([`architecture/09-trend.md`](architecture/09-trend.md)).
 - **Bull / Bear (Rainbow)** — les deux jeux de paramètres Rainbow visés par actif (pas de Sideways) ; sélection manuelle dans le pine aujourd'hui.
-- **Credential TRADE** — clé d'exchange à portée `TRADE` (Trade uniquement, jamais Withdraw), chiffrée au repos (AES-GCM) avec la clé maître `TRADEIO_MASTER_KEY` ; distincte de la clé `READ`.
+- **Credential TRADE** — clé d'exchange à portée `TRADE` (Trade uniquement, jamais Withdraw), chiffrée au repos (AES-GCM) avec la clé maître `TRADEIO_MASTER_KEY` ; distincte de la clé `READ` (elle aussi chiffrée au repos).
 - **validate (Kraken)** — option de `AddOrder` (`validate=true`) : l'exchange contrôle l'ordre sans le créer. Seule voie du testeur d'ordre ; OKX n'en a pas (contrôles locaux seuls).
 - **costmin** — coût minimum d'un ordre en cotation (Kraken `AssetPairs`) ; stocké `exchange_instrument.cost_min`, appliqué par le planner et le testeur.
 - **Kill switch** — interrupteur global (`execution_control`, engagé par défaut) relu avant chaque étape : engagé ⇒ aucun nouvel ordre.

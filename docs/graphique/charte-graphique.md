@@ -1,8 +1,8 @@
-# Charte graphique — piste B « Rainbow doux » (mode sombre)
+# Charte graphique — piste B « Rainbow doux » (sombre et clair)
 
 Vérifié le : 2026-10-20. Source de vérité visuelle : maquettes (Artifact « TradeIO Maquettes » : `PlaqueB_Tel`, `PlaqueB_PC`, boards `Widgets · piste B`, `… · Rainbow`, `… courbes v3`). Cette page fixe les règles ; en cas d'écart, les valeurs ci-dessous font foi pour l'implémentation.
 
-Périmètre : **mode sombre = V1**. Le mode clair est décliné **après** gel du sombre (mêmes noms de tokens, valeurs différentes) ; le choix se fait dans les réglages personnels (« Apparence »). Pas de variantes de style en parallèle.
+Périmètre : thèmes sombre (défaut) et clair, mêmes noms de tokens, valeurs différentes ; le choix se fait dans les réglages personnels (« Apparence », préférence serveur). Pas de variantes de style en parallèle.
 
 Organisation des écrans : [`../etudes/etude-architecture-interface.md`](../etudes/etude-architecture-interface.md). Données affichées et backs nécessaires : [`inventaire-options-affichage.md`](inventaire-options-affichage.md).
 
@@ -39,7 +39,7 @@ Variables CSS posées sur la racine ; tout composant n'utilise que ces variables
 
 Fond de page : `--bg` + deux lueurs violettes très douces (`radial-gradient(700px 420px at 10% -8%, rgba(150,110,240,.17), transparent 65%)` et `radial-gradient(520px 380px at 100% 28%, rgba(130,110,230,.09), transparent 60%)`).
 
-Mode clair (à finaliser) : `--accent: #7b5fd0` ; les autres valeurs seront fixées après gel du sombre. Les noms de tokens ne changent pas.
+Mode clair : `:root[data-theme="light"]` redéfinit les mêmes tokens (source : `static/assets/app/css/tradeio.css`). Token supplémentaire `--accent-text` : violet utilisé pour du **texte** (≥ 4,5:1 sur la surface dans les deux thèmes) ; `--accent` reste réservé aux aplats et repères.
 
 ## 3. Typographie
 
@@ -109,4 +109,5 @@ Patrimoine · Exposition (arc) · Décisions du jour · Puissance (0,5×–2×, 
 - Tokens dans une feuille de styles commune ; thème via `data-theme` sur `<html>` (sombre par défaut), préférence enregistrée côté serveur.
 - Aucune couleur en dur dans les composants ; aucun `innerHTML` (`textContent` / création de nœuds).
 - Dégradés de valeur : `linear-gradient` + `clip-path` (pas de canvas pour les barres et curseurs).
-- Contrastes : texte principal et secondaire ≥ 4,5:1 sur `--surface`.
+- Contrastes : texte principal et secondaire ≥ 4,5:1 sur `--surface`. Mesuré : sombre texte 15,2 · muted 5,8 ; clair muted 6,3. Pastilles : couleur du texte = `color-mix(var(--c) 78%, var(--text))` ⇒ ≥ 5,1:1 dans les deux thèmes.
+- Accessibilité : lien « Aller au contenu » en tête de page, focus visible, `prefers-reduced-motion` (animations coupées), `forced-colors` (contours système), graphique du cours doublé d'un tableau de données repliable (`<details>`), information jamais portée par la couleur seule.

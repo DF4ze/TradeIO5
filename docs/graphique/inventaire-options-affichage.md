@@ -21,6 +21,7 @@ Tout est scopé à l'utilisateur connecté (JWT cookie) ; ressource d'un autre u
 | Connexion / déconnexion / inscription | `POST /api/auth/signinForm`, `GET /api/auth/signoutForm`, `POST /api/auth/signupForm` | formulaires uniquement ; rôles USER / MODERATOR / ADMIN ; connexion d'un compte archivé ⇒ restauré |
 | Curseur de risque (0–10) | `GET/PUT /api/user/risk-cursor` | continu ; **non branché** à la modulation Rainbow |
 | Mode d'affichage | `GET/PUT /api/rainbow-live/ui-mode` | `AUTO\|SIMPLE\|ADVANCED\|EXPERT`, défaut `EXPERT` ; seul Expert fonctionnel aujourd'hui [GUI] |
+| Saisir sa clé d'échange de lecture (soldes) | `POST /api/credentials/read` | `{provider OKX\|KRAKEN, apiKey, secretKey, passphrase (OKX), enabled?}` ; chiffrée, réponse sans secret ; crée ou rattache le wallet ; 409 sans clé maître serveur ; droit requis : lecture seule |
 | Saisir sa clé d'échange TRADE | `POST /api/credentials/trade` | `{provider OKX\|KRAKEN, apiKey, secretKey, passphrase (OKX), enabled?}` ; réponse sans secret ; 409 sans clé maître serveur ; droits requis : créer/annuler des ordres, jamais retrait, restriction IP |
 | Clés de lecture (maquette Réglages « clés lecture seule ») | — | **[À implémenter]** côté utilisateur |
 | Plafonds utilisateur, alertes (maquette Réglages) | — | **[À implémenter]** |
@@ -218,7 +219,7 @@ Infos : bandeau permanent (`/api/admin/execution/state` : mode, LIVE déverrouil
 | Réglages : mode, bande/puissance/biais | §1.1, §1.5 | [OK] |
 | Réglages : clés lecture, plafonds utilisateur, alertes | — | **[À implémenter]** |
 | Onboarding : profil Prudent/Équilibré/Dynamique | — | **[À implémenter]** |
-| Modes Simple / Avancé | `ui-mode` stocké | [Prévu] : contenu exact à trancher |
+| Modes Simple / Avancé / Expert | préférence `displayMode` | [OK] — contenu : [`../architecture/11-front-app.md`](../architecture/11-front-app.md) |
 
 ### Répartition cible par mode (étude, à valider)
 
@@ -256,13 +257,8 @@ Instantané quotidien immuable du patrimoine par (user, wallet, jour UTC) : stab
 
 | # | Besoin | Lot | DTO / endpoint cible | Source en base | Volume | Utilisé par |
 |---|---|---|---|---|---|---|
-| 7 | Bandes Rainbow **recalculées** (`simulate`) avant le premier run du preset (pointillé « simulé ») ; les bandes figées sont disponibles | 3 | `simulated=true` sur `/bindings/{id}/bands` | candles D1 en base (source et paire du lien) + config du preset ; Trend Mix : jeu Bull/Bear à rejouer | ≤ 365 jours | graphique de la fiche |
-| 8 | Journal : filtres serveur (actif, wallet, statut, raison, période), décisions et alertes | 4 | paramètres sur `execution-plans` + endpoint décisions/alertes | plans, runs | pagination | Journal |
-| 9 | Alertes utilisateur (agrégation, configuration) | 4 | endpoint dédié | statuts des §2 | — | Accueil, Réglages |
-| 10 | Clés de lecture saisies par l'utilisateur ; plafonds utilisateur configurables | 4 | endpoints dédiés | credentials, réglages | — | Réglages |
-| 11 | Profil Prudent / Équilibré / Dynamique (bande de départ) | 4 | champ des réglages de modulation | — | — | Onboarding |
 | 12 | Édition des `asset_provider` + exposition de `candleSource` / `candleSourceSubstituted` (résoudre l'écrasement par `AssetInitializer` avant) | 8 | endpoints admin | `asset_provider`, snapshot | — | Admin « Données » |
 
 Sans back à créer : Exposition (jauge), Décisions du jour, Puissance, Biais, Zone libre (dérivée de la bande et de l'exposition), Reporté (`carryIn/Out` des plans).
 
-Écrans [Prévu] dont le back existe déjà : Accueil (hors patrimoine), Mes actifs (hors valeur/PnL), Journal (exécutions), Réglages (modulation, mode), onboarding en 4 étapes, modes Simple / Avancé.
+Écrans construits (`/app/**`, [`11-front-app.md`](../architecture/11-front-app.md)) : Accueil, Mes actifs, fiche actif, Journal, Réglages, onboarding en 4 étapes, modes Simple / Avancé / Expert. Restent à construire : Données, Santé, Stratégies (cf. [`known-gaps/front-gaps.md`](../known-gaps/front-gaps.md)).

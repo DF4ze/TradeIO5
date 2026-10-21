@@ -84,7 +84,7 @@ class ExecutionPlanControllersSecurityTest {
     @DisplayName("Sans authentification : tout refusé")
     void anonymous() {
         assertThrows(AuthenticationCredentialsNotFoundException.class, () -> admin.plan(null));
-        assertThrows(AuthenticationCredentialsNotFoundException.class, () -> reader.plans(null, null));
+        assertThrows(AuthenticationCredentialsNotFoundException.class, () -> reader.plans(null, null, null, null, null, null));
         assertThrows(AuthenticationCredentialsNotFoundException.class, reader::latest);
     }
 
@@ -93,7 +93,7 @@ class ExecutionPlanControllersSecurityTest {
     void userRole() {
         loginAs("ROLE_USER");
         assertThrows(AccessDeniedException.class, () -> admin.plan(null));
-        reader.plans(null, null);
+        reader.plans(null, null, null, null, null, null);
     }
 
     @Test
