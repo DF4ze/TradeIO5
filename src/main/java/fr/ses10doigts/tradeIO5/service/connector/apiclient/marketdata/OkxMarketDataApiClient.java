@@ -77,7 +77,7 @@ public class OkxMarketDataApiClient implements MarketDataApiClient {
                     oldest -> fetchHistoryPage(symbol, bar, timeFrame, oldest,
                             Math.min(effectiveLimit, MarketDataProviderLimits.OKX_HISTORY_PAGE_SIZE)));
 
-            List<MarketData> result = merged.stream()
+            List<MarketData> result = trimToRange(merged, since, until).stream()
                     .sorted(Comparator.comparing(MarketData::getTimestamp))
                     .distinct()
                     .toList();
@@ -95,11 +95,34 @@ public class OkxMarketDataApiClient implements MarketDataApiClient {
         }
     }
 
+    /** {@code after} OKX = bougies strictement antérieures au curseur : +1 ms pour inclure {@code until}. */
+    static long afterCursor(Instant until) {
+        return until.toEpochMilli() + 1;
+    }
+
+    /** {@code before} OKX = bougies strictement postérieures au curseur : -1 ms pour inclure {@code since}. */
+    static long beforeCursor(Instant since) {
+        return since.toEpochMilli() - 1;
+    }
+
     /**
-     * Appelle {@code /market/candles} (fenêtre récente, plafonnée à ~300 bougies) avec la même
-     * convention {@code after}/{@code before} qu'auparavant (déjà "à l'envers" du sens intuitif
-     * côté OKX : {@code after}=borne haute demandée, {@code before}=borne basse demandée — conservé
-     * tel quel, cf. historique de cette classe).
+     * Ne garde que les bougies dans {@code [since, until]} (bornes incluses, {@code null} = non borné) :
+     * la pagination {@code history-candles} renvoie des pages entières pouvant déborder avant {@code since}
+     * (bougies déjà en cache côté appelant => violation d'unicité à l'insertion).
+     */
+    static List<MarketData> trimToRange(List<MarketData> candles, Instant since, Instant until) {
+        return candles.stream()
+                .filter(c -> since == null || !c.getTimestamp().isBefore(since))
+                .filter(c -> until == null || !c.getTimestamp().isAfter(until))
+                .toList();
+    }
+
+    /**
+     * Appelle {@code /market/candles} (fenêtre récente, plafonnée à ~300 bougies). Convention OKX
+     * "à l'envers" du sens intuitif : {@code after}=borne haute demandée, {@code before}=borne basse
+     * demandée. Ces deux curseurs sont <b>exclusifs</b> côté OKX : {@link #afterCursor} et
+     * {@link #beforeCursor} décalent donc d'1 ms pour que {@code until} et {@code since} soient
+     * <b>inclus</b> (contrat {@link MarketDataApiClient}, attendu par {@code CachingMarketDataApiClient}).
      */
     private List<MarketData> fetchCandles(String path, String symbol, String bar, TimeFrame timeFrame,
                                            Instant since, Instant until, int limit) {
@@ -109,10 +132,10 @@ public class OkxMarketDataApiClient implements MarketDataApiClient {
                 .queryParam("bar", bar)
                 .queryParam("limit", limit);
         if (until != null) {
-            uriBuilder.queryParam("after", until.toEpochMilli());
+            uriBuilder.queryParam("after", afterCursor(until));
         }
         if (since != null) {
-            uriBuilder.queryParam("before", since.toEpochMilli());
+            uriBuilder.queryParam("before", beforeCursor(since));
         }
 
         String body = webClient.get()

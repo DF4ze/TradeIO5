@@ -1,6 +1,6 @@
 # Données de marché (candles)
 
-Vérifié le : 2026-10-12 (chemin D1 natif `MarketDatasetEngine#getDailyDatasetForAsset`, clients D1 ; 2026-10-10 : `service/connector/apiclient/marketdata/**` pagination ; 2026-10-08 : `service/market/dataset/**` ; 2026-10-04 : `service/dca/atr/**` ; autres références : 2026-09-12 — `service/market/dataset/MarketDatasetEngine`, `service/market/provider/MarketDataProviderRegistry`, `configuration/MarketDataCachingConfig`, `model/enumerate/market/MarketDataSource`).
+Vérifié le : 2026-10-27 (bornes inclusives OKX `OkxMarketDataApiClient` ; 2026-10-12 : chemin D1 natif `MarketDatasetEngine#getDailyDatasetForAsset`, clients D1 ; 2026-10-10 : `service/connector/apiclient/marketdata/**` pagination ; 2026-10-08 : `service/market/dataset/**` ; 2026-10-04 : `service/dca/atr/**` ; autres références : 2026-09-12 — `service/market/dataset/MarketDatasetEngine`, `service/market/provider/MarketDataProviderRegistry`, `configuration/MarketDataCachingConfig`, `model/enumerate/market/MarketDataSource`).
 
 ## Deux chemins de résolution, ne pas les confondre
 
@@ -31,7 +31,7 @@ Le Rainbow live n'utilise plus le Bucket H1 : `MarketDatasetEngine#getDailyDatas
 Constantes en un seul endroit : `MarketDataProviderLimits` (Binance 1000/appel, Kraken 720 non paginable, OKX 300 récent + 100/page historique, garde-fou `MAX_PAGES_PER_FETCH`, espacement `PAGE_PAUSE_MILLIS`).
 
 - **Binance** : `getCandles` pagine par `startTime` via `CandlePaginator` (pur, testable) : pages de 1000 jusqu'à `until`/`limit`, ordre croissant, doublons ignorés, pause entre pages, arrêt sur page courte ou absence de progression. Sans `since` et `limit` > 1000, `since` est dérivé de `until - (limit-1)` bougies. Résultat = préfixe contigu : si le garde-fou est atteint ou si une page échoue après la 1re (429/418…), le préfixe est renvoyé (WARN) et persisté ; le reste du trou est redétecté par `CachingMarketDataApiClient` depuis la base au prochain appel. Échec dès la 1re page : exception (contrat inchangé).
-- **OKX** : `/market/candles` (récent) puis pagination `history-candles` par curseur `after` (déjà en place) ; tailles de page bornées par les constantes.
+- **OKX** : `/market/candles` (récent) puis pagination `history-candles` par curseur `after` (déjà en place) ; tailles de page bornées par les constantes. Les curseurs OKX `after`/`before` sont exclusifs : `OkxMarketDataApiClient` les décale d'1 ms (`afterCursor`/`beforeCursor`) pour que `since` et `until` soient **inclus**, et filtre le résultat sur `[since, until]` (`trimToRange`) car une page d'historique peut déborder avant `since`.
 - **Kraken** : `/public/OHLC` ne sert que les 720 dernières bougies (pas de pagination possible) : 30 j en H1 (historique plus ancien exclu par `maxHorizonDays` = `MarketDataProviderLimits.KRAKEN_H1_MAX_HORIZON_DAYS` sur le chemin H1) mais 720 j en D1 natif.
 
 ## Cache

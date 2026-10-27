@@ -184,4 +184,43 @@ class OkxMarketDataApiClientTest extends AbstractMarketDataApiClientContractTest
 
         assertEquals(recent, merged);
     }
+
+    // --- bornes inclusives (after/before OKX exclusifs) ---
+
+    @Test
+    void cursors_shiftByOneMillisecondToMakeBoundsInclusive() {
+        Instant day = Instant.parse("2026-10-25T00:00:00Z");
+        assertEquals(day.toEpochMilli() + 1, OkxMarketDataApiClient.afterCursor(day));
+        assertEquals(day.toEpochMilli() - 1, OkxMarketDataApiClient.beforeCursor(day));
+    }
+
+    @Test
+    void trimToRange_keepsBothBoundsAndDropsOverflow() {
+        Instant d25 = Instant.parse("2026-10-25T00:00:00Z");
+        Instant d26 = d25.plus(1, ChronoUnit.DAYS);
+        List<MarketData> candles = List.of(candleAt(d25.minus(1, ChronoUnit.DAYS)), candleAt(d25), candleAt(d26),
+                candleAt(d26.plus(1, ChronoUnit.DAYS)));
+
+        List<MarketData> trimmed = OkxMarketDataApiClient.trimToRange(candles, d25, d26);
+
+        assertEquals(List.of(d25, d26), trimmed.stream().map(MarketData::getTimestamp).toList());
+    }
+
+    @Test
+    void trimToRange_nullBoundsMeanUnbounded() {
+        List<MarketData> candles = hourlyCandles(3, 0);
+        assertEquals(candles, OkxMarketDataApiClient.trimToRange(candles, null, null));
+    }
+
+    @Test
+    void mergeWithHistory_doesNotCallHistoryWhenRecentReachesSinceInclusive() {
+        List<MarketData> recent = hourlyCandles(99, 90);
+        Instant since = NOW.minus(99, ChronoUnit.HOURS); // plus ancienne bougie == since (borne inclusive)
+
+        Function<Instant, List<MarketData>> historyFetcher = oldest -> {
+            throw new AssertionError("pas de history-candles quand recent atteint déjà since");
+        };
+
+        assertEquals(recent, OkxMarketDataApiClient.mergeWithHistory(recent, since, historyFetcher));
+    }
 }
