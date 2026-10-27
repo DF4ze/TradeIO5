@@ -1,16 +1,16 @@
 # Providers de données externes
 
-Vérifié le : 2026-09-12 (croisement `docs/suivi/etat-des-lieux-indicateurs-strategies-opinions.md` archivé + `configuration/EtfFlowCachingConfig` + `service/scheduler/EtfFlowHistorizationJob` + `service/tree/macro/MacroEventCalendarService`).
+Vérifié le : 2026-10-27 (symboles Coinalyze/carnet/ETF, Finnhub 403 ; 2026-09-12 : croisement `docs/suivi/etat-des-lieux-indicateurs-strategies-opinions.md` archivé + `configuration/EtfFlowCachingConfig` + `service/scheduler/EtfFlowHistorizationJob` + `service/tree/macro/MacroEventCalendarService`).
 
 | Donnée | Provider actuel | Provider historique/écarté | Notes |
 |---|---|---|---|
-| Open Interest / Funding / Liquidations | Coinalyze | — | — |
+| Open Interest / Funding / Liquidations | Coinalyze | — | `context.symbol()` est le symbole nu de l'actif (`BTC`) : `CoinalyzeSymbolResolver`, `OrderBookIndicator` (carnet Binance) et `EtfFlowConfidenceStrategy` le convertissent en paire Binance via `ProviderSymbolMapper.binancePair` (`BTC` -> `BTCUSDT`, paire déjà suffixée conservée). Un actif sans marché future Binance (ex. PAXG) donne un indicateur invalide, modulateur ignoré |
 | DXY (indice dollar) | Twelve Data | — | Seul indicateur encore sur Twelve Data (voir ligne suivante) |
 | SP500 / NASDAQ | Yahoo Finance | Twelve Data | Migration effectuée — ne pas documenter SP500/NASDAQ comme venant de Twelve Data |
 | Fear & Greed | CoinStats | — | Endpoint codé en dur (`/insights/fear-and-greed`) dans `CoinstatsFearAndGreedClient` — TODO connu, non bloquant |
 | Plafond stablecoin | DefiLlama | — | — |
 | ETF flow (BTC/ETH) | SoSoValue (`SosoValueEtfFlowClient`, via `CachingEtfFlowClient`, bean `@Primary`) | Farside (scraping HTML `jsoup`, `FarsideEtfFlowClient`) | Farside n'est plus la source du flux courant mais reste injecté **uniquement** dans `EtfFlowBackfillService` pour le backfill historique — 3ᵉ candidat `EtfFlowProvider` dans le contexte Spring, sans casser le `@Primary` posé sur SoSoValue |
-| Calendrier macro | Finnhub + ForexFactory | — | Dédoublonné entre les deux sources (`MacroEventCalendarService`) |
+| Calendrier macro | Finnhub + ForexFactory | — | Dédoublonné entre les deux sources (`MacroEventCalendarService`). Finnhub `/calendar/economic` répond 403 « no access » avec la clé actuelle (endpoint non inclus dans le plan) : seul ForexFactory alimente alors le calendrier |
 
 ## Historisation ETF flow
 

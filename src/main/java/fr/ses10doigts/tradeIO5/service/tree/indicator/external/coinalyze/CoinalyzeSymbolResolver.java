@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator.external.coinalyze;
 
+import fr.ses10doigts.tradeIO5.service.market.dataset.ProviderSymbolMapper;
 import fr.ses10doigts.tradeIO5.exceptions.ExternalApiException;
 import fr.ses10doigts.tradeIO5.model.dto.provider.web.ApiCredentialDTO;
 import fr.ses10doigts.tradeIO5.service.tree.indicator.external.AbstractExternalIndicator;
@@ -51,8 +52,10 @@ public class CoinalyzeSymbolResolver extends AbstractExternalIndicator {
         if (tradeIO5Symbol == null) {
             return null;
         }
+        // context.symbol() = symbole nu de l'actif (BTC) ; Coinalyze indexe symbolOnExchange sur la paire Binance (BTCUSDT).
+        String pair = ProviderSymbolMapper.binancePair(tradeIO5Symbol);
 
-        String cacheKey = DEFAULT_EXCHANGE_HINT + ":" + tradeIO5Symbol.toUpperCase();
+        String cacheKey = DEFAULT_EXCHANGE_HINT + ":" + pair.toUpperCase();
         String cached = cache.get(cacheKey);
         if (cached != null) {
             return cached;
@@ -62,11 +65,11 @@ public class CoinalyzeSymbolResolver extends AbstractExternalIndicator {
             List<CoinalyzeExchange> exchanges = fetchExchanges(credential);
             List<CoinalyzeFutureMarket> markets = fetchFutureMarkets(credential);
 
-            String resolved = findCoinalyzeSymbol(exchanges, markets, DEFAULT_EXCHANGE_HINT, tradeIO5Symbol);
+            String resolved = findCoinalyzeSymbol(exchanges, markets, DEFAULT_EXCHANGE_HINT, pair);
             if (resolved != null) {
                 cache.put(cacheKey, resolved);
             } else {
-                logger.warn("Coinalyze : aucun marché future trouvé pour {} sur {}", tradeIO5Symbol, DEFAULT_EXCHANGE_HINT);
+                logger.warn("Coinalyze : aucun marché future trouvé pour {} sur {}", pair, DEFAULT_EXCHANGE_HINT);
             }
             return resolved;
         } catch (ExternalApiException e) {

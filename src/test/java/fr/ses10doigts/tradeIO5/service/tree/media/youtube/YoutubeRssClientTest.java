@@ -129,6 +129,40 @@ class YoutubeRssClientTest {
         assertTrue(videos.isEmpty());
     }
 
+    @Test
+    @DisplayName("fetchLatestVideos() réessaie une fois sur 404 transitoire puis réussit")
+    void fetchLatestVideos_retriesOnceOnTransient404() throws IOException {
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        byte[] ok = SAMPLE_FEED.getBytes(StandardCharsets.UTF_8);
+        byte[] ko = "not found".getBytes(StandardCharsets.UTF_8);
+        server.createContext("/feeds/videos.xml", exchange -> {
+            boolean first = calls.incrementAndGet() == 1;
+            byte[] payload = first ? ko : ok;
+            exchange.sendResponseHeaders(first ? 404 : 200, payload.length);
+            exchange.getResponseBody().write(payload);
+            exchange.close();
+        });
+        server.start();
+
+        List<YoutubeVideoRef> videos = new YoutubeRssClient().fetchLatestVideos(credentialFor(server), "UCuXgThwkFpefb41aKWKqrOw");
+
+        assertEquals(2, videos.size());
+        assertEquals(2, calls.get());
+    }
+
+    @Test
+    @DisplayName("abbreviate() réduit un corps HTML d'erreur à une ligne de 200 caractères max")
+    void abbreviate_collapsesAndTruncates() {
+        String html = "<html>\n  <body>" + "x".repeat(500) + "</body>\n</html>";
+
+        String out = YoutubeRssClient.abbreviate(html);
+
+        assertTrue(out.length() <= 203);
+        assertTrue(!out.contains("\n"));
+        assertEquals("", YoutubeRssClient.abbreviate(null));
+    }
+
     private ApiCredentialDTO credentialFor(HttpServer srv) {
         return new ApiCredentialDTO(WebProviderCode.YOUTUBE, "", "", "http://127.0.0.1:" + srv.getAddress().getPort());
     }

@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.tree.strategy.impl;
 
+import fr.ses10doigts.tradeIO5.service.market.dataset.ProviderSymbolMapper;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorContext;
@@ -147,10 +148,10 @@ public class EtfFlowConfidenceStrategy extends AbstractStrategy {
             return StrategySignal.notValid(getName(), "Missing/invalid ETF_FLOW");
         }
 
-        EtfFlowAsset asset = ACCEPTED_SYMBOLS.get(context.symbol());
+        EtfFlowAsset asset = ACCEPTED_SYMBOLS.get(ProviderSymbolMapper.binancePair(context.symbol()));
         if (asset == null) {
             return StrategySignal.notValid(getName(),
-                    "symbole " + context.symbol() + " hors périmètre ETF_FLOW (BTCUSDT/ETHUSDT uniquement)");
+                    "symbole " + context.symbol() + " hors périmètre ETF_FLOW (BTC/ETH uniquement)");
         }
 
         TimeFrame tf = TimeFrame.valueOf(suppliedParams.getStrings().getOrDefault(P_TIME_FRAME_NAME, "D1"));

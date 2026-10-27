@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.tree.indicator.impl;
 
+import fr.ses10doigts.tradeIO5.service.market.dataset.ProviderSymbolMapper;
 import fr.ses10doigts.tradeIO5.model.dto.market.OrderBookSnapshot;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorContext;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.IndicatorParameters;
@@ -83,7 +84,7 @@ public class OrderBookIndicator implements Indicator {
         Double limitParam = parameters != null ? parameters.getNumeric(P_LIMIT) : null;
         int limit = limitParam != null ? limitParam.intValue() : DEFAULT_LIMIT;
 
-        OrderBookSnapshot snapshot = client.getOrderBook(symbol, limit);
+        OrderBookSnapshot snapshot = client.getOrderBook(ProviderSymbolMapper.binancePair(symbol), limit);
         Map<String, Double> volumes = computeVolumes(snapshot, bandPercent);
 
         if (volumes == null) {

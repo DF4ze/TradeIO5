@@ -12,6 +12,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -47,6 +48,10 @@ public class YoutubeRssClient extends AbstractExternalIndicator {
                     .onStatus(HttpStatusCode::is5xxServerError, this::toServerException)
                     .bodyToMono(String.class)
                     .timeout(Duration.ofSeconds(20))
+                    // YouTube renvoie par moments un 404/5xx transitoire sur le flux RSS : un seul nouvel essai après 3 s.
+                    .retryWhen(Retry.fixedDelay(1, Duration.ofSeconds(3))
+                            .filter(ExternalApiException.class::isInstance)
+                            .onRetryExhaustedThrow((spec, signal) -> signal.failure()))
                     .block();
 
             return parseFeed(xml);
@@ -111,13 +116,22 @@ public class YoutubeRssClient extends AbstractExternalIndicator {
         return nodes.item(0).getTextContent();
     }
 
+    /** Corps d'erreur réduit à une ligne de 200 caractères max (YouTube renvoie une page HTML complète en 404). */
+    static String abbreviate(String body) {
+        if (body == null) {
+            return "";
+        }
+        String oneLine = body.replaceAll("\\s+", " ").trim();
+        return oneLine.length() <= 200 ? oneLine : oneLine.substring(0, 200) + "...";
+    }
+
     private Mono<? extends Throwable> toClientException(ClientResponse response) {
         return response.bodyToMono(String.class)
-                .map(body -> new ExternalApiException("YouTube RSS 4xx: " + body));
+                .map(body -> new ExternalApiException("YouTube RSS 4xx: " + abbreviate(body)));
     }
 
     private Mono<? extends Throwable> toServerException(ClientResponse response) {
         return response.bodyToMono(String.class)
-                .map(body -> new ExternalApiException("YouTube RSS 5xx: " + body));
+                .map(body -> new ExternalApiException("YouTube RSS 5xx: " + abbreviate(body)));
     }
 }

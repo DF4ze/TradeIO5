@@ -1,10 +1,10 @@
 # Veille média (YouTube)
 
-Vérifié le : 2026-09-12 (`service/tree/media/{TranscriptExtractionService,TranscriptClassificationService,TranscriptClaimExtractionService}`, `service/scheduler/{MediaWatchIngestionJob,MediaWatchExtractionJob}`).
+Vérifié le : 2026-10-27 (`YoutubeRssClient` retry ; 2026-09-12 : `service/tree/media/{TranscriptExtractionService,TranscriptClassificationService,TranscriptClaimExtractionService}`, `service/scheduler/{MediaWatchIngestionJob,MediaWatchExtractionJob}`).
 
 ## Pipeline en 2 jobs planifiés
 
-1. **Ingestion** (`MediaWatchIngestionJob`, cron par défaut `0 30 9,15,21,3 * * *`, **actif**) : pour chaque `ContentSourceEntity` actif, découverte des nouvelles vidéos par flux RSS (`YoutubeRssClient`), récupération du transcript (`YoutubeTranscriptClient`), écriture en base en statut `PENDING` (`VideoContentEntity`). Idempotent (`existsBySourceAndVideoId`). Isolation par source : une source en échec (RSS injoignable, pas de transcript disponible) n'empêche pas le traitement des autres. Sans credential `YOUTUBE` résolue, le job se termine sans effet (warning).
+1. **Ingestion** (`MediaWatchIngestionJob`, cron par défaut `0 30 9,15,21,3 * * *`, **actif**) : pour chaque `ContentSourceEntity` actif, découverte des nouvelles vidéos par flux RSS (`YoutubeRssClient` : 1 nouvel essai après 3 s sur 4xx/5xx transitoire, corps d'erreur tronqué à 200 caractères dans les logs ; un échec persistant renvoie une liste vide, non comptée dans « source(s) en erreur »), récupération du transcript (`YoutubeTranscriptClient`), écriture en base en statut `PENDING` (`VideoContentEntity`). Idempotent (`existsBySourceAndVideoId`). Isolation par source : une source en échec (RSS injoignable, pas de transcript disponible) n'empêche pas le traitement des autres. Sans credential `YOUTUBE` résolue, le job se termine sans effet (warning).
 
    Créneaux revus le 2026-07-15 (avant : `0 0 */6 * * *`) suite à l'observation des horaires réels de publication d'une chaîne suivie (~09h00 et ~18h17 heure de Paris) — l'ancien calage ratait la vidéo du soir de près de 6h.
 

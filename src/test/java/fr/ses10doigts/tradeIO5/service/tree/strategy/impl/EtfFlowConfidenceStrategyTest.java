@@ -193,6 +193,29 @@ class EtfFlowConfidenceStrategyTest {
     }
 
     @Test
+    @DisplayName("evaluate() accepte le symbole nu de l'actif (BTC -> BTC), format porté par context.symbol()")
+    void evaluate_acceptsBareAssetSymbol() {
+        IndicatorEngine engine = mock(IndicatorEngine.class);
+        when(engine.execute(any(), argThat(p -> p != null && p.getIndicatorType() == IndicatorType.ETF_FLOW
+                        && "BTC".equals(p.getString(EtfFlowIndicator.P_ASSET)))))
+                .thenReturn(snapshotFor(IndicatorResult.builder().valid(true).value(200_000_000.0).build()));
+
+        EtfFlowConfidenceStrategy strategy = new EtfFlowConfidenceStrategy(new IndicatorRegistry(List.of()), engine);
+
+        StrategySignal signal = strategy.evaluate(marketContext("BTC", decliningDataset()), fullParameters());
+
+        assertTrue(signal.isValid());
+    }
+
+    @Test
+    @DisplayName("evaluate() retourne notValid() pour un symbole nu hors BTC/ETH (PAXG)")
+    void evaluate_returnsNotValid_forBareSymbolOutsideWhitelist() {
+        EtfFlowConfidenceStrategy strategy = new EtfFlowConfidenceStrategy(new IndicatorRegistry(List.of()), mock(IndicatorEngine.class));
+
+        assertFalse(strategy.evaluate(marketContext("PAXG", decliningDataset()), fullParameters()).isValid());
+    }
+
+    @Test
     @DisplayName("evaluate() résout l'asset depuis le symbole (ETHUSDT -> ETH) : flux ETH cohérent avec "
             + "la baisse de prix -> neutre (aucune atténuation)")
     void evaluate_resolvesAssetFromSymbol_eth_coherent() {

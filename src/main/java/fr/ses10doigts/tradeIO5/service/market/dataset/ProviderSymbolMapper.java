@@ -13,6 +13,18 @@ public final class ProviderSymbolMapper {
     private ProviderSymbolMapper() {
     }
 
+    /**
+     * Paire Binance d'un symbole : {@code BTC} -> {@code BTCUSDT} ; une paire déjà suffixée ({@code BTCUSDT}) est conservée.
+     * Pour les composants qui interrogent Binance/Coinalyze directement (carnet d'ordres, futures, périmètre ETF) alors que
+     * {@code context.symbol()} porte le symbole nu de l'actif (cf. {@code asset_provider}).
+     */
+    public static String binancePair(String symbol) {
+        if (symbol == null) {
+            return null;
+        }
+        return symbol.endsWith("USDT") ? symbol : symbol + "USDT";
+    }
+
     public static String forSource(String assetSymbol, MarketDataSource source) {
         return switch (source) {
             case BINANCE -> assetSymbol + "USDT";
