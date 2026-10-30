@@ -1,0 +1,215 @@
+WARNING: A Java agent has been loaded dynamically (C:\Users\Skill Korp\.m2\repository\net\bytebuddy\byte-buddy-agent\1.14.19\byte-buddy-agent-1.14.19.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+OpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+11:30:38.585 [main] INFO org.hibernate.validator.internal.util.Version -- HV000001: Hibernate Validator 8.0.1.Final
+11:30:39.680 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:39.680 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:39.684 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 3 ms
+11:30:40.175 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:40.175 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:40.176 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 1 ms
+11:30:40.486 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:40.486 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:40.486 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:40.536 [main] WARN org.springframework.web.servlet.PageNotFound -- No mapping for GET /app/assets/%3Cscript%3E
+11:30:40.543 [main] WARN org.springframework.web.servlet.PageNotFound -- No endpoint GET /app/assets/%3Cscript%3E.
+11:30:40.708 [main] INFO fr.ses10doigts.tradeIO5.controller.AuthController -- Entering SIGNUP
+11:30:40.713 [main] INFO fr.ses10doigts.tradeIO5.controller.AuthController -- User Created: User(id=null, username=ami, email=ami@test.fr, password=hash, roles=[Role(id=null, name=ROLE_USER)], enabled=true, lastLogin=null, archivedAt=null)
+11:30:40.949 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:40.950 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:40.950 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.068 [main] INFO fr.ses10doigts.tradeIO5.controller.AuthController -- User 'alice' signs in
+11:30:41.082 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.082 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.082 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.098 [main] INFO fr.ses10doigts.tradeIO5.controller.AuthController -- User 'alice' restauré depuis l'archive à la reconnexion
+11:30:41.098 [main] INFO fr.ses10doigts.tradeIO5.controller.AuthController -- User 'alice' signs in
+11:30:41.115 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.115 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.115 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.119 [main] ERROR fr.ses10doigts.tradeIO5.controller.AuthController -- Bad credentials : bad creds
+11:30:41.128 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.128 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.128 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.132 [main] INFO fr.ses10doigts.tradeIO5.controller.AuthController -- User 'alice' signs in
+11:30:41.174 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.174 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.175 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 1 ms
+11:30:41.339 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.339 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.339 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.340 [main] WARN fr.ses10doigts.tradeIO5.controller.MainController -- Préférences illisibles pour la page info : valeurs par défaut
+11:30:41.388 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.388 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.389 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.499 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.499 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.499 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.500 [main] WARN fr.ses10doigts.tradeIO5.controller.MainController -- Préférences illisibles pour la page admin : valeurs par défaut
+11:30:41.545 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.545 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.545 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.555 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.556 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.556 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.710 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.711 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.711 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.744 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.745 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.745 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.752 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.752 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.752 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.783 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.783 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.784 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 1 ms
+11:30:41.795 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.795 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.795 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.852 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.852 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.852 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.897 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.897 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.897 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.932 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.932 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.932 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+11:30:41.941 [main] INFO org.springframework.mock.web.MockServletContext -- Initializing Spring TestDispatcherServlet ''
+11:30:41.941 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Initializing Servlet ''
+11:30:41.941 [main] INFO org.springframework.test.web.servlet.TestDispatcherServlet -- Completed initialization in 0 ms
+[ERROR] Tests run: 5, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.165 s <<< FAILURE! -- in fr.ses10doigts.tradeIO5.controller.PublicPagesTest
+[ERROR] fr.ses10doigts.tradeIO5.controller.PublicPagesTest.registerPage -- Time elapsed: 0.039 s <<< FAILURE!
+java.lang.AssertionError: 
+
+Expecting actual:
+  "<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <title>Inscription · TradeIO</title>
+  <link rel="icon" href="/assets/img/favicon.png">
+  <link rel="preload" href="/assets/app/fonts/manrope-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/assets/app/css/tradeio.css">
+  <link rel="stylesheet" href="/assets/app/css/public.css">
+  <script src="/assets/app/js/public.js"></script>
+</head>
+<body class="tio pub">
+<header class="pub-top">
+  <a class="skip" href="#contenu">Aller au contenu</a>
+  <a class="pub-logo" href="/"><i aria-hidden="true"></i>TradeIO</a>
+  
+  <div class="pub-actions">
+    <button class="btn pub-theme" id="theme-toggle" type="button" aria-pressed="false" aria-label="Passer en thème clair"><span aria-hidden="true">?</span></button>
+    <a class="btn" href="/login">Connexion</a>
+    <a class="btn btn--primary" href="/register">Inscription</a>
+  </div>
+</header>
+<main id="contenu" class="pub-auth">
+  <section class="card pub-auth-card" aria-labelledby="t">
+    <h1 id="t">Inscription</h1>
+    <p class="muted">Créez votre compte TradeIO.</p>
+    
+    <div class="banner banner--down" role="alert">Username%20is%20already%20taken!</div>
+    
+    <form class="stack" method="post" action="/api/auth/signupForm">
+      <div class="field"><label for="username">Identifiant</label>
+        <input type="text" autocomplete="username" autocapitalize="none" minlength="3" maxlength="20" required id="username" name="username" value="">
+        <span class="hint">3 à 20 caractères.</span></div>
+      <div class="field"><label for="email">E-mail</label>
+        <input type="email" autocomplete="email" maxlength="50" required id="email" name="email" value=""></div>
+      <div class="field"><label for="password">Mot de passe</label>
+        <input type="password" autocomplete="new-password" minlength="6" maxlength="40" required id="password" name="password" value="">
+        <span class="hint">6 à 40 caractères.</span></div>
+      <div class="field"><label for="verifPassword">Confirmation du mot de passe</label>
+        <input type="password" autocomplete="new-password" minlength="6" maxlength="40" required id="verifPassword" name="verifPassword" value=""></div>
+      <button class="btn btn--primary btn--lg" type="submit">Créer mon compte</button>
+    </form>
+    <p class="note">Déjà un compte ? <a href="/login">Connexion</a></p>
+    <p class="note"><a href="/">? Retour à l'accueil</a></p>
+  </section>
+</main>
+</body>
+</html>
+"
+to contain:
+  "Username is already taken!" 
+	at fr.ses10doigts.tradeIO5.controller.PublicPagesTest.registerPage(PublicPagesTest.java:97)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+[ERROR] Failures: 
+[ERROR]   PublicPagesTest.registerPage:97 
+Expecting actual:
+  "<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <title>Inscription · TradeIO</title>
+  <link rel="icon" href="/assets/img/favicon.png">
+  <link rel="preload" href="/assets/app/fonts/manrope-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/assets/app/css/tradeio.css">
+  <link rel="stylesheet" href="/assets/app/css/public.css">
+  <script src="/assets/app/js/public.js"></script>
+</head>
+<body class="tio pub">
+<header class="pub-top">
+  <a class="skip" href="#contenu">Aller au contenu</a>
+  <a class="pub-logo" href="/"><i aria-hidden="true"></i>TradeIO</a>
+  
+  <div class="pub-actions">
+    <button class="btn pub-theme" id="theme-toggle" type="button" aria-pressed="false" aria-label="Passer en thème clair"><span aria-hidden="true">?</span></button>
+    <a class="btn" href="/login">Connexion</a>
+    <a class="btn btn--primary" href="/register">Inscription</a>
+  </div>
+</header>
+<main id="contenu" class="pub-auth">
+  <section class="card pub-auth-card" aria-labelledby="t">
+    <h1 id="t">Inscription</h1>
+    <p class="muted">Créez votre compte TradeIO.</p>
+    
+    <div class="banner banner--down" role="alert">Username%20is%20already%20taken!</div>
+    
+    <form class="stack" method="post" action="/api/auth/signupForm">
+      <div class="field"><label for="username">Identifiant</label>
+        <input type="text" autocomplete="username" autocapitalize="none" minlength="3" maxlength="20" required id="username" name="username" value="">
+        <span class="hint">3 à 20 caractères.</span></div>
+      <div class="field"><label for="email">E-mail</label>
+        <input type="email" autocomplete="email" maxlength="50" required id="email" name="email" value=""></div>
+      <div class="field"><label for="password">Mot de passe</label>
+        <input type="password" autocomplete="new-password" minlength="6" maxlength="40" required id="password" name="password" value="">
+        <span class="hint">6 à 40 caractères.</span></div>
+      <div class="field"><label for="verifPassword">Confirmation du mot de passe</label>
+        <input type="password" autocomplete="new-password" minlength="6" maxlength="40" required id="verifPassword" name="verifPassword" value=""></div>
+      <button class="btn btn--primary btn--lg" type="submit">Créer mon compte</button>
+    </form>
+    <p class="note">Déjà un compte ? <a href="/login">Connexion</a></p>
+    <p class="note"><a href="/">? Retour à l'accueil</a></p>
+  </section>
+</main>
+</body>
+</html>
+"
+to contain:
+  "Username is already taken!" 
+[ERROR] Tests run: 23, Failures: 1, Errors: 0, Skipped: 0
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.2.5:test (default-test) on project TradeIO5: There are test failures.
+[ERROR] 
+[ERROR] Please refer to D:\Documents\Spring\TradeIO-5\target\surefire-reports for the individual test results.
+[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+DONE_EXIT=1 

@@ -88,7 +88,6 @@ button, input, select { font: inherit; color: inherit; }
     left: 18px; top: 18px; bottom: 18px; transform: none; width: 200px; flex-direction: column; border-radius: 28px; padding: 16px 12px; gap: 6px;
   }
   .tio-nav .logo { display: flex; align-items: center; gap: 8px; padding: 4px 10px 14px; font-weight: 800; font-size: 17px; color: var(--text); text-decoration: none; }
-  .tio-nav .logo i { width: 22px; height: 22px; border-radius: 8px; background: var(--spectrum); display: inline-block; opacity: .9; }
   .tio-nav a.tab { flex-direction: row; gap: 10px; min-width: 0; padding: 11px 14px; font-size: 13.5px; border-radius: 16px; }
   .tio-nav .side-only { display: flex; }
   .tio-nav .me { display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 10px; border-top: 1px solid var(--line); font-weight: 700; }
@@ -218,6 +217,8 @@ button, input, select { font: inherit; color: inherit; }
 .list .item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); min-width: 0; }
 .list .item:first-child { border-top: 0; }
 .coin { width: 36px; height: 36px; flex: none; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 13px; color: #0f1119; background: linear-gradient(135deg, var(--c1, var(--s4)), var(--c2, var(--s6))); }
+.coin--img { background: none; overflow: hidden; }
+.coin--img img { width: 100%; height: 100%; display: block; }
 .pipe { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); counter-reset: pipe; }
 .pipe .st { position: relative; padding: 10px 12px 10px 14px; border-radius: 16px; background: var(--bg); border-left: 3px solid var(--line); min-width: 0; }
 .pipe .st.ok { border-left-color: var(--up); } .pipe .st.warn { border-left-color: var(--warn); } .pipe .st.down { border-left-color: var(--down); }
@@ -248,3 +249,10 @@ table.tbl td { padding: 8px; border-top: 1px solid var(--line); font-variant-num
 .skip { position: absolute; left: 8px; top: -48px; z-index: 50; padding: 8px 14px; border-radius: 999px; background: var(--surface); border: 1px solid var(--accent); color: var(--text); font-weight: 700; }
 .skip:focus { top: 8px; }
 @media (forced-colors: active) { .chip, .btn, .pchip, .seg button, .periods button { border: 1px solid ButtonText; } }
+
+/* Logo : une image par thème (fragments/brand.html), la visible suit data-theme */
+.brand-logo { display: inline-flex; line-height: 0; }
+.brand-logo img { display: block; height: 28px; width: auto; }
+.brand-logo .brand-logo__light { display: none; }
+:root[data-theme="light"] .brand-logo .brand-logo__dark { display: none; }
+:root[data-theme="light"] .brand-logo .brand-logo__light { display: block; }

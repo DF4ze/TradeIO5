@@ -1,6 +1,6 @@
 # Charte graphique — piste B « Rainbow doux » (sombre et clair)
 
-Vérifié le : 2026-10-20. Source de vérité visuelle : maquettes (Artifact « TradeIO Maquettes » : `PlaqueB_Tel`, `PlaqueB_PC`, boards `Widgets · piste B`, `… · Rainbow`, `… courbes v3`). Cette page fixe les règles ; en cas d'écart, les valeurs ci-dessous font foi pour l'implémentation.
+Vérifié le : 2026-10-30. Source de vérité visuelle : maquettes (Artifact « TradeIO Maquettes » : `PlaqueB_Tel`, `PlaqueB_PC`, boards `Widgets · piste B`, `… · Rainbow`, `… courbes v3`). Cette page fixe les règles ; en cas d'écart, les valeurs ci-dessous font foi pour l'implémentation.
 
 Périmètre : thèmes sombre (défaut) et clair, mêmes noms de tokens, valeurs différentes ; le choix se fait dans les réglages personnels (« Apparence », préférence serveur). Pas de variantes de style en parallèle.
 
@@ -111,3 +111,11 @@ Patrimoine · Exposition (arc) · Décisions du jour · Puissance (0,5×–2×, 
 - Dégradés de valeur : `linear-gradient` + `clip-path` (pas de canvas pour les barres et curseurs).
 - Contrastes : texte principal et secondaire ≥ 4,5:1 sur `--surface`. Mesuré : sombre texte 15,2 · muted 5,8 ; clair muted 6,3. Pastilles : couleur du texte = `color-mix(var(--c) 78%, var(--text))` ⇒ ≥ 5,1:1 dans les deux thèmes.
 - Accessibilité : lien « Aller au contenu » en tête de page, focus visible, `prefers-reduced-motion` (animations coupées), `forced-colors` (contours système), graphique du cours doublé d'un tableau de données repliable (`<details>`), information jamais portée par la couleur seule.
+
+## 9. Logo
+
+- **Symbole** : tuile arrondie au dégradé Rainbow (rouge `#D9486A` → violet `#6D4AFF` → vert `#17A673`, du bas-gauche vers le haut-droit) portant un « I » (barre arrondie) et un « O » ouvert aux trois quarts (ouverture en haut à droite, extrémités arrondies), tous deux blancs.
+- **Wordmark** : « Trade » en Sora 400, puis « IO » dans une pastille arrondie, pour qu'on lise bien *Trade* puis *IO* (et non « Tradelo »). Dans la pastille, le « I » est une barre arrondie violet clair (`#C4B5FD` en sombre, `#5B3FD1` en clair) et le « O » un anneau ouvert aux trois quarts au dégradé Rainbow. Le haut de la barre « I » est à la hauteur de capitale de Sora (730/1000) et son pied sur la ligne de base de « Trade » ; l'anneau déborde comme le « O » de la police (de −19 à 752). Le texte est converti en tracés : aucune dépendance à une police.
+- **Lockup** : symbole + wordmark, la tuile centrée sur la hauteur de capitale du texte.
+- **Fichiers** (`src/main/resources/static/assets/img/logo/`) : `logo-lockup-dark.svg` / `-light.svg` (fond sombre / clair), `logo-wordmark-dark.svg` / `-light.svg`, `logo-symbol.svg`, `favicon.svg` (traits épaissis pour les petites tailles), `favicon-16/32/48.png`, `favicon.ico` (aussi servi à `/favicon.ico`), `apple-touch-icon.png` (180 px, pleine tuile), `icon-192.png`, `icon-512.png`, `og-image.png` (1200×630). `static/site.webmanifest` référence les icônes 192/512.
+- **Intégration** : `templates/fragments/brand.html` fournit `icons` (balises d'icônes, manifeste, `theme-color`, à mettre dans le `<head>` de toute page) et `logo` (deux `<img>` dont `tradeio.css` n'affiche que celle du thème courant, classe `.brand-logo`). Utilisé par `fragments/public.html` (pages publiques) et `app/fragments.html` (application, admin, info) ; les pages héritées `error.html`, `unauthorized.html` et `userPage.html` n'incluent que `icons`.

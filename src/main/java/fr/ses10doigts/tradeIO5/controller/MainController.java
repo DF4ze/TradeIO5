@@ -1,6 +1,6 @@
 package fr.ses10doigts.tradeIO5.controller;
 
-import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,11 +12,9 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import fr.ses10doigts.tradeIO5.security.model.Role;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.model.payload.request.LoginRequest;
 import fr.ses10doigts.tradeIO5.security.model.payload.request.SignupRequest;
-import fr.ses10doigts.tradeIO5.security.repository.RoleRepository;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.preferences.UserPreferencesService;
 
@@ -27,64 +25,51 @@ public class MainController {
     private IAuthenticationFacade authenticationFacade;
 
     @Autowired
-	private RoleRepository roleRepo;
-    @Autowired
     private UserPreferencesService preferencesService;
 
     private static final Logger	  logger = LoggerFactory.getLogger(MainController.class);
 
+    /** Page de présentation publique ; un utilisateur connecté est envoyé sur l'application ({@code /app}). */
     @GetMapping("/")
-	public String home(Model model, @RequestParam(required = false, name = "error") Boolean error) {
-		User user = null;
-
-		LoginRequest loginRequest = new LoginRequest();
-		model.addAttribute("loginRequest", loginRequest);
-		model.addAttribute("error", error != null && error);
-
-		try {
-			user = authenticationFacade.getConnectedUser();
-			if (user != null) {
-				// Utilisateur connecté : l'application est sur /app (l'ancienne page d'accueil n'est servie qu'aux visiteurs).
-				return "redirect:/app";
-			}
-			model.addAttribute("loggued", false);
-			model.addAttribute("username", "");
-		} catch (RuntimeException e) {
-			model.addAttribute("loggued", false);
-			model.addAttribute("username", "");
-		}
-
-		model.addAttribute("page", "home");
-
-		return "home";
+    public String home() {
+		return isConnected() ? "redirect:/app" : "home";
     }
 
 
     @GetMapping("/login")
     public String login(Model model, @RequestParam(required = false, name = "error") Boolean error) {
-		LoginRequest loginRequest = new LoginRequest();
-
-		model.addAttribute("loginRequest", loginRequest);
+		if (isConnected()) {
+			return "redirect:/app";
+		}
+		model.addAttribute("loginRequest", new LoginRequest());
 		model.addAttribute("error", error != null && error);
-
-		model.addAttribute("page", "login");
-
 		return "login";
     }
 
 
+    /**
+     * Formulaire d'inscription. Le retour de {@code AuthController} arrive en paramètres de redirection :
+     * {@code ok}, {@code exception} et les messages de validation ({@code signUpRequestN}).
+     */
     @GetMapping("/register")
-	public String register(Model model) {
-		SignupRequest signUpRequest = new SignupRequest();
-
-		List<Role> roles = roleRepo.findAll();
-
-		model.addAttribute("signUpRequest", signUpRequest);
-		model.addAttribute("allRoles", roles);
-
-		model.addAttribute("page", "register");
-
+    public String register(Model model, @RequestParam Map<String, String> params) {
+		if (isConnected()) {
+			return "redirect:/app";
+		}
+		model.addAttribute("signUpRequest", new SignupRequest());
+		model.addAttribute("ok", params.containsKey("ok"));
+		model.addAttribute("exception", params.get("exception"));
+		model.addAttribute("errors", params.entrySet().stream().filter(e -> e.getKey().startsWith("signUpRequest")).map(Map.Entry::getValue).toList());
 		return "register";
+    }
+
+
+    private boolean isConnected() {
+		try {
+			return authenticationFacade.getConnectedUser() != null;
+		} catch (RuntimeException e) {
+			return false;
+		}
     }
 
 

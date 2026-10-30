@@ -1,139 +1,110 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
-    
-    <head>
-		<meta charset="UTF-8">
-		<title>Spring Secu Template - Home</title>
-		
-		<!-- Google Fonts -->
-		<link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Raleway:300,300i,400,400i,500,500i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet">
-		
-		<!-- Vendor CSS Files -->
-		<link href="assets/vendor/aos/aos.css" rel="stylesheet">
-		<link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-		<link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
-		<link href="assets/vendor/boxicons/css/boxicons.min.css" rel="stylesheet">
-		<link href="assets/vendor/glightbox/css/glightbox.min.css" rel="stylesheet">
-		<link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
-		
-		<!-- Template Main CSS File -->
-		<link href="assets/css/style.css" rel="stylesheet">
-		
-		<!-- Jquery Call -->
-		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
-    </head>
-    <body>
-    
-    
-      <!-- ======= Header ======= -->
-	<header id="header">
-	  <div class="d-flex flex-column">
-	
-	    <div class="profile">
-	    </div>
-	
-		<nav id="navbar" class="nav-menu navbar">
-			<div th:replace="~{fragments/navbar :: navbar}"></div>
-		</nav>
-	  </div>
-	</header>
-    
-    
-    
-    <main id="main">
-		<!-- ======= Liste Souhaits Participations Section ======= -->
-		<section id="about" class="about" >
-		  	<div class="container">
-		    	<div class="section-title">
-					<h2 th:if="${loggued == true}">Bienvenue <span th:text="${username}"></span></h2>
-					<h2 th:if="${loggued == false}">Veuillez vous connecter</h2>
-				</div>
-				
-				<!-- Si loggué : liste des avoirs -->
-				<div th:if="${loggued == true}">
-				  <h3>Vos avoirs :</h3>
-				  <table class="table">
-				      <thead>
-				          <tr>
-				              <th>Asset</th>
-				              <th>Quantité</th>
-				              <th>Prix marché</th>
-				              <th>Valeur</th>
-				              <th>Prix achat moyen</th>
-				              <th>Prix vente moyen</th>
-							  <th>Investi</th>
-							  <th>Vendu</th>
-							  <th>Gain</th>
-				              <th>Devise</th>
-				          </tr>
-				      </thead>
-				      <tbody id="assetOverviewBody">
-				          <!-- injecté dynamiquement -->
-				      </tbody>
-				  </table>
-				<script>
-					$(document).ready(function () {
-					    $.ajax({
-					        url: '/api/overview',
-					        method: 'GET',
-					        success: function (data) {
-					            console.log(data); // à remplacer ensuite par de l'affichage dans la page
-					            // Exemple : afficher les assets
-					            let html = '';
-					            data.forEach(asset => {
-					                html += `<tr>
-					                            <td>${asset.asset}</td>
-					                            <td>${asset.quantity}</td>
-					                            <td>${asset.marketPrice}</td>
-					                            <td>${asset.value}</td>
-					                            <td>${asset.averageBuyPrice}</td>
-												<td>${asset.averageSellPrice}</td>
-												<td>${asset.totalInvested}</td>
-												<td>${asset.totalSold}</td>
-					                            <td>${asset.costBasis}</td>
-					                            <td>${asset.quoteCurrency}</td>
-					                         </tr>`;
-					            });
-					            $('#assetOverviewBody').html(html);
-					        },
-					        error: function (err) {
-					            console.error("Erreur lors du chargement des avoirs", err);
-					            $('#assetOverviewBody').html('<tr><td colspan="10" class="text-danger">Chargement des avoirs impossible ('+ (err.status||'?') +')</td></tr>');
-					        }
-					    });
-					});
-				</script>
-			  </div>
-				
-				<!-- Si non loggué : inclure login -->
-				<div id="login" th:if="${loggued == false}">
-					<div th:replace="~{fragments/login :: login}"></div>
-				</div>
-			</div>
-		</section>
-	</main>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr">
+<head th:replace="~{fragments/public :: head('Investir régulièrement, intelligemment')}"></head>
+<body class="tio pub">
+<header th:replace="~{fragments/public :: topbar(true)}"></header>
+<main id="contenu" class="pub-main">
 
+  <section class="pub-hero">
+    <div class="pub-hero-txt">
+      <span class="chip chip--accent">Investissement crypto automatisé</span>
+      <h1>Investissez régulièrement, intelligemment, sans y penser.</h1>
+      <p class="lead">TradeIO automatise votre investissement programmé (DCA) sur plusieurs actifs et plusieurs plateformes. Chaque achat s'adapte aux conditions de marché, dans les limites d'exposition que vous fixez.</p>
+      <div class="row">
+        <a class="btn btn--primary btn--lg" th:href="@{/register}">Créer mon compte</a>
+        <a class="btn btn--lg" th:href="@{/login}">Me connecter</a>
+      </div>
+      <p class="note">Accès ouvert à un cercle restreint pour le moment.</p>
+    </div>
+    <div class="pub-hero-vis" aria-hidden="false">
+      <div class="card card--hero">
+        <div class="card-title">Patrimoine <span class="tag push">ILLUSTRATION</span></div>
+        <div class="chart-wrap"><svg class="chart" viewBox="0 0 320 150" role="img" aria-label="Courbe de patrimoine illustrée, en hausse"><defs><linearGradient id="lg-s" gradientUnits="userSpaceOnUse" x1="0" y1="144" x2="0" y2="12"><stop offset="0%" stop-color="var(--s0)"/><stop offset="100%" stop-color="var(--s3)"/></linearGradient><linearGradient id="lg-a" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--s3)" stop-opacity=".30"/><stop offset="100%" stop-color="var(--s3)" stop-opacity="0"/></linearGradient></defs><line class="grid-l" x1="6" x2="314" y1="124.2" y2="124.2"/><line class="grid-l" x1="6" x2="314" y1="78.0" y2="78.0"/><line class="grid-l" x1="6" x2="314" y1="31.8" y2="31.8"/><path d="M6.0 136.7 L21.4 132.3 L36.8 135.2 L52.2 125.0 L67.6 119.2 L83.0 123.6 L98.4 110.4 L113.8 101.7 L129.2 106.0 L144.6 92.9 L160.0 81.2 L175.4 87.1 L190.8 94.4 L206.2 76.8 L221.6 63.7 L237.0 52.0 L252.4 60.8 L267.8 44.7 L283.2 33.0 L298.6 37.4 L314.0 19.9 L314.0 144 L6.0 144 Z" fill="url(#lg-a)"/><path d="M6.0 136.7 L21.4 132.3 L36.8 135.2 L52.2 125.0 L67.6 119.2 L83.0 123.6 L98.4 110.4 L113.8 101.7 L129.2 106.0 L144.6 92.9 L160.0 81.2 L175.4 87.1 L190.8 94.4 L206.2 76.8 L221.6 63.7 L237.0 52.0 L252.4 60.8 L267.8 44.7 L283.2 33.0 L298.6 37.4 L314.0 19.9" fill="none" stroke="url(#lg-s)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+        <div class="row">
+          <span class="chip chip--ok">Exécution réelle</span>
+          <span class="chip chip--accent">Prochaine passe dans 3 h</span>
+        </div>
+      </div>
+      <p class="note">Illustration, données fictives.</p>
+    </div>
+  </section>
 
+  <section class="pub-strip" aria-label="Couverture">
+    <div class="pub-strip-i"><span class="coin" style="--c1:var(--s1);--c2:var(--s2)" aria-hidden="true">₿</span><span class="coin" style="--c1:var(--s5);--c2:var(--s6)" aria-hidden="true">Ξ</span><span class="coin" style="--c1:var(--s2);--c2:var(--s1)" aria-hidden="true">Au</span><span class="coin" style="--c1:var(--s4);--c2:var(--s6)" aria-hidden="true">◎</span><span class="coin" style="--c1:var(--line);--c2:var(--line);color:var(--muted)" aria-hidden="true">+</span></div>
+    <p><strong>Plusieurs cryptos, plusieurs plateformes d'échange, un seul tableau de bord.</strong> Bitcoin, Ether et bien d'autres actifs, répartis comme vous le souhaitez.</p>
+  </section>
 
-		<!-- Vendor JS Files -->
-		<script src="assets/vendor/purecounter/purecounter_vanilla.js"></script>
-		<script src="assets/vendor/aos/aos.js"></script>
-		<script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-		<script src="assets/vendor/glightbox/js/glightbox.min.js"></script>
-		<script src="assets/vendor/isotope-layout/isotope.pkgd.min.js"></script>
-		<script src="assets/vendor/swiper/swiper-bundle.min.js"></script>
-		<script src="assets/vendor/typed.js/typed.min.js"></script>
-		<script src="assets/vendor/waypoints/noframework.waypoints.js"></script>
-		<script src="assets/vendor/php-email-form/validate.js"></script>
-		
-		<!-- Template Main JS File -->
-		 <script src="assets/js/main.js"></script>
-		 <script src="assets/js/perso.js"></script>
-		
-		<script>
-		includeHTML();
-		</script>
+  <section id="fonctionnement" class="pub-sec">
+    <h2>Comment ça marche</h2>
+    <ol class="pub-steps">
+      <li><span class="n">1</span><h3>Connectez vos plateformes</h3><p>Reliez vos comptes d'échange avec vos clés d'API. Votre patrimoine est agrégé en un seul endroit.</p></li>
+      <li><span class="n">2</span><h3>Choisissez vos actifs</h3><p>Sélectionnez les cryptos à accumuler et répartissez votre investissement par actif, puis par plateforme.</p></li>
+      <li><span class="n">3</span><h3>Fixez votre cadre</h3><p>Définissez la bande d'exposition, la puissance et le biais achat / vente. TradeIO ne sort jamais de ce cadre.</p></li>
+      <li><span class="n">4</span><h3>TradeIO décide, vous gardez la main</h3><p>Une décision par passe, expliquée dans le journal. Mode simulation pour tester, exécution réelle quand vous êtes prêt.</p></li>
+    </ol>
+  </section>
 
+  <section id="fonctionnalites" class="pub-sec">
+    <h2>Ce que vous trouvez dans l'application</h2>
+    <div class="grid grid--3 pub-feat">
+      <article class="card">
+        <div class="card-title">Patrimoine et PnL</div>
+        <div class="chart-wrap" aria-hidden="true"><svg class="chart" viewBox="0 0 320 150" role="img" aria-label="Courbe de patrimoine illustrée, en hausse"><defs><linearGradient id="lg-s2" gradientUnits="userSpaceOnUse" x1="0" y1="144" x2="0" y2="12"><stop offset="0%" stop-color="var(--s0)"/><stop offset="100%" stop-color="var(--s3)"/></linearGradient><linearGradient id="lg-a2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--s3)" stop-opacity=".30"/><stop offset="100%" stop-color="var(--s3)" stop-opacity="0"/></linearGradient></defs><line class="grid-l" x1="6" x2="314" y1="124.2" y2="124.2"/><line class="grid-l" x1="6" x2="314" y1="78.0" y2="78.0"/><line class="grid-l" x1="6" x2="314" y1="31.8" y2="31.8"/><path d="M6.0 136.7 L21.4 132.3 L36.8 135.2 L52.2 125.0 L67.6 119.2 L83.0 123.6 L98.4 110.4 L113.8 101.7 L129.2 106.0 L144.6 92.9 L160.0 81.2 L175.4 87.1 L190.8 94.4 L206.2 76.8 L221.6 63.7 L237.0 52.0 L252.4 60.8 L267.8 44.7 L283.2 33.0 L298.6 37.4 L314.0 19.9 L314.0 144 L6.0 144 Z" fill="url(#lg-a2)"/><path d="M6.0 136.7 L21.4 132.3 L36.8 135.2 L52.2 125.0 L67.6 119.2 L83.0 123.6 L98.4 110.4 L113.8 101.7 L129.2 106.0 L144.6 92.9 L160.0 81.2 L175.4 87.1 L190.8 94.4 L206.2 76.8 L221.6 63.7 L237.0 52.0 L252.4 60.8 L267.8 44.7 L283.2 33.0 L298.6 37.4 L314.0 19.9" fill="none" stroke="url(#lg-s2)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+        <p>Votre valeur totale, vos gains et pertes, tous actifs et plateformes confondus.</p>
+      </article>
+      <article class="card">
+        <div class="card-title">Exposition maîtrisée</div>
+        <svg class="gauge" viewBox="0 0 200 168" role="img" aria-label="Exposition illustrée : 52 %, bande 30 à 60 %"><defs><linearGradient id="lg-g" gradientUnits="userSpaceOnUse" x1="26" y1="0" x2="174" y2="0"><stop offset="0%" stop-color="var(--s0)"/><stop offset="17%" stop-color="var(--s1)"/><stop offset="33%" stop-color="var(--s2)"/><stop offset="50%" stop-color="var(--s3)"/><stop offset="67%" stop-color="var(--s4)"/><stop offset="83%" stop-color="var(--s5)"/><stop offset="100%" stop-color="var(--s6)"/></linearGradient></defs><path class="g-track" d="M47.67 148.33 A74 74 0 1 1 152.33 148.33"/><path class="g-band" d="M40.13 52.50 A74 74 0 0 1 133.60 30.07" stroke="url(#lg-g)"/><text class="g-lbl" x="43.7" y="166.3" text-anchor="middle">0 %</text><text class="g-lbl" x="156.3" y="166.3" text-anchor="middle">100 %</text><text class="g-val" x="100" y="104" text-anchor="middle">52 %</text><circle class="g-mark" cx="106.96" cy="22.33" r="7"/></svg>
+        <p>Une bande minimum / maximum d'exposition aux actifs que vous choisissez, respectée à chaque décision.</p>
+      </article>
+      <article class="card">
+        <div class="card-title">Puissance et biais</div>
+        <div class="pub-slider" aria-hidden="true" style="--p:62%"><i class="trk"></i><i class="fill"></i><i class="mark" style="left:33%"></i><b></b></div>
+        <div class="row row--between note"><span>Prudent</span><span>Puissance</span><span>Offensif</span></div>
+        <div class="pub-slider" aria-hidden="true" style="--p:40%"><i class="trk"></i><i class="fill"></i><i class="mark" style="left:50%"></i><b></b></div>
+        <div class="row row--between note"><span>Vendre</span><span>Biais</span><span>Acheter</span></div>
+        <p>Deux curseurs pour moduler l'ampleur des décisions et leur orientation, à votre rythme.</p>
+      </article>
+      <article class="card">
+        <div class="card-title">Stable vs actifs</div>
+        <div class="chart-wrap" aria-hidden="true"><svg class="chart" viewBox="0 0 320 150" role="img" aria-label="Valeur en actifs et en stable illustrée, entre deux bornes d'exposition"><defs><linearGradient id="lg-c1" x1="0" x2="1"><stop offset="0%" stop-color="var(--s6)"/><stop offset="100%" stop-color="var(--s4)"/></linearGradient><linearGradient id="lg-c2" x1="0" x2="1"><stop offset="0%" stop-color="var(--s4)"/><stop offset="100%" stop-color="var(--s3)"/></linearGradient></defs><rect x="6" y="34.8" width="308" height="53.6" fill="var(--accent)" opacity=".10"/><line x1="6" x2="314" y1="34.8" y2="34.8" stroke="var(--s1)" stroke-width="1.5" stroke-dasharray="4 4"/><line x1="6" x2="314" y1="88.4" y2="88.4" stroke="var(--s1)" stroke-width="1.5" stroke-dasharray="4 4"/><path d="M6.0 68.3 L16.6 64.6 L27.2 61.2 L37.9 58.2 L48.5 55.7 L59.1 53.9 L69.7 52.9 L80.3 52.8 L91.0 53.4 L101.6 54.9 L112.2 56.9 L122.8 59.5 L133.4 62.4 L144.1 65.4 L154.7 68.3 L165.3 70.9 L175.9 73.1 L186.6 74.6 L197.2 75.4 L207.8 75.3 L218.4 74.4 L229.0 72.8 L239.7 70.4 L250.3 67.4 L260.9 64.0 L271.5 60.4 L282.1 56.7 L292.8 53.2 L303.4 50.1 L314.0 47.6" fill="none" stroke="url(#lg-c1)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.0 81.7 L16.6 85.4 L27.2 88.8 L37.9 91.8 L48.5 94.3 L59.1 96.1 L69.7 97.1 L80.3 97.2 L91.0 96.6 L101.6 95.1 L112.2 93.1 L122.8 90.5 L133.4 87.6 L144.1 84.6 L154.7 81.7 L165.3 79.1 L175.9 76.9 L186.6 75.4 L197.2 74.6 L207.8 74.7 L218.4 75.6 L229.0 77.2 L239.7 79.6 L250.3 82.6 L260.9 86.0 L271.5 89.6 L282.1 93.3 L292.8 96.8 L303.4 99.9 L314.0 102.4" fill="none" stroke="url(#lg-c2)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <p>La part de stable et d'actifs dans le temps, toujours entre vos bornes (pointillés).</p>
+      </article>
+      <article class="card">
+        <div class="card-title">Journal de décisions</div>
+        <div class="pub-cal" role="img" aria-label="Calendrier illustré des décisions : achats, achats renforcés, ventes, jours sans action et jours reportés (hachurés)"><i class="buy"></i><i class="buy"></i><i class="boost"></i><i class="none"></i><i class="carry"></i><i class="carry"></i><i class="buy"></i><i class="sell"></i><i class="none"></i><i class="buy"></i><i class="buy"></i><i class="boost"></i><i class="carry"></i><i class="none"></i><i class="buy"></i><i class="none"></i><i class="sell"></i><i class="sell"></i><i class="none"></i><i class="buy"></i><i class="carry"></i><i class="carry"></i><i class="buy"></i><i class="boost"></i><i class="buy"></i><i class="none"></i><i class="buy"></i><i class="buy"></i><i class="sell"></i><i class="none"></i></div>
+        <ul class="pub-leg note"><li><i class="k-buy"></i>Achat</li><li><i class="k-boost"></i>Renforcé</li><li><i class="k-sell"></i>Vente</li><li><i class="k-carry"></i>Reporté</li></ul>
+        <p>Chaque jour, la décision prise et pourquoi : montant, plafonds, raison.</p>
+      </article>
+      <article class="card">
+        <div class="card-title">Multi-actifs, multi-plateformes</div>
+        <div class="list">
+          <div class="item"><span class="coin" style="--c1:var(--s1);--c2:var(--s2)" aria-hidden="true">₿</span><div class="grow"><strong>Actif A</strong><div class="note">Plateforme 1</div></div><span class="chip chip--ok">OK</span></div>
+          <div class="item"><span class="coin" style="--c1:var(--s5);--c2:var(--s6)" aria-hidden="true">Ξ</span><div class="grow"><strong>Actif B</strong><div class="note">Plateforme 2</div></div><span class="chip chip--ok">OK</span></div>
+          <div class="item"><span class="coin" style="--c1:var(--s4);--c2:var(--s6)" aria-hidden="true">◎</span><div class="grow"><strong>Actif C</strong><div class="note">Plateforme 1</div></div><span class="chip chip--warn">Attention</span></div>
+        </div>
+        <p>Ajoutez un actif, choisissez sa plateforme : le reste se configure tout seul.</p>
+      </article>
+    </div>
+  </section>
 
-    </body>
+  <section id="transparence" class="pub-sec">
+    <h2>Transparence et contrôle</h2>
+    <div class="grid grid--3">
+      <div class="card"><div class="card-title">Décisions expliquées</div><p>Chaque montant est détaillé : signal, modulation, plafonds, plan d'ordres, résultat.</p></div>
+      <div class="card"><div class="card-title">Simulation d'abord</div><p>Testez votre réglage sans risque, puis activez l'exécution réelle actif par actif.</p></div>
+      <div class="card"><div class="card-title">Clair ou sombre</div><p>Mobile ou ordinateur, thème sombre par défaut, thème clair en un clic.</p></div>
+    </div>
+  </section>
+
+  <section class="pub-cta card card--hero">
+    <h2>Prêt à investir sans y penser ?</h2>
+    <div class="row">
+      <a class="btn btn--primary btn--lg" th:href="@{/register}">Créer mon compte</a>
+      <a class="btn btn--lg" th:href="@{/login}">J'ai déjà un compte</a>
+    </div>
+  </section>
+</main>
+<footer th:replace="~{fragments/public :: footer}"></footer>
+</body>
 </html>

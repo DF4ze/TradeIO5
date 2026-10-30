@@ -1,0 +1,63 @@
+/* TradeIO — pages publiques (accueil, connexion, inscription). Complète tradeio.css, uniquement avec les variables de la charte. */
+body.pub { display: flex; flex-direction: column; min-height: 100vh; }
+.pub-top { display: flex; align-items: center; gap: 14px; padding: 12px 16px; max-width: 1120px; width: 100%; margin: 0 auto; }
+.pub-logo { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; color: var(--text); text-decoration: none; }
+.pub-links { display: none; gap: 18px; margin-left: 18px; }
+.pub-links a { color: var(--muted); font-weight: 700; font-size: 13px; text-decoration: none; }
+.pub-links a:hover { color: var(--text); }
+.pub-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.pub-theme { min-width: 36px; padding: 0 10px; }
+.pub-theme span { font-size: 18px; line-height: 1; }
+.btn--lg { min-height: 44px; padding: 0 22px; font-size: 14px; }
+.pub-main { flex: 1; width: 100%; max-width: 1120px; margin: 0 auto; padding: 8px 16px 40px; display: flex; flex-direction: column; gap: 56px; }
+.pub-hero { display: grid; gap: 28px; padding-top: 24px; align-items: center; }
+.pub-hero-txt { display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+.pub-hero h1 { font-size: 34px; line-height: 1.12; letter-spacing: -.02em; }
+.lead { font-size: 16px; color: var(--muted); margin: 0; max-width: 54ch; }
+.pub-hero-vis { display: flex; flex-direction: column; gap: 8px; }
+.pub-strip { display: flex; flex-direction: column; gap: 14px; align-items: flex-start; padding: 18px 20px; border-radius: var(--r); border: 1px solid var(--line); background: var(--surface); }
+.pub-strip p { margin: 0; }
+.pub-strip-i { display: flex; gap: 8px; }
+.pub-sec { display: flex; flex-direction: column; gap: 20px; }
+.pub-sec h2 { font-size: 24px; letter-spacing: -.01em; }
+.pub-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--gap); grid-template-columns: 1fr; }
+.pub-steps li { padding: 18px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); }
+.pub-steps h3 { font-size: 15px; margin: 10px 0 6px; }
+.pub-steps p { margin: 0; color: var(--muted); font-size: 13px; }
+.pub-steps .n { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 13px; background: var(--brand); color: var(--on-accent); }
+.pub-feat .card p { margin: 0; color: var(--muted); font-size: 13px; }
+.pub-slider { position: relative; height: 24px; }
+.pub-slider .trk, .pub-slider .fill { position: absolute; left: 0; right: 0; top: 9px; height: 6px; border-radius: 999px; background: var(--spectrum); }
+.pub-slider .trk { opacity: .28; }
+.pub-slider .fill { clip-path: inset(0 calc(100% - var(--p)) 0 0); }
+.pub-slider .mark { position: absolute; top: 3px; width: 2px; height: 18px; background: var(--muted); opacity: .6; }
+.pub-slider b { position: absolute; top: 2px; left: var(--p); width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; background: #f4f5fb; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent), 0 2px 6px rgba(0,0,0,.35); }
+.pub-cal { display: grid; grid-template-columns: repeat(10, 1fr); gap: 5px; }
+.pub-cal i, .pub-leg i { display: block; aspect-ratio: 1; border-radius: 6px; background: var(--line); }
+.pub-cal .buy, .pub-leg .k-buy { background: var(--s3); }
+.pub-cal .boost, .pub-leg .k-boost { background: var(--s5); }
+.pub-cal .sell, .pub-leg .k-sell { background: var(--s0); }
+.pub-cal .carry, .pub-leg .k-carry { background: repeating-linear-gradient(135deg, var(--s1) 0 2px, transparent 2px 6px); border: 1px solid var(--s1); }
+.pub-leg { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.pub-leg li { display: inline-flex; align-items: center; gap: 6px; }
+.pub-leg i { width: 12px; aspect-ratio: auto; height: 12px; border-radius: 4px; }
+.pub-cta { align-items: flex-start; gap: 16px; padding: 28px var(--pad); }
+.pub-cta h2 { font-size: 24px; }
+.pub-foot { max-width: 1120px; width: 100%; margin: 0 auto; padding: 20px 16px 28px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.pub-foot p { margin: 0; }
+.pub-foot-links { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--muted); }
+.pub-foot-links a { color: var(--muted); }
+.pub-auth { flex: 1; display: grid; place-items: start center; padding: 24px 16px 48px; }
+.pub-auth-card { width: 100%; max-width: 420px; gap: 14px; padding: 28px var(--pad); }
+.pub-auth-card h1 { font-size: 26px; }
+.pub-auth-card .muted { margin: 0; }
+.pub-auth-card .note { margin: 0; }
+.pub-errs { margin: 0; padding-left: 18px; }
+@media (min-width: 640px) { .pub-steps { grid-template-columns: repeat(2, 1fr); } .pub-strip { flex-direction: row; align-items: center; } }
+@media (min-width: 900px) {
+  .pub-links { display: flex; }
+  .pub-hero { grid-template-columns: 1.1fr .9fr; gap: 48px; }
+  .pub-hero h1 { font-size: 44px; }
+  .pub-steps { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 480px) { .pub-actions .btn:not(.pub-theme) { padding: 0 12px; } }

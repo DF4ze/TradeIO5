@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr">
+<head>
+  <!-- Icônes d'onglet, écran d'accueil mobile et couleur de barre : à inclure dans le <head> de toute page. -->
+  <th:block th:fragment="icons">
+    <link rel="icon" th:href="@{/favicon.ico}" sizes="any">
+    <link rel="icon" type="image/svg+xml" th:href="@{/assets/img/logo/favicon.svg}">
+    <link rel="icon" type="image/png" sizes="32x32" th:href="@{/assets/img/logo/favicon-32.png}">
+    <link rel="icon" type="image/png" sizes="16x16" th:href="@{/assets/img/logo/favicon-16.png}">
+    <link rel="apple-touch-icon" th:href="@{/assets/img/logo/apple-touch-icon.png}">
+    <link rel="manifest" th:href="@{/site.webmanifest}">
+    <meta name="theme-color" content="#0f1119">
+  </th:block>
+</head>
+<body>
+<!-- Logo TradeIO (symbole + wordmark) : une image par thème, la visible est choisie en CSS (.brand-logo, tradeio.css). -->
+<span th:fragment="logo" class="brand-logo">
+  <img class="brand-logo__dark" th:src="@{/assets/img/logo/logo-lockup-dark.svg}" alt="TradeIO" width="128" height="28">
+  <img class="brand-logo__light" th:src="@{/assets/img/logo/logo-lockup-light.svg}" alt="" width="128" height="28" aria-hidden="true">
+</span>
+</body>
+</html>

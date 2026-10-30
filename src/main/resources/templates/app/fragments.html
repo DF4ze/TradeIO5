@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark light">
   <title th:text="${title} + ' · TradeIO'">TradeIO</title>
+  <th:block th:replace="~{fragments/brand :: icons}"></th:block>
   <link rel="preload" th:href="@{/assets/app/fonts/manrope-latin-600-normal.woff2}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" th:href="@{/assets/app/css/tradeio.css}">
 </head>
 <body>
 <nav th:fragment="nav" class="tio-nav" aria-label="Navigation principale">
   <a class="skip" href="#app">Aller au contenu</a>
-  <a class="logo" th:href="@{/app}"><i aria-hidden="true"></i>TradeIO</a>
+  <a class="logo" th:href="@{/app}" aria-label="TradeIO — accueil"><span th:replace="~{fragments/brand :: logo}"></span></a>
   <a class="tab" th:href="@{/app}" th:attr="aria-current=${page == 'home'} ? 'page' : null">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4v-5h-6v5H5a1 1 0 0 1-1-1z"/></svg><span>Accueil</span></a>
   <a class="tab" th:href="@{/app/assets}" th:attr="aria-current=${page == 'assets' or page == 'asset'} ? 'page' : null">

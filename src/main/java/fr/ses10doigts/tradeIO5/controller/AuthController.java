@@ -260,7 +260,9 @@ public class AuthController {
 	}
 
 	// Create new user's account
-	Set<Role> roles = signUpRequest.getRoles();
+	// Inscription publique : toujours ROLE_USER, les rôles éventuellement postés sont ignorés.
+	Set<Role> roles = new java.util.HashSet<>();
+	roleRepository.findByName(fr.ses10doigts.tradeIO5.security.model.ERole.ROLE_USER).ifPresent(roles::add);
 	User user = new User(null, signUpRequest.getUsername(), signUpRequest.getEmail(),
 			encoder.encode(signUpRequest.getPassword()), roles, true, null, null); // lastLogin = null, archivedAt = null à l'inscription
 
@@ -270,7 +272,6 @@ public class AuthController {
 
 	mav.addObject("ok", true);
 	mav.addObject("signUpRequest", signUpRequest);
-	mav.addObject("allRoles", signUpRequest.getRoles());
 	return mav;
     }
 

@@ -6,9 +6,9 @@ Vérifié le : 2026-10-13 (`controller/**`, dont `RainbowLiveController`, `Rainb
 
 | Méthode | Chemin | Rôle requis | Description |
 |---|---|---|---|
-| GET | `/` | public | Accueil, positions de l'utilisateur connecté si authentifié |
-| GET | `/login` | public | Formulaire de login |
-| GET | `/register` | public | Formulaire d'inscription |
+| GET | `/` | public | Page de présentation (landing) ; utilisateur connecté ⇒ redirection `/app` |
+| GET | `/login` | public | Formulaire de login (connecté ⇒ `/app`) |
+| GET | `/register` | public | Formulaire d'inscription (connecté ⇒ `/app`) ; affiche `ok`, `exception` et les messages de validation reçus en paramètres de redirection |
 | GET | `/user` | USER/MODERATOR/ADMIN | Page utilisateur |
 | GET | `/admin` | ADMIN | Page admin |
 
@@ -17,7 +17,7 @@ Vérifié le : 2026-10-13 (`controller/**`, dont `RainbowLiveController`, `Rainb
 | Méthode | Chemin | Rôle | Description |
 |---|---|---|---|
 | POST | `/api/auth/signinForm` | public | Login formulaire, pose le cookie JWT, restaure l'owner si `archivedAt != null` |
-| POST | `/api/auth/signupForm` | public | Inscription formulaire |
+| POST | `/api/auth/signupForm` | public | Inscription formulaire ; le compte créé reçoit toujours `ROLE_USER` (rôles postés ignorés) |
 | GET | `/api/auth/signoutForm` | public | Logout (nettoie le cookie JWT) |
 
 Les endpoints JSON (`/signin`, `/signup`, `/signout`) sont **commentés dans le code**, non actifs — seules les variantes `*Form` (POST formulaire, réponses `ModelAndView`) sont en service.

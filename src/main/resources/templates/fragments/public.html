@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr">
+<head th:fragment="head(title)">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <title th:text="${title} + ' · TradeIO'">TradeIO</title>
+  <th:block th:replace="~{fragments/brand :: icons}"></th:block>
+  <link rel="preload" th:href="@{/assets/app/fonts/manrope-latin-600-normal.woff2}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" th:href="@{/assets/app/css/tradeio.css}">
+  <link rel="stylesheet" th:href="@{/assets/app/css/public.css}">
+  <script th:src="@{/assets/app/js/public.js}"></script>
+</head>
+<body>
+<header th:fragment="topbar(withAnchors)" class="pub-top">
+  <a class="skip" href="#contenu">Aller au contenu</a>
+  <a class="pub-logo" th:href="@{/}" aria-label="TradeIO — accueil"><span th:replace="~{fragments/brand :: logo}"></span></a>
+  <nav class="pub-links" th:if="${withAnchors}" aria-label="Sections">
+    <a href="#fonctionnement">Fonctionnement</a>
+    <a href="#fonctionnalites">Fonctionnalités</a>
+    <a href="#transparence">Transparence</a>
+  </nav>
+  <div class="pub-actions">
+    <button class="btn pub-theme" id="theme-toggle" type="button" aria-pressed="false" aria-label="Passer en thème clair"><span aria-hidden="true">◐</span></button>
+    <a class="btn" th:href="@{/login}">Connexion</a>
+    <a class="btn btn--primary" th:href="@{/register}">Inscription</a>
+  </div>
+</header>
+<footer th:fragment="footer" class="pub-foot">
+  <p class="note">Investir dans les crypto-actifs comporte un risque de perte en capital. Les performances passées ne préjugent pas des performances futures. TradeIO est un outil d'aide à l'investissement et ne constitue pas un conseil en investissement.</p>
+  <div class="pub-foot-links">
+    <span>© TradeIO</span>
+    <a href="#">Mentions légales</a>
+    <a href="#">Conditions d'utilisation</a>
+    <a href="#">Contact</a>
+  </div>
+</footer>
+</body>
+</html>

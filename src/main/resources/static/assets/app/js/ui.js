@@ -63,12 +63,27 @@
   };
   ui.cardOpts = (o) => Object.assign({ __cardOpts: true }, o);
   ui.stat = (k, v, cls) => h('div', { class: 'stat' }, h('div', { class: 'k' }, k), h('div', { class: 'v' + (cls ? ' ' + cls : '') }, v));
+  // Icônes crypto (CC0, spothq/cryptocurrency-icons) : img/crypto/<symbole>.svg, liste dans crypto-icons.json.
+  // Pastille glyphe par défaut ; remplacée par l'icône si le symbole est connu, retour au glyphe si le chargement échoue.
+  const ICON_DIR = '/assets/app/img/crypto/';
+  let iconSet = null;
+  const iconReady = g.fetch ? g.fetch(ICON_DIR + 'crypto-icons.json').then((r) => (r.ok ? r.json() : [])).catch(() => []).then((l) => { iconSet = new Set(l); }) : Promise.resolve();
   ui.coin = function (symbol) {
     const s = String(symbol || '?').toUpperCase();
     const glyph = { BTC: '₿', ETH: 'Ξ', XAU: 'Au', PAXG: 'Au', SOL: '◎' }[s] || s.slice(0, 2);
     let hash = 0;
     for (const ch of s) hash = (hash * 31 + ch.charCodeAt(0)) % 7;
-    return h('span', { class: 'coin', 'aria-hidden': 'true', style: { '--c1': 'var(--s' + hash + ')', '--c2': 'var(--s' + ((hash + 3) % 7) + ')' } }, glyph);
+    const el = h('span', { class: 'coin', 'aria-hidden': 'true', style: { '--c1': 'var(--s' + hash + ')', '--c2': 'var(--s' + ((hash + 3) % 7) + ')' } }, glyph);
+    const apply = () => {
+      if (!iconSet || !iconSet.has(s.toLowerCase())) return;
+      const img = h('img', { src: ICON_DIR + encodeURIComponent(s.toLowerCase()) + '.svg', alt: '', width: 36, height: 36, loading: 'lazy' });
+      img.addEventListener('error', () => { el.classList.remove('coin--img'); el.textContent = glyph; });
+      el.classList.add('coin--img');
+      el.textContent = '';
+      el.appendChild(img);
+    };
+    if (iconSet) apply(); else iconReady.then(apply);
+    return el;
   };
   ui.note = (text) => h('div', { class: 'note' }, text);
 
