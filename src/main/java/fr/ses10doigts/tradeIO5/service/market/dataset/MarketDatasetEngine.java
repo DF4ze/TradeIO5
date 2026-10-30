@@ -230,6 +230,25 @@ public class MarketDatasetEngine {
         throw new NoProviderAvailableException(symbol, lastError);
     }
 
+    /**
+     * Série D1 d'un symbole directement chez {@code source}, <b>sans</b> ligne {@code asset_provider} (aucune écriture de
+     * configuration) : sert à valoriser un solde lu sur un exchange où l'actif n'est pas configuré (ex. OKB sur OKX). Paire
+     * déduite par {@link ProviderSymbolMapper} ; source non gérée ⇒ {@link NoProviderAvailableException}.
+     */
+    public DailyDataset getDailyDatasetOnSource(String symbol, MarketDataSource source, int lookBack, Instant endTime) {
+        String providerSymbol = source == null ? null : ProviderSymbolMapper.forSource(symbol, source);
+        MarketDataApiClient client = source == null ? null : webClientsBySource.get(source);
+        if (providerSymbol == null || client == null) {
+            throw new NoProviderAvailableException(symbol, null);
+        }
+        AssetProvider direct = AssetProvider.builder().source(source).providerSymbol(providerSymbol).enabled(true).build();
+        try {
+            return new DailyDataset(fetchDaily(direct, client, lookBack, endTime), source, providerSymbol, false);
+        } catch (SymbolNotFoundException | ProviderUnavailableException e) {
+            throw new NoProviderAvailableException(symbol, e);
+        }
+    }
+
     /** Ligne {@code asset_provider} de la source demandée : existante et activée, sinon créée à la volée (source de confiance). */
     private AssetProvider resolvePreferred(String symbol, MarketDataSource preferred, List<AssetProvider> all) {
         for (AssetProvider row : all) {

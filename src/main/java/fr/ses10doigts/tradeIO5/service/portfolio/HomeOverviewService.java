@@ -18,7 +18,9 @@ import fr.ses10doigts.tradeIO5.service.connector.balance.ReadOnlyBalanceReader;
 import fr.ses10doigts.tradeIO5.service.currency.AssetGroupService;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.dataset.DailyDataset;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.LiveCandleSource;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -99,12 +101,13 @@ public class HomeOverviewService {
         Map<String, double[]> qty = new LinkedHashMap<>();
         Map<String, List<HoldingsDto.Part>> parts = new HashMap<>();
         Map<String, Double> prices = new HashMap<>();
+        Map<String, Set<MarketDataSource>> sources = sourcesOf(reads, List.of());
         boolean partial = false;
         for (WalletRead r : reads) {
             for (Map.Entry<String, Double> e : r.quantities().entrySet()) {
                 String symbol = e.getKey();
                 if (!prices.containsKey(symbol)) {
-                    prices.put(symbol, stables.contains(symbol) ? Double.valueOf(1.0) : latestPrice(symbol));
+                    prices.put(symbol, stables.contains(symbol) ? Double.valueOf(1.0) : latestPrice(symbol, sources.get(symbol)));
                 }
                 Double price = prices.get(symbol);
                 qty.computeIfAbsent(symbol, k -> new double[1])[0] += e.getValue();
@@ -162,8 +165,9 @@ public class HomeOverviewService {
         Map<LocalDate, List<Transaction>> byDay = trades.stream().collect(Collectors.groupingBy(t -> t.getTimestamp().toLocalDate()));
         Set<String> symbols = new HashSet<>(qty.keySet());
         trades.stream().map(Transaction::getAsset).forEach(symbols::add);
+        Map<String, Set<MarketDataSource>> sources = sourcesOf(reads, trades);
         Map<String, NavigableMap<LocalDate, Double>> closes = new HashMap<>();
-        symbols.stream().filter(s -> !stables.contains(s)).forEach(s -> closes.put(s, closes(s)));
+        symbols.stream().filter(s -> !stables.contains(s)).forEach(s -> closes.put(s, closes(s, sources.get(s))));
 
         double quoteAdj = 0;   // stable ajouté/retiré par les trades annulés (valeur nominale)
         List<PortfolioPointDto> series = new ArrayList<>();
@@ -289,31 +293,62 @@ public class HomeOverviewService {
         return w.getWebProviderCode() == null ? null : w.getWebProviderCode().name();
     }
 
-    private Double latestPrice(String symbol) {
-        var last = closes(symbol).lastEntry();
+    /** Exchanges de marché où chaque actif est détenu ou a été tradé : repli de valorisation quand l'actif n'est pas configuré. */
+    private static Map<String, Set<MarketDataSource>> sourcesOf(List<WalletRead> reads, List<Transaction> trades) {
+        Map<String, Set<MarketDataSource>> out = new HashMap<>();
+        for (WalletRead r : reads) {
+            MarketDataSource source = LiveCandleSource.of(r.wallet());
+            if (source != null) {
+                r.quantities().keySet().forEach(s -> out.computeIfAbsent(s, k -> new java.util.LinkedHashSet<>()).add(source));
+            }
+        }
+        for (Transaction t : trades) {
+            MarketDataSource source = LiveCandleSource.of(t.getWallet());
+            if (source != null) {
+                out.computeIfAbsent(t.getAsset(), k -> new java.util.LinkedHashSet<>()).add(source);
+            }
+        }
+        return out;
+    }
+
+    private Double latestPrice(String symbol, Set<MarketDataSource> sources) {
+        var last = closes(symbol, sources).lastEntry();
         return last == null ? null : last.getValue();
     }
 
     /** Clôtures D1 d'un actif (cache mémoire 10 min ; un échec n'est retenu qu'1 min). */
-    private NavigableMap<LocalDate, Double> closes(String symbol) {
+    private NavigableMap<LocalDate, Double> closes(String symbol, Set<MarketDataSource> sources) {
         Instant now = clock.now();
         PriceEntry cached = priceCache.get(symbol);
         if (cached != null && Duration.between(cached.at(), now).compareTo(cached.closes().isEmpty() ? PRICE_FAIL_TTL : PRICE_TTL) <= 0) {
             return cached.closes();
         }
         NavigableMap<LocalDate, Double> map = new TreeMap<>();
+        DailyDataset daily = null;
         try {
-            DailyDataset daily = datasetEngine.getDailyDatasetForAsset(symbol, D1_LOOKBACK, now, null);
-            if (daily != null && daily.dataset() != null && daily.dataset().getMarketDatas() != null) {
-                for (MarketData c : daily.dataset().getMarketDatas()) {
-                    BigDecimal close = c.getClose();
-                    if (close != null && close.signum() > 0) {
-                        map.put(c.getTimestamp().atOffset(ZoneOffset.UTC).toLocalDate(), close.doubleValue());
-                    }
+            daily = datasetEngine.getDailyDatasetForAsset(symbol, D1_LOOKBACK, now, null);
+        } catch (RuntimeException e) {
+            log.debug("Accueil : {} non configuré ({}), repli sur l'exchange où il est détenu", symbol, e.getMessage());
+        }
+        // repli : l'actif lu sur un exchange se valorise chez ce même exchange (sans créer de configuration)
+        for (MarketDataSource source : daily == null && sources != null ? sources : Set.<MarketDataSource>of()) {
+            try {
+                daily = datasetEngine.getDailyDatasetOnSource(symbol, source, D1_LOOKBACK, now);
+                break;
+            } catch (RuntimeException e) {
+                log.warn("Accueil : cours D1 indisponibles pour {} sur {} : {}", symbol, source, e.getMessage());
+            }
+        }
+        if (daily != null && daily.dataset() != null && daily.dataset().getMarketDatas() != null) {
+            for (MarketData c : daily.dataset().getMarketDatas()) {
+                BigDecimal close = c.getClose();
+                if (close != null && close.signum() > 0) {
+                    map.put(c.getTimestamp().atOffset(ZoneOffset.UTC).toLocalDate(), close.doubleValue());
                 }
             }
-        } catch (RuntimeException e) {
-            log.warn("Accueil : cours D1 indisponibles pour {} : {}", symbol, e.getMessage());
+        }
+        if (map.isEmpty()) {
+            log.warn("Accueil : cours D1 indisponibles pour {}", symbol);
         }
         priceCache.put(symbol, new PriceEntry(now, map));
         return map;

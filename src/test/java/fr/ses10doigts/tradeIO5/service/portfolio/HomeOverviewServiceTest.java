@@ -9,6 +9,7 @@ import fr.ses10doigts.tradeIO5.model.entity.currency.Transaction;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
+import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.repository.TransactionRepository;
 import fr.ses10doigts.tradeIO5.repository.WalletRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
@@ -117,6 +118,17 @@ class HomeOverviewServiceTest {
         assertTrue(h.partial());
         assertEquals(10.0, h.total(), 1e-9);
         assertNull(h.assets().stream().filter(l -> l.assetSymbol().equals("XYZ")).findFirst().orElseThrow().value());
+    }
+
+    @Test
+    @DisplayName("Actif non configuré : valorisé chez l'exchange du wallet où il est détenu (OKB sur OKX)")
+    void unconfiguredAssetPricedOnItsExchange() {
+        when(okx.getAvailableBalances(any())).thenReturn(Map.of("OKB", new BigDecimal("2")));
+        when(engine.getDailyDatasetForAsset(eq("OKB"), anyInt(), any(), any())).thenThrow(new IllegalStateException("aucun provider"));
+        when(engine.getDailyDatasetOnSource(eq("OKB"), eq(MarketDataSource.OKX), anyInt(), any())).thenReturn(daily("OKB", 50.0));
+        HoldingsDto h = service.holdings(user, 2L);
+        assertTrue(!h.partial());
+        assertEquals(100.0, h.total(), 1e-9);
     }
 
     @Test
