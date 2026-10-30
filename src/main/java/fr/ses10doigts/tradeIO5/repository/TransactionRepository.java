@@ -29,4 +29,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
 	List<Transaction> findByWalletAndAssetOrderByTimestampAsc(Wallet wallet, String asset);
 
+	List<Transaction> findByWalletOrderByTimestampAsc(Wallet wallet);
+
 }

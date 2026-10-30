@@ -27,6 +27,8 @@ public class BalanceCacheManager {
     private final DomainClock clock;
 
     private final Map<String, CacheEntry> cacheMap = new ConcurrentHashMap<>();
+    /** Un verrou par credential : des lectures concurrentes sont sérialisées (Kraken refuse des nonces arrivés dans le désordre). */
+    private final Map<String, Object> locks = new ConcurrentHashMap<>();
 
     public Map<String, BigDecimal> getBalances(Function<ApiCredential, Map<String, BigDecimal>> fetcher,
             ApiCredential credential) {
@@ -34,14 +36,16 @@ public class BalanceCacheManager {
             throw new BalanceUnavailableException("Wallet sans credential API");
         }
         String key = String.valueOf(credential.getId());
-        Instant now = clock.now();
-        CacheEntry entry = cacheMap.get(key);
-        if (entry != null && Duration.between(entry.fetchedAt(), now).compareTo(TTL) <= 0) {
-            return entry.balances();
-        }
+        synchronized (locks.computeIfAbsent(key, k -> new Object())) {
+            Instant now = clock.now();
+            CacheEntry entry = cacheMap.get(key);
+            if (entry != null && Duration.between(entry.fetchedAt(), now).compareTo(TTL) <= 0) {
+                return entry.balances();
+            }
 
-        Map<String, BigDecimal> fresh = fetcher.apply(credential);
-        cacheMap.put(key, new CacheEntry(fresh, now));
-        return fresh;
+            Map<String, BigDecimal> fresh = fetcher.apply(credential);
+            cacheMap.put(key, new CacheEntry(fresh, now));
+            return fresh;
+        }
     }
 }

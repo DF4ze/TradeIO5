@@ -256,3 +256,32 @@ table.tbl td { padding: 8px; border-top: 1px solid var(--line); font-variant-num
 .brand-logo .brand-logo__light { display: none; }
 :root[data-theme="light"] .brand-logo .brand-logo__dark { display: none; }
 :root[data-theme="light"] .brand-logo .brand-logo__light { display: block; }
+
+/* Accueil : sélecteur de portefeuille, détail des actifs, donut, transactions par exchange, décisions groupées */
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.toolbar .lbl { font-size: 12px; font-weight: 700; color: var(--muted); }
+.hold-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); min-width: 0; }
+.hold-row:first-child { border-top: 0; }
+.hold-row .grow { min-width: 0; }
+.hold-row .r { text-align: right; }
+details.fold > summary { list-style: none; cursor: pointer; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary .chev { transition: transform .15s; color: var(--muted); }
+details.fold[open] > summary .chev { transform: rotate(90deg); }
+details.fold > .fold-body { padding: 0 0 6px 48px; }
+.fold-body .hold-row { padding: 6px 0; }
+.donut-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
+.donut { width: 190px; height: 190px; flex: none; }
+.donut .d-lbl { font-size: 11px; fill: var(--muted); }
+.donut .d-val { font-size: 22px; font-weight: 700; fill: var(--text); }
+.donut path { transition: opacity .15s; }
+.donut path:hover { opacity: .8; }
+.dot { width: 10px; height: 10px; border-radius: 3px; flex: none; background: var(--c, var(--muted)); }
+.tx-group + .tx-group { margin-top: 14px; }
+.tx-head { display: flex; align-items: center; gap: 10px; font-weight: 700; padding-bottom: 6px; }
+.tx-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; min-width: 0; }
+.tx-row .when { width: 92px; flex: none; color: var(--muted); }
+.list > details.fold { border-top: 1px solid var(--line); }
+.list > :first-child { border-top: 0; }
+.list details.fold .item { border-top: 0; }
+.fold-body .list .item { padding: 8px 0; }

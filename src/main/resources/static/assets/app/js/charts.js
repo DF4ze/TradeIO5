@@ -88,4 +88,36 @@
         h('div', { style: { position: 'absolute', left: pos(price) + '%', top: '3px', width: '14px', height: '14px', 'border-radius': '50%', background: 'var(--text)', transform: 'translateX(-7px)', 'box-shadow': '0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent)' } })),
       h('div', { class: 'row row--between small muted' }, h('span', null, '┆ Prix moyen ' + TIO.fmt.price(avg)), h('span', { class: TIO.sign(diff) }, (diff > 0 ? '▲ ' : diff < 0 ? '▽ ' : '') + TIO.fmt.signedPct(diff) + ' vs cours')));
   };
+  /**
+   * Donut de répartition. segments : [{label, value, color, group:'assets'|'stable'}] ; les parts d'un même groupe sont collées,
+   * un petit espace sépare le groupe « stable » du reste. opts : { centerLabel, centerValue, valueFmt }
+   */
+  charts.donut = function (segments, opts) {
+    const o = opts || {};
+    const segs = (segments || []).filter((s) => TIO.isNum(s.value) && s.value > 0);
+    const total = segs.reduce((t, s) => t + s.value, 0);
+    if (!segs.length || total <= 0) return null;
+    const C = 100, R = 92, r = 62;
+    const order = segs.filter((s) => s.group !== 'stable').concat(segs.filter((s) => s.group === 'stable'));
+    const hasGap = segs.some((s) => s.group === 'stable') && segs.some((s) => s.group !== 'stable');
+    const GAP = hasGap ? 7 : 0;                       // degrés retirés à chaque frontière entre groupes
+    const usable = 360 - GAP * (hasGap ? 2 : 0);
+    const pt = (rad, deg) => { const a = (deg - 90) * Math.PI / 180; return [C + rad * Math.cos(a), C + rad * Math.sin(a)]; };
+    const el = svg('svg', { class: 'donut', viewBox: '0 0 200 200', role: 'img', 'aria-label': o.label || 'Répartition' });
+    let deg = hasGap ? GAP / 2 : 0, prevGroup = order[0].group;
+    order.forEach((s) => {
+      if (hasGap && s.group !== prevGroup) { deg += GAP; prevGroup = s.group; }
+      const sweep = Math.min(359.99, s.value / total * usable), a0 = deg, a1 = deg + sweep;
+      deg = a1;
+      const [x0, y0] = pt(R, a0), [x1, y1] = pt(R, a1), [x2, y2] = pt(r, a1), [x3, y3] = pt(r, a0), big = sweep > 180 ? 1 : 0;
+      el.appendChild(svg('path', { d: 'M' + x0.toFixed(2) + ' ' + y0.toFixed(2) + ' A' + R + ' ' + R + ' 0 ' + big + ' 1 ' + x1.toFixed(2) + ' ' + y1.toFixed(2)
+        + ' L' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' A' + r + ' ' + r + ' 0 ' + big + ' 0 ' + x3.toFixed(2) + ' ' + y3.toFixed(2) + ' Z', fill: s.color },
+        svg('title', null, s.label + ' : ' + TIO.fmt.pct(s.value / total * 100, 1))));
+    });
+    if (o.centerValue) {
+      el.appendChild(svg('text', { class: 'd-val', x: C, y: C + 4, 'text-anchor': 'middle' }, o.centerValue));
+      if (o.centerLabel) el.appendChild(svg('text', { class: 'd-lbl', x: C, y: C + 22, 'text-anchor': 'middle' }, o.centerLabel));
+    }
+    return el;
+  };
 })(window);

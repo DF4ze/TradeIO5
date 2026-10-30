@@ -8,7 +8,7 @@ Vérifié le : 2026-10-30. Charte : [`../graphique/charte-graphique.md`](../grap
 
 | Route | Contenu |
 |---|---|
-| `/app` | Accueil : alertes, patrimoine + PnL (« hors dépôts/retraits »), décisions du jour, prochaine passe, cash et autonomie, prix moyen vs cours ; Avancé : exposition, zone libre, puissance, biais, reporté |
+| `/app` | Accueil : alertes, sélecteur de portefeuille (un ou tous), patrimoine (soldes live + courbe estimée), détail par actif (regroupé entre wallets, dépliable), exposition (donut actifs collés / stables séparés par un espace ; Avancé : + bande), transactions par exchange, décisions du jour groupées par actif (dépliable par exchange si plusieurs), cash et autonomie, prix moyen vs cours ; Avancé : zone libre, puissance, biais, reporté. La prochaine passe n'est plus un widget : elle reste dans l'en-tête de page |
 | `/app/assets` | Une carte par lien : statut, position, valeur, PnL, dernière décision, montant de base, interrupteur d'exécution (confirmation en ligne), confirmation du 1ᵉʳ ordre ; Avancé : part de la position offerte |
 | `/app/assets/{symbole}` | Fiche : graphique (Lightweight Charts : cours, bandes Rainbow figées ou simulées, achats ▲ / ventes ▽, prix moyen, mesure Shift-clic), frise Signal → Modulation → Plafonds → Plan → Exécution → Résultat, « Pourquoi ce montant ? » |
 | `/app/journal` | Plans / exécutions (frais réels, slippage, Fee Test, carry, audit) et décisions, filtres serveur |

@@ -120,7 +120,8 @@
     return { bindingId: a.id, assetSymbol: symbol, avgBuyPrice: a.avg, trades };
   }
   function liveWallet() {
-    return Object.entries(ASSETS).map(([symbol, a]) => {
+    const entries = Object.entries(ASSETS).concat([['BTC', Object.assign({}, ASSETS.BTC, { id: 4, ex: 'KRAKEN', wallet: 2, action: 'NONE', amount: 0, base: 10 })]]);
+    return entries.map(([symbol, a]) => {
       const mod = modulationJournal(a, 0);
       const blocked = a.action === 'BLOCKED';
       return { assetSymbol: symbol, bindingId: a.id, presetId: 10 + a.id, presetName: 'Trend Mix ' + symbol, walletId: a.wallet, walletName: 'Wallet ' + a.ex, exchange: a.ex, bagPercent: 100, priority: a.id,
@@ -129,6 +130,40 @@
           blockReason: blocked ? 'INSUFFICIENT_CASH' : 'NONE', liveActionType: a.action, liveActionAmountUsdc: a.action === 'BUY' ? a.amount : null, liveActionQuantity: a.action === 'BUY' ? r2(a.amount / a.price * 1e6) / 1e6 : null,
           modulation: JSON.stringify(a.action === 'BUY' ? Object.assign({}, mod, { finalAmountUsd: a.amount, modulatedBuyUsd: a.amount }) : mod) } };
     });
+  }
+  const WALLETS = { 1: { name: 'Wallet OKX', ex: 'OKX', bal: { BTC: 0.0625, ETH: 1.42, USDC: 2100 } }, 2: { name: 'Wallet KRAKEN', ex: 'KRAKEN', bal: { PAXG: 0.75, BTC: 0.02, USDT: 1500 } } };
+  const STABLE = new Set(['USDC', 'USDT']);
+  function holdings(walletId) {
+    const ids = walletId ? [Number(walletId)] : [1, 2];
+    const lines = new Map();
+    ids.forEach((id) => Object.entries(WALLETS[id].bal).forEach(([sym, qty]) => {
+      const price = STABLE.has(sym) ? 1 : ASSETS[sym].price;
+      if (!lines.has(sym)) lines.set(sym, { assetSymbol: sym, quantity: 0, price, value: 0, stable: STABLE.has(sym), parts: [] });
+      const l = lines.get(sym);
+      l.quantity += qty; l.value += qty * price;
+      l.parts.push({ walletId: id, walletName: WALLETS[id].name, exchange: WALLETS[id].ex, quantity: qty, value: r2(qty * price) });
+    }));
+    const list = [...lines.values()].sort((a, b) => b.value - a.value);
+    const total = list.reduce((t, l) => t + l.value, 0), stable = list.filter((l) => l.stable).reduce((t, l) => t + l.value, 0);
+    list.forEach((l) => { l.value = r2(l.value); l.sharePct = r2(l.value / total * 100); });
+    return { walletId: walletId ? Number(walletId) : null, fetchedAt: new Date().toISOString(), total: r2(total), stable: r2(stable), assetsValue: r2(total - stable),
+      exposurePct: r2((total - stable) / total * 100), partial: false, assets: list, unavailable: [] };
+  }
+  function history(walletId, period) {
+    const s = summary(period), k = walletId ? (walletId === '1' ? 0.62 : 0.38) : 1;
+    const series = s.series.map((p) => ({ day: p.day, total: r2(p.total * k), stable: r2(p.stable * k), assets: r2(p.assets * k), exposurePct: p.exposurePct }));
+    const first = series[0], last = series[series.length - 1];
+    return { walletId: walletId ? Number(walletId) : null, period, from: s.from, to: s.to, estimated: true, flowsIncluded: false,
+      pnl: { amount: r2(last.total - first.total), pct: r2((last.total / first.total - 1) * 100), since: first.day }, series };
+  }
+  function allTransactions(walletId) {
+    const out = [];
+    Object.entries(ASSETS).forEach(([symbol, a]) => {
+      if (walletId && Number(walletId) !== a.wallet) return;
+      transactions(a.id).trades.forEach((t) => out.push({ id: t.id, timestamp: t.timestamp, side: t.side, assetSymbol: symbol, quantity: t.quantity, price: t.price,
+        notional: r2(t.quantity * t.price), fee: t.fee, feeCurrency: t.feeCurrency, walletId: a.wallet, walletName: WALLETS[a.wallet].name, exchange: a.ex }));
+    });
+    return out.sort((x, y) => (y.timestamp < x.timestamp ? -1 : 1));
   }
   const refuse = (what) => { throw new TIO.ApiError(400, what + " : indisponible en mode démo."); };
 
@@ -139,6 +174,9 @@
     if (method === 'GET') {
       if (p === '/api/portfolio/summary') return summary(q.get('period') || '30d');
       if (p === '/api/portfolio/assets') return portfolioAssets();
+      if (p === '/api/portfolio/holdings') return holdings(q.get('walletId'));
+      if (p === '/api/portfolio/history') return history(q.get('walletId'), q.get('period') || '30d');
+      if (p === '/api/portfolio/transactions') return allTransactions(q.get('walletId'));
       if (p === '/api/rainbow-live/execution-state') return { mode: 'DRY_RUN', liveExecution: false, killSwitch: true };
       if (p === '/api/rainbow-live/next-pass') return { enabled: true, nextRunAt: new Date(Date.now() + 5 * 3600000 + 20 * 60000).toISOString() };
       if (p === '/api/rainbow-live/live-wallet') return liveWallet();
