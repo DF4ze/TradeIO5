@@ -2,6 +2,7 @@ package fr.ses10doigts.tradeIO5.controller;
 
 import fr.ses10doigts.tradeIO5.controller.RainbowLiveControllerAdvice.ErrorResponse;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.AssetPerformanceDto;
+import fr.ses10doigts.tradeIO5.model.dto.portfolio.AutonomyDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.BindingTradesDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.HoldingsDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.PortfolioHistoryDto;
@@ -9,6 +10,7 @@ import fr.ses10doigts.tradeIO5.model.dto.portfolio.TradeLineDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.PortfolioSummaryDto;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingNotFoundException;
+import fr.ses10doigts.tradeIO5.service.portfolio.ExchangeTradeImportService;
 import fr.ses10doigts.tradeIO5.service.portfolio.HomeOverviewService;
 import fr.ses10doigts.tradeIO5.service.portfolio.PortfolioPeriod;
 import fr.ses10doigts.tradeIO5.service.portfolio.PortfolioQueryService;
@@ -19,6 +21,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -37,6 +40,7 @@ public class PortfolioController {
 
     private final PortfolioQueryService queryService;
     private final HomeOverviewService homeService;
+    private final ExchangeTradeImportService importService;
     private final IAuthenticationFacade authenticationFacade;
 
     @GetMapping("/portfolio/summary")
@@ -55,6 +59,19 @@ public class PortfolioController {
         return homeService.holdings(authenticationFacade.getConnectedUser(), walletId);
     }
 
+    /** Cash live (stablecoins lus sur les exchanges) et autonomie en jours d'achats de base ; un wallet ou tous. */
+    @GetMapping("/portfolio/autonomy")
+    public AutonomyDto autonomy(@RequestParam(required = false) Long walletId) {
+        var user = authenticationFacade.getConnectedUser();
+        return queryService.autonomy(user, homeService.holdings(user, walletId).stable(), walletId);
+    }
+
+    /** Prix moyen d'achat (trades enregistrés) et cours live par actif détenu, un wallet ou tous. */
+    @GetMapping("/portfolio/asset-performance")
+    public List<AssetPerformanceDto> assetPerformance(@RequestParam(required = false) Long walletId) {
+        return homeService.assetPerformance(authenticationFacade.getConnectedUser(), walletId);
+    }
+
     /** Historique reconstruit à rebours depuis les trades (estimation, hors dépôts/retraits). */
     @GetMapping("/portfolio/history")
     public PortfolioHistoryDto history(@RequestParam(required = false) Long walletId, @RequestParam(defaultValue = "30d") String period) {
@@ -65,6 +82,13 @@ public class PortfolioController {
     @GetMapping("/portfolio/transactions")
     public List<TradeLineDto> transactions(@RequestParam(required = false) Long walletId) {
         return homeService.transactions(authenticationFacade.getConnectedUser(), walletId);
+    }
+
+    /** Importe (lecture seule) les trades récents des exchanges, manuels compris ; espacé de 5 min par wallet sauf {@code force=true} (bouton Actualiser). */
+    @PostMapping("/portfolio/transactions/sync")
+    public ExchangeTradeImportService.SyncResult syncTransactions(@RequestParam(required = false) Long walletId,
+                                                                  @RequestParam(defaultValue = "false") boolean force) {
+        return importService.sync(authenticationFacade.getConnectedUser(), walletId, force);
     }
 
     @GetMapping("/rainbow-live/bindings/{id}/transactions")

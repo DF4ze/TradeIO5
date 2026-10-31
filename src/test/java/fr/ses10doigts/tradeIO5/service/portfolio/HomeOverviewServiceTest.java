@@ -146,4 +146,31 @@ class HomeOverviewServiceTest {
         assertEquals(1090.0, byDay.get(TODAY.minusDays(6)).total(), 1e-9);   // 0,5 BTC x 100 + 1000 + 40
         assertEquals(30, h.series().size());
     }
+
+    @Test
+    @DisplayName("Prix moyen : pondéré sur les achats enregistrés, comparé au cours live")
+    void assetPerformanceUsesTrades() {
+        when(transactionRepository.findByWalletOrderByTimestampAsc(w1)).thenReturn(List.of(
+                Transaction.builder().asset("BTC").side(TradeSide.BUY).quantity(new BigDecimal("0.5")).price(new BigDecimal("80"))
+                        .timestamp(LocalDateTime.of(TODAY.minusDays(5), java.time.LocalTime.NOON)).wallet(w1).build(),
+                Transaction.builder().asset("BTC").side(TradeSide.BUY).quantity(new BigDecimal("0.5")).price(new BigDecimal("60"))
+                        .timestamp(LocalDateTime.of(TODAY.minusDays(3), java.time.LocalTime.NOON)).wallet(w1).build()));
+        var perf = service.assetPerformance(user, 1L);
+        assertEquals(1, perf.size());                       // le stable n'y figure pas
+        assertEquals(70.0, perf.getFirst().avgBuyPrice(), 1e-9);
+        assertEquals(100.0, perf.getFirst().price(), 1e-9);
+        assertEquals(100.0 - 70.0, perf.getFirst().pnl(), 1e-9);
+    }
+
+    @Test
+    @DisplayName("Prix moyen d'un actif acheté en BTC : converti en dollars au cours du jour (PAXG/BTC)")
+    void assetPerformanceConvertsCryptoQuote() {
+        when(kraken.getAvailableBalances(any())).thenReturn(Map.of("PAXG", new BigDecimal("1")));
+        when(engine.getDailyDatasetForAsset(eq("PAXG"), anyInt(), any(), any())).thenReturn(daily("PAXG", 8000.0));
+        when(transactionRepository.findByWalletOrderByTimestampAsc(w1)).thenReturn(List.of(Transaction.builder()
+                .asset("PAXG").quoteCurrency("BTC").side(TradeSide.BUY).quantity(BigDecimal.ONE).price(new BigDecimal("80"))
+                .timestamp(LocalDateTime.of(TODAY.minusDays(2), java.time.LocalTime.NOON)).wallet(w1).build()));
+        var perf = service.assetPerformance(user, 1L);
+        assertEquals(8000.0, perf.getFirst().avgBuyPrice(), 1e-9);   // 80 BTC x 100 $ (cours BTC du jour de l'achat)
+    }
 }

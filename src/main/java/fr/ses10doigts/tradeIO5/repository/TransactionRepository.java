@@ -31,4 +31,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
 	List<Transaction> findByWalletOrderByTimestampAsc(Wallet wallet);
 
+
+	@Query("SELECT MAX(t.timestamp) FROM Transaction t WHERE t.wallet = :wallet")
+	Optional<LocalDateTime> findLastTimestampByWallet(Wallet wallet);
 }

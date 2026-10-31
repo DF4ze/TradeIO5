@@ -199,7 +199,7 @@ Infos : bandeau permanent (`/api/admin/execution/state` : mode, LIVE déverrouil
 
 ## 5. Écrans cibles ↔ données disponibles
 
-État des maquettes (Accueil, Mes actifs, Fiche actif, Journal, Réglages, Onboarding) : [`../etudes/etude-architecture-interface.md`](../etudes/etude-architecture-interface.md).
+État des maquettes (Accueil, Actifs gérés, Fiche actif, Journal, Réglages, Onboarding) : [`../etudes/etude-architecture-interface.md`](../etudes/etude-architecture-interface.md).
 
 | Élément de maquette | Données | État |
 |---|---|---|
@@ -261,4 +261,4 @@ Instantané quotidien immuable du patrimoine par (user, wallet, jour UTC) : stab
 
 Sans back à créer : Exposition (jauge), Décisions du jour, Puissance, Biais, Zone libre (dérivée de la bande et de l'exposition), Reporté (`carryIn/Out` des plans).
 
-Écrans construits (`/app/**`, [`11-front-app.md`](../architecture/11-front-app.md)) : Accueil, Mes actifs, fiche actif, Journal, Réglages, onboarding en 4 étapes, modes Simple / Avancé / Expert. Restent à construire : Données, Santé, Stratégies (cf. [`known-gaps/front-gaps.md`](../known-gaps/front-gaps.md)).
+Écrans construits (`/app/**`, [`11-front-app.md`](../architecture/11-front-app.md)) : Accueil, Actifs gérés, fiche actif, Journal, Réglages, onboarding en 4 étapes, modes Simple / Avancé / Expert. Restent à construire : Données, Santé, Stratégies (cf. [`known-gaps/front-gaps.md`](../known-gaps/front-gaps.md)).

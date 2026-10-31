@@ -56,6 +56,10 @@ public class UserTradingSettings {
     /** Biais achat/vente, signé (null => 0). */
     private Double bias;
 
+    /** Marge de régulation choisie par l'utilisateur, en % de la largeur de bande ; nulle = défaut admin. */
+    @Column(name = "regulation_margin_pct")
+    private Double regulationMarginPct;
+
     /** Profil de départ choisi à l'onboarding (null => aucun) ; il a posé la bande d'exposition de départ. */
     @Enumerated(EnumType.STRING)
     @Column(length = 16)

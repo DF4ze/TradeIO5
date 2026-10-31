@@ -16,7 +16,7 @@
   <a class="tab" th:href="@{/app}" th:attr="aria-current=${page == 'home'} ? 'page' : null">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4v-5h-6v5H5a1 1 0 0 1-1-1z"/></svg><span>Accueil</span></a>
   <a class="tab" th:href="@{/app/assets}" th:attr="aria-current=${page == 'assets' or page == 'asset'} ? 'page' : null">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg><span>Mes actifs</span></a>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg><span>Actifs gérés</span></a>
   <a class="tab" th:href="@{/app/journal}" th:attr="aria-current=${page == 'journal'} ? 'page' : null">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg><span>Journal</span></a>
   <a class="tab" th:href="@{/app/settings}" th:attr="aria-current=${page == 'settings'} ? 'page' : null">

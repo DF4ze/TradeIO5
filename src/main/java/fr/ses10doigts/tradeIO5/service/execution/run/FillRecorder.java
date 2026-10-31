@@ -3,6 +3,7 @@ package fr.ses10doigts.tradeIO5.service.execution.run;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Transaction;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.execution.StepSide;
+import fr.ses10doigts.tradeIO5.model.enumerate.TradeOrigin;
 import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
 import fr.ses10doigts.tradeIO5.repository.TransactionRepository;
 import fr.ses10doigts.tradeIO5.repository.WalletRepository;
@@ -47,7 +48,7 @@ public class FillRecorder {
                     .webProvider(wallet.getWebProvider()).wallet(wallet).asset(asset).quantity(fill.sz()).price(fill.px())
                     .timestamp(LocalDateTime.ofInstant(fill.ts(), ZoneOffset.UTC))
                     .side(fill.side() == StepSide.BUY ? TradeSide.BUY : TradeSide.SELL).fee(fill.fee())
-                    .feeCurrency(fill.feeCcy()).build());
+                    .feeCurrency(fill.feeCcy()).origin(TradeOrigin.TRADEIO).build());
             created++;
         }
         return created;

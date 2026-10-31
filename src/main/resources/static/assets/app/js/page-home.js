@@ -93,49 +93,91 @@
     return card;
   }
 
+  const DONUT_MIN_PCT = 0.1;   // sous ce poids dans le patrimoine, l'actif n'est pas affiché dans l'exposition
   function donutCard() {
-    const card = ui.widget('Exposition', () => Promise.all([holdings(), TIO.safe(settings(), null)]), ([hold, m]) => {
-      const priced = hold.assets.filter((l) => TIO.isNum(l.value) && l.value > 0);
+    const card = ui.widget('Exposition', holdings, (hold) => {
+      const priced = hold.assets.filter((l) => TIO.isNum(l.value) && l.value > 0 && hold.total > 0 && l.value / hold.total * 100 >= DONUT_MIN_PCT);
       if (!priced.length) return ui.empty('Aucune position valorisée', 'La répartition apparaît dès qu\'un solde est lisible.');
       const assets = priced.filter((l) => !l.stable), stables = priced.filter((l) => l.stable);
-      const segments = assets.map((l, i) => ({ label: l.assetSymbol, value: l.value, color: 'var(--s' + (i % 7) + ')', group: 'assets' }))
-        .concat(stables.map((l, i) => ({ label: l.assetSymbol, value: l.value, color: 'color-mix(in srgb, var(--muted) ' + Math.max(35, 85 - i * 20) + '%, var(--surface))', group: 'stable' })));
-      const donut = TIO.charts.donut(segments, { label: 'Répartition actifs et stablecoins', centerValue: F.pct(hold.exposurePct, 0), centerLabel: 'en actifs' });
+      const segments = assets.map((l, i) => ({ label: l.assetSymbol, value: l.value, pct: l.value / hold.total * 100, color: 'var(--s' + (i % 7) + ')', group: 'assets' }))
+        .concat(stables.map((l, i) => ({ label: l.assetSymbol, value: l.value, pct: l.value / hold.total * 100, color: 'color-mix(in srgb, var(--muted) ' + Math.max(35, 85 - i * 20) + '%, var(--surface))', group: 'stable' })));
+      const donut = TIO.charts.donut(segments, { label: 'Répartition actifs et stablecoins', centerValue: F.pct(hold.exposurePct, 0), centerLabel: 'en actifs', valueFmt: (s) => F.usd(s.value, 0) });
       const legend = h('div', { class: 'stack', style: { flex: '1 1 180px' } }, segments.map((s) => h('div', { class: 'row' },
         h('i', { class: 'dot', style: { '--c': s.color } }), h('span', { class: 'num' }, s.label), h('span', { class: 'grow' }),
         h('span', { class: 'num muted' }, F.pct(s.value / hold.total * 100, 1)))));
-      const band = m && TIO.modeAtLeast('advanced') && TIO.isNum(hold.exposurePct)
-        ? [ui.bandBar({ min: m.settings.exposureMin, max: m.settings.exposureMax, value: hold.exposurePct }),
-          h('div', { class: 'muted small' }, 'Bande ' + F.pct(m.settings.exposureMin, 0) + ' – ' + F.pct(m.settings.exposureMax, 0))] : null;
-      return [h('div', { class: 'donut-wrap' }, donut, legend), band];
+      return h('div', { class: 'donut-wrap' }, donut, legend);
     });
     onSelect(card);
     return card;
   }
 
-  function transactionsCard() {
-    const card = ui.widget('Transactions', () => TIO.get('/api/portfolio/transactions' + walletQs()), (trades) => {
-      if (!trades.length) return ui.empty('Aucune transaction', 'Les achats et ventes réalisés sur vos exchanges apparaissent ici.');
-      const groups = new Map();
-      trades.forEach((t) => { const k = t.exchange || ''; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); });
-      return [...groups.entries()].map(([ex, list]) => {
-        const body = h('div', null);
-        const more = h('button', { class: 'btn', type: 'button' }, 'Tout afficher (' + list.length + ')');
-        const draw = (all) => {
-          TIO.mount(body, (all ? list : list.slice(0, 6)).map((t) => h('div', { class: 'tx-row' },
-            h('span', { class: 'when' }, F.dateTime(t.timestamp)),
-            ui.chip(t.side === 'BUY' ? '▲ Achat' : '▽ Vente', t.side === 'BUY' ? 'ok' : 'down'),
-            ui.coin(t.assetSymbol), h('span', { class: 'num' }, t.assetSymbol),
-            h('span', { class: 'grow' }),
-            h('span', { class: 'num small muted' }, F.qty(t.quantity) + ' × ' + F.price(Number(t.price))),
-            h('span', { class: 'num' }, F.usd(Number(t.notional))))));
-          if (!all && list.length > 6) body.appendChild(h('div', { class: 'row' }, more));
-        };
-        more.addEventListener('click', () => draw(true));
-        draw(false);
-        return h('div', { class: 'tx-group' }, h('div', { class: 'tx-head' }, exchangeName(ex), ui.tag(list.length + ' trade' + (list.length > 1 ? 's' : ''))), body);
-      });
+  function originChip(t) {
+    return t.origin === 'TRADEIO' ? ui.chip('TradeIO', 'accent') : ui.chip('Manuel', 'plain');
+  }
+  const money = (n, quote) => (!quote || /^(USD|USDC|USDT)$/.test(quote) ? F.usd(Number(n)) : F.num(Number(n), 2) + ' ' + quote);
+  // Importe d'abord les trades récents des exchanges (lecture seule, espacé de 5 min côté serveur), puis les lit.
+  const syncFlag = { force: false };
+  const syncThenList = () => TIO.safe(TIO.post('/api/portfolio/transactions/sync' + TIO.qs({ walletId: sel.wallet, force: syncFlag.force ? 'true' : null })), null)
+    .then((r) => { syncFlag.force = false; return r; }).then(() => TIO.get('/api/portfolio/transactions' + walletQs()));
+  const TX_PAGE = 10;
+  const TX_MERGE_MS = 5 * 60 * 1000;
+  /** Regroupe les exécutions d'un même ordre fractionné : même exchange, actif, sens, origine et cotation, chacune à moins de 5 min de la précédente. */
+  function mergeFills(trades) {
+    const out = [];
+    const open = new Map();   // clé → groupe en cours (le plus ancien membre sert de référence au chaînage)
+    trades.forEach((t) => {   // du plus récent au plus ancien
+      const key = [t.exchange, t.assetSymbol, t.side, t.origin, t.quoteCurrency].join('|');
+      const time = new Date(t.timestamp).getTime();
+      const g = open.get(key);
+      if (g && g.oldest - time <= TX_MERGE_MS) {
+        g.fills.push(t); g.oldest = time;
+        g.quantity += Number(t.quantity); g.notional += Number(t.notional);
+      } else {
+        const ng = { key, latest: t.timestamp, oldest: time, exchange: t.exchange, assetSymbol: t.assetSymbol, side: t.side, origin: t.origin,
+          quoteCurrency: t.quoteCurrency, quantity: Number(t.quantity), notional: Number(t.notional), fills: [t] };
+        open.set(key, ng); out.push(ng);
+      }
     });
+    out.forEach((g) => { g.price = g.quantity > 0 ? g.notional / g.quantity : null; });
+    return out;
+  }
+  function txRow(g, count) {
+    return h('div', { class: 'tx-row' },
+      h('span', { class: 'when' }, F.dateTime(g.latest)),
+      h('span', { class: 'prov' }, exchangeName(g.exchange)),
+      ui.chip(g.side === 'BUY' ? '▲ Achat' : '▽ Vente', g.side === 'BUY' ? 'ok' : 'down'),
+      originChip(g),
+      h('span', { class: 'asset' }, ui.coin(g.assetSymbol), h('span', { class: 'num' }, g.assetSymbol)),
+      count > 1 ? ui.tag(count + ' exécutions') : null,
+      h('span', { class: 'grow' }),
+      h('span', { class: 'num small muted nw' }, F.qty(g.quantity) + ' × ' + money(g.price, g.quoteCurrency)),
+      h('span', { class: 'num nw amt' }, money(g.notional, g.quoteCurrency)),
+      count > 1 ? h('span', { class: 'chev', 'aria-hidden': 'true' }, '›') : null);
+  }
+  function transactionsCard() {
+    const card = ui.widget('Transactions', syncThenList, (trades) => {
+      if (!trades.length) return ui.empty('Aucune transaction', 'Les achats et ventes réalisés sur vos exchanges, à la main ou par TradeIO, apparaissent ici.');
+      // un seul fil chronologique (plus récent d'abord), tous exchanges confondus ; exécutions rapprochées fusionnées (dépliables)
+      const groups = mergeFills(trades);
+      const body = h('div', { class: 'tx-list' });
+      const foot = h('div', { class: 'row' });
+      let shown = TX_PAGE;
+      const draw = () => {
+        TIO.mount(body, groups.slice(0, shown).map((g) => {
+          if (g.fills.length === 1) return txRow(g, 1);
+          const detail = h('div', { class: 'fold-body' }, g.fills.map((f) => h('div', { class: 'tx-row tx-row--sub' },
+            h('span', { class: 'when' }, F.dateTime(f.timestamp)), h('span', { class: 'grow' }),
+            h('span', { class: 'num small muted nw' }, F.qty(Number(f.quantity)) + ' × ' + money(f.price, f.quoteCurrency)),
+            h('span', { class: 'num nw amt' }, money(f.notional, f.quoteCurrency)))));
+          return h('details', { class: 'fold' }, h('summary', null, txRow(g, g.fills.length)), detail);
+        }));
+        TIO.mount(foot, shown < groups.length
+          ? h('button', { class: 'btn', type: 'button', onclick: () => { shown += TX_PAGE; draw(); } }, 'Afficher ' + Math.min(TX_PAGE, groups.length - shown) + ' de plus')
+          : null, h('span', { class: 'muted small' }, Math.min(shown, groups.length) + ' sur ' + groups.length));
+      };
+      draw();
+      return [body, foot];
+    }, { span: true, aside: h('button', { class: 'btn', type: 'button', onclick: () => { syncFlag.force = true; card.reload(); } }, 'Actualiser') });
     onSelect(card);
     return card;
   }
@@ -184,44 +226,47 @@
     }, { span: false });
   }
   function cashCard() {
-    return ui.widget('Cash et autonomie', () => Promise.all([liveWallet(), TIO.safe(summary('30d'), null)]), ([items, sum]) => {
-      const seen = new Set();
-      let cash = null;
-      for (const it of items) {
-        const s = it.snapshot;
-        if (s && TIO.isNum(s.cashUsd) && !seen.has(it.walletId)) { seen.add(it.walletId); cash = (cash || 0) + s.cashUsd; }
-      }
-      const days = sum && sum.autonomyDays;
-      return [h('div', { class: 'num value-lg' }, F.usd(cash, 0)),
+    const card = ui.widget('Cash et autonomie', () => TIO.get('/api/portfolio/autonomy' + walletQs()), (a) => {
+      const days = a.days;
+      return [h('div', { class: 'num value-lg' }, F.usd(a.cash, 0)),
         h('div', { class: 'row row--between' }, h('span', { class: 'muted' }, 'Autonomie'), h('span', { class: 'num' }, F.days(days))),
         TIO.isNum(days) ? ui.bar(Math.min(100, days / 365 * 100)) : null,
-        ui.note('Cash disponible dans les wallets suivis ; autonomie = jours d\'achats de base couverts.')];
+        ui.note(TIO.isNum(days)
+          ? 'Stablecoins disponibles ; autonomie = nombre de jours d\'achats de base qu\'ils couvrent (' + F.usd(a.dailySpend, 0) + ' par jour en moyenne).'
+          : 'Stablecoins disponibles. L\'autonomie se calcule dès qu\'un actif est lié avec un montant de base.')];
     });
+    onSelect(card);
+    return card;
   }
   function priceCard() {
-    return ui.widget('Prix moyen vs cours', () => TIO.getOnce('/api/portfolio/assets'), (assets) => {
-      const rows = assets.map((a) => ({ a, chart: TIO.charts.priceVsAvg(a.price, a.avgBuyPrice) })).filter((r) => r.chart);
-      if (!rows.length) return ui.empty('Pas encore d\'achat', 'Le prix moyen apparaît après le premier achat réel.');
-      return rows.map((r) => h('div', { class: 'stack' }, h('div', { class: 'row' }, ui.coin(r.a.assetSymbol), h('span', { class: 'num' }, r.a.assetSymbol), h('span', { class: 'grow' }), h('span', { class: 'num' }, F.price(r.a.price))), r.chart));
+    const card = ui.widget('Prix moyen vs cours', () => TIO.get('/api/portfolio/asset-performance' + walletQs()), (assets) => {
+      const rows = assets.filter((a) => TIO.isNum(a.price) && TIO.isNum(a.avgBuyPrice) && a.avgBuyPrice > 0);
+      if (!rows.length) return ui.empty('Pas encore d\'achat', 'Le prix moyen vient de vos achats enregistrés sur l\'exchange (manuels ou TradeIO).');
+      return h('div', { class: 'pva-list' }, rows.map((a) => {
+        const diff = (a.price / a.avgBuyPrice - 1) * 100;
+        return h('div', { class: 'pva' },
+          h('div', { class: 'pva-head' }, ui.coin(a.assetSymbol), h('span', { class: 'num pva-sym' }, a.assetSymbol),
+            h('span', { class: 'num pva-vals' }, h('span', { class: TIO.sign(diff) }, F.price(a.avgBuyPrice)), ' / ' + F.price(a.price)),
+            h('span', { class: 'num pva-diff ' + TIO.sign(diff) }, (diff > 0 ? '▲ ' : diff < 0 ? '▽ ' : '') + F.signedPct(diff))),
+          TIO.charts.priceVsAvg(a.price, a.avgBuyPrice, { bare: true }));
+      }));
     });
+    onSelect(card);
+    return card;
   }
 
   // ---------- Avancé ----------
-  function latestMargin() {
-    return TIO.getOnce('/api/rainbow-live/decisions').then((ds) => {
-      for (const d of ds) { const m = TIO.parseMod(d.modulation); if (m && TIO.isNum(m.marginPct)) return m.marginPct; }
-      return null;
-    });
-  }
   function freeZoneCard() {
-    return ui.widget('Zone libre', () => Promise.all([summary('30d'), settings(), TIO.safe(latestMargin(), null)]), ([s, m, margin]) => {
-      const min = m.settings.exposureMin, max = m.settings.exposureMax, v = s.current && s.current.exposurePct;
-      if (!TIO.isNum(margin)) return [ui.bandBar({ min, max, value: v }), ui.note('Zone libre : — (marge de régulation connue après la première passe).')];
-      const fmin = min + margin, fmax = max - margin;
-      const inside = TIO.isNum(v) && v >= fmin && v <= fmax;
-      return [h('div', { class: 'num value-md' }, F.pct(fmin, 0) + ' – ' + F.pct(fmax, 0)), ui.bandBar({ min, max, freeMin: fmin, freeMax: fmax, value: v }),
-        h('div', { class: 'muted small' }, !TIO.isNum(v) ? 'Exposition inconnue' : inside ? 'Exposition en zone libre : achats et ventes sans régulation.' : 'Hors zone libre : les montants sont régulés pour revenir dans la bande.')];
+    const card = ui.widget('Zone libre', () => Promise.all([holdings(), settings()]), ([hold, m]) => {
+      const marginPct = TIO.isNum(m.settings.regulationMarginPct) ? m.settings.regulationMarginPct : m.limits.marginDefaultPct;
+      const band = ui.exposureBand({ min: m.settings.exposureMin, max: m.settings.exposureMax, marginPct, value: hold.exposurePct });
+      const st = band.status;
+      return [st ? h('div', { class: 'row' }, ui.chip(st[0], st[1]), h('span', { class: 'muted small' }, TIO.isNum(hold.exposurePct) ? 'Exposition actuelle ' + F.pct(hold.exposurePct, 0) : '')) : h('div', { class: 'muted small' }, 'Exposition inconnue (aucun solde lisible).'),
+        band,
+        ui.note('Dans la marge de régulation, TradeIO module achats et ventes pour te ramener vers la zone libre. Réglable dans les Réglages.')];
     });
+    onSelect(card);
+    return card;
   }
   function powerCard() {
     return ui.widget('Puissance', settings, (m) => {
@@ -255,7 +300,7 @@
   TIO.start(function (root) {
     const user = document.body.dataset.user || '';
     const adv = TIO.modeAtLeast('advanced');
-    const cards = [patrimoineCard(), holdingsCard(), donutCard(), transactionsCard(), decisionsCard(), cashCard(), priceCard()];
+    const cards = [patrimoineCard(), holdingsCard(), donutCard(), priceCard(), transactionsCard(), decisionsCard(), cashCard()];
     if (adv) cards.push(freeZoneCard(), powerCard(), biasCard(), carryCard());
     TIO.mount(root, ui.pageHeader('Bonjour' + (user ? ', ' + user : '')), ui.demoBanner(), ui.alerts(), selector(), h('div', { class: 'grid grid--3' }, cards),
       adv ? null : h('p', { class: 'note' }, 'Mode Simple. ', h('a', { href: TIO.href('/app/settings') }, 'Passer en Avancé'), ' pour voir la bande d\'exposition, puissance, biais et reporté.'));

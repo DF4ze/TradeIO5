@@ -21,7 +21,7 @@
   const byId = (id) => Object.entries(ASSETS).find(([, a]) => a.id === Number(id));
 
   let prefs = { theme: 'DARK', displayMode: 'SIMPLE', startingProfile: 'BALANCED', alertsDisabled: [], caps: { maxOrderUsd: null, maxDayUsd: null, absoluteMaxOrderUsd: 30, absoluteMaxDayUsd: 100 }, warnings: [] };
-  let modulation = { settings: { exposureMin: 30, exposureMax: 70, power: 1, bias: 0 }, limits: { minBandWidthPts: 10, powerMin: 0.5, powerMax: 2, biasMax: 0.5 } };
+  let modulation = { settings: { exposureMin: 5, exposureMax: 95, power: 1, bias: 0, regulationMarginPct: null }, limits: { minBandWidthPts: 10, powerMin: 0.5, powerMax: 2, biasMax: 0.5, marginDefaultPct: 25, marginMinPct: 5, marginMaxPct: 50 } };
 
   function summary(period) {
     const n = { '7d': 7, '30d': 30, '90d': 90, '1y': 365, all: 200 }[period] || 30;
@@ -161,7 +161,7 @@
     Object.entries(ASSETS).forEach(([symbol, a]) => {
       if (walletId && Number(walletId) !== a.wallet) return;
       transactions(a.id).trades.forEach((t) => out.push({ id: t.id, timestamp: t.timestamp, side: t.side, assetSymbol: symbol, quantity: t.quantity, price: t.price,
-        notional: r2(t.quantity * t.price), fee: t.fee, feeCurrency: t.feeCurrency, walletId: a.wallet, walletName: WALLETS[a.wallet].name, exchange: a.ex }));
+        notional: r2(t.quantity * t.price), fee: t.fee, feeCurrency: t.feeCurrency, walletId: a.wallet, walletName: WALLETS[a.wallet].name, exchange: a.ex, quoteCurrency: 'USDC', origin: (t.id % 3 === 0) ? 'MANUAL' : 'TRADEIO' }));
     });
     return out.sort((x, y) => (y.timestamp < x.timestamp ? -1 : 1));
   }
@@ -174,6 +174,7 @@
     if (method === 'GET') {
       if (p === '/api/portfolio/summary') return summary(q.get('period') || '30d');
       if (p === '/api/portfolio/assets') return portfolioAssets();
+      if (p === '/api/portfolio/asset-performance') return portfolioAssets().map((a) => Object.assign({}, a, { investedNet: a.investedNet }));
       if (p === '/api/portfolio/holdings') return holdings(q.get('walletId'));
       if (p === '/api/portfolio/history') return history(q.get('walletId'), q.get('period') || '30d');
       if (p === '/api/portfolio/transactions') return allTransactions(q.get('walletId'));
@@ -204,6 +205,7 @@
       if (/\/execution$/.test(p)) refuse("Interrupteur d'exécution");
     }
     if (method === 'POST') {
+      if (p === '/api/portfolio/transactions/sync') return { imported: 0, tradeio: 0, manual: 0, failedWallets: [] };
       if (/confirm-first-live/.test(p)) refuse('Confirmation du premier ordre');
       if (p.startsWith('/api/credentials')) refuse('Enregistrement de clé');
       if (p === '/api/rainbow-live/bindings') refuse("Création d'un lien");

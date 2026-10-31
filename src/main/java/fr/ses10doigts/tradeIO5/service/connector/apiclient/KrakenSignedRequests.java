@@ -38,6 +38,8 @@ public final class KrakenSignedRequests {
     private static final String HMAC_SHA512 = "HmacSHA512";
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
     private static final Map<String, AtomicLong> LAST_NONCE = new ConcurrentHashMap<>();
+    /** Un verrou par clé API : nonce et envoi sont sérialisés, sinon Kraken reçoit des nonces dans le désordre (EAPI:Invalid nonce). */
+    private static final Map<String, Object> LOCKS = new ConcurrentHashMap<>();
 
     private KrakenSignedRequests() {
     }
@@ -50,6 +52,12 @@ public final class KrakenSignedRequests {
      */
     public static String privatePost(DomainClock clock, ApiCredential credential, String method, Map<String, String> params) {
         requireComplete(credential);
+        synchronized (LOCKS.computeIfAbsent(fingerprint(credential.getApiKey()), k -> new Object())) {
+            return send(clock, credential, method, params);
+        }
+    }
+
+    private static String send(DomainClock clock, ApiCredential credential, String method, Map<String, String> params) {
         String path = "/" + API_VERSION + "/private/" + method;
         long nonce = nextNonce(clock, credential.getApiKey());
         Map<String, String> postData = new LinkedHashMap<>();

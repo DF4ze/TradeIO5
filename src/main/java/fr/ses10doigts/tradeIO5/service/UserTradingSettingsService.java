@@ -26,8 +26,15 @@ public class UserTradingSettingsService {
      */
     public static final int DEFAULT_RISK_CURSOR = 5;
 
-    /** Réglages de modulation d'un utilisateur : exposition min/max en %, puissance (×), biais signé. */
-    public record ModulationSettings(double exposureMin, double exposureMax, double power, double bias) {
+    /**
+     * Réglages de modulation d'un utilisateur : exposition min/max en %, puissance (×), biais signé, marge de régulation en %
+     * de la largeur de bande ({@code null} = défaut admin).
+     */
+    public record ModulationSettings(double exposureMin, double exposureMax, double power, double bias, Double regulationMarginPct) {
+
+        public ModulationSettings(double exposureMin, double exposureMax, double power, double bias) {
+            this(exposureMin, exposureMax, power, bias, null);
+        }
 
         public static ModulationSettings neutral() {
             return new ModulationSettings(ModulationDefaults.NEUTRAL_EXPOSURE_MIN, ModulationDefaults.NEUTRAL_EXPOSURE_MAX,
@@ -76,15 +83,31 @@ public class UserTradingSettingsService {
      */
     public ModulationSettings setModulationSettings(User user, double exposureMin, double exposureMax, double power,
                                                     double bias) {
+        return setModulationSettings(user, exposureMin, exposureMax, power, bias, null);
+    }
+
+    /** Idem avec la marge de régulation (% de la largeur de bande, bornes absolues admin) ; {@code null} la laisse inchangée. */
+    public ModulationSettings setModulationSettings(User user, double exposureMin, double exposureMax, double power,
+                                                    double bias, Double regulationMarginPct) {
         validate(modulationControl.current(), exposureMin, exposureMax, power, bias);
+        if (regulationMarginPct != null) {
+            var limit = ModulationDefaults.LIMITS.get(ModulationDefaults.REGULATION_MARGIN_PCT);
+            if (!Double.isFinite(regulationMarginPct) || !limit.contains(java.math.BigDecimal.valueOf(regulationMarginPct))) {
+                throw new IllegalArgumentException("Marge de régulation dans [" + limit.min() + ", " + limit.max() + "] % requise, reçu "
+                        + regulationMarginPct);
+            }
+        }
         UserTradingSettings settings = userTradingSettingsRepository.findByUser(user)
                 .orElseGet(() -> UserTradingSettings.builder().user(user).riskCursor(DEFAULT_RISK_CURSOR).build());
         settings.setExposureMin(exposureMin);
         settings.setExposureMax(exposureMax);
         settings.setPower(power);
         settings.setBias(bias);
+        if (regulationMarginPct != null) {
+            settings.setRegulationMarginPct(regulationMarginPct);
+        }
         userTradingSettingsRepository.save(settings);
-        return new ModulationSettings(exposureMin, exposureMax, power, bias);
+        return new ModulationSettings(exposureMin, exposureMax, power, bias, settings.getRegulationMarginPct());
     }
 
     /**
@@ -109,7 +132,12 @@ public class UserTradingSettingsService {
         double biasMax = limits.getBiasMax().doubleValue();
         return new ModulationSettings(min, max,
                 Math.clamp(stored.power(), limits.getPowerMin().doubleValue(), limits.getPowerMax().doubleValue()),
-                Math.clamp(stored.bias(), -biasMax, biasMax));
+                Math.clamp(stored.bias(), -biasMax, biasMax), stored.regulationMarginPct() == null ? null : clampMargin(stored.regulationMarginPct()));
+    }
+
+    private static double clampMargin(double marginPct) {
+        var limit = ModulationDefaults.LIMITS.get(ModulationDefaults.REGULATION_MARGIN_PCT);
+        return Math.clamp(marginPct, limit.min().doubleValue(), limit.max().doubleValue());
     }
 
     private static ModulationSettings storedOrNeutral(UserTradingSettings s) {
@@ -117,7 +145,7 @@ public class UserTradingSettingsService {
                 s.getExposureMin() == null ? ModulationDefaults.NEUTRAL_EXPOSURE_MIN : s.getExposureMin(),
                 s.getExposureMax() == null ? ModulationDefaults.NEUTRAL_EXPOSURE_MAX : s.getExposureMax(),
                 s.getPower() == null ? ModulationDefaults.NEUTRAL_POWER : s.getPower(),
-                s.getBias() == null ? ModulationDefaults.NEUTRAL_BIAS : s.getBias());
+                s.getBias() == null ? ModulationDefaults.NEUTRAL_BIAS : s.getBias(), s.getRegulationMarginPct());
     }
 
     private static void validate(RainbowModulationControl limits, double exposureMin, double exposureMax, double power,

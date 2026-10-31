@@ -86,6 +86,6 @@
     const sym = document.body.dataset.symbol;
     const box = h('div', { class: 'grid' });
     ui.load(box, () => loadAll(sym), (data) => render(sym, data));
-    TIO.mount(root, ui.pageHeader(sym), ui.demoBanner(), h('a', { href: TIO.href('/app/assets'), class: 'small' }, '← Mes actifs'), box);
+    TIO.mount(root, ui.pageHeader(sym), ui.demoBanner(), h('a', { href: TIO.href('/app/assets'), class: 'small' }, '← Actifs gérés'), box);
   });
 })(window);

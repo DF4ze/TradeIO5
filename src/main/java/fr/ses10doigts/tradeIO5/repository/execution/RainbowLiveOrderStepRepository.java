@@ -17,4 +17,12 @@ public interface RainbowLiveOrderStepRepository extends JpaRepository<RainbowLiv
     @Query("select s from RainbowLiveOrderStep s where s.plan.user = :user and s.submittedAt >= :since and s.status in :statuses")
     List<RainbowLiveOrderStep> findSentSince(@Param("user") User user, @Param("since") Instant since,
                                              @Param("statuses") Collection<StepStatus> statuses);
+
+    /** Identifiants client des ordres envoyés par TradeIO pour cet utilisateur (reconnaissance de la provenance d'un trade). */
+    @Query("select s.clOrdId from RainbowLiveOrderStep s where s.plan.user = :user")
+    List<String> clOrdIdsOf(@Param("user") User user);
+
+    /** Identifiants d'ordre exchange (ordId / txid) des ordres envoyés par TradeIO pour cet utilisateur. */
+    @Query("select s.ordId from RainbowLiveOrderStep s where s.plan.user = :user and s.ordId is not null")
+    List<String> ordIdsOf(@Param("user") User user);
 }

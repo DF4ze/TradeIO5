@@ -42,7 +42,9 @@ final class LiveModulation {
 
     Outcome modulate(double signalBuyUsd, double signalSellQty, double close) {
         boolean known = exposure != null && exposure.isKnown();
-        Band band = new Band(settings.exposureMin(), settings.exposureMax(), limits.getRegulationMarginPct().doubleValue(),
+        // marge choisie par l'utilisateur, sinon défaut admin
+        double marginPct = settings.regulationMarginPct() != null ? settings.regulationMarginPct() : limits.getRegulationMarginPct().doubleValue();
+        Band band = new Band(settings.exposureMin(), settings.exposureMax(), marginPct,
                 limits.getSellBoostMax().doubleValue());
         Factors factors = known ? ExposureModulator.factors(exposure.exposurePct(), band) : new Factors(1.0, 1.0, 0.0, 0.0);
         double sideBuy = settings.power() * (1.0 + settings.bias());

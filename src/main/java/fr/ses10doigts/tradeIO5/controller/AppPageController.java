@@ -32,7 +32,7 @@ public class AppPageController {
 
     @GetMapping("/app/assets")
     public String assets(Model model) {
-        return page(model, "assets", "Mes actifs");
+        return page(model, "assets", "Actifs gérés");
     }
 
     @GetMapping("/app/assets/{symbol:[A-Za-z0-9._-]{1,20}}")

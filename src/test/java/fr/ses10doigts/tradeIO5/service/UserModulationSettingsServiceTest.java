@@ -190,4 +190,17 @@ class UserModulationSettingsServiceTest {
         when(repository.findByUser(user)).thenReturn(Optional.empty());
         assertEquals(new ModulationSettings(0, 100, 1, 0), service.effectiveSettings(user));
     }
+
+    @Test
+    @DisplayName("Marge de régulation : enregistrée si dans [5, 50] %, absente = inchangée, hors bornes = refus")
+    void regulationMargin() {
+        when(repository.findByUser(user)).thenReturn(Optional.empty());
+        assertEquals(30.0, service.setModulationSettings(user, 5, 95, 1, 0, 30.0).regulationMarginPct());
+        org.mockito.Mockito.clearInvocations(repository);
+        assertThrows(IllegalArgumentException.class, () -> service.setModulationSettings(user, 5, 95, 1, 0, 60.0));
+        assertThrows(IllegalArgumentException.class, () -> service.setModulationSettings(user, 5, 95, 1, 0, 2.0));
+        verify(repository, never()).save(any());
+        stored(5d, 95d, 1d, 0d);
+        assertEquals(null, service.setModulationSettings(user, 10, 90, 1, 0).regulationMarginPct());   // jamais saisie : défaut admin
+    }
 }

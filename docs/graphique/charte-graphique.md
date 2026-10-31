@@ -78,7 +78,7 @@ Interdits : aplat Rainbow, plus de deux éléments Rainbow saturés dans un mêm
 | Composant | Règles |
 |---|---|
 | Statut | OK `--up` · ATTENTION `--warn` · BLOQUÉ `--down` · INCONNU `--muted` avec contour pointillé ; toujours libellé + pastille |
-| Navigation mobile | pilule flottante en bas, 4 onglets (Accueil, Mes actifs, Journal, Réglages), onglet actif en dégradé violet |
+| Navigation mobile | pilule flottante en bas, 4 onglets (Accueil, Actifs gérés, Journal, Réglages), onglet actif en dégradé violet |
 | Navigation PC | barre latérale arrondie flottante (200 px) : logo, onglets, avatar en bas |
 | En-tête | salutation, pastille verte « Exécution réelle » (ou « Simulation »), pastille violette « Prochaine passe dans N h » |
 | Segmenté | pilule sur fond `--bg`, option active en dégradé violet |

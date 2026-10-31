@@ -260,9 +260,45 @@
     if (TIO.isNum(o.freeMin) && TIO.isNum(o.freeMax) && o.freeMax > o.freeMin) {
       root.appendChild(h('i', { class: 'bb-free', style: { left: pos(o.freeMin), width: TIO.clamp(o.freeMax - o.freeMin, 0, 100) + '%' } }));
     }
-    root.appendChild(h('i', { class: 'bb-edge', style: { left: pos(o.min) } }));
-    root.appendChild(h('i', { class: 'bb-edge', style: { left: pos(o.max) } }));
+    // repères de bande : pas de trait quand la borne est au bord de la barre (0 % ou 100 %), il ferait un artefact
+    if (o.min > 0.5 && o.min < 99.5) root.appendChild(h('i', { class: 'bb-edge', style: { left: pos(o.min) } }));
+    if (o.max > 0.5 && o.max < 99.5) root.appendChild(h('i', { class: 'bb-edge', style: { left: pos(o.max) } }));
     if (TIO.isNum(o.value)) root.appendChild(h('i', { class: 'bb-mark', style: { left: pos(o.value) } }));
+    return root;
+  };
+  /**
+   * Bande d'exposition lisible : hors bande (hachuré), marge de régulation basse (rouge → orange), zone libre (vert → bleu → violet),
+   * marge haute (orange → rouge), repères Min / Max et bornes de la zone libre, point = exposition actuelle.
+   * o : { min, max, marginPct (% de la largeur de bande), value (exposition actuelle, facultative) }
+   */
+  ui.exposureBand = function (o) {
+    const min = o.min, max = o.max, width = max - min;
+    const marginPts = TIO.clamp((o.marginPct || 0) / 100 * width, 0, width / 2);
+    const fmin = min + marginPts, fmax = max - marginPts;
+    const pct = (n) => TIO.fmt.pct(n, Number.isInteger(Math.round(n * 10) / 10) ? 0 : 1);
+    const pos = (v) => TIO.clamp(v, 0, 100) + '%';
+    const seg = (cls, from, to) => h('i', { class: 'xb-seg ' + cls, style: { left: pos(from), width: TIO.clamp(to - from, 0, 100) + '%' } });
+    // un libellé ancré sur sa position, rabattu vers l'intérieur près des bords pour ne pas déborder
+    const label = (cls, at, text) => h('span', { class: 'xb-lbl ' + cls + (at < 12 ? ' xb-lbl--l' : at > 88 ? ' xb-lbl--r' : ''), style: { left: pos(at) } }, text);
+    const v = TIO.isNum(o.value) ? o.value : null;
+    const where = v === null ? null : v < min ? ['Sous la bande', 'warn'] : v > max ? ['Au-dessus de la bande', 'warn']
+      : v < fmin ? ['Marge basse', 'warn'] : v > fmax ? ['Marge haute', 'warn'] : ['Zone libre', 'ok'];
+    // strictement la même structure que les curseurs (.rslider : piste de 6 px, repère rond) ; marges = zones grises translucides qui rougissent vers la borne, zone libre verte
+    const track = h('div', { class: 'rslider', style: { '--halo': 'var(--s3)' } });
+    const bar = h('div', { class: 'xb-bar' }, seg('xb-out', 0, min), seg('xb-mlow', min, fmin), seg('xb-free', fmin, fmax), seg('xb-mhigh', fmax, max), seg('xb-out', max, 100));
+    track.appendChild(bar);
+    if (v !== null) track.appendChild(h('i', { class: 'rdot', style: { left: pos(v) } }));
+    const root = h('div', { class: 'xband', role: 'img',
+      'aria-label': 'Bande d\'exposition de ' + pct(min) + ' à ' + pct(max) + ', zone libre de ' + pct(fmin) + ' à ' + pct(fmax) + (v !== null ? ', exposition actuelle ' + pct(v) : '') });
+    root.appendChild(h('div', { class: 'xb-top' }, v !== null ? label('xb-now', v, pct(v)) : null));
+    root.appendChild(track);
+    root.appendChild(h('div', { class: 'xb-scale' }, label('xb-edge', min, 'Min ' + pct(min)), label('xb-edge', max, 'Max ' + pct(max))));
+    if (marginPts > 0) root.appendChild(h('div', { class: 'xb-scale xb-scale--sub' }, label('xb-sub', fmin, pct(fmin)), label('xb-sub', fmax, pct(fmax))));
+    root.appendChild(h('div', { class: 'xb-legend' },
+      h('span', null, h('i', { class: 'xb-key xb-free' }), 'Zone libre'),
+      h('span', null, h('i', { class: 'xb-key xb-mlow' }), 'Marge de régulation · ' + TIO.fmt.num(o.marginPct, 0) + ' % de la bande (' + TIO.fmt.num(marginPts, 1) + ' pts)'),
+      h('span', null, h('i', { class: 'xb-key xb-out' }), 'Hors bande')));
+    root.status = where;
     return root;
   };
   ui.alerts = function () {

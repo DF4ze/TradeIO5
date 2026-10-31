@@ -1,6 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.portfolio;
 
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.AssetPerformanceDto;
+import fr.ses10doigts.tradeIO5.model.dto.portfolio.AutonomyDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.BindingTradesDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.PortfolioPointDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.PortfolioSummaryDto;
@@ -153,12 +154,28 @@ public class PortfolioQueryService {
             return null;
         }
         double cash = latest.stream().mapToDouble(PortfolioSnapshot::getCashUsd).sum();
+        double dailySpend = dailySpend(user, null);
+        return dailySpend > EPSILON ? cash / dailySpend : null;
+    }
+
+    /** Autonomie à partir du cash <b>live</b> fourni (un wallet ou tous) : jours d'achats de base couverts ; nulle sans lien actif. */
+    @Transactional(readOnly = true)
+    public AutonomyDto autonomy(User user, double cash, Long walletId) {
+        double dailySpend = dailySpend(user, walletId);
+        return new AutonomyDto(cash, dailySpend > EPSILON ? cash / dailySpend : null, dailySpend > EPSILON ? dailySpend : null);
+    }
+
+    /** Dépense quotidienne moyenne des liens (tous, ou ceux du wallet donné). */
+    private double dailySpend(User user, Long walletId) {
         double dailySpend = 0;
         for (RainbowLiveBinding b : bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(user)) {
+            if (walletId != null && !b.getWallet().getId().equals(walletId)) {
+                continue;
+            }
             var config = configResolver.config(b.getPreset());
             double base = b.getBaseAmount() != null ? b.getBaseAmount() : config.getBaseAmount();
             dailySpend += base * RainbowLiveOnboardingService.averageMultiplier(config);
         }
-        return dailySpend > EPSILON ? cash / dailySpend : null;
+        return dailySpend;
     }
 }

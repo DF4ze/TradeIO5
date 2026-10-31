@@ -77,15 +77,16 @@
   };
 
   /** Repère « prix moyen vs cours » : piste neutre, repère pointillé = prix moyen, point = cours. */
-  charts.priceVsAvg = function (price, avg) {
+  charts.priceVsAvg = function (price, avg, opts) {
     if (!TIO.isNum(price) || !TIO.isNum(avg) || avg <= 0) return null;
     const diff = (price / avg - 1) * 100;
     const lo = Math.min(price, avg) * 0.9, hi = Math.max(price, avg) * 1.1;
     const pos = (v) => TIO.clamp((v - lo) / (hi - lo), 0, 1) * 100;
-    return h('div', { class: 'stack', role: 'img', 'aria-label': 'Cours ' + TIO.fmt.price(price) + ', prix moyen d\'achat ' + TIO.fmt.price(avg) },
-      h('div', { class: 'rslider', style: { height: '20px' } }, h('div', { class: 'trk', style: { top: '7px' } }),
-        h('div', { class: 'mark', style: { left: pos(avg) + '%', top: '1px', height: '18px' } }),
-        h('div', { style: { position: 'absolute', left: pos(price) + '%', top: '3px', width: '14px', height: '14px', 'border-radius': '50%', background: 'var(--text)', transform: 'translateX(-7px)', 'box-shadow': '0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent)' } })),
+    // même structure que les curseurs de Puissance / Biais : .rslider, piste 6 px, repère rond translucide
+    const track = h('div', { class: 'rslider' }, h('div', { class: 'trk' }), h('div', { class: 'mark', style: { left: pos(avg) + '%' } }), h('i', { class: 'rdot', style: { left: pos(price) + '%' } }));
+    const label = 'Cours ' + TIO.fmt.price(price) + ', prix moyen d\'achat ' + TIO.fmt.price(avg);
+    if (opts && opts.bare) { track.setAttribute('role', 'img'); track.setAttribute('aria-label', label); return track; }   // curseur seul, l'appelant écrit les valeurs
+    return h('div', { class: 'stack', role: 'img', 'aria-label': label }, track,
       h('div', { class: 'row row--between small muted' }, h('span', null, '┆ Prix moyen ' + TIO.fmt.price(avg)), h('span', { class: TIO.sign(diff) }, (diff > 0 ? '▲ ' : diff < 0 ? '▽ ' : '') + TIO.fmt.signedPct(diff) + ' vs cours')));
   };
   /**
@@ -104,20 +105,42 @@
     const usable = 360 - GAP * (hasGap ? 2 : 0);
     const pt = (rad, deg) => { const a = (deg - 90) * Math.PI / 180; return [C + rad * Math.cos(a), C + rad * Math.sin(a)]; };
     const el = svg('svg', { class: 'donut', viewBox: '0 0 200 200', role: 'img', 'aria-label': o.label || 'Répartition' });
+    const wrap = h('div', { class: 'chart-wrap donut-box' }, el);
+    const tip = TIO.ui.tooltip(wrap);
+    const slices = [];
     let deg = hasGap ? GAP / 2 : 0, prevGroup = order[0].group;
     order.forEach((s) => {
       if (hasGap && s.group !== prevGroup) { deg += GAP; prevGroup = s.group; }
       const sweep = Math.min(359.99, s.value / total * usable), a0 = deg, a1 = deg + sweep;
       deg = a1;
       const [x0, y0] = pt(R, a0), [x1, y1] = pt(R, a1), [x2, y2] = pt(r, a1), [x3, y3] = pt(r, a0), big = sweep > 180 ? 1 : 0;
-      el.appendChild(svg('path', { d: 'M' + x0.toFixed(2) + ' ' + y0.toFixed(2) + ' A' + R + ' ' + R + ' 0 ' + big + ' 1 ' + x1.toFixed(2) + ' ' + y1.toFixed(2)
-        + ' L' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' A' + r + ' ' + r + ' 0 ' + big + ' 0 ' + x3.toFixed(2) + ' ' + y3.toFixed(2) + ' Z', fill: s.color },
-        svg('title', null, s.label + ' : ' + TIO.fmt.pct(s.value / total * 100, 1))));
+      const d = 'M' + x0.toFixed(2) + ' ' + y0.toFixed(2) + ' A' + R + ' ' + R + ' 0 ' + big + ' 1 ' + x1.toFixed(2) + ' ' + y1.toFixed(2)
+        + ' L' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' A' + r + ' ' + r + ' 0 ' + big + ' 0 ' + x3.toFixed(2) + ' ' + y3.toFixed(2) + ' Z';
+      const mid = ((a0 + a1) / 2 - 90) * Math.PI / 180;
+      slices.push({ s, d, dx: Math.cos(mid) * 6, dy: Math.sin(mid) * 6, path: svg('path', { class: 'd-slice', d, fill: s.color }) });
+    });
+    slices.forEach((sl) => el.appendChild(sl.path));
+    // l'infobulle et le survol passent par une copie invisible, immobile : la part visible peut bouger sans faire clignoter le survol
+    const lines = (s) => [s.label, (TIO.isNum(s.pct) ? TIO.fmt.pct(s.pct, 1) : TIO.fmt.pct(s.value / total * 100, 1)) + (o.valueFmt ? ' · ' + o.valueFmt(s) : '')];
+    const clear = () => { wrap.classList.remove('is-hover'); slices.forEach((x) => { x.path.classList.remove('on'); x.path.style.transform = ''; }); tip.hide(); };
+    slices.forEach((sl) => {
+      const hit = svg('path', { class: 'd-hit', d: sl.d, fill: 'transparent' });
+      const focus = (e) => {
+        clear();
+        wrap.classList.add('is-hover'); sl.path.classList.add('on'); sl.path.style.transform = 'translate(' + sl.dx.toFixed(2) + 'px, ' + sl.dy.toFixed(2) + 'px)';
+        const r2 = wrap.getBoundingClientRect();
+        tip.show(e.clientX - r2.left, e.clientY - r2.top - 8, lines(sl.s));
+      };
+      hit.addEventListener('pointerenter', focus);
+      hit.addEventListener('pointermove', (e) => { const r2 = wrap.getBoundingClientRect(); tip.show(e.clientX - r2.left, e.clientY - r2.top - 8, lines(sl.s)); });
+      hit.addEventListener('pointerleave', clear);
+      el.appendChild(hit);
     });
     if (o.centerValue) {
       el.appendChild(svg('text', { class: 'd-val', x: C, y: C + 4, 'text-anchor': 'middle' }, o.centerValue));
       if (o.centerLabel) el.appendChild(svg('text', { class: 'd-lbl', x: C, y: C + 22, 'text-anchor': 'middle' }, o.centerLabel));
     }
-    return el;
+    wrap.querySelectorAll('.d-val, .d-lbl').forEach((t) => { t.style.pointerEvents = 'none'; });
+    return wrap;
   };
 })(window);

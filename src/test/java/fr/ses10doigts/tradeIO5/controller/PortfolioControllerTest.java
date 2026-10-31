@@ -102,7 +102,8 @@ class PortfolioControllerTest {
         binding = bindingRepository.save(RainbowLiveBinding.builder().user(alice).assetSymbol("BTC").preset(preset)
                 .wallet(wallet).bagPercent(100).priority(0).build());
         when(facade.getConnectedUser()).thenReturn(alice);
-        mvc = MockMvcBuilders.standaloneSetup(new PortfolioController(queryService, mock(fr.ses10doigts.tradeIO5.service.portfolio.HomeOverviewService.class), facade))
+        mvc = MockMvcBuilders.standaloneSetup(new PortfolioController(queryService, mock(fr.ses10doigts.tradeIO5.service.portfolio.HomeOverviewService.class),
+                mock(fr.ses10doigts.tradeIO5.service.portfolio.ExchangeTradeImportService.class), facade))
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(new ObjectMapper().findAndRegisterModules()))
                 .build();
     }

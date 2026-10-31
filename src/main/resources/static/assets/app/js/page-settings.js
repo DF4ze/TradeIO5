@@ -36,24 +36,26 @@
   function modulationCard(state) {
     return ui.widget('Modulation', () => TIO.get(MOD), (m) => {
       const L = m.limits, S = m.settings;
-      const cur = { min: S.exposureMin, max: S.exposureMax, power: S.power, bias: S.bias };
+      const cur = { min: S.exposureMin, max: S.exposureMax, power: S.power, bias: S.bias, margin: TIO.isNum(S.regulationMarginPct) ? S.regulationMarginPct : L.marginDefaultPct };
       const out = (id) => h('span', { class: 'num', id });
-      const minOut = out(), maxOut = out(), powOut = out(), biasOut = out();
+      const minOut = out(), maxOut = out(), marOut = out(), powOut = out(), biasOut = out();
       const bar = h('div');
       const paint = () => {
-        minOut.textContent = F.pct(cur.min, 0); maxOut.textContent = F.pct(cur.max, 0); powOut.textContent = F.num(cur.power, 2) + '×'; biasOut.textContent = (cur.bias > 0 ? '+' : '') + F.num(cur.bias, 2);
-        TIO.mount(bar, ui.bandBar({ min: cur.min, max: cur.max }));
+        minOut.textContent = F.pct(cur.min, 0); maxOut.textContent = F.pct(cur.max, 0); marOut.textContent = F.pct(cur.margin, 0); powOut.textContent = F.num(cur.power, 2) + '×'; biasOut.textContent = (cur.bias > 0 ? '+' : '') + F.num(cur.bias, 2);
+        TIO.mount(bar, ui.exposureBand({ min: cur.min, max: cur.max, marginPct: cur.margin }));
       };
       const sMin = ui.slider({ min: 0, max: 100, step: 1, value: cur.min, label: 'Exposition minimale', onInput: (v) => { cur.min = Math.min(v, cur.max - L.minBandWidthPts); sMin.set(cur.min); paint(); } });
       const sMax = ui.slider({ min: 0, max: 100, step: 1, value: cur.max, label: 'Exposition maximale', onInput: (v) => { cur.max = Math.max(v, cur.min + L.minBandWidthPts); sMax.set(cur.max); paint(); } });
+      const sMar = ui.slider({ min: L.marginMinPct, max: L.marginMaxPct, step: 1, value: cur.margin, marker: L.marginDefaultPct, label: 'Marge de régulation', onInput: (v) => { cur.margin = v; paint(); } });
       const sPow = ui.slider({ min: L.powerMin, max: L.powerMax, step: 0.05, value: cur.power, marker: 1, label: 'Puissance', onInput: (v) => { cur.power = v; paint(); } });
       const sBias = ui.slider({ min: -L.biasMax, max: L.biasMax, step: 0.05, value: cur.bias, marker: 0, label: 'Biais', onInput: (v) => { cur.bias = v; paint(); } });
       paint();
       const row = (label, o, s, hint) => h('div', { class: 'stack' }, h('div', { class: 'row row--between' }, h('span', { class: 'lbl muted' }, label), o), s.el, hint ? h('div', { class: 'note' }, hint) : null);
       return [bar, row('Exposition minimale', minOut, sMin, 'Sous cette part en actifs, les achats sont amplifiés.'), row('Exposition maximale', maxOut, sMax, 'Au-dessus, les achats sont freinés et les ventes amplifiées. Écart minimal ' + F.num(L.minBandWidthPts, 0) + ' pts.'),
+        row('Marge de régulation', marOut, sMar, 'Largeur de la zone de transition près de chaque borne, en % de la bande (défaut ' + F.num(L.marginDefaultPct, 0) + ' %). Plus elle est grande, plus la zone libre est étroite et la régulation précoce.'),
         row('Puissance', powOut, sPow, 'Multiplie tous les montants (repère 1×).'), row('Biais achat / vente', biasOut, sBias, '+ : achats favorisés, − : ventes favorisées.'),
         h('div', { class: 'row' }, h('button', { class: 'btn btn--primary', type: 'button', onclick: async () => {
-          try { await TIO.put(MOD, { exposureMin: cur.min, exposureMax: cur.max, power: cur.power, bias: cur.bias }); TIO.toast('Modulation enregistrée'); } catch (e) { fail(e); }
+          try { await TIO.put(MOD, { exposureMin: cur.min, exposureMax: cur.max, power: cur.power, bias: cur.bias, regulationMarginPct: cur.margin }); TIO.toast('Modulation enregistrée'); } catch (e) { fail(e); }
         } }, 'Enregistrer'))];
     });
   }

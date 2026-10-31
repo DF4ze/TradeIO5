@@ -78,7 +78,7 @@ class AppPageControllerTest {
             assertTrue(html.contains("data-page=\"" + name + "\"") && html.contains("data-mode=\"advanced\"") && html.contains("data-user=\"clem\""), name + " : attributs");
             assertTrue(html.contains("assets/app/css/tradeio.css") && html.contains("assets/app/js/core.js"), name + " : feuille et noyau");
             assertTrue(html.contains("assets/app/js/page-" + name + ".js"), name + " : script de page");
-            assertTrue(html.contains("Mes actifs") && html.contains("Journal") && html.contains("Réglages"), name + " : navigation");
+            assertTrue(html.contains("Actifs gérés") && html.contains("Journal") && html.contains("Réglages"), name + " : navigation");
             assertTrue(html.contains("/admin"), name + " : lien admin visible pour un administrateur");
             assertFalse(html.contains("innerHTML"), name + " : jamais d'innerHTML");
         }

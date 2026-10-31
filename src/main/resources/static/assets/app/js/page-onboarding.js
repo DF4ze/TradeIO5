@@ -63,7 +63,7 @@
         const check = r && r.check;
         steps[3].dataset.done = 'true';
         TIO.mount(result, h('div', { class: 'banner' }, h('strong', null, st.asset + ' est suivi. '), 'Vous recevrez une décision chaque jour ; ',
-          'l\'exécution réelle reste désactivée, vous l\'activez vous-même dans Mes actifs.'),
+          'l\'exécution réelle reste désactivée, vous l\'activez vous-même dans Actifs gérés.'),
           check ? h('div', { class: 'row' }, ui.statusChip(check.status), h('span', { class: 'muted small' }, check.message || '')) : null,
           h('div', { class: 'row' }, h('a', { class: 'btn btn--primary', href: TIO.href('/app/assets') }, 'Voir mes actifs')));
       } catch (e) { TIO.toast(e.message, true); } finally { create.disabled = false; }

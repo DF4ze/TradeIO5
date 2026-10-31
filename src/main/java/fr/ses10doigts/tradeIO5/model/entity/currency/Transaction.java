@@ -1,6 +1,7 @@
 package fr.ses10doigts.tradeIO5.model.entity.currency;
 
 import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
+import fr.ses10doigts.tradeIO5.model.enumerate.TradeOrigin;
 import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import jakarta.persistence.*;
@@ -66,6 +67,16 @@ public class Transaction {
 	// Devise dans laquelle les frais ont été prélevés (ex : BTC pour un achat OKX, USDT pour une vente) ; nulle si inconnue
 	@Column(name = "fee_currency", length = 20)
 	private String feeCurrency;
+
+	// Devise de cotation du prix (USDC, USD, EUR...) ; nulle pour les anciens trades (cotation dollar supposée)
+	@Column(name = "quote_currency", length = 20)
+	private String quoteCurrency;
+
+	// Provenance : MANUAL (passé à la main sur l'exchange) ou TRADEIO (ordre du plan d'exécution). Nulle pour les anciens trades :
+	// déduite de l'identifiant externe (préfixé « <EXCHANGE>: » quand il vient du FillRecorder).
+	@Enumerated(EnumType.STRING)
+	@Column(name = "origin", length = 10)
+	private TradeOrigin origin;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "wallet_id", nullable = false)

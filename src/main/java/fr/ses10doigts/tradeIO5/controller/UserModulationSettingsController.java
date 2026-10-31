@@ -3,6 +3,7 @@ package fr.ses10doigts.tradeIO5.controller;
 import fr.ses10doigts.tradeIO5.model.entity.modulation.RainbowModulationControl;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
+import fr.ses10doigts.tradeIO5.service.modulation.ModulationDefaults;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService.ModulationSettings;
 import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlService;
 import lombok.RequiredArgsConstructor;
@@ -29,15 +30,18 @@ public class UserModulationSettingsController {
     private final RainbowModulationControlService controlService;
     private final IAuthenticationFacade authenticationFacade;
 
-    /** Corps du PUT : les quatre valeurs sont obligatoires. */
-    public record ModulationSettingsRequest(Double exposureMin, Double exposureMax, Double power, Double bias) {
+    /** Corps du PUT : bande, puissance et biais obligatoires ; {@code regulationMarginPct} facultatif (absent = inchangé). */
+    public record ModulationSettingsRequest(Double exposureMin, Double exposureMax, Double power, Double bias, Double regulationMarginPct) {
     }
 
     /** Limites admin en vigueur applicables aux réglages utilisateur. */
-    public record LimitsDto(double minBandWidthPts, double powerMin, double powerMax, double biasMax) {
+    public record LimitsDto(double minBandWidthPts, double powerMin, double powerMax, double biasMax, double marginDefaultPct,
+                            double marginMinPct, double marginMaxPct) {
         static LimitsDto of(RainbowModulationControl c) {
+            var margin = ModulationDefaults.LIMITS.get(ModulationDefaults.REGULATION_MARGIN_PCT);
             return new LimitsDto(c.getMinBandWidthPts().doubleValue(), c.getPowerMin().doubleValue(),
-                    c.getPowerMax().doubleValue(), c.getBiasMax().doubleValue());
+                    c.getPowerMax().doubleValue(), c.getBiasMax().doubleValue(), c.getRegulationMarginPct().doubleValue(),
+                    margin.min().doubleValue(), margin.max().doubleValue());
         }
     }
 
@@ -56,8 +60,11 @@ public class UserModulationSettingsController {
                 || request.bias() == null) {
             throw new IllegalArgumentException("exposureMin, exposureMax, power et bias sont obligatoires");
         }
-        ModulationSettings saved = settingsService.setModulationSettings(authenticationFacade.getConnectedUser(),
-                request.exposureMin(), request.exposureMax(), request.power(), request.bias());
+        var user = authenticationFacade.getConnectedUser();
+        ModulationSettings saved = request.regulationMarginPct() == null
+                ? settingsService.setModulationSettings(user, request.exposureMin(), request.exposureMax(), request.power(), request.bias())
+                : settingsService.setModulationSettings(user, request.exposureMin(), request.exposureMax(), request.power(), request.bias(),
+                request.regulationMarginPct());
         return new ModulationSettingsDto(saved, LimitsDto.of(controlService.current()));
     }
 

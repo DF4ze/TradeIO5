@@ -1,6 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.portfolio;
 
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
+import fr.ses10doigts.tradeIO5.model.dto.portfolio.AssetPerformanceDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.HoldingsDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.PortfolioHistoryDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.PortfolioPointDto;
@@ -9,6 +10,7 @@ import fr.ses10doigts.tradeIO5.model.dto.portfolio.TradeLineDto;
 import fr.ses10doigts.tradeIO5.model.entity.currency.AssetGroup;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Transaction;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
+import fr.ses10doigts.tradeIO5.model.enumerate.TradeOrigin;
 import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.repository.TransactionRepository;
@@ -139,6 +141,59 @@ public class HomeOverviewService {
                 total > EPSILON ? assetsTotal / total * 100.0 : null, partial, lines, unavailable);
     }
 
+    // ---------- prix moyen d'achat ----------
+
+    /**
+     * Par actif détenu (hors stables) : quantité, cours, valeur et prix moyen pondéré des achats enregistrés (manuels et TradeIO ;
+     * cotation non dollar convertie au cours D1 du jour du trade). {@code investedNet} = achats − ventes ; PnL = valeur − investi net (nul sans cours).
+     */
+    public List<AssetPerformanceDto> assetPerformance(User user, Long walletId) {
+        HoldingsDto holdings = holdings(user, walletId);
+        Set<String> stables = stableSymbols();
+        Map<String, double[]> acc = new HashMap<>();   // symbole -> {coût des achats, quantité achetée, investi net} en dollars
+        Map<String, NavigableMap<LocalDate, Double>> quoteCloses = new HashMap<>();
+        for (Wallet w : scope(user, walletId)) {
+            MarketDataSource source = LiveCandleSource.of(w);
+            for (Transaction t : transactionRepository.findByWalletOrderByTimestampAsc(w)) {
+                if (stables.contains(assetOf(t))) {
+                    continue;
+                }
+                // cotation non dollar (ex. PAXG acheté en BTC) : convertie au cours D1 de la devise de cotation le jour du trade
+                double rate = 1.0;
+                if (t.getQuoteCurrency() != null && !stables.contains(t.getQuoteCurrency().toUpperCase())) {
+                    var close = quoteCloses.computeIfAbsent(t.getQuoteCurrency().toUpperCase(),
+                            q -> closes(q, source == null ? Set.of() : Set.of(source))).floorEntry(t.getTimestamp().toLocalDate());
+                    if (close == null) {
+                        continue;   // pas de cours de conversion : trade ignoré plutôt que mal converti
+                    }
+                    rate = close.getValue();
+                }
+                double q = t.getQuantity().doubleValue(), notional = q * t.getPrice().doubleValue() * rate;
+                double[] a = acc.computeIfAbsent(assetOf(t), k -> new double[3]);
+                if (t.getSide() == TradeSide.BUY) {
+                    a[0] += notional;
+                    a[1] += q;
+                    a[2] += notional;
+                } else {
+                    a[2] -= notional;
+                }
+            }
+        }
+        List<AssetPerformanceDto> out = new ArrayList<>();
+        for (HoldingsDto.Line line : holdings.assets()) {
+            if (line.stable()) {
+                continue;
+            }
+            double[] a = acc.get(line.assetSymbol());
+            Double avg = a != null && a[1] > EPSILON ? a[0] / a[1] : null;
+            double invested = a == null ? 0 : a[2];
+            Double pnl = line.value() == null ? null : line.value() - invested;
+            Double pct = pnl == null || Math.abs(invested) < EPSILON ? null : pnl / Math.abs(invested) * 100.0;
+            out.add(new AssetPerformanceDto(line.assetSymbol(), line.quantity(), line.price(), line.value(), invested, pnl, pct, avg));
+        }
+        return out;
+    }
+
     // ---------- historique reconstruit ----------
 
     /** Hors transaction en lecture seule : le moteur de données écrit son cache de bougies en base. */
@@ -206,18 +261,19 @@ public class HomeOverviewService {
 
     /** Annule un trade sur les quantités ; renvoie la variation de stable à appliquer en remontant le temps. */
     private static double undo(Transaction t, Map<String, Double> qty, Set<String> stables) {
-        if (stables.contains(t.getAsset())) {
+        if (stables.contains(assetOf(t))) {
             return 0;
         }
-        double q = t.getQuantity().doubleValue(), notional = q * t.getPrice().doubleValue();
+        boolean quoteIsStable = t.getQuoteCurrency() == null || stables.contains(t.getQuoteCurrency().toUpperCase());
+        double q = t.getQuantity().doubleValue(), notional = quoteIsStable ? q * t.getPrice().doubleValue() : 0;
         double fee = t.getFee() == null ? 0 : t.getFee().doubleValue();
-        boolean feeInAsset = t.getFeeCurrency() != null && t.getFeeCurrency().equalsIgnoreCase(t.getAsset());
-        boolean feeInQuote = t.getFeeCurrency() == null || stables.contains(t.getFeeCurrency().toUpperCase());
+        boolean feeInAsset = t.getFeeCurrency() != null && t.getFeeCurrency().equalsIgnoreCase(assetOf(t));
+        boolean feeInQuote = quoteIsStable && (t.getFeeCurrency() == null || stables.contains(t.getFeeCurrency().toUpperCase()));
         if (t.getSide() == TradeSide.BUY) {
-            qty.merge(t.getAsset(), -(q - (feeInAsset ? fee : 0)), Double::sum);
+            qty.merge(assetOf(t), -(q - (feeInAsset ? fee : 0)), Double::sum);
             return notional + (feeInQuote ? fee : 0);
         }
-        qty.merge(t.getAsset(), q + (feeInAsset ? fee : 0), Double::sum);
+        qty.merge(assetOf(t), q + (feeInAsset ? fee : 0), Double::sum);
         return -(notional - (feeInQuote ? fee : 0));
     }
 
@@ -238,12 +294,30 @@ public class HomeOverviewService {
         List<TradeLineDto> out = new ArrayList<>();
         for (Wallet w : scope(user, walletId)) {
             for (Transaction t : transactionRepository.findByWalletOrderByTimestampAsc(w)) {
-                out.add(new TradeLineDto(t.getId(), t.getTimestamp(), t.getSide().name(), t.getAsset(), t.getQuantity(), t.getPrice(),
-                        t.getQuantity().multiply(t.getPrice()), t.getFee(), t.getFeeCurrency(), w.getId(), w.getName(), exchange(w)));
+                out.add(new TradeLineDto(t.getId(), t.getTimestamp(), t.getSide().name(), assetOf(t), t.getQuantity(), t.getPrice(),
+                        t.getQuantity().multiply(t.getPrice()), t.getFee(), t.getFeeCurrency(), w.getId(), w.getName(), exchange(w),
+                        t.getQuoteCurrency(), originOf(t).name()));
             }
         }
         out.sort(Comparator.comparing(TradeLineDto::timestamp).reversed());
         return out.size() > MAX_TRADES ? out.subList(0, MAX_TRADES) : out;
+    }
+
+    /** Symbole d'un trade nettoyé (« PAXG/ » ⇒ « PAXG ») : seuls lettres, chiffres et point sont conservés. */
+    static String assetOf(Transaction t) {
+        return cleanSymbol(t.getAsset());
+    }
+
+    static String cleanSymbol(String symbol) {
+        return symbol == null ? null : symbol.replaceAll("[^A-Za-z0-9.]", "").toUpperCase();
+    }
+
+    /** Provenance enregistrée ; pour un ancien trade sans tag : TradeIO s'il vient du FillRecorder (id préfixé « EXCHANGE: »), sinon manuel. */
+    static TradeOrigin originOf(Transaction t) {
+        if (t.getOrigin() != null) {
+            return t.getOrigin();
+        }
+        return t.getExternalTransactionId() != null && t.getExternalTransactionId().contains(":") ? TradeOrigin.TRADEIO : TradeOrigin.MANUAL;
     }
 
     // ---------- outils ----------
@@ -305,7 +379,7 @@ public class HomeOverviewService {
         for (Transaction t : trades) {
             MarketDataSource source = LiveCandleSource.of(t.getWallet());
             if (source != null) {
-                out.computeIfAbsent(t.getAsset(), k -> new java.util.LinkedHashSet<>()).add(source);
+                out.computeIfAbsent(assetOf(t), k -> new java.util.LinkedHashSet<>()).add(source);
             }
         }
         return out;
