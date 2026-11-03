@@ -108,7 +108,14 @@
         h('div', { class: 'desc muted small' }, 'Limite ce que TradeIO peut vendre de votre ' + sym + ' : au maximum ce pourcentage de la quantité détenue. 100 % (défaut) = toute la position est vendable ; 50 % = la moitié reste toujours intouchable. Ne limite pas les achats.'),
         h('div', { class: 'row' }, h('button', { class: 'btn', type: 'button', onclick: () => call(() => TIO.api('PUT', BIND + '/' + b.id, { bagPercent: Number(bag.input.value) }), 'Part vendable enregistrée') }, 'Enregistrer'))));
     }
-    rows.push(h('div', { class: 'row' }, h('a', { class: 'btn', href: TIO.href('/app/assets/' + encodeURIComponent(sym)) }, 'Voir la fiche')));
+    const removeZone = h('div', { class: 'stack' });
+    rows.push(h('div', { class: 'row' }, h('a', { class: 'btn', href: TIO.href('/app/assets/' + encodeURIComponent(sym)) }, 'Voir la fiche'),
+      h('button', { class: 'btn btn--danger', type: 'button', onclick: () => {
+        TIO.clear(removeZone);
+        removeZone.appendChild(confirmRow('Retirer ' + sym + (b.exchange ? ' de ' + b.exchange : '') + ' ? TradeIO cesse de le gérer : plus aucun ordre ne partira. Vos actifs sur l\'exchange ne sont pas touchés et l\'historique est conservé.', 'Retirer',
+          () => call(async () => { await TIO.api('DELETE', BIND + '/' + b.id); openId = null; }, sym + ' retiré des actifs gérés'), () => TIO.clear(removeZone)));
+      } }, 'Retirer cet actif')));
+    rows.push(removeZone);
     return h('div', { class: 'asset-detail stack' }, rows);
   }
 

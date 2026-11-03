@@ -215,7 +215,8 @@ Infos : bandeau permanent (`/api/admin/execution/state` : mode, LIVE déverrouil
 | Graphique : bandes Rainbow historiques (figées / simulées `simulate`) | blocs de signal des runs, non exposés | **[À implémenter]** (§2.2) |
 | Frise Signal → Modulation → Plafonds → Plan → Exécution → Résultat | `lastRun`, `modulation`, `plan.steps`, `events` | [OK] (données réparties sur 4 endpoints) |
 | Journal : plans, exécutions, frais réels, slippage, Fee Test, carry | plans (`from`/`to`), `events` | [OK] |
-| Journal : filtres serveur (actif, wallet, statut, raison), décisions et alertes hors exécution | — | **[À implémenter]** (filtres) ; décisions/alertes = [Prévu] |
+| Journal : un jour repliable par date, une ligne par lien (actif × exchange) fusionnant décision, plan et état de la stratégie (`strategyState` de `/api/rainbow-live/decisions`) | décisions + plans + `bindings` | [OK] |
+| Journal : filtres (alertes seulement, masquer « Rien à faire », actif, provider, état, période) | — | [OK] (côté navigateur, sur la période chargée) |
 | Réglages : mode, bande/puissance/biais | §1.1, §1.5 | [OK] |
 | Réglages : clés lecture, plafonds utilisateur, alertes | — | **[À implémenter]** |
 | Onboarding : profil Prudent/Équilibré/Dynamique | — | **[À implémenter]** |

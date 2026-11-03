@@ -54,6 +54,17 @@
       lHigh: 1, lLow: 1, bandBuy, bandSell: 1, productBuy: product, productSell: 1, productCapped: false, hardCap: false, marginPct: 10, sellBoostMax: 1.5, productMax: 3,
       modulatedBuyUsd: r2(signal * product), modulatedSellQty: 0, action: 'BUY', finalAmountUsd: r2(signal * product), finalQuantity: r2(signal * product / a.price * 1e6) / 1e6, exposureAfter: r2(49 + (d % 7)) };
   }
+  /** État de machine fictif (varie selon l'actif et le jour) pour la colonne « État » du Journal. */
+  function demoState(a, d, action) {
+    const close = a.price || 100, k = (d + a.id) % 5;
+    const base = { close, down2: close * 0.8, zone: 3, activeSet: null, trendRegime: null, buyLocked: false, cooldownDays: null, armedDays: null, referencePrice: null, triggerPrice: null };
+    if (action === 'BUY') return Object.assign(base, { kind: 'WATCHING' });
+    if (k === 0) return Object.assign(base, { kind: 'BUY_TRAILING', referencePrice: close * 0.97, triggerPrice: close * 0.97 * 1.05, armedDays: 2 });
+    if (k === 1) return Object.assign(base, { kind: 'LOCKED_UNTIL_DOWN2', buyLocked: true });
+    if (k === 2) return Object.assign(base, { kind: 'COOLDOWN', cooldownDays: 3, buyLocked: true });
+    if (k === 3) return Object.assign(base, { kind: 'SELL_TRAILING', referencePrice: close * 1.08, triggerPrice: close * 1.08 * 0.9, armedDays: 1 });
+    return Object.assign(base, { kind: 'WATCHING' });
+  }
   function decisions() {
     const out = [];
     for (const [symbol, a] of Object.entries(ASSETS)) {
@@ -65,7 +76,7 @@
         out.push({ bindingId: a.id, assetSymbol: symbol, walletId: a.wallet, day: iso(-d), status: 'OK', action,
           amountUsdc: buy ? mod.finalAmountUsd : null, quantity: buy ? mod.finalQuantity : null,
           blockReason: action === 'BLOCKED' ? 'INSUFFICIENT_CASH' : null, modulation: JSON.stringify(Object.assign({}, mod, buy ? {} : { action, finalAmountUsd: 0, finalQuantity: 0 })),
-          computedAt: new Date(todayUtc - d * DAY + 85500000).toISOString() });
+          computedAt: new Date(todayUtc - d * DAY + 85500000).toISOString(), strategyState: demoState(a, d, action) });
       }
     }
     return out.sort((x, y) => (y.day < x.day ? -1 : y.day > x.day ? 1 : 0));
@@ -204,6 +215,7 @@
       if (p === '/api/user/modulation-settings') { modulation = Object.assign({}, modulation, { settings: Object.assign({}, modulation.settings, body) }); return modulation; }
       if (/\/execution$/.test(p)) refuse("Interrupteur d'exécution");
     }
+    if (method === 'DELETE' && /\/api\/rainbow-live\/bindings\/\d+$/.test(p)) refuse("Retrait d'un actif");
     if (method === 'POST') {
       if (p === '/api/portfolio/transactions/sync') return { imported: 0, tradeio: 0, manual: 0, failedWallets: [] };
       if (/confirm-first-live/.test(p)) refuse('Confirmation du premier ordre');

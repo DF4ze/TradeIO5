@@ -85,7 +85,7 @@ public class RainbowLiveOnboardingService {
     }
 
     private LinkResult linkAsset(User user, Wallet wallet, String asset) {
-        var existing = bindingRepository.findByUserAndAssetSymbolAndWallet_Id(user, asset, wallet.getId());
+        var existing = bindingRepository.findByUserAndAssetSymbolAndWallet_Id(user, asset, wallet.getId()).filter(b -> !b.isArchived());
         if (existing.isPresent()) {
             RainbowLiveBinding b = existing.get();
             return new LinkResult(asset, LinkOutcome.ALREADY_LINKED, b.getId(), b.getPreset().getName(), null, null);

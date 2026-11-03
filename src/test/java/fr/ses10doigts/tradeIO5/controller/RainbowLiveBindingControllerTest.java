@@ -316,14 +316,27 @@ class RainbowLiveBindingControllerTest {
     }
 
     @Test
-    @DisplayName("Suppression du binding : le preset reste")
+    @DisplayName("Retrait du binding : archivé (ligne conservée, exécution coupée), le preset reste, relier le réactive")
     void deleteBinding() throws Exception {
         RainbowLivePreset p1 = preset(alice, "BTC", "p1");
         Long id = bindingService.create(alice, new RainbowLiveBindingService.CreateRequest("BTC", p1.getId(),
                 aliceWallet.getId(), null, null)).binding().getId();
+        bindingService.setExecution(alice, id, true);
         mvc.perform(delete("/api/rainbow-live/bindings/" + id)).andExpect(status().isNoContent());
-        assertEquals(0, bindingRepository.count());
+        assertEquals(1, bindingRepository.count());
+        RainbowLiveBinding archived = bindingRepository.findById(id).orElseThrow();
+        assertTrue(archived.isArchived());
+        assertFalse(archived.isExecutionEnabled());
+        assertTrue(bindingService.list(alice).isEmpty());
         assertEquals(p1.getId(), presetService.get(alice, p1.getId()).getId());
+        mvc.perform(delete("/api/rainbow-live/bindings/" + id)).andExpect(status().isNotFound());
+
+        Long again = bindingService.create(alice, new RainbowLiveBindingService.CreateRequest("BTC", p1.getId(),
+                aliceWallet.getId(), null, null)).binding().getId();
+        assertEquals(id, again);
+        assertEquals(1, bindingRepository.count());
+        assertFalse(bindingRepository.findById(id).orElseThrow().isArchived());
+        assertEquals(1, bindingService.list(alice).size());
     }
 
     @Test

@@ -104,6 +104,17 @@ public class RainbowLiveBinding {
 
     @Column(name = "first_live_confirmed_at")
     private Instant firstLiveConfirmedAt;
+    /**
+     * Date de retrait du lien par l'utilisateur. Non nul => lien archivé : ignoré par le run, les plans, les listes et
+     * l'exécution, mais ligne et historique (runs) conservés ; candidat à une purge après un délai. Réactivé si
+     * l'utilisateur relie à nouveau le même (actif, wallet).
+     */
+    @Column(name = "archived_at")
+    private Instant archivedAt;
+
+    public boolean isArchived() {
+        return archivedAt != null;
+    }
 
     /** Les deux validations du 1ᵉʳ ordre réel sont-elles données ? */
     public boolean firstLiveValidated() {

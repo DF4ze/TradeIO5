@@ -74,16 +74,30 @@ public class RainbowLiveBindingService {
     public Checked create(User user, CreateRequest req) {
         requireAllowedAsset(req.assetSymbol());
         Wallet wallet = walletOf(user, req.walletId());
-        bindingRepository.findByUserAndAssetSymbolAndWallet_Id(user, req.assetSymbol(), wallet.getId()).ifPresent(existing -> {
-            throw new RainbowLiveBindingConflictException(req.assetSymbol(), wallet.getId(), existing.getId());
-        });
+        RainbowLiveBinding archived = bindingRepository.findByUserAndAssetSymbolAndWallet_Id(user, req.assetSymbol(), wallet.getId())
+                .map(existing -> {
+                    if (!existing.isArchived()) {
+                        throw new RainbowLiveBindingConflictException(req.assetSymbol(), wallet.getId(), existing.getId());
+                    }
+                    return existing;
+                }).orElse(null);
         RainbowLivePreset preset = presetFor(user, req.presetId(), req.assetSymbol());
         double bag = req.bagPercent() == null ? DEFAULT_BAG_PERCENT : requireBagPercent(req.bagPercent());
         int priority = req.priority() == null ? defaultPriority(req.assetSymbol()) : req.priority();
 
-        RainbowLiveBinding saved = bindingRepository.save(RainbowLiveBinding.builder()
-                .user(user).assetSymbol(req.assetSymbol()).preset(preset).wallet(wallet)
-                .bagPercent(bag).priority(priority).baseAmount(optionalBaseAmount(req.baseAmount())).build());
+        RainbowLiveBinding toSave = archived == null
+                ? RainbowLiveBinding.builder().user(user).assetSymbol(req.assetSymbol()).wallet(wallet).build() : archived;
+        toSave.setPreset(preset);
+        toSave.setBagPercent(bag);
+        toSave.setPriority(priority);
+        toSave.setBaseAmount(optionalBaseAmount(req.baseAmount()));
+        if (archived != null) { // réactivation : repart d'un lien neuf (exécution coupée, 1er ordre à re-valider)
+            toSave.setArchivedAt(null);
+            toSave.setExecutionEnabled(false);
+            toSave.setFirstLiveApprovedAt(null);
+            toSave.setFirstLiveConfirmedAt(null);
+        }
+        RainbowLiveBinding saved = bindingRepository.save(toSave);
         eventService.record(user, saved.getAssetSymbol(), RainbowLivePresetEventType.LIVE_SWITCH, null, preset,
                 strategyRevision(preset), "Preset live défini");
         log.info("Binding créé id={} user={} actif={} preset={} wallet={} bag={}% priorité={}",
@@ -142,7 +156,8 @@ public class RainbowLiveBindingService {
     /** Armement du 1ᵉʳ ordre réel par l'admin : remet la confirmation du propriétaire à zéro. */
     @Transactional
     public RainbowLiveBinding arm(Long id) {
-        RainbowLiveBinding binding = bindingRepository.findById(id).orElseThrow(() -> RainbowLiveBindingNotFoundException.binding(id));
+        RainbowLiveBinding binding = bindingRepository.findById(id).filter(b -> !b.isArchived())
+                .orElseThrow(() -> RainbowLiveBindingNotFoundException.binding(id));
         binding.setFirstLiveApprovedAt(clock.now());
         binding.setFirstLiveConfirmedAt(null);
         log.info("Binding {} armé pour le 1er ordre réel", id);
@@ -164,8 +179,12 @@ public class RainbowLiveBindingService {
     @Transactional
     public void delete(User user, Long id) {
         RainbowLiveBinding binding = owned(user, id);
-        bindingRepository.delete(binding);
-        log.info("Binding supprimé id={} user={} actif={}", id, user.getId(), binding.getAssetSymbol());
+        binding.setArchivedAt(clock.now());
+        binding.setExecutionEnabled(false);
+        binding.setFirstLiveApprovedAt(null);
+        binding.setFirstLiveConfirmedAt(null);
+        bindingRepository.save(binding);
+        log.info("Binding archivé id={} user={} actif={}", id, user.getId(), binding.getAssetSymbol());
     }
 
     @Transactional(readOnly = true)
@@ -183,7 +202,7 @@ public class RainbowLiveBindingService {
                 .map(p -> new Candidate(p.getId(), p.getName(), p.isTrendMix() ? RainbowLiveMode.TREND_MIX.name()
                         : RainbowLiveMode.FIXED.name(), p.isFollowingStrategy() ? PresetOrigin.SYSTEM : PresetOrigin.CUSTOM,
                         bindingRepository.findByUserAndAssetSymbolAndWallet_Id(user, asset, wallet.getId())
-                                .filter(b -> b.getPreset().getId().equals(p.getId())).map(RainbowLiveBinding::getId)
+                                .filter(b -> !b.isArchived()).filter(b -> b.getPreset().getId().equals(p.getId())).map(RainbowLiveBinding::getId)
                                 .orElse(null)))
                 .toList();
     }
@@ -214,6 +233,7 @@ public class RainbowLiveBindingService {
 
     private RainbowLiveBinding owned(User user, Long id) {
         return bindingRepository.findById(id)
+                .filter(b -> !b.isArchived())
                 .filter(b -> b.getUser().getId().equals(user.getId()))
                 .orElseThrow(() -> RainbowLiveBindingNotFoundException.binding(id));
     }

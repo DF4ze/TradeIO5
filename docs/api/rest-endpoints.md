@@ -94,7 +94,7 @@ Authentifié, scopé à l'user ; binding / preset / wallet d'un autre user ou in
 | GET | `/candidates?walletId=&asset=` | Presets proposables pour (wallet, actif) (crée au besoin les presets système de l'user) : `[{id, name, mode (FIXED|TREND_MIX), origin (SYSTEM|CUSTOM), alreadyLinkedBindingId?}]` ; wallet d'un autre user ⇒ 404, actif inconnu ⇒ 400 |
 | GET | `/{id}` | `BindingDto` |
 | PUT | `/{id}` | Corps `{presetId?, walletId?, bagPercent?, priority?, baseAmount?, resetBaseAmount?}` (actif immuable, champs nuls inchangés ; `baseAmount` > 0 sinon 400 ; `resetBaseAmount=true` = retour au montant du preset) ⇒ `{binding, check}` ; changer `presetId` = bascule du preset live |
-| DELETE | `/{id}` | 204 (le preset reste) |
+| DELETE | `/{id}` | 204 : **archive** le lien (`archived_at`, exécution coupée, historique et preset conservés) ; déjà archivé ou inconnu ⇒ 404. Un `POST` sur le même (actif, wallet) réactive la ligne archivée au lieu de répondre 409 |
 | PUT | `/{id}/execution` | Corps `{enabled}` : interrupteur d'exécution du binding (défaut éteint) ⇒ `BindingDto` |
 | POST | `/{id}/confirm-first-live` | Confirmation du 1ᵉʳ ordre réel par le propriétaire ; sans armement admin préalable ⇒ 409 ⇒ `BindingDto` |
 | GET | `/{id}/check` | Revérifie : `{status, message, ok, executable, blocked, quoteMember?, routeKey?}`, `status` ∈ `OK, TRADABLE_VIA_INTERMEDIARY, NOT_TRADABLE_WITHOUT_FIAT, WALLET_DISABLED, CREDENTIAL_INVALID, PROVIDER_UNSUPPORTED, BALANCE_UNAVAILABLE, INSTRUMENT_UNAVAILABLE` (appelle l'exchange en lecture seule et persiste le statut sur le binding) |
@@ -124,7 +124,7 @@ Base seule (instantanés quotidiens `portfolio_snapshot` et transactions), aucun
 
 ## Décisions quotidiennes (utilisateur, `RainbowLiveDecisionController`, `GET /api/rainbow-live/decisions`)
 
-Lecture seule, base uniquement, scopé à l'utilisateur connecté. `?from=&to=&assetSymbol=&walletId=` (défaut : 30 derniers jours UTC). `[DecisionDto]` du plus récent au plus ancien : `{bindingId, assetSymbol, walletId, day, status, action, amountUsdc, quantity, blockReason, modulation (JSON texte), computedAt}` (snapshot live de la passe, indépendant de l'exécution).
+Lecture seule, base uniquement, scopé à l'utilisateur connecté. `?from=&to=&assetSymbol=&walletId=` (défaut : 30 derniers jours UTC). `[DecisionDto]` du plus récent au plus ancien : `{bindingId, assetSymbol, walletId, day, status, action, amountUsdc, quantity, blockReason, modulation (JSON texte), computedAt, strategyState}` (snapshot live de la passe, indépendant de l'exécution). `strategyState` = état de la machine Rainbow du preset à la fin du jour (nul si la passe n'a pas été jouée) : `{kind, close, referencePrice, triggerPrice, down2, cooldownDays, armedDays, buyLocked, zone, activeSet, trendRegime}`. `kind` (priorité du moteur) : `MOON_ACTIVE` (stop = plus haut × (1 − stop moon %)), `SELL_TRAILING` (plus haut depuis l'armement, stop = plus haut × (1 − trailing vente %)), `COOLDOWN` (jours restants ; `buyLocked` signale le verrou qui suivra), `LOCKED_UNTIL_DOWN2` (vendu, attente d'une clôture sous `down2`), `BUY_TRAILING` (plus bas depuis l'armement, déclenchement = plus bas × (1 + trailing achat %)), `WATCHING` (rien d'armé ; `zone` 0 = extrême bas … 5 = extrême haut). Calculé par `StrategyStateDescriber` à partir du signal du jour (`RainbowLiveRun.signal`), de l'état moteur (`RainbowLiveEngineState`) et de la config figée du run.
 
 ## Préférences et alertes (utilisateur, `/api/user`)
 
