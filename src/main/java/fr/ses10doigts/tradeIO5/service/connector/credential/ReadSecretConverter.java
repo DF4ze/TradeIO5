@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.connector.credential;
 
+import fr.ses10doigts.tradeIO5.service.execution.credential.MasterKeyMissingException;
 import fr.ses10doigts.tradeIO5.service.execution.credential.SecretCipher;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
@@ -11,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
  * en clair — les lecteurs existants n'ont rien à changer.
  * <ul>
  *   <li>Écriture : vide, déjà chiffré (READ {@code encr:} ou TRADE {@code enc:}) => inchangé ; sinon chiffré si la clé maître
- *   est chargée, en clair sinon (environnements sans clé : tests, dev).</li>
+ *   est chargée, refusé ({@link MasterKeyMissingException}) en mode strict (défaut), en clair sinon (tests).</li>
  *   <li>Lecture : {@code encr:} => déchiffré ; tout le reste (TRADE {@code enc:}, ancien clair) => inchangé. Illisible
  *   (clé différente, altéré) => valeur brute renvoyée (l'authentification exchange échouera) et alerte, jamais d'exception.</li>
  * </ul>
@@ -25,6 +26,17 @@ public class ReadSecretConverter implements AttributeConverter<String, String> {
     private static final String CONTEXT = "read";
 
     private static volatile SecretCipher cipher;
+    /** Strict (posé par {@link ReadSecretCipherBinder}) : sans clé maître, toute écriture d'un secret est refusée (jamais en clair). */
+    private static volatile boolean strict;
+
+    static void strict(boolean value) {
+        strict = value;
+    }
+
+    /** Vrai si une écriture de secret serait refusée (mode strict sans clé maître chargée). */
+    public static boolean blocksWrites() {
+        return strict && !active();
+    }
 
     static void bind(SecretCipher secretCipher) {
         cipher = secretCipher;
@@ -38,7 +50,13 @@ public class ReadSecretConverter implements AttributeConverter<String, String> {
     /** Valeur telle qu'elle sera écrite en base ; identique à l'entrée si rien à chiffrer. */
     public static String seal(String plain) {
         SecretCipher c = cipher;
-        if (plain == null || plain.isBlank() || isSealed(plain) || SecretCipher.isEncrypted(plain) || c == null || !c.isConfigured()) {
+        if (plain == null || plain.isBlank() || isSealed(plain) || SecretCipher.isEncrypted(plain)) {
+            return plain;
+        }
+        if (c == null || !c.isConfigured()) {
+            if (strict) {
+                throw new MasterKeyMissingException();
+            }
             return plain;
         }
         return PREFIX + c.encrypt(plain, CONTEXT).substring(SecretCipher.PREFIX.length());

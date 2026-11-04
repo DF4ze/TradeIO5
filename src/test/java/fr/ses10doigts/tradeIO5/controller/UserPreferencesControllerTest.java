@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import fr.ses10doigts.tradeIO5.service.execution.ExecutionControlService;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -36,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @DataJpaTest
-@Import({UserPreferencesService.class, UserModulationService.class, UserTradingSettingsService.class, RainbowModulationControlService.class,
+@Import({UserPreferencesService.class, UserModulationService.class, UserTradingSettingsService.class, RainbowModulationControlService.class, ExecutionControlService.class,
         UserPreferencesControllerTest.ClockConfig.class})
 @DisplayName("UserPreferencesController : thème, alertes, plafonds personnels, profil de départ")
 class UserPreferencesControllerTest {

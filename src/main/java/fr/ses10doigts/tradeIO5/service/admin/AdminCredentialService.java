@@ -5,6 +5,7 @@ import fr.ses10doigts.tradeIO5.model.dto.admin.AdminCredentialDto;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
 import fr.ses10doigts.tradeIO5.repository.ProviderRepository;
 import fr.ses10doigts.tradeIO5.service.connector.credential.ReadCredentialService;
+import fr.ses10doigts.tradeIO5.service.connector.credential.ReadSecretConverter;
 import fr.ses10doigts.tradeIO5.model.entity.admin.AdminAction;
 import fr.ses10doigts.tradeIO5.model.entity.admin.AdminActionOutcome;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
@@ -113,8 +114,11 @@ public class AdminCredentialService {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalArgumentException("apiKey est requise pour " + provider);
         }
+        if (ReadSecretConverter.blocksWrites()) {
+            throw new MasterKeyMissingException();
+        }
         WebProvider webProvider = providerRepository.findByCode(provider)
-                .orElseThrow(() -> new IllegalArgumentException("Provider inconnu : " + provider));
+                .orElseThrow(() -> new IllegalArgumentException("Provider non déclaré : " + provider + " (le déclarer d'abord dans l'onglet Providers)"));
         ApiCredential credential = repository.findByUserAndWebProviderAndScope(user, webProvider, CredentialScope.READ)
                 .orElseGet(() -> ApiCredential.builder().user(user).webProvider(webProvider).scope(CredentialScope.READ)
                         .createdAt(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC)).build());

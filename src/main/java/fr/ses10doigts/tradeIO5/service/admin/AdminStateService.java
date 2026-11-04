@@ -6,7 +6,6 @@ import fr.ses10doigts.tradeIO5.service.execution.ExecutionControlService;
 import fr.ses10doigts.tradeIO5.service.execution.ExecutionSettings;
 import fr.ses10doigts.tradeIO5.service.execution.credential.SecretCipher;
 import fr.ses10doigts.tradeIO5.service.execution.run.OrderExecutor;
-import fr.ses10doigts.tradeIO5.service.market.instrument.ExecutionDefaults;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -24,7 +23,7 @@ public class AdminStateService {
         ExecutionControl c = control.current();
         return new AdminStateDto(settings.getMode().name(), settings.isLiveUnlocked(), settings.liveExecution(),
                 cipher.isConfigured(), c.isKillSwitch(), c.getUpdatedBy(), c.getUpdatedAt(), c.getMaxOrderMultiplier(),
-                c.getMaxDayMultiplier(), ExecutionDefaults.ABSOLUTE_MAX_ORDER_USD, ExecutionDefaults.ABSOLUTE_MAX_DAY_USD,
+                c.getMaxDayMultiplier(), ExecutionControlService.absoluteMaxOrderUsd(c), ExecutionControlService.absoluteMaxDayUsd(c),
                 executor.orderProviders().stream().map(Enum::name).toList());
     }
 }

@@ -1,0 +1,16 @@
+<div th:fragment="limits" class="tab-pane fade" id="adm-pane-limits" role="tabpanel">
+	<h5>Plafonds de dépense et frais</h5>
+	<div class="alert alert-warning small mb-0" role="note">
+		<strong>Ces réglages agissent en réel, tout de suite, pour tous les utilisateurs.</strong> Ils sont relus en base à chaque étape d'ordre : aucun redéploiement, aucun cache. Ils s'ajoutent au kill switch (onglet Console), qui reste l'arrêt d'urgence.
+	</div>
+	<p class="text-muted small">Plafond effectif d'un ordre = le plus petit de : <code>multiplicateur par ordre × baseAmount du preset</code>, plafond personnel de l'utilisateur, plafond absolu par ordre. Même logique par jour (multiplicateur par jour × somme des baseAmount de l'utilisateur). Un ordre qui dépasse est bloqué, jamais réduit.
+	Chaque champ est borné ; la sauvegarde est refusée hors bornes ou incohérente (jour &lt; ordre, avertissement &gt; bloquant). « Remettre les défauts » réécrit tous les champs aux valeurs codées par défaut, avec le même effet immédiat.</p>
+	<form id="adm-lim-form" class="row g-3" novalidate>
+		<div id="adm-lim-fields" class="row g-3"></div>
+		<div class="col-12 d-flex flex-wrap align-items-center gap-2">
+			<button type="submit" class="btn btn-primary" id="adm-lim-save">Enregistrer</button>
+			<button type="button" class="btn btn-outline-secondary" id="adm-lim-defaults">Remettre les défauts</button>
+			<span class="small text-muted" id="adm-lim-meta"></span>
+		</div>
+	</form>
+</div>

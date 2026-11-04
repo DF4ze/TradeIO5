@@ -40,7 +40,7 @@ public class TradeCredentialResolver {
                     .webProvider(credential.getWebProvider())
                     .scope(CredentialScope.TRADE)
                     .apiKey(cipher.decrypt(credential.getApiKey(), "apiKey"))
-                    .secretKey(cipher.decrypt(credential.getSecretKey(), "secretKey"))
+                    .secretKey(credential.getSecretKey() == null ? null : cipher.decrypt(credential.getSecretKey(), "secretKey"))
                     .passphrase(credential.getPassphrase() == null ? null : cipher.decrypt(credential.getPassphrase(), "passphrase"))
                     .enabled(true)
                     .createdAt(credential.getCreatedAt())

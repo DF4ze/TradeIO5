@@ -340,9 +340,10 @@ public class OrderTestService {
         }
         if (pxRounded != null) {
             BigDecimal minCost = i.getMinSz().multiply(pxRounded);
-            boolean impossible = minCost.compareTo(ExecutionDefaults.ABSOLUTE_MAX_ORDER_USD) > 0;
-            checks.add(new LocalCheck("cap_absolute_order", cost.compareTo(ExecutionDefaults.ABSOLUTE_MAX_ORDER_USD) <= 0,
-                    "coût " + plain(cost) + " ≤ plafond absolu " + plain(ExecutionDefaults.ABSOLUTE_MAX_ORDER_USD) + " (cotation assimilée à l'USD)"
+            BigDecimal absoluteMax = ExecutionControlService.absoluteMaxOrderUsd(control.current());
+            boolean impossible = minCost.compareTo(absoluteMax) > 0;
+            checks.add(new LocalCheck("cap_absolute_order", cost.compareTo(absoluteMax) <= 0,
+                    "coût " + plain(cost) + " ≤ plafond absolu " + plain(absoluteMax) + " (cotation assimilée à l'USD)"
                             + (impossible ? " ; minimum de la paire (≈ " + plain(minCost) + ") > plafond absolu : aucun ordre possible sur cette paire"
                             : "")));
         }

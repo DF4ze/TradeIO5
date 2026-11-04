@@ -15,5 +15,9 @@ public enum WebProviderCode {
     FARSIDE,
     YOUTUBE,
     YAHOO_FINANCE,
-    SOSOVALUE
+    SOSOVALUE,
+    ONE_TRADING,
+    BITVAVO,
+    REVOLUT_X,
+    GATE_EU
 }

@@ -1,0 +1,42 @@
+<div th:fragment="providers" class="tab-pane fade" id="adm-pane-providers" role="tabpanel">
+	<h5>Providers</h5>
+	<p class="text-muted small">Un provider = une ligne déclarée ici + un connecteur présent dans le code. Seuls les codes encore non déclarés sont proposés. Désactiver un provider le retire des usages sans supprimer ses clés.</p>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle">
+			<thead>
+				<tr><th>Id</th><th>Code</th><th>Nom</th><th>URL de base</th><th>Actif</th><th>Créé le</th><th></th></tr>
+			</thead>
+			<tbody id="adm-prov-body"></tbody>
+		</table>
+	</div>
+
+	<h6 class="mt-4" id="adm-prov-form-title">Déclarer un provider</h6>
+	<form id="adm-prov-form" autocomplete="off" class="row g-2">
+		<div class="col-12 col-md-3">
+			<label class="form-label" for="adm-prov-code">Code (connecteur)</label>
+			<select class="form-select" id="adm-prov-code" required></select>
+		</div>
+		<div class="col-12 col-md-3">
+			<label class="form-label" for="adm-prov-name">Nom</label>
+			<input type="text" class="form-control" id="adm-prov-name" maxlength="100" required>
+		</div>
+		<div class="col-12 col-md-4">
+			<label class="form-label" for="adm-prov-url">URL de base (https)</label>
+			<input type="url" class="form-control" id="adm-prov-url" placeholder="https://api.onetrading.com/fast/v1">
+		</div>
+		<div class="col-12 col-md-2 d-flex align-items-end">
+			<div class="form-check">
+				<input class="form-check-input" type="checkbox" id="adm-prov-enabled" checked>
+				<label class="form-check-label" for="adm-prov-enabled">Actif</label>
+			</div>
+		</div>
+		<div class="col-12">
+			<button type="submit" class="btn btn-primary" id="adm-prov-submit">Déclarer</button>
+			<button type="button" class="btn btn-outline-secondary d-none" id="adm-prov-cancel">Annuler la modification</button>
+			<span class="small ms-2" id="adm-prov-status"></span>
+		</div>
+		<div class="col-12">
+			<div class="alert alert-info small mb-0" role="note">Après déclaration : onglet Credentials pour saisir la clé API. One Trading : clé API seule (portée Read ou Trade), restreindre à l'IP du VPS, jamais Withdraw.</div>
+		</div>
+	</form>
+</div>

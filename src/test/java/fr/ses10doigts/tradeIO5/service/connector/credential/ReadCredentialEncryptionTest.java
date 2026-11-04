@@ -176,6 +176,23 @@ class ReadCredentialEncryptionTest {
     }
 
     @Test
+    @DisplayName("Mode strict sans clé maître : toute écriture de secret refusée, rien en base ; statut = clair restant")
+    void strictRefusesWritesWithoutMasterKey() {
+        ReadSecretConverter.bind(new SecretCipher(""));
+        ReadSecretConverter.strict(true);
+        try {
+            assertTrue(ReadSecretConverter.blocksWrites());
+            assertThrows(RuntimeException.class, () -> {
+                repository.save(ApiCredential.builder().user(user).webProvider(okx).scope(CredentialScope.READ)
+                        .apiKey("k").secretKey("s").passphrase("p").build());
+                em.flush();
+            });
+        } finally {
+            ReadSecretConverter.strict(false);
+        }
+    }
+
+    @Test
     @DisplayName("Validation : exchange non géré, champs manquants ; Kraken sans passphrase")
     void validation() {
         assertThrows(IllegalArgumentException.class, () -> service.store(user, WebProviderCode.BINANCE, "k", "s", null, true));

@@ -28,7 +28,12 @@ public class ReadCredentialEncryptionMigrator implements CommandLineRunner {
     /** @return nombre de credentials READ chiffrées par cet appel */
     public int migrate() {
         if (!ReadSecretConverter.active()) {
-            log.info("Chiffrement des clés READ : clé maître absente, migration ignorée");
+            long clear = repository.countPlaintextSecrets();
+            if (clear > 0) {
+                log.error("Chiffrement des clés : TRADEIO_MASTER_KEY absente, {} credential(s) restent en CLAIR en base", clear);
+            } else {
+                log.warn("Chiffrement des clés : TRADEIO_MASTER_KEY absente, migration ignorée");
+            }
             return 0;
         }
         int done = 0;
@@ -48,7 +53,19 @@ public class ReadCredentialEncryptionMigrator implements CommandLineRunner {
         if (done > 0) {
             log.info("Chiffrement des clés READ : {} credential(s) chiffrée(s)", done);
         }
+        long left = repository.countPlaintextSecrets();
+        if (left > 0) {
+            log.error("Chiffrement des clés : {} credential(s) encore en clair après migration (valeur illisible)", left);
+        }
         return done;
+    }
+
+    /** État du chiffrement au repos, sans secret. */
+    public record Status(boolean masterKeyLoaded, boolean writesBlocked, long plaintextCredentials) {
+    }
+
+    public Status status() {
+        return new Status(ReadSecretConverter.active(), ReadSecretConverter.blocksWrites(), repository.countPlaintextSecrets());
     }
 
     private static boolean same(String a, String b) {

@@ -422,7 +422,7 @@ public class OrderExecutor {
         BigDecimal assetNotional = BigDecimal.ZERO;
         for (StepView step : assetSteps) {
             if (step.cash()) {
-                if (step.quoteAmount().compareTo(ExecutionDefaults.ABSOLUTE_MAX_ORDER_USD) > 0) {
+                if (step.quoteAmount().compareTo(ExecutionControlService.absoluteMaxOrderUsd(ctl)) > 0) {
                     return Optional.of(ExecutionBlockReason.CAP_ABSOLUTE_ORDER);
                 }
                 if (step.quoteAmount().compareTo(orderCap) > 0) {
@@ -436,7 +436,7 @@ public class OrderExecutor {
                 .filter(s -> s.getInstId().endsWith("-" + CASH_STABLE))
                 .map(RainbowLiveOrderStep::getQuoteAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
         BigDecimal dayTotal = (daySpent == null ? BigDecimal.ZERO : daySpent).add(assetNotional);
-        if (dayTotal.compareTo(ExecutionDefaults.ABSOLUTE_MAX_DAY_USD) > 0) {
+        if (dayTotal.compareTo(ExecutionControlService.absoluteMaxDayUsd(ctl)) > 0) {
             return Optional.of(ExecutionBlockReason.CAP_ABSOLUTE_DAY);
         }
         BigDecimal dayCap = ctl.getMaxDayMultiplier().multiply(binding.userBaseSum());

@@ -3,6 +3,7 @@ package fr.ses10doigts.tradeIO5.controller;
 import fr.ses10doigts.tradeIO5.model.dto.admin.AdminCredentialDto;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.admin.AdminCredentialService;
+import fr.ses10doigts.tradeIO5.service.connector.credential.ReadCredentialEncryptionMigrator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +25,7 @@ public class AdminCredentialController {
 
     private final AdminCredentialService credentialService;
     private final IAuthenticationFacade authenticationFacade;
+    private final ReadCredentialEncryptionMigrator encryptionMigrator;
 
     public record EnabledRequest(boolean enabled) {
     }
@@ -51,5 +53,18 @@ public class AdminCredentialController {
     @PutMapping("/{id}/enabled")
     public AdminCredentialDto setEnabled(@PathVariable Long id, @RequestBody EnabledRequest request) {
         return credentialService.setEnabled(id, request.enabled(), authenticationFacade.getConnectedUser().getUsername());
+    }
+
+    /** Clé maître chargée ? écritures bloquées ? nombre de credentials encore en clair. Aucun secret. */
+    @GetMapping("/encryption")
+    public ReadCredentialEncryptionMigrator.Status encryptionStatus() {
+        return encryptionMigrator.status();
+    }
+
+    /** Chiffre maintenant les secrets restés en clair (idempotent) ; sans clé maître : 0 et erreur au log. */
+    @PostMapping("/encryption/migrate")
+    public ReadCredentialEncryptionMigrator.Status migrate() {
+        encryptionMigrator.migrate();
+        return encryptionMigrator.status();
     }
 }

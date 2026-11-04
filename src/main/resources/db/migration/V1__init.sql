@@ -8,7 +8,7 @@
         actor varchar(64) not null,
         target varchar(120),
         payload varchar(1000),
-        action enum ('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','MODULATION','ORDER_READ','ORDER_SEND','ORDER_VALIDATE','PLAN','RECONCILE','RUN') not null,
+        action enum ('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','LIMITS','MODULATION','ORDER_READ','ORDER_SEND','ORDER_VALIDATE','PLAN','RECONCILE','RUN') not null,
         outcome enum ('ERROR','OK','REFUSED') not null,
         primary key (id)
     ) engine=InnoDB;
@@ -19,9 +19,9 @@
         id bigint not null auto_increment,
         user_id bigint not null,
         web_provider_id bigint not null,
-        api_key varchar(512) not null,
-        passphrase varchar(512),
-        secret_key varchar(512),
+        api_key varchar(2048) not null,
+        passphrase varchar(2048),
+        secret_key varchar(2048),
         scope enum ('READ','TRADE') not null,
         primary key (id)
     ) engine=InnoDB;

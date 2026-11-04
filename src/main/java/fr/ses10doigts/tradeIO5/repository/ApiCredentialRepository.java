@@ -51,4 +51,12 @@ public interface ApiCredentialRepository extends JpaRepository<ApiCredential, Lo
 			nativeQuery = true)
 	int updateRawSecrets(@Param("id") Long id, @Param("apiKey") String apiKey, @Param("secretKey") String secretKey,
 			@Param("passphrase") String passphrase);
+
+	/** Nombre de credentials (toutes portées) dont au moins un secret non vide n'est pas chiffré ({@code enc:v1:} / {@code encr:v1:}). */
+	@Query(value = "select count(*) from api_credentials where "
+			+ "(api_key is not null and api_key <> '' and api_key not like 'enc:v1:%' and api_key not like 'encr:v1:%') "
+			+ "or (secret_key is not null and secret_key <> '' and secret_key not like 'enc:v1:%' and secret_key not like 'encr:v1:%') "
+			+ "or (passphrase is not null and passphrase <> '' and passphrase not like 'enc:v1:%' and passphrase not like 'encr:v1:%')",
+			nativeQuery = true)
+	long countPlaintextSecrets();
 }

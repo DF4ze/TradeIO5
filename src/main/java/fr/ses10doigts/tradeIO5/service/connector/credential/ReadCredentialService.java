@@ -49,20 +49,22 @@ public class ReadCredentialService {
             throw new IllegalArgumentException("Exchange non géré pour la lecture : " + provider);
         }
         boolean withPassphrase = TradeCredentialService.PASSPHRASE_PROVIDERS.contains(provider);
-        if (isBlank(apiKey) || isBlank(secretKey) || (withPassphrase && isBlank(passphrase))) {
-            throw new IllegalArgumentException(withPassphrase ? "apiKey, secretKey et passphrase sont requis pour " + provider
+        boolean keyOnly = TradeCredentialService.KEY_ONLY_PROVIDERS.contains(provider);
+        if (isBlank(apiKey) || (!keyOnly && isBlank(secretKey)) || (withPassphrase && isBlank(passphrase))) {
+            throw new IllegalArgumentException(keyOnly ? "apiKey est requise pour " + provider + " (ni secret ni passphrase)"
+                    : withPassphrase ? "apiKey, secretKey et passphrase sont requis pour " + provider
                     : "apiKey et secretKey sont requis pour " + provider + " (pas de passphrase)");
         }
         if (!ReadSecretConverter.active()) {
             throw new MasterKeyMissingException();
         }
         WebProvider webProvider = providerRepository.findByCode(provider)
-                .orElseThrow(() -> new IllegalArgumentException("Provider inconnu : " + provider));
+                .orElseThrow(() -> new IllegalArgumentException("Provider non déclaré : " + provider + " (le déclarer d'abord dans l'onglet Providers)"));
         ApiCredential credential = repository.findByUserAndWebProviderAndScope(user, webProvider, CredentialScope.READ)
                 .orElseGet(() -> ApiCredential.builder().user(user).webProvider(webProvider).scope(CredentialScope.READ)
                         .createdAt(LocalDateTime.ofInstant(clock.now(), ZoneOffset.UTC)).build());
         credential.setApiKey(apiKey.strip());
-        credential.setSecretKey(secretKey.strip());
+        credential.setSecretKey(keyOnly ? null : secretKey.strip());
         credential.setPassphrase(withPassphrase ? passphrase.strip() : null);
         credential.setEnabled(enabled);
         ApiCredential saved = repository.save(credential);

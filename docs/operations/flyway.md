@@ -12,7 +12,7 @@ Tables du plan d'ordres dry-run (`rainbow_live_order_plan`, `rainbow_live_order_
 
 Carry des mises sous le minimum : colonnes `rainbow_live_order_plan_asset.carry_in_usd`, `carry_out_usd` et `base_amount` (nullables), dans `V1__init.sql`, ajoutées par `ddl-auto=update` sur base existante.
 
-Modulation Rainbow (socle) : table `rainbow_modulation_control` (singleton, initializer `@Order(71)`), colonnes nullables `user_trading_settings.exposure_min|exposure_max|power|bias` (null ⇒ valeurs neutres) valeur d'enum `MODULATION` de `admin_action_log.action`, colonne `rainbow_live_binding.base_amount` (nullable), colonnes `user_trading_settings.starting_profile|theme|display_mode|alerts_disabled|max_order_usd|max_day_usd` (préférences, nullables), colonne `rainbow_live_binding_run.live_modulation` (journal JSON, nullable) et valeur d'enum `BAND_LIMIT` de `live_block_reason`, toutes dans `V1__init.sql`.
+Plafonds / Fee Test : colonnes nullables `execution_control.absolute_max_order_usd|absolute_max_day_usd|fee_warn_pct|fee_red_pct` ajoutées par `ddl-auto=update` et complétées par `ExecutionControlInitializer` (base d'abord ; sinon propriété `tradeio.execution.fee-test.*` pour le Fee Test ; sinon constante codée dans l'initializer : 30 / 100 USD, 0,2 / 0,8 %), valeur d'enum `LIMITS` de `admin_action_log.action`. Modulation Rainbow (socle) : table `rainbow_modulation_control` (singleton, initializer `@Order(71)`), colonnes nullables `user_trading_settings.exposure_min|exposure_max|power|bias` (null ⇒ valeurs neutres) valeur d'enum `MODULATION` de `admin_action_log.action`, colonne `rainbow_live_binding.base_amount` (nullable), colonnes `user_trading_settings.starting_profile|theme|display_mode|alerts_disabled|max_order_usd|max_day_usd` (préférences, nullables), colonne `rainbow_live_binding_run.live_modulation` (journal JSON, nullable) et valeur d'enum `BAND_LIMIT` de `live_block_reason`, toutes dans `V1__init.sql`.
 
 Historisation du patrimoine : tables `portfolio_snapshot` (unique user/wallet/jour) et `portfolio_snapshot_asset` (unique snapshot/actif), `ON DELETE CASCADE`, dans `V1__init.sql` ; créées par `ddl-auto=update` tant que Flyway est inactif.
 
@@ -40,12 +40,12 @@ ALTER TABLE rainbow_live_binding DROP INDEX uk_rainbow_live_binding_user_asset;
 
 Réglages stratégiques : colonnes `rainbow_live_binding.simulation` (boolean `NOT NULL` : base existante ⇒ `ALTER TABLE rainbow_live_binding ADD COLUMN simulation BIT NOT NULL DEFAULT 0;`) et `min_buy_usd` (nullable), `rainbow_live_order_plan_asset.simulated` (boolean, même précaution), table `user_modulation_history` ; `starting_profile` gagne `FULL` et `CUSTOM` (enum MySQL natif, SQL manuel ci-dessous).
 
-Catalogue : colonnes `exchange_instrument.cost_min`, `native_pair`, `fee_currency` (nullables) ajoutées par `ddl-auto=update`, présentes dans `V1__init.sql`. **Base existante : `admin_action_log.action` est un `ENUM` MySQL natif, Hibernate n'y ajoute pas les valeurs `ORDER_VALIDATE`, `ORDER_SEND`, `ORDER_READ` et `MODULATION`** ⇒ SQL manuel avant le déploiement :
+Catalogue : colonnes `exchange_instrument.cost_min`, `native_pair`, `fee_currency` (nullables) ajoutées par `ddl-auto=update`, présentes dans `V1__init.sql`. **Base existante : `admin_action_log.action` est un `ENUM` MySQL natif, Hibernate n'y ajoute pas les valeurs `ORDER_VALIDATE`, `ORDER_SEND`, `ORDER_READ`, `MODULATION` et `LIMITS`** ⇒ SQL manuel avant le déploiement :
 
 ```sql
 ALTER TABLE user_trading_settings MODIFY starting_profile ENUM('BALANCED','CUSTOM','DYNAMIC','FULL','PRUDENT');
 ALTER TABLE rainbow_live_binding_run MODIFY live_block_reason ENUM('BAND_LIMIT','INSUFFICIENT_CASH','NONE','NOT_TRADABLE_WITHOUT_FIAT','UNAVAILABLE');
-ALTER TABLE admin_action_log MODIFY action ENUM('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','MODULATION','ORDER_READ','ORDER_SEND','ORDER_VALIDATE','PLAN','RECONCILE','RUN') NOT NULL;
+ALTER TABLE admin_action_log MODIFY action ENUM('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','LIMITS','MODULATION','ORDER_READ','ORDER_SEND','ORDER_VALIDATE','PLAN','RECONCILE','RUN') NOT NULL;
 ``` Le catalogue se remplit à nouveau au prochain rafraîchissement (ou `refresh(provider)`) : tant que `native_pair` est nul, Kraken ne peut recevoir aucun ordre (`PAIR_UNKNOWN`).
 
 ## Principe

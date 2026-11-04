@@ -47,18 +47,18 @@ public class ApiCredential {
      */
     @ToString.Exclude
     @Convert(converter = ReadSecretConverter.class)
-    @Column(nullable = false, length = 512)
+    @Column(nullable = false, length = 2048)
     private String apiKey;
 
     @ToString.Exclude
     @Convert(converter = ReadSecretConverter.class)
-    @Column(length = 512)
+    @Column(length = 2048)
     private String secretKey;
 
     /** Requise par certains exchanges (OKX) ; nulle sinon. */
     @ToString.Exclude
     @Convert(converter = ReadSecretConverter.class)
-    @Column(length = 512)
+    @Column(length = 2048)
     private String passphrase;
 
     private boolean enabled = true;

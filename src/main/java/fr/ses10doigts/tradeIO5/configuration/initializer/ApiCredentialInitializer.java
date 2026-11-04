@@ -7,6 +7,7 @@ import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.repository.ApiCredentialRepository;
 import fr.ses10doigts.tradeIO5.repository.ProviderRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
+import fr.ses10doigts.tradeIO5.service.connector.credential.ReadSecretConverter;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.service.execution.credential.MasterKeyMissingException;
 import fr.ses10doigts.tradeIO5.service.execution.credential.TradeCredentialService;
@@ -40,9 +41,12 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+		if (ReadSecretConverter.blocksWrites()) {
+			logger.error("❌ TRADEIO_MASTER_KEY absente : aucune clé API semée (écriture de secrets refusée, jamais en clair).");
+			return;
+		}
 		Optional<User> userOpt = userRepository.findByUsername("OKlm");
 		Optional<User> sysOpt = userRepository.findByUsername("System");
-		Optional<WebProvider> wpBinanceTestNetOpt = providerRepository.findByCode(WebProviderCode.BINANCE_TESTNET);
 		Optional<WebProvider> wpBinanceOpt = providerRepository.findByCode(WebProviderCode.BINANCE);
 		Optional<WebProvider> wpKrakenOpt = providerRepository.findByCode(WebProviderCode.KRAKEN);
 		Optional<WebProvider> wpOkxOpt = providerRepository.findByCode(WebProviderCode.OKX);
@@ -64,11 +68,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
 		if (sysOpt.isEmpty()) {
 			logger.warn("❗ Impossible d’ajouter la clé API : système manquant.");
-			return;
-		}
-
-		if (wpBinanceTestNetOpt.isEmpty()) {
-			logger.warn("❗ Impossible d’ajouter la clé API : provider Binance TestNet manquant.");
 			return;
 		}
 
@@ -139,7 +138,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 
         User user = userOpt.get();
 		User sys = sysOpt.get();
-		WebProvider webProviderBinanceTestnet = wpBinanceTestNetOpt.get();
 		WebProvider webProviderBinance = wpBinanceOpt.get();
 		WebProvider webProviderKraken = wpKrakenOpt.get();
 		WebProvider webProviderOkx = wpOkxOpt.get();
@@ -154,7 +152,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		WebProvider webProviderYahooFinance = wpYahooFinanceOpt.get();
 		WebProvider webProviderSosoValue = wpSosoValueOpt.get();
 
-		boolean alreadyExistsBTN = credentialRepository.findReadByUserAndWebProvider(user, webProviderBinanceTestnet).isPresent();
 		boolean alreadyExistsBin = credentialRepository.findReadByUserAndWebProvider(user, webProviderBinance).isPresent();
 		boolean alreadyExistsKraken = credentialRepository.findReadByUserAndWebProvider(user, webProviderKraken).isPresent();
 
@@ -170,24 +167,6 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 		boolean alreadyExistsYoutube = credentialRepository.findReadByUserAndWebProvider(sys, webProviderYoutube).isPresent();
 		boolean alreadyExistsYahooFinance = credentialRepository.findReadByUserAndWebProvider(sys, webProviderYahooFinance).isPresent();
 		boolean alreadyExistsSosoValue = credentialRepository.findReadByUserAndWebProvider(sys, webProviderSosoValue).isPresent();
-
-		if (alreadyExistsBTN) {
-			logger.debug("🔑 Clé API " + webProviderBinanceTestnet.getName() + " déjà présente pour l'utilisateur OKlm.");
-
-		} else {
-			ApiCredential credential = ApiCredential.builder()
-					.user(user)
-					.webProvider(webProviderBinanceTestnet)
-					.apiKey("xzXEX3KAL07YwrMny63DU4pOIrnqDNObNvfhHlJJ0vUSW1O8w58Kt4gR1HYjVXqi")
-					.secretKey("LQ91SkNO6GBjpRC7PglZDutRQEDuf55aKTqa5kjQiGmqoKuEMZ0oFPBhQMDkB7dt")
-					.enabled(false)
-					.createdAt(LocalDateTime.now())
-					.build();
-
-			credentialRepository.save(credential);
-
-			logger.debug("- Clé API ajoutée pour OKlm sur BINANCE_TESTNET");
-		}
 
 		if (alreadyExistsBin) {
             logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur OKlm.", webProviderBinance.getName());

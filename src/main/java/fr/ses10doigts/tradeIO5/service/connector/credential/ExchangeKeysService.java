@@ -43,7 +43,7 @@ public class ExchangeKeysService {
         static final KeyState ABSENT = new KeyState(false, false, null);
     }
 
-    public record SupportedExchange(WebProviderCode provider, boolean needsPassphrase) {
+    public record SupportedExchange(WebProviderCode provider, boolean needsPassphrase, boolean needsSecret) {
     }
 
     public record ExchangeView(WebProviderCode provider, boolean needsPassphrase, KeyState read, KeyState trade, Long walletId,
@@ -72,7 +72,8 @@ public class ExchangeKeysService {
     /** Exchanges proposés à l'ajout (ceux qui disposent d'un client d'ordres). */
     public List<SupportedExchange> supported() {
         return TradeCredentialService.TRADABLE_PROVIDERS.stream().sorted(Comparator.comparing(Enum::name))
-                .map(p -> new SupportedExchange(p, TradeCredentialService.PASSPHRASE_PROVIDERS.contains(p))).toList();
+                .map(p -> new SupportedExchange(p, TradeCredentialService.PASSPHRASE_PROVIDERS.contains(p),
+                        !TradeCredentialService.KEY_ONLY_PROVIDERS.contains(p))).toList();
     }
 
     /** Exchanges de l'utilisateur : ceux où au moins une clé (lecture ou écriture) est enregistrée. */

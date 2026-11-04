@@ -8,8 +8,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Constantes métier mutualisées du chemin d'achat (défauts en code, surchargeables par propriété : pas de config DB,
- * cf. règle des défauts dans {@code docs/operations/flyway.md}).
+ * Constantes métier mutualisées du chemin d'achat (défauts en code, surchargeables par propriété ; plafonds absolus et
+ * seuils du Fee Test : en base, cf. {@code ExecutionControl}).
  */
 public final class ExecutionDefaults {
 
@@ -34,10 +34,6 @@ public final class ExecutionDefaults {
     /** Nombre maximal de jambes d'un chemin. */
     public static final int MAX_PATH_DEPTH = 2;
 
-    /** Fee Test : en dessous = GREEN ; de {@code warn} à {@code red} inclus = WARNING ; au-delà = RED (en %). */
-    public static final BigDecimal FEE_TEST_WARN_PCT = new BigDecimal("0.2");
-    public static final BigDecimal FEE_TEST_RED_PCT = new BigDecimal("0.8");
-
     /** Catalogue d'instruments : rafraîchi au plus 1×/jour ; après un échec, pas de nouvelle tentative avant ce délai. */
     public static final Duration CATALOG_REFRESH_AFTER = Duration.ofHours(24);
     public static final Duration CATALOG_RETRY_AFTER_FAILURE = Duration.ofMinutes(5);
@@ -60,13 +56,6 @@ public final class ExecutionDefaults {
     /** Jambe 2 d'une route via intermédiaire : nombre maximal d'envois (1 + retries), délai entre deux, re-devis à chaque essai. */
     public static final int LEG2_MAX_ATTEMPTS = 3;
     public static final Duration LEG2_RETRY_DELAY = Duration.ofSeconds(2);
-
-    /**
-     * Plafonds ABSOLUS d'un ordre et d'une journée par utilisateur (USD), en constante (valeurs basses de la phase de test : 30 / 100 ; à relever et à rendre configurables par utilisateur plus tard) : jamais surchargeables par la base
-     * ({@code ExecutionControl}) ni par une propriété. Filet de sécurité contre un {@code baseAmount} ou un multiplicateur erroné.
-     */
-    public static final BigDecimal ABSOLUTE_MAX_ORDER_USD = new BigDecimal("30");
-    public static final BigDecimal ABSOLUTE_MAX_DAY_USD = new BigDecimal("100");
 
     /** Plafonds par défaut en multiples du {@code baseAmount} du preset (ordre = 1 ×, jour/utilisateur = 2 ×). */
     public static final BigDecimal DEFAULT_MAX_ORDER_MULTIPLIER = BigDecimal.ONE;

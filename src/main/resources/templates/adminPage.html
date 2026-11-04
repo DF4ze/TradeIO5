@@ -28,6 +28,9 @@
     							<button type="button" class="nav-link active" id="adm-tab-console" data-adm-tab="console" data-bs-target="#adm-pane-console" role="tab">Console</button>
     						</li>
     						<li class="nav-item" role="presentation">
+    							<button type="button" class="nav-link" id="adm-tab-providers" data-adm-tab="providers" data-bs-target="#adm-pane-providers" role="tab">Providers</button>
+    						</li>
+    						<li class="nav-item" role="presentation">
     							<button type="button" class="nav-link" id="adm-tab-credentials" data-adm-tab="credentials" data-bs-target="#adm-pane-credentials" role="tab">Credentials</button>
     						</li>
     						<li class="nav-item" role="presentation">
@@ -42,14 +45,19 @@
     						<li class="nav-item" role="presentation">
     							<button type="button" class="nav-link" id="adm-tab-modulation" data-adm-tab="modulation" data-bs-target="#adm-pane-modulation" role="tab">Modulation</button>
     						</li>
+    						<li class="nav-item" role="presentation">
+    							<button type="button" class="nav-link" id="adm-tab-limits" data-adm-tab="limits" data-bs-target="#adm-pane-limits" role="tab">Plafonds</button>
+    						</li>
     					</ul>
     
     					<div class="tab-content pt-3">
     						<div th:replace="~{fragments/admin/console :: console}"></div>
+    						<div th:replace="~{fragments/admin/providers :: providers}"></div>
     						<div th:replace="~{fragments/admin/credentials :: credentials}"></div>
     						<div th:replace="~{fragments/admin/bindings :: bindings}"></div>
     						<div th:replace="~{fragments/admin/orderTester :: orderTester}"></div>
     						<div th:replace="~{fragments/admin/modulation :: modulation}"></div>
+    						<div th:replace="~{fragments/admin/limits :: limits}"></div>
     						<div th:replace="~{fragments/admin/journal :: journal}"></div>
     					</div>
     				</div>
@@ -57,10 +65,12 @@
 </div>
 <script th:src="@{/assets/js/admin/admin-core.js}"></script>
 <script th:src="@{/assets/js/admin/console.js}"></script>
+<script th:src="@{/assets/js/admin/providers.js}"></script>
 <script th:src="@{/assets/js/admin/credentials.js}"></script>
 <script th:src="@{/assets/js/admin/bindings.js}"></script>
 <script th:src="@{/assets/js/admin/orderTester.js}"></script>
 <script th:src="@{/assets/js/admin/modulation.js}"></script>
+<script th:src="@{/assets/js/admin/limits.js}"></script>
 <script th:src="@{/assets/js/admin/journal.js}"></script>
 <script th:src="@{/assets/app/js/admin-tabs.js}"></script>
 <script>AdminCore.start();</script>

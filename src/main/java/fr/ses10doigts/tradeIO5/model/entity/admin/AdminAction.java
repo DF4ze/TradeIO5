@@ -16,5 +16,9 @@ public enum AdminAction {
     CREDENTIAL_ENABLED,
     AUTO_REENGAGE,
     /** Modification des paramètres admin de la modulation Rainbow. */
-    MODULATION
+    MODULATION,
+    /** Modification des plafonds de dépense et des seuils Fee Test. */
+    LIMITS,
+    /** Déclaration ou modification d'un provider (nom, URL, activation). */
+    PROVIDER
 }

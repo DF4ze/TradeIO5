@@ -7,6 +7,7 @@ import fr.ses10doigts.tradeIO5.service.execution.ExecutionControlService;
 import fr.ses10doigts.tradeIO5.service.execution.ExecutionSettings;
 import fr.ses10doigts.tradeIO5.service.execution.credential.SecretCipher;
 import fr.ses10doigts.tradeIO5.service.execution.run.OrderExecutor;
+import fr.ses10doigts.tradeIO5.configuration.initializer.ExecutionControlInitializer;
 import fr.ses10doigts.tradeIO5.service.market.instrument.ExecutionDefaults;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@DisplayName("État admin : mode, verrous, kill switch, plafonds absolus lus dans ExecutionDefaults, exchanges câblés")
+@DisplayName("État admin : mode, verrous, kill switch, plafonds absolus (défauts de l'initializer si colonnes nulles), exchanges câblés")
 class AdminStateServiceTest {
 
     @Test
@@ -39,8 +40,8 @@ class AdminStateServiceTest {
         assertFalse(locked.masterKeyConfigured());
         assertTrue(locked.killSwitch());
         assertEquals("initializer", locked.killSwitchUpdatedBy());
-        assertEquals(ExecutionDefaults.ABSOLUTE_MAX_ORDER_USD, locked.absoluteMaxOrderUsd());
-        assertEquals(ExecutionDefaults.ABSOLUTE_MAX_DAY_USD, locked.absoluteMaxDayUsd());
+        assertEquals(ExecutionControlInitializer.DEFAULT_ABSOLUTE_MAX_ORDER_USD, locked.absoluteMaxOrderUsd());
+        assertEquals(ExecutionControlInitializer.DEFAULT_ABSOLUTE_MAX_DAY_USD, locked.absoluteMaxDayUsd());
         assertEquals(ExecutionDefaults.DEFAULT_MAX_ORDER_MULTIPLIER, locked.maxOrderMultiplier());
         assertTrue(locked.orderProviders().isEmpty());
 

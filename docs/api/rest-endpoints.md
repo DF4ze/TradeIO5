@@ -64,6 +64,9 @@ Tous ces endpoints partagent le préfixe `/api/admin/decision`. Introduits progr
 | GET | `/api/admin/execution/state` | ADMIN | `AdminStateDto` : `{mode, liveUnlocked, liveExecution, masterKeyConfigured, killSwitch, killSwitchUpdatedBy, killSwitchUpdatedAt, maxOrderMultiplier, maxDayMultiplier, absoluteMaxOrderUsd, absoluteMaxDayUsd, orderProviders[]}` (bandeau de `/admin`, aucun secret) |
 | GET | `/api/admin/execution/plans[?from=&to=&userId=&status=]` | ADMIN | Plans courants de **tous** les users (révisions `SUPERSEDED` exclues, plus récent d'abord ; défaut : 7 derniers jours UTC ; `from` > `to` ⇒ 400). `AdminPlanDto` = `PlanDto` + `userId`, `username`. Base seule, aucun port d'ordre |
 | GET | `/api/admin/execution/plans/{id}/events[?page=&size=]` | ADMIN | Audit du plan (tous users), même forme que côté propriétaire ; inconnu ⇒ 404 |
+| GET | `/api/admin/providers` | ADMIN | `{providers:[{id, code, name, apiBaseUrl, enabled, createdAt}], available:[code…]}` ; `available` = valeurs de `WebProviderCode` sans ligne `provider` |
+| POST | `/api/admin/providers` | ADMIN | Déclare un provider : corps `{code, name, apiBaseUrl?, enabled?}` ⇒ 201 `AdminProviderDto` ; code sans connecteur, déjà déclaré, nom vide, URL non https ⇒ 400 ; journal `PROVIDER` |
+| PUT | `/api/admin/providers/{id}` | ADMIN | Corps `{name, apiBaseUrl?, enabled?}` (le code ne change pas) ⇒ `AdminProviderDto` ; inconnu ⇒ 404 ; journal `PROVIDER` |
 | GET | `/api/admin/credentials` | ADMIN | `[{id, userId, username, provider, scope, enabled, createdAt, apiKeyHint}]` ; `apiKeyHint` = 4 derniers caractères (READ) ou `chiffrée` (TRADE) ; jamais de secret |
 | POST | `/api/admin/credentials` | ADMIN | Saisie pour un utilisateur quelconque (System compris) : corps `{userId, provider, scope (TRADE\|READ), apiKey, secretKey?, passphrase?, enabled?}` ⇒ 201 `AdminCredentialDto`. `TRADE` : exchange d'ordres (OKX, KRAKEN), chiffrée. `READ` : exchange géré (wallet rattaché) ou provider de données (COINALYZE, TWELVE_DATA…), clé seule suffisante. Provider inconnu / utilisateur inconnu ⇒ 400 ; clé maître absente ⇒ 409 ; journal `CREDENTIAL_STORED` sans secret |
 | GET | `/api/admin/users` | ADMIN | `[{id, username}]` de tous les comptes (System compris), pour les sélecteurs de la page Admin |
@@ -147,7 +150,7 @@ Lecture seule, base uniquement, scopé à l'utilisateur connecté. `?from=&to=&a
 | PUT | `/preferences/profile` | Corps `{profile PRUDENT\|BALANCED\|DYNAMIC\|FULL}` (`CUSTOM` refusé) : applique la bande d'exposition du profil (20–50 / 30–70 / 40–90 / 0–100), historisé, réponse `{profile, modulation}` ; profil absent ⇒ 400 |
 | GET | `/alerts` | `[AlertDto{type, severity WARNING\|ERROR, assetSymbol, bindingId, message, day}]` dérivés des statuts existants (aucun stockage), seulement dans l'app, hors types coupés : `BUY_BLOCKED, DATA_UNAVAILABLE, NOT_TRADABLE, CREDENTIAL_PROBLEM, PLAN_PROBLEM, TRANSIT_STOCK` |
 
-Les plafonds personnels ne font que **resserrer** les plafonds absolus de l'exécution (`OrderExecutor` : min des deux, raisons `CAP_ORDER`/`CAP_DAY`).
+Les plafonds personnels ne font que **resserrer** les plafonds absolus de l'exécution (en base, réglables par l'admin) (`OrderExecutor` : min des deux, raisons `CAP_ORDER`/`CAP_DAY`).
 
 ## Plans d'ordres (utilisateur, `RainbowLiveExecutionPlanController`, `/api/rainbow-live/execution-plans`)
 
@@ -192,6 +195,8 @@ Les réglages module les quantités des achats/ventes du Rainbow (cf. [`../archi
 
 | Méthode | Chemin | Rôle | Description |
 |---|---|---|---|
+| GET | `/api/admin/limits` | ADMIN | `{parameters{maxOrderMultiplier, maxDayMultiplier, absoluteMaxOrderUsd, absoluteMaxDayUsd, feeWarnPct, feeRedPct : {value, defaultValue, max}}, updatedAt, updatedBy}` |
+| PUT | `/api/admin/limits` | ADMIN | Corps = jeu complet des 6 valeurs ⇒ même forme que le GET ; valeur absente, ≤ 0 ou au-delà du maximum, jour < ordre, avertissement > bloquant ⇒ 400 `{error}` ; journal `LIMITS` |
 | GET | `/api/admin/rainbow-modulation` | ADMIN | `{parameters{<nom>{value, defaultValue, min, max}}, updatedAt, updatedBy}` (8 paramètres, bornes absolues incluses) |
 | PUT | `/api/admin/rainbow-modulation` | ADMIN | Corps = jeu complet `{regulationMarginPct, sellBoostMax, biasMax, powerMin, powerMax, minBandWidthPts, modulationProductMax, autonomyDays}` ⇒ même forme que le GET ; hors bornes ou `powerMin ≤ 1 ≤ powerMax` violé ⇒ 400 `{error}` ; journal `MODULATION` |
 | GET | `/api/user/modulation-settings` | authentifié | `{settings{exposureMin, exposureMax, power, bias, regulationMarginPct} (stockés ou neutres 0/100/1/0 ; `regulationMarginPct` nul = défaut admin), limits{minBandWidthPts, powerMin, powerMax, biasMax, marginDefaultPct (défaut admin), marginMinPct, marginMaxPct (5–50)}}` |

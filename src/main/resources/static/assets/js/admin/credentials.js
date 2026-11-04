@@ -12,10 +12,19 @@
   const PROVIDER_HINTS = {
     OKX: 'OKX : droit « Trade » au comptant uniquement (jamais « Withdraw »), passphrase exigée, restriction IP sur l\'IP du VPS.',
     KRAKEN: 'Kraken : cocher Query Funds, Create & Modify Orders, Cancel & Close Orders, Query Open Orders & Trades, Query Closed Orders & Trades '
-      + '— jamais Withdraw Funds ni Deposit. Pas de passphrase. Restreindre la clé à l\'IP du VPS.'
+      + '— jamais Withdraw Funds ni Deposit. Pas de passphrase. Restreindre la clé à l\'IP du VPS.',
+    ONE_TRADING: 'One Trading : clé API seule (pas de secret ni de passphrase). Portée Read pour la lecture, Trade pour les ordres '
+      + '— jamais Withdraw. Restreindre la clé à l\'IP du VPS.',
+    BITVAVO: 'Bitvavo : clé API + secret (pas de passphrase). Droits « Voir » pour la lecture, « Trader » pour les ordres '
+      + '— jamais « Retirer ». Restreindre la clé à l\'IP du VPS.',
+    REVOLUT_X: 'Revolut X : clé API (dans le champ Clé API) + clé privée Ed25519 PEM (dans le champ secret). Pas de passphrase. '
+      + 'Droits trading uniquement, jamais de retrait.',
+    GATE_EU: 'Gate EU : clé API + secret (pas de passphrase). Droits spot lecture / trading uniquement, jamais de retrait. '
+      + 'Restreindre la clé à l\'IP du VPS.'
   };
 
-  const ORDER_PROVIDERS = ['OKX', 'KRAKEN'];
+  const ORDER_PROVIDERS = ['OKX', 'KRAKEN', 'ONE_TRADING', 'BITVAVO', 'REVOLUT_X', 'GATE_EU'];
+  const KEY_ONLY_PROVIDERS = ['ONE_TRADING'];
   const PASSPHRASE_PROVIDERS = ['OKX'];
   const DATA_HINT = 'Provider de données (ex. COINALYZE, TWELVE_DATA, FINNHUB pour System) : clé API seule suffit, secret facultatif. Portée Lecture.';
   let users = [];
@@ -33,7 +42,10 @@
     byId('adm-cred-pass-group').classList.toggle('d-none', !withPassphrase);
     byId('adm-cred-pass').required = withPassphrase;
     if (!withPassphrase) { byId('adm-cred-pass').value = ''; }
-    byId('adm-cred-secret').required = order;
+    const keyOnly = KEY_ONLY_PROVIDERS.includes(provider);
+    byId('adm-cred-secret').required = order && !keyOnly;
+    byId('adm-cred-secret').closest('.col-12').classList.toggle('d-none', keyOnly);
+    if (keyOnly) { byId('adm-cred-secret').value = ''; }
     const scope = byId('adm-cred-scope');
     if (provider && !order) { scope.value = 'READ'; }
     scope.disabled = !order;
@@ -46,6 +58,17 @@
     select.replaceChildren(...users.map((u) => el('option', { value: u.id, text: u.username + ' (#' + u.id + ')' })));
     const me = users.find((u) => u.username === core.username);
     select.value = users.some((u) => String(u.id) === current) ? current : (me ? me.id : (users[0] ? users[0].id : ''));
+  }
+
+  /* Liste des exchanges d'ordres = providers déclarés et actifs (onglet Providers) ; OKX / Kraken par défaut si rien n'est lisible. */
+  function renderProviders(declared) {
+    const select = byId('adm-cred-provider');
+    const current = select.value;
+    const codes = declared.filter((p) => p.enabled && ORDER_PROVIDERS.includes(p.code)).map((p) => p.code);
+    const list = codes.length ? codes : ['OKX', 'KRAKEN'];
+    select.replaceChildren(...list.map((c) => el('option', { value: c, text: c })));
+    if (list.includes(current)) { select.value = current; }
+    onProviderChange();
   }
 
   function showMasterWarning(state) {
@@ -74,8 +97,10 @@
   }
 
   async function load() {
-    const [list, userList] = await Promise.all([api('GET', '/api/admin/credentials'), api('GET', '/api/admin/users')]);
+    const [list, userList, providers] = await Promise.all([api('GET', '/api/admin/credentials'), api('GET', '/api/admin/users'),
+      api('GET', '/api/admin/providers')]);
     users = userList;
+    renderProviders(providers.providers);
     renderUsers();
     byId('adm-cred-body').replaceChildren(...(list.length ? list.map(row)
       : [el('tr', null, el('td', { colspan: 8 }, core.empty('Aucune credential enregistrée.')))]));
