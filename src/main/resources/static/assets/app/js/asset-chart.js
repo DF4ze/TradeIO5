@@ -98,7 +98,7 @@
     ro.observe(container);
 
     // ---- mesure Shift-clic : deux clics = % et durée ; troisième clic ou Échap = effacer ----
-    const badge = h('div', { class: 'tip hidden', style: { left: '50%', top: '12px', transform: 'translateX(-50%)' }, role: 'status' });
+    const badge = TIO.ui.tipEl({ style: { left: '50%', top: '12px', transform: 'translateX(-50%)' } });
     container.style.position = 'relative';
     container.appendChild(badge);
     let anchor = null;

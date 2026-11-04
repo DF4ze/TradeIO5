@@ -123,42 +123,6 @@
       plan ? eventsBlock(plan) : null);
   }
 
-  // ---------- info-bulle (PC) / feuille (mobile) ----------
-  let pop = null;
-  function closePop() {
-    if (!pop) return;
-    pop.el.remove();
-    if (pop.shade) pop.shade.remove();
-    g.document.removeEventListener('keydown', pop.onKey, true);
-    g.document.removeEventListener('pointerdown', pop.onDown, true);
-    const back = pop.opener;
-    pop = null;
-    if (back && back.isConnected) back.focus();
-  }
-  function openPop(opener, content, title) {
-    closePop();
-    const sheet = g.matchMedia('(max-width: 700px)').matches;
-    const close = h('button', { class: 'btn jr-close', type: 'button', 'aria-label': 'Fermer' }, '×');
-    close.addEventListener('click', closePop);
-    const el = h('div', { class: 'jr-pop' + (sheet ? ' jr-pop--sheet' : ''), role: 'dialog', 'aria-label': title, tabindex: '-1' }, close, content);
-    const shade = sheet ? h('div', { class: 'jr-shade' }) : null;
-    if (shade) g.document.body.appendChild(shade);
-    g.document.body.appendChild(el);
-    if (!sheet) {
-      const r = opener.getBoundingClientRect(), w = Math.min(420, g.innerWidth - 24);
-      el.style.width = w + 'px';
-      el.style.left = Math.max(12, Math.min(g.innerWidth - w - 12, r.right - w)) + 'px';
-      const below = r.bottom + 8, fits = below + el.offsetHeight < g.innerHeight - 12;
-      el.style.top = (g.scrollY + (fits ? below : Math.max(12, r.top - 8 - el.offsetHeight))) + 'px';
-    }
-    const onKey = (e) => { if (e.key === 'Escape') closePop(); };
-    const onDown = (e) => { if (!el.contains(e.target) && e.target !== opener) closePop(); };
-    g.document.addEventListener('keydown', onKey, true);
-    g.document.addEventListener('pointerdown', onDown, true);
-    pop = { el, shade, opener, onKey, onDown };
-    el.focus();
-  }
-
   // ---------- rendu ----------
   function rowNode(row, day) {
     const st = stateText(row.state);
@@ -167,7 +131,7 @@
     const out = row.planAsset && row.planAsset.outcome;
     const outChip = out === 'OK' ? ui.chip('Prêt', 'ok') : out === 'DISABLED' ? ui.chip('Désactivé', 'warn') : null;
     const info = h('button', { class: 'btn jr-info', type: 'button', 'aria-label': 'Détail ' + row.symbol + (row.exchange ? ' ' + row.exchange : '') }, 'ⓘ');
-    info.addEventListener('click', () => openPop(info, detailNode(row, day), 'Détail ' + row.symbol));
+    info.addEventListener('click', () => TIO.ui.bubble(info, detailNode(row, day), 'Détail ' + row.symbol));
     return h('div', { class: 'jr-row' },
       h('div', { class: 'jr-asset' }, h('a', { class: 'jr-link', href: ficheHref(row), title: 'Voir ' + row.symbol + ' sur la courbe', style: { display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'inherit', textDecoration: 'none' } }, ui.coin(row.symbol), h('strong', null, row.symbol)), row.exchange ? ui.tag(row.exchange) : h('span', { class: 'muted small' }, row.wallet || F.dash)),
       h('div', { class: 'jr-dec' }, decisionChip, outChip),
@@ -207,7 +171,7 @@
       select('Provider', [['', 'Tous']].concat([...new Set(bindings.map((b) => b.exchange).filter(Boolean))].map((s) => [s, s])), 'provider'),
       select('État', [['', 'Tous']].concat(STATE_KINDS), 'state'));
     function paint() {
-      closePop();
+      TIO.ui.closeBubble();
       const none = !f.asset && !f.provider && !f.state && !f.alertsOnly && !f.hideIdle;
       const keep = (r) => (!f.asset || r.symbol === f.asset) && (!f.provider || r.exchange === f.provider) && (!f.state || (r.state && r.state.kind === f.state))
         && (!f.alertsOnly || r.alert) && (!f.hideIdle || r.action !== 'NONE' || r.alert);

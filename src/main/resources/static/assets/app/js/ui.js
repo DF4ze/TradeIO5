@@ -214,14 +214,51 @@
     return el;
   };
 
-  // ---------- infobulle de graphique ----------
+  // ---------- infobulles : un seul style (.tip), deux usages ----------
+  // survol (graphiques) : ui.tooltip(wrap) -> {show(x,y,lines), hide()}
+  ui.tipEl = function (extra) { return h('div', Object.assign({ class: 'tip hidden', role: 'status' }, extra || {})); };
   ui.tooltip = function (wrap) {
-    const tip = h('div', { class: 'tip hidden', role: 'status' });
+    const tip = ui.tipEl();
     wrap.appendChild(tip);
     return {
       show(x, y, lines) { TIO.mount(tip, lines.map((l, i) => h('div', { class: i === 0 ? 'muted' : '' }, l))); tip.classList.remove('hidden'); tip.style.left = x + 'px'; tip.style.top = y + 'px'; },
       hide() { tip.classList.add('hidden'); },
     };
+  };
+  // clic (détail) : ui.bubble(opener, content, title) -> ferme via ×, Échap ou clic extérieur ; bottom-sheet en mobile
+  let bubble = null;
+  ui.closeBubble = function () {
+    if (!bubble) return;
+    bubble.el.remove();
+    if (bubble.shade) bubble.shade.remove();
+    document.removeEventListener('keydown', bubble.onKey, true);
+    document.removeEventListener('pointerdown', bubble.onDown, true);
+    const back = bubble.opener;
+    bubble = null;
+    if (back && back.isConnected) back.focus();
+  };
+  ui.bubble = function (opener, content, title) {
+    ui.closeBubble();
+    const sheet = window.matchMedia('(max-width: 700px)').matches;
+    const close = h('button', { class: 'tip-close', type: 'button', 'aria-label': 'Fermer' }, '×');
+    close.addEventListener('click', ui.closeBubble);
+    const el = h('div', { class: 'tip tip--pop' + (sheet ? ' tip--sheet' : ''), role: 'dialog', 'aria-label': title, tabindex: '-1' }, close, content);
+    const shade = sheet ? h('div', { class: 'tip-shade' }) : null;
+    if (shade) document.body.appendChild(shade);
+    document.body.appendChild(el);
+    if (!sheet) {
+      const r = opener.getBoundingClientRect(), w = Math.min(420, window.innerWidth - 24);
+      el.style.width = w + 'px';
+      el.style.left = Math.max(12, Math.min(window.innerWidth - w - 12, r.right - w)) + 'px';
+      const below = r.bottom + 8, fits = below + el.offsetHeight < window.innerHeight - 12;
+      el.style.top = (window.scrollY + (fits ? below : Math.max(12, r.top - 8 - el.offsetHeight))) + 'px';
+    }
+    const onKey = (e) => { if (e.key === 'Escape') ui.closeBubble(); };
+    const onDown = (e) => { if (!el.contains(e.target) && e.target !== opener) ui.closeBubble(); };
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('pointerdown', onDown, true);
+    bubble = { el, shade, opener, onKey, onDown };
+    el.focus();
   };
 
   // ---------- en-tête de page (état d'exécution + prochaine passe) ----------
