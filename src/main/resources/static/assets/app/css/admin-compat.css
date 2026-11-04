@@ -129,3 +129,10 @@
 .tio-admin .form-switch .form-check-input { appearance: auto; }
 .tio-admin hr { border: 0; border-top: 1px solid var(--line); }
 @media (max-width: 767px) { .tio-admin .tab-pane.active { padding: 16px; } .tio-admin #adm-banner > span:not(.text-muted) { flex: 1 1 calc(50% - 10px); } }
+
+/* Modulation : chaque réglage est une sous-tuile avec son détail d'impact */
+.tio-admin .adm-mod-field { background: var(--bg); border: 1px solid var(--line); border-radius: 18px; padding: 14px; }
+.tio-admin .adm-mod-help { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.5; }
+.tio-admin .adm-mod-line { margin: 0; color: var(--text); }
+.tio-admin .adm-mod-line strong { color: var(--accent-text, var(--accent)); }
+.tio-admin .adm-mod-range { margin: 0; color: var(--muted); font-size: 11px; }

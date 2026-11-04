@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  */
 @RestControllerAdvice(assignableTypes = {AdminExecutionQueryController.class, AdminActionController.class,
         AdminCredentialController.class, AdminBindingController.class, OwnCredentialController.class,
-        ExecutionPlanAdminController.class, AdminOrderTestController.class, AdminCatalogController.class})
+        ExecutionPlanAdminController.class, AdminOrderTestController.class, AdminCatalogController.class, AdminUserController.class})
 public class AdminControllerAdvice {
 
     @ExceptionHandler(AdminResourceNotFoundException.class)

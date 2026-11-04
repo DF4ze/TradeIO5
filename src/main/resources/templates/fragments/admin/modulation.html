@@ -1,6 +1,11 @@
 <div th:fragment="modulation" class="tab-pane fade" id="adm-pane-modulation" role="tabpanel">
 	<h5>Modulation (bande, puissance, biais)</h5>
-	<p class="text-muted small">Paramètres globaux du moteur de quantités. Le Rainbow seul déclenche achats et ventes ; ces réglages ne font que moduler les quantités. Chaque champ est borné (bornes absolues) ; la sauvegarde est refusée hors bornes.</p>
+	<div class="alert alert-warning small mb-0" role="note">
+		<strong>Ces réglages agissent en réel, pas seulement sur les valeurs par défaut.</strong> Ils sont relus à chaque calcul et s'appliquent immédiatement à tous les utilisateurs : ils bornent les curseurs de chacun et entrent dans le montant de chaque ordre (y compris les ordres réels).
+		Le Rainbow reste seul à décider d'acheter ou de vendre ; la modulation ne fait que multiplier la quantité demandée.
+	</div>
+	<p class="text-muted small">Calcul d'un ordre : <code>signal Rainbow × puissance × (1 ± biais) × facteur de bande</code>, produit plafonné (« Produit max »), puis plafond dur imposé par la bande d'exposition de l'utilisateur. Le profil de départ d'un nouvel utilisateur est neutre (bande 0–100 %, puissance ×1, biais 0) : il ne vient pas d'ici.
+	Chaque champ est borné (bornes absolues) ; la sauvegarde est refusée hors bornes. « Remettre les défauts » réécrit tous les champs à leur valeur par défaut, avec le même effet immédiat.</p>
 	<form id="adm-mod-form" class="row g-3" novalidate>
 		<div id="adm-mod-fields" class="row g-3"></div>
 		<div class="col-12 d-flex flex-wrap align-items-center gap-2">

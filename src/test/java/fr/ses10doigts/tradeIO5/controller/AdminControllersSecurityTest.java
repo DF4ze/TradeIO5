@@ -72,7 +72,8 @@ class AdminControllersSecurityTest {
         @Bean AdminExecutionQueryController query() { return new AdminExecutionQueryController(STATE, PLANS); }
         @Bean AdminActionController actions() { return new AdminActionController(JOURNAL); }
         @Bean AdminCredentialController credentials() { return new AdminCredentialController(CREDENTIALS, FACADE); }
-        @Bean AdminBindingController bindings() { return new AdminBindingController(BINDINGS); }
+        @Bean AdminBindingController bindings() { return new AdminBindingController(BINDINGS, BINDING_SERVICE, mock(fr.ses10doigts.tradeIO5.security.repository.UserRepository.class), FACADE); }
+        @Bean AdminUserController users() { return new AdminUserController(mock(fr.ses10doigts.tradeIO5.security.repository.UserRepository.class)); }
         @Bean AdminOrderTestController orderTests() { return new AdminOrderTestController(ORDER_TESTS, FACADE); }
         @Bean AdminCatalogController catalog() { return new AdminCatalogController(CATALOG); }
         @Bean OwnCredentialController own() { return new OwnCredentialController(CREDENTIALS, mock(fr.ses10doigts.tradeIO5.service.connector.credential.ReadCredentialService.class), FACADE); }
@@ -164,7 +165,7 @@ class AdminControllersSecurityTest {
     @DisplayName("Annotations de classe : hasRole('ADMIN') sur les contrôleurs admin, isAuthenticated() côté propriétaire")
     void annotations() {
         for (Class<?> admin : List.of(AdminExecutionQueryController.class, AdminActionController.class, AdminCredentialController.class,
-                AdminBindingController.class, AdminOrderTestController.class, AdminCatalogController.class, ExecutionAdminController.class, ExecutionPlanAdminController.class)) {
+                AdminBindingController.class, AdminUserController.class, AdminOrderTestController.class, AdminCatalogController.class, ExecutionAdminController.class, ExecutionPlanAdminController.class)) {
             assertEquals("hasRole('ADMIN')", admin.getAnnotation(PreAuthorize.class).value(), admin.getSimpleName());
             assertTrue(admin.getAnnotation(RequestMapping.class).value()[0].startsWith("/api/admin/"), admin.getSimpleName());
         }

@@ -65,7 +65,9 @@ class AdminCredentialServiceTest {
         users = mock(UserRepository.class);
         trade = mock(TradeCredentialService.class);
         journal = mock(AdminActionLogService.class);
-        service = new AdminCredentialService(repository, users, trade, journal);
+        service = new AdminCredentialService(repository, users, trade,
+                org.mockito.Mockito.mock(fr.ses10doigts.tradeIO5.service.connector.credential.ReadCredentialService.class),
+                org.mockito.Mockito.mock(fr.ses10doigts.tradeIO5.repository.ProviderRepository.class), journal);
     }
 
     private ApiCredential credential(Long id, CredentialScope scope, String apiKey) {

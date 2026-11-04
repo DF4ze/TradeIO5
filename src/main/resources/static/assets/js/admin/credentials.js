@@ -1,4 +1,4 @@
-/* Onglet Credentials : tableau masqué (GET /api/admin/credentials) + saisie/rotation par le propriétaire. Aucun secret ré-affiché. */
+/* Onglet Credentials : tableau masqué (GET /api/admin/credentials) + saisie/rotation pour n'importe quel utilisateur (POST /api/admin/credentials). Aucun secret ré-affiché. */
 (function () {
   'use strict';
   const core = window.AdminCore;
@@ -15,13 +15,37 @@
       + '— jamais Withdraw Funds ni Deposit. Pas de passphrase. Restreindre la clé à l\'IP du VPS.'
   };
 
+  const ORDER_PROVIDERS = ['OKX', 'KRAKEN'];
+  const PASSPHRASE_PROVIDERS = ['OKX'];
+  const DATA_HINT = 'Provider de données (ex. COINALYZE, TWELVE_DATA, FINNHUB pour System) : clé API seule suffit, secret facultatif. Portée Lecture.';
+  let users = [];
+
+  const isFree = () => byId('adm-cred-free').checked;
+  const providerValue = () => (isFree() ? byId('adm-cred-provider-free').value.trim().toUpperCase() : byId('adm-cred-provider').value);
+
+  /* Adapte le formulaire au provider : passphrase (OKX seul), secret obligatoire pour les exchanges d'ordres, portée figée à Lecture pour un provider de données. */
   function onProviderChange() {
-    const provider = byId('adm-cred-provider').value;
-    const withPassphrase = provider !== 'KRAKEN';
+    const provider = providerValue();
+    const order = ORDER_PROVIDERS.includes(provider);
+    const withPassphrase = PASSPHRASE_PROVIDERS.includes(provider);
+    byId('adm-cred-provider').classList.toggle('d-none', isFree());
+    byId('adm-cred-provider-free').classList.toggle('d-none', !isFree());
     byId('adm-cred-pass-group').classList.toggle('d-none', !withPassphrase);
     byId('adm-cred-pass').required = withPassphrase;
     if (!withPassphrase) { byId('adm-cred-pass').value = ''; }
-    byId('adm-cred-hint').textContent = PROVIDER_HINTS[provider] || '';
+    byId('adm-cred-secret').required = order;
+    const scope = byId('adm-cred-scope');
+    if (provider && !order) { scope.value = 'READ'; }
+    scope.disabled = !order;
+    byId('adm-cred-hint').textContent = order ? (PROVIDER_HINTS[provider] || '') : (provider ? DATA_HINT : '');
+  }
+
+  function renderUsers() {
+    const select = byId('adm-cred-user');
+    const current = select.value;
+    select.replaceChildren(...users.map((u) => el('option', { value: u.id, text: u.username + ' (#' + u.id + ')' })));
+    const me = users.find((u) => u.username === core.username);
+    select.value = users.some((u) => String(u.id) === current) ? current : (me ? me.id : (users[0] ? users[0].id : ''));
   }
 
   function showMasterWarning(state) {
@@ -50,7 +74,9 @@
   }
 
   async function load() {
-    const list = await api('GET', '/api/admin/credentials');
+    const [list, userList] = await Promise.all([api('GET', '/api/admin/credentials'), api('GET', '/api/admin/users')]);
+    users = userList;
+    renderUsers();
     byId('adm-cred-body').replaceChildren(...(list.length ? list.map(row)
       : [el('tr', null, el('td', { colspan: 8 }, core.empty('Aucune credential enregistrée.')))]));
     showMasterWarning(core.state);
@@ -64,17 +90,19 @@
     event.preventDefault();
     const status = byId('adm-cred-status');
     status.textContent = '';
+    const provider = providerValue();
+    const order = ORDER_PROVIDERS.includes(provider);
     const body = {
-      provider: byId('adm-cred-provider').value, apiKey: byId('adm-cred-apikey').value,
-      secretKey: byId('adm-cred-secret').value,
-      passphrase: byId('adm-cred-provider').value === 'KRAKEN' ? null : byId('adm-cred-pass').value,
+      userId: Number(byId('adm-cred-user').value), provider, scope: order ? byId('adm-cred-scope').value : 'READ',
+      apiKey: byId('adm-cred-apikey').value, secretKey: byId('adm-cred-secret').value || null,
+      passphrase: PASSPHRASE_PROVIDERS.includes(provider) ? byId('adm-cred-pass').value : null,
       enabled: byId('adm-cred-enabled').checked
     };
     clearSecrets();
     await run(byId('adm-cred-submit'), async () => {
       try {
-        const saved = await api('POST', '/api/credentials/trade', body);
-        status.textContent = 'Enregistrée (credential #' + saved.id + ', ' + saved.provider + ' ' + saved.scope + ').';
+        const saved = await api('POST', '/api/admin/credentials', body);
+        status.textContent = 'Enregistrée pour ' + saved.username + ' (credential #' + saved.id + ', ' + saved.provider + ' ' + saved.scope + ').';
         await load();
       } catch (e) {
         if (e.status === 409) { showMasterWarning({ masterKeyConfigured: false }); }
@@ -88,6 +116,8 @@
 
   byId('adm-cred-form').addEventListener('submit', submit);
   byId('adm-cred-provider').addEventListener('change', onProviderChange);
+  byId('adm-cred-provider-free').addEventListener('input', onProviderChange);
+  byId('adm-cred-free').addEventListener('change', onProviderChange);
   onProviderChange();
   core.onState(showMasterWarning);
   core.register('credentials', { load: () => run(null, load), show: () => run(null, load) });

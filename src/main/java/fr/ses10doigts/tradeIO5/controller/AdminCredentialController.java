@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,6 +26,21 @@ public class AdminCredentialController {
     private final IAuthenticationFacade authenticationFacade;
 
     public record EnabledRequest(boolean enabled) {
+    }
+
+    /** Saisie d'une clé pour un utilisateur (ou System). Les secrets ne sont jamais renvoyés ni journalisés ; absents de {@code toString}. */
+    public record StoreRequest(Long userId, String provider, String scope, String apiKey, String secretKey, String passphrase,
+                               Boolean enabled) {
+        @Override
+        public String toString() {
+            return "StoreRequest[userId=" + userId + ", provider=" + provider + ", scope=" + scope + "]";
+        }
+    }
+
+    @PostMapping
+    public org.springframework.http.ResponseEntity<AdminCredentialDto> store(@RequestBody StoreRequest request) {
+        return org.springframework.http.ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(
+                credentialService.storeAs(request, authenticationFacade.getConnectedUser().getUsername()));
     }
 
     @GetMapping

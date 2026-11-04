@@ -10,9 +10,13 @@
 	</div>
 	<div id="adm-bind-check" class="small mb-3"></div>
 
-	<h6 class="mt-4" id="adm-bind-form-title">Mon binding</h6>
-	<p class="text-muted small">Création et édition de vos propres bindings (le propriétaire décide ; l'admin supervise et arme).</p>
+	<h6 class="mt-4" id="adm-bind-form-title">Créer un binding</h6>
+	<p class="text-muted small">Création et édition pour vous ou pour un autre utilisateur (aide à la configuration) : choisir l'utilisateur, ses wallets et presets sont alors proposés. Les actions faites pour autrui sont tracées dans les logs de l'application.</p>
 	<form id="adm-bind-form" autocomplete="off" class="row g-2">
+		<div class="col-12 col-md-3">
+			<label class="form-label" for="adm-bind-user">Utilisateur</label>
+			<select class="form-select" id="adm-bind-user"></select>
+		</div>
 		<div class="col-6 col-md-2">
 			<label class="form-label" for="adm-bind-asset">Actif</label>
 			<select class="form-select" id="adm-bind-asset"><option value="BTC">BTC</option><option value="ETH">ETH</option><option value="PAXG">PAXG</option></select>
