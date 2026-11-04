@@ -124,6 +124,7 @@ button, input, select { font: inherit; color: inherit; }
 .chip--ok { --c: var(--up); } .chip--warn { --c: var(--warn); } .chip--down { --c: var(--down); } .chip--accent { --c: var(--accent); }
 .chip--unknown { --c: var(--muted); border: 1px dashed var(--muted); background: transparent; }
 .chip--plain::before { display: none; }
+.x-off { color: var(--down); font-weight: 900; margin-right: 5px; }
 .tag { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 800; letter-spacing: .04em; color: var(--accent-text); border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); }
 
 /* puces de périmètre / sélecteur de période / segmenté */
@@ -227,6 +228,16 @@ button, input, select { font: inherit; color: inherit; }
 .pipe .st .t { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .pipe .st .d { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 .carry { background: repeating-linear-gradient(135deg, var(--s1) 0 2px, transparent 2px 6px); border: 1px solid var(--s1); border-radius: 6px; display: inline-block; width: 14px; height: 14px; vertical-align: middle; }
+/* Onboarding : choix de l'actif (logo) et des routes d'achat */
+.asset-pick { display: flex; flex-wrap: wrap; gap: 10px; }
+.asset-chip { display: inline-flex; align-items: center; gap: 10px; padding: 8px 16px 8px 8px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--text); font-weight: 800; cursor: pointer; }
+.asset-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 24%, transparent); border-color: var(--accent); color: var(--accent-text); }
+.route { display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; }
+.route + .route, .routes-more .route { border-top: 1px solid var(--line); }
+.route .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.route .grow > .chip { align-self: flex-start; }
+.route-sub { display: block; }
+.routes-more > summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 6px 0; }
 details.step { border: 1px solid var(--line); border-radius: 20px; background: var(--surface); }
 details.step > summary { cursor: pointer; list-style: none; padding: 14px 18px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
 details.step > summary::-webkit-details-marker { display: none; }

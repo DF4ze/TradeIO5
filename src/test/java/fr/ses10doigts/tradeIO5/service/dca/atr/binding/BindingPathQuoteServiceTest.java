@@ -110,6 +110,21 @@ class BindingPathQuoteServiceTest {
     }
 
     @Test
+    @DisplayName("quoteWallet : devis sans binding pour (wallet, actif), même résultat que le devis de binding")
+    void quoteWalletWithoutBinding() {
+        when(bindingService.walletOf(alice, 7L)).thenReturn(wallet);
+
+        BindingPathQuoteService.Result result = service.quoteWallet(alice, 7L, "PAXG", d("1000"));
+
+        assertEquals(PathStatus.OK, result.quote().status());
+        assertEquals("PAXG-USDC", result.quote().legs().getFirst().instId());
+        assertEquals(0, d("0.15").compareTo(result.quote().totalCostPct()));
+        assertEquals(FeeTestLevel.GREEN, result.quote().feeTestLevel());
+        assertThrows(IllegalArgumentException.class, () -> service.quoteWallet(alice, 7L, " ", d("1000")));
+        assertThrows(IllegalArgumentException.class, () -> service.quoteWallet(alice, 7L, "PAXG", d("0")));
+    }
+
+    @Test
     @DisplayName("Frais élevés : WARNING puis RED, avertissement en % (jamais en bps)")
     void warningAndRed() {
         when(fees.getFeeRate(any(), anyString())).thenReturn(new FeeRate(d("0.1"), d("0.25")));

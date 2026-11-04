@@ -68,9 +68,16 @@ public class PathFinder {
      * @param sources devise détenue -> solde disponible (en unités de la devise)
      * @param amount montant nominal à acquérir, en USD
      * @param displayOnly intermédiaires chiffrés et affichés mais jamais choisis automatiquement (ex. ETH)
+     * @param preferredRoute route imposée par l'utilisateur (ex. {@code USDC>ETH>BTC}) ou nul : la route est alors choisie
+     *                       même via un intermédiaire {@code displayOnly} ; indisponible => {@code NO_PATH} (pas de remplacement)
      */
     public record Request(List<InstrumentInfo> instruments, Set<String> forbiddenNodes, Map<String, BigDecimal> sources,
-                          String target, BigDecimal amount, int maxDepth, Set<String> displayOnly) {
+                          String target, BigDecimal amount, int maxDepth, Set<String> displayOnly, String preferredRoute) {
+
+        public Request(List<InstrumentInfo> instruments, Set<String> forbiddenNodes, Map<String, BigDecimal> sources,
+                       String target, BigDecimal amount, int maxDepth, Set<String> displayOnly) {
+            this(instruments, forbiddenNodes, sources, target, amount, maxDepth, displayOnly, null);
+        }
 
         public Request(List<InstrumentInfo> instruments, Set<String> forbiddenNodes, Map<String, BigDecimal> sources,
                        String target, BigDecimal amount, int maxDepth) {
@@ -158,6 +165,9 @@ public class PathFinder {
     }
 
     private static boolean isChosen(Priced p, Request request) {
+        if (request.preferredRoute() != null) {
+            return p.routeKey().equals(request.preferredRoute());
+        }
         return p.intermediate() == null || !request.displayOnly().contains(p.intermediate());
     }
 

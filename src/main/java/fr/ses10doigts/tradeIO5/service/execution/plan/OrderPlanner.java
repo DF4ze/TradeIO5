@@ -205,7 +205,7 @@ public class OrderPlanner {
 
         Map<String, BigDecimal> sources = new HashMap<>(ctx.virtual);
         PathQuote quote = pathFinder.find(new PathFinder.Request(ctx.instruments, forbiddenNodes, sources, in.assetSymbol(), amount,
-                ExecutionDefaults.MAX_PATH_DEPTH, displayOnlyIntermediaries()), ctx.market);
+                ExecutionDefaults.MAX_PATH_DEPTH, displayOnlyIntermediaries(), in.preferredRoute()), ctx.market);
         if (quote.status() == PathStatus.NO_PATH) {
             PlanBlockReason reason = sources.values().stream().noneMatch(b -> b.signum() > 0)
                     ? PlanBlockReason.INSUFFICIENT_FUNDS_AFTER_FEES

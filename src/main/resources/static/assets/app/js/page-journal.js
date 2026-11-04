@@ -109,10 +109,12 @@
     });
     return d;
   }
+  const ficheHref = (row) => TIO.href('/app/assets/' + encodeURIComponent(row.symbol) + (row.walletId ? '?wallet=' + encodeURIComponent(row.walletId) : ''));
   function detailNode(row, day) {
     const pa = row.planAsset, st = stateText(row.state), plan = row.plan;
     return h('div', { class: 'stack' },
       h('div', { class: 'row' }, ui.coin(row.symbol), h('strong', null, row.symbol), row.exchange ? ui.tag(row.exchange) : null, h('span', { class: 'muted small' }, F.dayLong(day.day))),
+      h('div', null, h('a', { class: 'btn', href: ficheHref(row) }, 'Voir sur la courbe →')),
       st ? h('div', { class: 'small' }, h('strong', null, st.label), h('div', { class: 'muted' }, st.detail)) : null,
       row.alert ? h('div', { class: 'warn small' }, row.alert.label + (pa && TIO.isNum(num(pa.costPct)) ? ' · coût du chemin ' + F.pct(num(pa.costPct), 2) : '')) : null,
       pa && pa.warning ? h('div', { class: 'warn small' }, pa.warning) : null,
@@ -167,7 +169,7 @@
     const info = h('button', { class: 'btn jr-info', type: 'button', 'aria-label': 'Détail ' + row.symbol + (row.exchange ? ' ' + row.exchange : '') }, 'ⓘ');
     info.addEventListener('click', () => openPop(info, detailNode(row, day), 'Détail ' + row.symbol));
     return h('div', { class: 'jr-row' },
-      h('div', { class: 'jr-asset' }, ui.coin(row.symbol), h('strong', null, row.symbol), row.exchange ? ui.tag(row.exchange) : h('span', { class: 'muted small' }, row.wallet || F.dash)),
+      h('div', { class: 'jr-asset' }, h('a', { class: 'jr-link', href: ficheHref(row), title: 'Voir ' + row.symbol + ' sur la courbe', style: { display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'inherit', textDecoration: 'none' } }, ui.coin(row.symbol), h('strong', null, row.symbol)), row.exchange ? ui.tag(row.exchange) : h('span', { class: 'muted small' }, row.wallet || F.dash)),
       h('div', { class: 'jr-dec' }, decisionChip, outChip),
       h('div', { class: 'jr-state' }, st ? h('span', { class: 'jr-dot jr-dot--' + st.tone, 'aria-hidden': 'true' }) : null,
         st ? h('div', null, h('strong', null, st.label), h('div', { class: 'muted small' }, st.detail)) : h('span', { class: 'muted' }, F.dash)),

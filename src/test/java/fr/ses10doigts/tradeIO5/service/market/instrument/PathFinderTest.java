@@ -399,6 +399,23 @@ class PathFinderTest {
     }
 
     @Test
+    @DisplayName("Route imposée : l'intermédiaire normalement affiché seulement (ETH) est choisi ; route indisponible => NO_PATH sans remplacement")
+    void preferredRoute() {
+        CryptoSource source = krakenSource();
+        PathQuote eth = finder.find(new PathFinder.Request(KRAKEN, FIAT_AND_USDT, Map.of("USDC", d("1000")), "PAXG", d("100"), 2,
+                Set.of("ETH"), "USDC>ETH>PAXG"), source);
+        assertEquals(PathStatus.OK, eth.status());
+        assertEquals("USDC>ETH>PAXG", eth.routeKey());
+        assertEquals(List.of("ETH-USDC", "PAXG-ETH"), eth.legs().stream().map(PathLeg::instId).toList());
+        assertEquals(1, eth.routes().stream().filter(RouteQuote::chosen).count());
+
+        PathQuote missing = finder.find(new PathFinder.Request(KRAKEN, FIAT_AND_USDT, Map.of("USDC", d("1000")), "PAXG", d("100"), 2,
+                Set.of("ETH"), "USDC>SOL>PAXG"), source);
+        assertEquals(PathStatus.NO_PATH, missing.status());
+        assertFalse(missing.routes().isEmpty());
+    }
+
+    @Test
     @DisplayName("Fiat (PAXG-USD) et USDT jamais dans un chemin ; notionnel converti en unités de la cotation (BTC)")
     void fiatIgnoredAndNotionalInQuoteUnits() {
         List<BigDecimal> notionals = new java.util.ArrayList<>();

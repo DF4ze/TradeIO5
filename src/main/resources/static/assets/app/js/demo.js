@@ -44,7 +44,8 @@
     });
   }
   const binding = ([symbol, a]) => ({ id: a.id, assetSymbol: symbol, presetId: 10 + a.id, presetName: 'Trend Mix ' + symbol, walletId: a.wallet, walletName: 'Wallet ' + a.ex,
-    exchange: a.ex, bagPercent: 100, priority: a.id, baseAmount: a.base, tradability: symbol === 'PAXG' ? 'TRADABLE_VIA_INTERMEDIARY' : 'OK', quoteMember: 'USDC', routeKey: symbol + '-USDC',
+    exchange: a.ex, bagPercent: 100, priority: a.id, baseAmount: a.base, tradability: symbol === 'PAXG' ? 'TRADABLE_VIA_INTERMEDIARY' : 'OK', quoteMember: 'USDC', routeKey: symbol + '-USDC', preferredRoute: null,
+    feeTestRoute: symbol === 'PAXG' ? 'USDC>BTC>PAXG' : 'USDC>' + symbol, feeTestPct: symbol === 'PAXG' ? 0.62 : 0.13, feeTestLevel: symbol === 'PAXG' ? 'WARNING' : 'GREEN', feeTestAmount: a.base, feeTestAt: new Date(Date.now() - 86400000).toISOString(),
     executionEnabled: symbol !== 'PAXG', firstLiveArmed: symbol !== 'PAXG', firstLiveConfirmed: symbol === 'BTC' });
   function modulationJournal(a, d) {
     const signal = a.base * (1 + (d % 4) * 0.35);
@@ -193,6 +194,10 @@
       if (p === '/api/rainbow-live/next-pass') return { enabled: true, nextRunAt: new Date(Date.now() + 5 * 3600000 + 20 * 60000).toISOString() };
       if (p === '/api/rainbow-live/live-wallet') return liveWallet();
       if (p === '/api/rainbow-live/bindings') return Object.entries(ASSETS).map(binding);
+      if (p === '/api/rainbow-live/onboarding/path-quotes') { const t = q.get('asset') || 'BTC', a = Number(q.get('amount')) || 10;
+        const leg = (id, side, c) => ({ instId: id, side, sz: 1, refPrice: 1, feePct: c, spreadPct: 0.02, slippagePct: 0.01, costPct: c + 0.03, belowMin: false });
+        return [{ walletId: 1, walletName: 'Wallet OKX', exchange: 'OKX', error: null, quote: { status: 'OK', source: 'USDC', target: t, amount: a, legs: [leg(t + '-USDC', 'BUY', 0.1)], totalCostPct: 0.13, feeTestLevel: 'GREEN', estimation: 'BOOK', underfunded: false, routeKey: 'USDC>' + t, routes: [{ routeKey: 'USDC>' + t, source: 'USDC', legs: [leg(t + '-USDC', 'BUY', 0.1)], totalCostPct: 0.13, feeTestLevel: 'GREEN', status: 'OK', estimation: 'BOOK', chosen: true, warnings: [] }, { routeKey: 'USDC>ETH>' + t, source: 'USDC', legs: [leg('ETH-USDC', 'BUY', 0.1), leg(t + '-ETH', 'BUY', 0.1)], totalCostPct: 0.26, feeTestLevel: 'WARNING', status: 'OK', estimation: 'BOOK', chosen: false, warnings: ['Intermédiaire exposé : ETH détenu entre les deux jambes (risque de prix)'] }], warning: null } },
+          { walletId: 2, walletName: 'Wallet KRAKEN', exchange: 'KRAKEN', error: null, quote: { status: 'OK', source: 'USDC', target: t, amount: a, legs: [leg('BTC-USDC', 'BUY', 0.25), leg(t + '-BTC', 'BUY', 0.25)], totalCostPct: 0.62, feeTestLevel: 'WARNING', estimation: 'BOOK', underfunded: false, routeKey: 'USDC>BTC>' + t, routes: [{ routeKey: 'USDC>BTC>' + t, source: 'USDC', legs: [leg('BTC-USDC', 'BUY', 0.25), leg(t + '-BTC', 'BUY', 0.25)], totalCostPct: 0.62, feeTestLevel: 'WARNING', status: 'OK', estimation: 'BOOK', chosen: true, warnings: [] }], warning: 'Coût du chemin 0.62 % : au-dessus du seuil d\'alerte (0.2 %)' } }]; }
       if (p === '/api/rainbow-live/wallets') return [{ id: 1, name: 'Wallet OKX', exchange: 'OKX' }, { id: 2, name: 'Wallet KRAKEN', exchange: 'KRAKEN' }];
       if (p === '/api/rainbow-live/decisions') { const s = q.get('assetSymbol'); return decisions().filter((d) => !s || d.assetSymbol === s); }
       if (p === '/api/rainbow-live/execution-plans') return plans();
@@ -219,6 +224,7 @@
     if (method === 'POST') {
       if (p === '/api/portfolio/transactions/sync') return { imported: 0, tradeio: 0, manual: 0, failedWallets: [] };
       if (/confirm-first-live/.test(p)) refuse('Confirmation du premier ordre');
+      if (/\/fee-test$/.test(p)) refuse('Recalcul du Fee Test');
       if (p.startsWith('/api/credentials')) refuse('Enregistrement de clé');
       if (p === '/api/rainbow-live/bindings') refuse("Création d'un lien");
     }

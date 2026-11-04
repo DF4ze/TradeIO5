@@ -244,12 +244,12 @@ public class OrderPlanService {
         if (block == null) {
             return new AssetInput(binding.getAssetSymbol(), binding.getPriority(), binding.isExecutionEnabled(),
                     binding.getWallet().getId(), binding.getWallet().getWebProviderCode(), binding.getWallet().getCredential(),
-                    null, null, null, null, Map.of(), transit, carryIn, base);
+                    null, null, null, null, Map.of(), transit, carryIn, base, binding.getPreferredRoute());
         }
         return new AssetInput(binding.getAssetSymbol(), binding.getPriority(), binding.isExecutionEnabled(),
                 binding.getWallet().getId(), binding.getWallet().getWebProviderCode(), binding.getWallet().getCredential(),
                 block.getStatus(), block.getActionType(), decimal(block.getActionAmountUsdc()),
-                decimal(block.getActionQuantity()), cashOf(binding, block), transit, carryIn, base);
+                decimal(block.getActionQuantity()), cashOf(binding, block), transit, carryIn, base, binding.getPreferredRoute());
     }
 
     private static Map<String, BigDecimal> cashOf(RainbowLiveBinding binding, RainbowLiveLiveBlock block) {

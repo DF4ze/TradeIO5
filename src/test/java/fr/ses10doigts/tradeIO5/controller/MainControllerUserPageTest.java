@@ -105,7 +105,7 @@ class MainControllerUserPageTest {
                 StandardCharsets.UTF_8);
         for (String expected : new String[] {"'/execution-state'", "/events?page=", "/execution'", "/confirm-first-live'",
                 "Kill switch engagé", "Kill switch levé", "exécution réelle verrouillée", "Exécution activée pour",
-                "Confirmer le 1er ordre réel", "en attente d\\'armement", "Audit du plan", "Précédent", "Suivant",
+                "Confirmer le 1er ordre réel", "activez l\\'exécution pour le valider", "Audit du plan", "Précédent", "Suivant",
                 "Frais réels", "Slippage réel", "Prix moyen", "Inconnue (à réconcilier)", "ordres envoyés", "non envoyé",
                 "recommandée, non exécutée"}) {
             assertTrue(js.contains(expected), "manquant dans le JS : " + expected);

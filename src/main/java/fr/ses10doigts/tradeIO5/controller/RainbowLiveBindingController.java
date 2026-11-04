@@ -10,7 +10,9 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingPathQuoteService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingService.CreateRequest;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingService.UpdateRequest;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,6 +34,7 @@ import java.util.List;
  * l'utilisateur : binding, preset ou wallet d'un autre utilisateur ou inexistant ⇒ 404. Erreurs mappées par
  * {@link RainbowLiveControllerAdvice}. Lecture seule côté exchange, aucun ordre.
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/rainbow-live/bindings")
 @PreAuthorize("isAuthenticated()")
@@ -61,7 +64,17 @@ public class RainbowLiveBindingController {
     @PostMapping
     public ResponseEntity<CheckedBindingDto> create(@RequestBody CreateRequest request) {
         User user = authenticationFacade.getConnectedUser();
-        return ResponseEntity.status(HttpStatus.CREATED).body(CheckedBindingDto.of(bindingService.create(user, request)));
+        RainbowLiveBindingService.Checked created = bindingService.create(user, request);
+        RainbowLiveBinding binding = created.binding();
+        if (request.baseAmount() != null && request.baseAmount() > 0) { // Fee Test à la création (au mieux : un échec n'annule pas le lien)
+            try {
+                BigDecimal amount = BigDecimal.valueOf(request.baseAmount());
+                binding = bindingService.recordFeeTest(user, binding.getId(), pathQuoteService.quote(user, binding.getId(), amount).quote(), amount);
+            } catch (RuntimeException e) {
+                log.warn("Fee Test à la création indisponible binding={} : {}", binding.getId(), e.toString());
+            }
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(CheckedBindingDto.of(new RainbowLiveBindingService.Checked(binding, created.check())));
     }
 
     @PutMapping("/{id}")
@@ -100,6 +113,21 @@ public class RainbowLiveBindingController {
      * Devis à la demande du chemin d'achat (frais réels du compte, carnet public, Fee Test) pour {@code amount} USD.
      * Lecture seule : un seul calcul, aucun ordre, aucune écriture.
      */
+    /**
+     * Recalcule le Fee Test du lien pour {@code amount} USD (montant de base du lien si absent) et le mémorise sur le lien
+     * (route, coût %, niveau, montant, date). Appelle l'exchange en lecture seule ; aucun ordre.
+     */
+    @PostMapping("/{id}/fee-test")
+    public BindingDto feeTest(@PathVariable Long id, @RequestParam(required = false) BigDecimal amount) {
+        User user = authenticationFacade.getConnectedUser();
+        RainbowLiveBinding binding = bindingService.get(user, id);
+        BigDecimal quoted = amount != null ? amount : binding.getBaseAmount() == null ? null : BigDecimal.valueOf(binding.getBaseAmount());
+        if (quoted == null || quoted.signum() <= 0) {
+            throw new IllegalArgumentException("amount est requis (le lien n'a pas de montant de base propre)");
+        }
+        return BindingDto.of(bindingService.recordFeeTest(user, id, pathQuoteService.quote(user, id, quoted).quote(), quoted));
+    }
+
     @GetMapping("/{id}/path-quote")
     public PathQuoteDto pathQuote(@PathVariable Long id, @RequestParam BigDecimal amount) {
         return PathQuoteDto.of(pathQuoteService.quote(authenticationFacade.getConnectedUser(), id, amount));

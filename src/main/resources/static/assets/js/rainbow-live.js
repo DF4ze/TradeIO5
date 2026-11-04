@@ -657,11 +657,11 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
     let first;
     if (l.firstLiveConfirmed) {
       first = el('span', { class: 'badge bg-success', text: '1er ordre réel validé' });
-    } else if (l.firstLiveArmed) {
+    } else if (l.executionEnabled) {
       first = el('button', { type: 'button', class: 'btn btn-sm btn-warning', id: 'rl-confirm-first',
         text: 'Confirmer le 1er ordre réel', onclick: () => confirmFirstLive(l) });
     } else {
-      first = el('span', { class: 'text-muted', text: '1er ordre réel : en attente d\'armement par l\'administrateur' });
+      first = el('span', { class: 'text-muted', text: '1er ordre réel : activez l\'exécution pour le valider' });
     }
     return el('div', { class: 'mt-3 border-top pt-2', id: 'rl-exec-panel' },
       el('h6', { class: 'mb-2', text: 'Exécution réelle' }),

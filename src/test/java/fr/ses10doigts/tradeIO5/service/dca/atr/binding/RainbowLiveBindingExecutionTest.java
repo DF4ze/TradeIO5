@@ -24,7 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@DisplayName("Binding : interrupteur d'exécution, armement admin puis confirmation propriétaire (double validation)")
+@DisplayName("Binding : interrupteur d'exécution (armement automatique à la 1re activation) puis confirmation propriétaire")
 class RainbowLiveBindingExecutionTest {
 
     private static final Instant NOW = Instant.parse("2026-10-10T00:00:00Z");
@@ -53,7 +53,23 @@ class RainbowLiveBindingExecutionTest {
     }
 
     @Test
-    @DisplayName("Confirmation sans armement => 409 ; armer puis confirmer valide ; réarmer remet la confirmation à zéro")
+    @DisplayName("1re activation : armement automatique (une seule fois), confirmation requise ; désactiver garde la validation")
+    void autoArm() {
+        assertNull(binding.getFirstLiveApprovedAt());
+        service.setExecution(owner, 5L, true);
+        assertNotNull(binding.getFirstLiveApprovedAt());
+        assertFalse(binding.firstLiveValidated(), "armé automatiquement mais pas confirmé");
+        java.time.Instant armedAt = binding.getFirstLiveApprovedAt();
+        service.confirmFirstLive(owner, 5L);
+        assertTrue(binding.firstLiveValidated());
+        service.setExecution(owner, 5L, false);
+        service.setExecution(owner, 5L, true);
+        assertEquals(armedAt, binding.getFirstLiveApprovedAt());
+        assertTrue(binding.firstLiveValidated(), "réactiver ne redemande pas la validation");
+    }
+
+    @Test
+    @DisplayName("Confirmation avec exécution éteinte et jamais armé => 409 ; réarmement admin remet la confirmation à zéro")
     void doubleValidation() {
         assertThrows(RainbowLiveBindingStateException.class, () -> service.confirmFirstLive(owner, 5L));
         assertFalse(binding.firstLiveValidated());

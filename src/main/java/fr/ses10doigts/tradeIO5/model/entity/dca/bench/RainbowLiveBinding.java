@@ -1,5 +1,8 @@
 package fr.ses10doigts.tradeIO5.model.entity.dca.bench;
 
+import fr.ses10doigts.tradeIO5.model.dto.execution.FeeTestLevel;
+import fr.ses10doigts.tradeIO5.model.dto.execution.PathQuote;
+import fr.ses10doigts.tradeIO5.model.dto.execution.PathStatus;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import jakarta.persistence.Column;
@@ -21,6 +24,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
@@ -87,6 +91,45 @@ public class RainbowLiveBinding {
 
     @Column(name = "route_key", length = 64)
     private String routeKey;
+
+    /**
+     * Route d'achat imposée par l'utilisateur (ex. {@code USDC>ETH>BTC}), nulle = la moins chère calculée par
+     * {@code PathFinder}. Si elle n'est plus disponible, l'achat est bloqué (jamais de route de remplacement silencieuse).
+     */
+    @Column(name = "preferred_route", length = 64)
+    private String preferredRoute;
+
+    /**
+     * Dernier Fee Test réalisé pour ce lien (route chiffrée, coût total en %, niveau, montant d'achat coté en USD, date) :
+     * posé à la création du lien et à chaque « Recalculer ». Nul tant qu'aucun devis n'a abouti.
+     */
+    @Column(name = "fee_test_route", length = 64)
+    private String feeTestRoute;
+
+    @Column(name = "fee_test_pct", precision = 12, scale = 6)
+    private BigDecimal feeTestPct;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "fee_test_level", length = 16)
+    private FeeTestLevel feeTestLevel;
+
+    @Column(name = "fee_test_amount", precision = 24, scale = 8)
+    private BigDecimal feeTestAmount;
+
+    @Column(name = "fee_test_at")
+    private Instant feeTestAt;
+
+    /** Mémorise un devis chiffré (ignoré sans chemin : {@code NO_PATH} garde le dernier Fee Test connu). */
+    public void recordFeeTest(PathQuote quote, BigDecimal amount, Instant at) {
+        if (quote == null || quote.status() == PathStatus.NO_PATH || quote.totalCostPct() == null) {
+            return;
+        }
+        feeTestRoute = quote.routeKey();
+        feeTestPct = quote.totalCostPct();
+        feeTestLevel = quote.feeTestLevel();
+        feeTestAmount = amount;
+        feeTestAt = at;
+    }
 
     @Column(name = "tradability_checked_at")
     private Instant tradabilityCheckedAt;

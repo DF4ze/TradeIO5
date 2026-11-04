@@ -13,10 +13,12 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import lombok.RequiredArgsConstructor;
+import fr.ses10doigts.tradeIO5.model.dto.execution.PathQuote;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -37,14 +39,21 @@ public class RainbowLiveBindingService {
     private final RainbowLivePresetService presetService;
     private final WalletRepository walletRepository;
     private final BindingCheck bindingCheck;
+    private static final java.util.regex.Pattern ROUTE_FORMAT = java.util.regex.Pattern.compile("[A-Z0-9]{2,10}(>[A-Z0-9]{2,10}){1,2}");
+
     private final RainbowLivePresetEventService eventService;
     private final DomainClock clock;
 
     /** Création : {@code bagPercent} et {@code priority} nuls => défauts (100 %, rang de l'actif). */
     public record CreateRequest(String assetSymbol, Long presetId, Long walletId, Double bagPercent, Integer priority,
-                                Double baseAmount) {
+                                Double baseAmount, String preferredRoute) {
+        public CreateRequest(String assetSymbol, Long presetId, Long walletId, Double bagPercent, Integer priority,
+                             Double baseAmount) {
+            this(assetSymbol, presetId, walletId, bagPercent, priority, baseAmount, null);
+        }
+
         public CreateRequest(String assetSymbol, Long presetId, Long walletId, Double bagPercent, Integer priority) {
-            this(assetSymbol, presetId, walletId, bagPercent, priority, null);
+            this(assetSymbol, presetId, walletId, bagPercent, priority, null, null);
         }
     }
 
@@ -91,6 +100,7 @@ public class RainbowLiveBindingService {
         toSave.setBagPercent(bag);
         toSave.setPriority(priority);
         toSave.setBaseAmount(optionalBaseAmount(req.baseAmount()));
+        toSave.setPreferredRoute(optionalRoute(req.preferredRoute(), req.assetSymbol()));
         if (archived != null) { // réactivation : repart d'un lien neuf (exécution coupée, 1er ordre à re-valider)
             toSave.setArchivedAt(null);
             toSave.setExecutionEnabled(false);
@@ -144,11 +154,19 @@ public class RainbowLiveBindingService {
         return checked(saved);
     }
 
-    /** Interrupteur d'exécution du binding (propriétaire). Désactiver ne touche pas à la double validation déjà acquise. */
+    /**
+     * Interrupteur d'exécution du binding (propriétaire). La 1ʳᵉ activation <b>arme automatiquement</b> le 1ᵉʳ ordre réel
+     * (l'utilisateur n'attend pas l'admin) ; il reste à confirmer ({@link #confirmFirstLive}). Désactiver ne touche pas à la
+     * double validation déjà acquise ; un réarmement admin ({@link #arm}) la remet à zéro.
+     */
     @Transactional
     public RainbowLiveBinding setExecution(User user, Long id, boolean enabled) {
         RainbowLiveBinding binding = owned(user, id);
         binding.setExecutionEnabled(enabled);
+        if (enabled && binding.getFirstLiveApprovedAt() == null) {
+            binding.setFirstLiveApprovedAt(clock.now());
+            log.info("Binding {} user={} : 1er ordre réel armé automatiquement à la 1re activation", id, user.getId());
+        }
         log.info("Binding {} user={} executionEnabled={}", id, user.getId(), enabled);
         return bindingRepository.save(binding);
     }
@@ -164,12 +182,18 @@ public class RainbowLiveBindingService {
         return bindingRepository.save(binding);
     }
 
-    /** Confirmation du propriétaire ; refusée (409) tant que l'admin n'a pas armé. */
+    /**
+     * Confirmation du propriétaire ; refusée (409) tant que l'exécution du lien n'est pas activée. Un lien activé avant
+     * l'armement automatique (jamais armé) est armé ici.
+     */
     @Transactional
     public RainbowLiveBinding confirmFirstLive(User user, Long id) {
         RainbowLiveBinding binding = owned(user, id);
         if (binding.getFirstLiveApprovedAt() == null) {
-            throw new RainbowLiveBindingStateException("Le 1er ordre réel n'a pas été armé par l'administrateur");
+            if (!binding.isExecutionEnabled()) {
+                throw new RainbowLiveBindingStateException("Activez d'abord l'exécution du lien avant de confirmer le 1er ordre réel");
+            }
+            binding.setFirstLiveApprovedAt(clock.now());
         }
         binding.setFirstLiveConfirmedAt(clock.now());
         log.info("Binding {} user={} : 1er ordre réel confirmé", id, user.getId());
@@ -231,6 +255,14 @@ public class RainbowLiveBindingService {
         return new Checked(bindingRepository.save(binding), result);
     }
 
+    /** Mémorise le Fee Test d'un devis sur le lien de l'utilisateur (404 si autre utilisateur). */
+    @Transactional
+    public RainbowLiveBinding recordFeeTest(User user, Long id, PathQuote quote, BigDecimal amount) {
+        RainbowLiveBinding binding = owned(user, id);
+        binding.recordFeeTest(quote, amount, clock.now());
+        return bindingRepository.save(binding);
+    }
+
     private RainbowLiveBinding owned(User user, Long id) {
         return bindingRepository.findById(id)
                 .filter(b -> !b.isArchived())
@@ -255,7 +287,8 @@ public class RainbowLiveBindingService {
         return preset.isFollowingStrategy() ? preset.getAssetStrategy().getRevision() : null;
     }
 
-    private Wallet walletOf(User user, Long walletId) {
+    /** Wallet de l'utilisateur ; autre utilisateur ou inconnu => {@link RainbowLiveBindingNotFoundException} (404). */
+    public Wallet walletOf(User user, Long walletId) {
         if (walletId == null) {
             throw new IllegalArgumentException("walletId est requis");
         }
@@ -277,6 +310,18 @@ public class RainbowLiveBindingService {
             throw new IllegalArgumentException("baseAmount doit être > 0 : " + baseAmount);
         }
         return baseAmount;
+    }
+
+    /** Route imposée : nulle/vide => aucune ; sinon nœuds {@code A>B[>C]} en majuscules, dernier nœud = l'actif du lien. */
+    private static String optionalRoute(String route, String asset) {
+        if (route == null || route.isBlank()) {
+            return null;
+        }
+        String r = route.trim();
+        if (!ROUTE_FORMAT.matcher(r).matches() || !r.endsWith(">" + asset)) {
+            throw new IllegalArgumentException("Route invalide : " + route + " (attendu : source>[intermédiaire>]" + asset + ")");
+        }
+        return r;
     }
 
     private static void requireAllowedAsset(String asset) {

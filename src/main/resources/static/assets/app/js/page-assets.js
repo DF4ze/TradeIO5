@@ -54,6 +54,29 @@
   }
   const pnlText = (p) => (p && TIO.isNum(p.pnlPct) ? (p.pnlPct > 0 ? '▲ ' : p.pnlPct < 0 ? '▽ ' : '') + F.signedPct(p.pnlPct) : F.dash);
 
+  const FEE_LEVEL = { GREEN: ['Frais faibles', 'ok'], WARNING: ['Frais élevés', 'warn'], RED: ['Frais très élevés', 'down'] };
+  const routeText = (b) => String(b.feeTestRoute || b.preferredRoute || b.routeKey || '').split('>').join(' → ');
+
+  /** Chemin d'achat du lien : route, Fee Test réalisé (coût %, niveau, montant coté, date) et « Recalculer ». */
+  function pathPanel(item, call) {
+    const b = item.b;
+    const route = routeText(b);
+    const lvl = FEE_LEVEL[b.feeTestLevel];
+    const amount = b.baseAmount ?? item.presetBase;
+    const recompute = h('button', { class: 'btn', type: 'button', onclick: () => {
+      recompute.disabled = true;
+      call(() => TIO.api('POST', BIND + '/' + b.id + '/fee-test' + (TIO.isNum(b.baseAmount) ? '' : TIO.qs({ amount })), null), 'Fee Test recalculé');
+    } }, 'Recalculer');
+    const detail = TIO.isNum(b.feeTestPct)
+      ? [h('span', { class: 'num' }, F.pct(Number(b.feeTestPct), 2)), lvl ? ui.chip(lvl[0], lvl[1]) : null,
+        h('span', { class: 'muted small' }, 'pour ' + F.usd(Number(b.feeTestAmount), 0) + ' · ' + F.dateTime(b.feeTestAt))]
+      : [h('span', { class: 'muted' }, 'Pas encore calculé')];
+    return h('div', { class: 'stack' },
+      h('div', { class: 'row row--between' }, h('span', { class: 'lbl' }, 'Chemin d\'achat'), h('span', { class: 'num' }, route || F.dash)),
+      h('div', { class: 'row' }, h('span', { class: 'lbl' }, 'Fee Test'), detail, TIO.isNum(amount) ? recompute : null),
+      b.preferredRoute ? h('div', { class: 'muted small' }, 'Route choisie par vous (imposée à l\'exécution).') : null);
+  }
+
   /** Réglages du lien (replié) : montant de base, exécution réelle, premier ordre, part vendable (Expert). */
   function settingsPanel(item, refresh) {
     const b = item.b, p = item.perf, sym = b.assetSymbol;
@@ -65,9 +88,29 @@
       TIO.clear(zone);
       if (!on) { call(() => TIO.api('PUT', BIND + '/' + b.id + '/execution', { enabled: false }), 'Exécution désactivée pour ' + sym); return; }
       input.checked = false;
-      zone.appendChild(confirmRow('Activer l\'exécution réelle pour ' + sym + ' ? Des ordres réels pourront partir sur ' + (b.exchange || 'l\'exchange') + ' (dans les plafonds).', 'Activer',
-        () => call(() => TIO.api('PUT', BIND + '/' + b.id + '/execution', { enabled: true }), 'Exécution activée pour ' + sym), () => TIO.clear(zone)));
+      activation(input);
     } });
+    /** Mise sous gestion : Fee Test à jour (calculé au besoin), puis validation unique ; l'armement du 1er ordre est automatique. */
+    async function activation(input) {
+      zone.appendChild(h('div', { class: 'note' }, 'Calcul du chemin d\'achat et des frais…'));
+      let cur = b;
+      const amt = b.baseAmount ?? item.presetBase;
+      if (!TIO.isNum(b.feeTestPct) && TIO.isNum(amt)) {
+        try { cur = await TIO.api('POST', BIND + '/' + b.id + '/fee-test' + (TIO.isNum(b.baseAmount) ? '' : TIO.qs({ amount: amt }))); } catch (e) { cur = b; }
+      }
+      TIO.clear(zone);
+      const lvl = FEE_LEVEL[cur.feeTestLevel];
+      const path = TIO.isNum(cur.feeTestPct)
+        ? 'Chemin d\'achat : ' + routeText(cur) + ' · Fee Test ' + F.pct(Number(cur.feeTestPct), 2) + (lvl ? ' (' + lvl[0].toLowerCase() + ')' : '') + ' pour ' + F.usd(Number(cur.feeTestAmount), 0) + '.'
+        : 'Chemin d\'achat et Fee Test non calculés pour le moment.';
+      const msg = 'Mettre ' + sym + ' sous la gestion de TradeIO sur ' + (b.exchange || 'l\'exchange') + ' ? ' + path
+        + ' Des ordres réels pourront partir sur cet exchange (dans les plafonds). Vous validez ici le premier ordre réel.';
+      zone.appendChild(confirmRow(msg, 'Mettre sous gestion',
+        () => call(async () => {
+          await TIO.api('PUT', BIND + '/' + b.id + '/execution', { enabled: true });
+          if (!b.firstLiveConfirmed) await TIO.api('POST', BIND + '/' + b.id + '/confirm-first-live');
+        }, sym + ' est sous la gestion de TradeIO'), () => { TIO.clear(zone); input.checked = false; }));
+    }
 
     const amount = h('input', { type: 'number', min: '0', step: 'any', value: b.baseAmount ?? '', placeholder: TIO.isNum(item.presetBase) ? String(item.presetBase) : 'preset', inputmode: 'decimal' });
     const saveAmount = h('button', { class: 'btn', type: 'button', onclick: () => {
@@ -85,18 +128,17 @@
         ui.stat('PnL', h('span', { class: TIO.sign(p && p.pnl) }, p && TIO.isNum(p.pnl) ? F.signedUsd(p.pnl, 0) : F.dash))),
       item.shared ? ui.note('Prix moyen et PnL cumulent tous les exchanges où ' + sym + ' est détenu.') : null,
       h('div', { class: 'muted small' }, TIO.labels.check[b.tradability] || ''),
+      pathPanel(item, call),
       ui.setting('Montant de base', baseDesc, h('div', { class: 'row' }, h('div', { class: 'field', style: { width: '110px' } }, amount), saveAmount)),
       ui.setting('Exécution réelle', b.executionEnabled ? 'Activée : des ordres réels peuvent partir.' : 'Désactivée : simulation, rien n\'est envoyé.', sw.el),
     ];
-    if (b.executionEnabled && b.firstLiveArmed && !b.firstLiveConfirmed) {
-      rows.push(h('div', { class: 'banner banner--warn stack' }, h('div', null, 'Premier ordre réel armé : votre confirmation est requise avant tout envoi pour ' + sym + '.'),
+    if (b.executionEnabled && !b.firstLiveConfirmed) {
+      rows.push(h('div', { class: 'banner banner--warn stack' }, h('div', null, 'Votre confirmation du premier ordre réel est requise avant tout envoi pour ' + sym + '.'),
         h('button', { class: 'btn btn--primary', type: 'button', onclick: () => {
           TIO.clear(zone);
           zone.appendChild(confirmRow('Confirmer le premier ordre réel pour ' + sym + ' ? Cette étape autorise l\'envoi du tout premier ordre.', 'Confirmer',
             () => call(() => TIO.api('POST', BIND + '/' + b.id + '/confirm-first-live'), 'Premier ordre confirmé'), () => TIO.clear(zone)));
         } }, 'Confirmer le premier ordre')));
-    } else if (b.executionEnabled && !b.firstLiveArmed) {
-      rows.push(ui.note('En attente d\'armement du premier ordre par l\'administrateur.'));
     }
     rows.push(zone);
     if (TIO.modeAtLeast('expert')) {
@@ -109,7 +151,7 @@
         h('div', { class: 'row' }, h('button', { class: 'btn', type: 'button', onclick: () => call(() => TIO.api('PUT', BIND + '/' + b.id, { bagPercent: Number(bag.input.value) }), 'Part vendable enregistrée') }, 'Enregistrer'))));
     }
     const removeZone = h('div', { class: 'stack' });
-    rows.push(h('div', { class: 'row' }, h('a', { class: 'btn', href: TIO.href('/app/assets/' + encodeURIComponent(sym)) }, 'Voir la fiche'),
+    rows.push(h('div', { class: 'row' }, h('a', { class: 'btn', href: TIO.href('/app/assets/' + encodeURIComponent(sym) + '?wallet=' + encodeURIComponent(b.walletId)) }, 'Voir la fiche'),
       h('button', { class: 'btn btn--danger', type: 'button', onclick: () => {
         TIO.clear(removeZone);
         removeZone.appendChild(confirmRow('Retirer ' + sym + (b.exchange ? ' de ' + b.exchange : '') + ' ? TradeIO cesse de le gérer : plus aucun ordre ne partira. Vos actifs sur l\'exchange ne sont pas touchés et l\'historique est conservé.', 'Retirer',
@@ -121,7 +163,8 @@
 
   function assetRow(item, refresh) {
     const b = item.b, sym = b.assetSymbol, pos = item.pos, p = item.perf;
-    const exec = b.executionEnabled ? ui.chip(b.firstLiveArmed ? 'Réel' : 'Réel · en attente', b.firstLiveArmed ? 'ok' : 'warn') : null;
+    const exec = b.executionEnabled ? ui.chip(b.firstLiveConfirmed ? 'Réel' : 'Réel · à confirmer', b.firstLiveConfirmed ? 'ok' : 'warn')
+      : h('span', { class: 'chip chip--plain' }, h('span', { class: 'x-off', 'aria-hidden': 'true' }, '✕'), 'Désactivé');
     const head = h('summary', { class: 'asset-row' },
       ui.coin(sym),
       h('div', { class: 'asset-id' }, h('div', { class: 'num asset-sym' }, sym),

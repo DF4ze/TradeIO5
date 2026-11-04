@@ -16,7 +16,8 @@
 
   async function loadAll(sym) {
     const bindings = await TIO.get('/api/rainbow-live/bindings');
-    const b = bindings.find((x) => x.assetSymbol === sym);
+    const wallet = new URLSearchParams(g.location.search).get('wallet'); // exchange précis quand l'actif est sur plusieurs
+    const b = bindings.find((x) => x.assetSymbol === sym && wallet && String(x.walletId) === wallet) || bindings.find((x) => x.assetSymbol === sym);
     if (!b) return { b: null };
     const [perf, decisions, plans, live, trades] = await Promise.all([
       TIO.safe(TIO.get('/api/portfolio/assets'), []),

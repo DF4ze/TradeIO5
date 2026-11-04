@@ -48,8 +48,8 @@ Unique par (user, actif, wallet). `GET /api/rainbow-live/bindings`, `POST` (cré
 | Montant de base du lien | `baseAmount` (> 0, fini) ; `resetBaseAmount=true` | vide = montant du preset ; ne met à l'échelle que les **achats** ; modifier le montant remet le **carry à zéro** (le dire à l'utilisateur) |
 | Part de la position offerte | `bagPercent` 0–100 (défaut 100) | dynamique : % de la position réelle que la stratégie peut vendre |
 | Priorité de passage du cash | `priority` | défaut = rang d'actif (BTC 0, ETH 1, PAXG 2) ; ordre de consommation du cash commun |
-| Interrupteur d'exécution | `PUT /{id}/execution` `{enabled}` | défaut **éteint** ; n'envoie rien en soi |
-| Confirmer le 1ᵉʳ ordre réel | `POST /{id}/confirm-first-live` | possible seulement après armement admin (sinon 409) |
+| Interrupteur d'exécution | `PUT /{id}/execution` `{enabled}` | défaut **éteint** ; n'envoie rien en soi ; la 1ʳᵉ activation arme automatiquement le 1ᵉʳ ordre réel. L'écran affiche d'abord exchange, chemin d'achat et Fee Test, puis une seule validation (activation + confirmation) |
+| Confirmer le 1ᵉʳ ordre réel | `POST /{id}/confirm-first-live` | possible dès que l'exécution du lien est activée (sinon 409) ; enchaînée par l'écran avec l'activation |
 | Vérifier la disponibilité | `GET /{id}/check` | appelle l'exchange (lecture seule), persiste le statut |
 | Comparer les routes d'achat | `GET /{id}/path-quote?amount=` | lecture seule, `amount` > 0 USD |
 | Supprimer le lien | `DELETE /{id}` | 204, le preset reste |
@@ -125,7 +125,7 @@ Données du signal calculées en base mais **non exposées** par l'API (bloc `Ra
 
 `id, assetSymbol, presetId, presetName, walletId, walletName, exchange, bagPercent, priority, baseAmount?, tradability?, quoteMember?, routeKey?, executionEnabled, firstLiveArmed, firstLiveConfirmed`.
 `tradability` = dernier `BindingCheck` : `OK, TRADABLE_VIA_INTERMEDIARY, NOT_TRADABLE_WITHOUT_FIAT, WALLET_DISABLED, CREDENTIAL_INVALID, PROVIDER_UNSUPPORTED, BALANCE_UNAVAILABLE, INSTRUMENT_UNAVAILABLE` (+ `message`, `ok`, `executable`, `blocked`). `TRADABLE_VIA_INTERMEDIARY` = route à deux jambes (ex. USDC → BTC → PAXG) : bandeau d'information.
-État du 1ᵉʳ ordre réel : en attente d'armement → à confirmer → validé.
+État du 1ᵉʳ ordre réel : à confirmer (exécution activée) → validé.
 
 ### 2.4 Wallet réel et décision du jour — `GET /api/rainbow-live/live-wallet`
 
@@ -185,7 +185,7 @@ Positions du user (membres du groupe USD agrégés en une ligne « USD », prix 
 
 ## 3. Verrous visibles de l'utilisateur
 
-Tous requis pour qu'un ordre réel parte : mode `LIVE` déverrouillé (serveur) · kill switch levé (admin) · `executionEnabled` du lien (utilisateur) · 1ᵉʳ ordre armé (admin) puis confirmé (utilisateur) · statut lien `OK`/`TRADABLE_VIA_INTERMEDIARY` · clé TRADE valide · plafonds (par ordre et par jour, constantes absolues basses en phase de test : 30 USD / ordre, 100 USD / jour, à rendre configurables avant usage réel). L'utilisateur ne voit/commande que les deux verrous qui lui appartiennent.
+Tous requis pour qu'un ordre réel parte : mode `LIVE` déverrouillé (serveur) · kill switch levé (admin) · `executionEnabled` du lien (utilisateur) · 1ᵉʳ ordre armé (automatiquement à la 1ʳᵉ activation, ou par l'admin pour forcer une revalidation) puis confirmé (utilisateur) · statut lien `OK`/`TRADABLE_VIA_INTERMEDIARY` · clé TRADE valide · plafonds (par ordre et par jour, constantes absolues basses en phase de test : 30 USD / ordre, 100 USD / jour, à rendre configurables avant usage réel). L'utilisateur ne voit/commande que les deux verrous qui lui appartiennent.
 
 ---
 

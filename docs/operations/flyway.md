@@ -16,7 +16,7 @@ Modulation Rainbow (socle) : table `rainbow_modulation_control` (singleton, init
 
 Historisation du patrimoine : tables `portfolio_snapshot` (unique user/wallet/jour) et `portfolio_snapshot_asset` (unique snapshot/actif), `ON DELETE CASCADE`, dans `V1__init.sql` ; créées par `ddl-auto=update` tant que Flyway est inactif.
 
-Passerelle actif non stable : table `transit_stock` et colonnes `transit_stock.finish_side` et `rainbow_live_binding.route_key` (remplace `bridge_pair`), dans `V1__init.sql`.
+Passerelle actif non stable : table `transit_stock` et colonnes `transit_stock.finish_side` et `rainbow_live_binding.route_key` (remplace `bridge_pair`), `rainbow_live_binding.preferred_route` (route imposée par l'utilisateur, nullable), `rainbow_live_binding.fee_test_{route,pct,level,amount,at}` (dernier Fee Test réalisé, nullable), dans `V1__init.sql`.
 
 Lot d'exécution réelle (cf. [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md)) : tables `execution_control` et `rainbow_live_order_event`, colonnes d'exécution des étapes et des plans, `rainbow_live_binding.first_live_{approved,confirmed}_at`, `admin_action_log` (journal admin append-only), `transaction.fee_currency`, `api_credentials.scope` (+ contrainte `uk_credential_user_provider_scope`), toutes dans `V1__init.sql`.
 

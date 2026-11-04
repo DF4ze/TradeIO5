@@ -88,7 +88,24 @@ public class BindingPathQuoteService {
             throw new IllegalArgumentException("amount doit être strictement positif");
         }
         RainbowLiveBinding binding = bindingService.get(user, bindingId);
-        Wallet wallet = binding.getWallet();
+        return quote(binding.getWallet(), binding.getAssetSymbol(), amount, "binding=" + bindingId, binding.getPreferredRoute());
+    }
+
+    /**
+     * Devis d'un chemin d'achat pour un couple (wallet, actif) sans binding (étape « Chemin d'achat » de l'onboarding).
+     * Wallet d'un autre utilisateur => 404 ; mêmes exceptions que {@link #quote(User, Long, BigDecimal)}.
+     */
+    public Result quoteWallet(User user, Long walletId, String assetSymbol, BigDecimal amount) {
+        if (amount == null || amount.signum() <= 0) {
+            throw new IllegalArgumentException("amount doit être strictement positif");
+        }
+        if (assetSymbol == null || assetSymbol.isBlank()) {
+            throw new IllegalArgumentException("asset est requis");
+        }
+        return quote(bindingService.walletOf(user, walletId), assetSymbol, amount, "wallet=" + walletId, null);
+    }
+
+    private Result quote(Wallet wallet, String assetSymbol, BigDecimal amount, String origin, String preferredRoute) {
         ApiCredential credential = wallet.getCredential();
         WebProviderCode provider = wallet.getWebProviderCode();
         if (!wallet.isEnabled() || credential == null || !credential.isEnabled()) {
@@ -105,12 +122,12 @@ public class BindingPathQuoteService {
         stables.forEach(s -> sources.put(s, balances.getOrDefault(s, BigDecimal.ZERO)));
         List<InstrumentInfo> instruments = catalog.liveInstruments(credential.getWebProvider());
 
-        PathFinder.Request request = new PathFinder.Request(instruments, forbiddenNodes, sources, binding.getAssetSymbol(),
-                amount, ExecutionDefaults.MAX_PATH_DEPTH, displayOnlyIntermediaries());
+        PathFinder.Request request = new PathFinder.Request(instruments, forbiddenNodes, sources, assetSymbol,
+                amount, ExecutionDefaults.MAX_PATH_DEPTH, displayOnlyIntermediaries(), preferredRoute);
         PathQuote quote = pathFinder.find(request, new ExchangeLegMarketSource(provider, credential, new HashSet<>(stables), instruments,
                 feeProviders.get(provider), bookClients.get(provider)));
         String warning = warning(quote, provider, sources, instruments);
-        log.info("Devis chemin binding={} actif={} montant={} : {} coût={}% Fee Test={}", bindingId, binding.getAssetSymbol(),
+        log.info("Devis chemin {} actif={} montant={} : {} coût={}% Fee Test={}", origin, assetSymbol,
                 amount, quote.status(), quote.totalCostPct(), quote.feeTestLevel());
         return new Result(quote, warning);
     }

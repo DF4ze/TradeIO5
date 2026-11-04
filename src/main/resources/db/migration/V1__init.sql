@@ -294,6 +294,12 @@
         asset_symbol varchar(16) not null,
         quote_member varchar(16),
         route_key varchar(64),
+        preferred_route varchar(64),
+        fee_test_route varchar(64),
+        fee_test_pct decimal(12,6),
+        fee_test_amount decimal(24,8),
+        fee_test_at datetime(6),
+        fee_test_level enum ('GREEN','RED','WARNING'),
         tradability enum ('BALANCE_UNAVAILABLE','CREDENTIAL_INVALID','INSTRUMENT_UNAVAILABLE','NOT_TRADABLE_WITHOUT_FIAT','OK','PROVIDER_UNSUPPORTED','TRADABLE_VIA_INTERMEDIARY','WALLET_DISABLED'),
         primary key (id)
     ) engine=InnoDB;

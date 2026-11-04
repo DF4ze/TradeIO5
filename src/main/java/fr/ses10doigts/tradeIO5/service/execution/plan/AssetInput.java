@@ -13,15 +13,26 @@ import java.util.Map;
  * lecture, action figée, montant USD nominal, quantité, cash par membre du groupe USD du pool au moment de la passe) et stock en transit actif du wallet visant cet actif
  * (devise -> quantité, jambe 2 à terminer avant tout nouvel achat). {@code carryInUsd} : montants d'achat reportés (sous le minimum
  * du provider) à ajouter à la mise du jour ; {@code baseAmount} : base amount du preset au jour du plan (instantané).
+ * {@code preferredRoute} : route d'achat imposée par l'utilisateur sur le lien (nulle = la moins chère).
  * {@code status} nul : aucun snapshot live pour la passe.
  */
 public record AssetInput(String assetSymbol, int priority, boolean executionEnabled, Long walletId, WebProviderCode provider,
                          ApiCredential credential, PortfolioStatus status, RainbowLiveAction action, BigDecimal amountUsd,
                          BigDecimal quantity, Map<String, BigDecimal> cashByMember,
-                         Map<String, BigDecimal> transitStock, BigDecimal carryInUsd, BigDecimal baseAmount) {
+                         Map<String, BigDecimal> transitStock, BigDecimal carryInUsd, BigDecimal baseAmount,
+                         String preferredRoute) {
 
     public AssetInput {
         carryInUsd = carryInUsd == null ? BigDecimal.ZERO : carryInUsd;
+    }
+
+    /** Sans route imposée. */
+    public AssetInput(String assetSymbol, int priority, boolean executionEnabled, Long walletId, WebProviderCode provider,
+                      ApiCredential credential, PortfolioStatus status, RainbowLiveAction action, BigDecimal amountUsd,
+                      BigDecimal quantity, Map<String, BigDecimal> cashByMember, Map<String, BigDecimal> transitStock,
+                      BigDecimal carryInUsd, BigDecimal baseAmount) {
+        this(assetSymbol, priority, executionEnabled, walletId, provider, credential, status, action, amountUsd, quantity,
+                cashByMember, transitStock, carryInUsd, baseAmount, null);
     }
 
     /** Sans carry ni base amount. */
