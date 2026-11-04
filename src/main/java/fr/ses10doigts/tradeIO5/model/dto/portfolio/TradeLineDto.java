@@ -4,8 +4,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /** Achat/vente réel d'un wallet (tous wallets de l'utilisateur ou un seul), plus récent d'abord ; {@code notional} = quantité x prix, dans {@code quoteCurrency} (nulle = dollar).
+ * {@code feeUsd} : frais convertis en dollars (nul si sans frais ou cours inconnu).
  * {@code origin} : {@code MANUAL} (passé à la main sur l'exchange) ou {@code TRADEIO} (ordre envoyé par TradeIO). */
 public record TradeLineDto(Long id, LocalDateTime timestamp, String side, String assetSymbol, BigDecimal quantity,
-                           BigDecimal price, BigDecimal notional, BigDecimal fee, String feeCurrency, Long walletId,
+                           BigDecimal price, BigDecimal notional, BigDecimal fee, String feeCurrency, Double feeUsd,
+                           Long walletId,
                            String walletName, String exchange, String quoteCurrency, String origin) {
 }

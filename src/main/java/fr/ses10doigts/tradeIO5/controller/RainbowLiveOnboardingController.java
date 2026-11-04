@@ -4,6 +4,7 @@ import fr.ses10doigts.tradeIO5.model.dto.dca.bench.PathQuoteDto;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
+import fr.ses10doigts.tradeIO5.service.connector.credential.ExchangeKeysService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingPathQuoteService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveOnboardingService;
@@ -49,8 +50,22 @@ public class RainbowLiveOnboardingController {
     public record ProposalsDto(List<Proposal> proposals, BandSuggestion suggestedBand, AutonomyRange autonomy) {
     }
 
-    /** Devis d'un exchange (wallet) : {@code quote} nul et {@code error} renseigné si ce wallet est inutilisable ou illisible. */
-    public record WalletPathQuote(Long walletId, String walletName, String exchange, PathQuoteDto quote, String error) {
+    /**
+     * Devis d'un exchange (wallet) : {@code quote} nul et {@code error} renseigné si ce wallet est inutilisable ou illisible.
+     * {@code tradeKey} : une clé d'écriture active est enregistrée (sans elle, aucun ordre ne peut être passé).
+     */
+    public record WalletPathQuote(Long walletId, String walletName, String exchange, boolean tradeKey, PathQuoteDto quote, String error) {
+    }
+
+    /**
+     * Routes existantes d'un wallet pour un actif, sans frais : {@code defaultRoute} = la route directe si elle existe, sinon la
+     * première route retenue automatiquement (nulle s'il n'y en a aucune).
+     */
+    public record WalletRoutes(Long walletId, String walletName, String exchange, boolean tradeKey,
+                               List<RouteDto> routes, String defaultRoute, String error) {
+    }
+
+    public record RouteDto(String routeKey, boolean direct, boolean chosen) {
     }
 
     private final RainbowLiveBindingService bindingService;
@@ -58,6 +73,7 @@ public class RainbowLiveOnboardingController {
     private final RainbowLiveOnboardingService onboardingService;
     private final IAuthenticationFacade authenticationFacade;
     private final RainbowModulationControlService modulationControl;
+    private final ExchangeKeysService exchangeService;
 
     private int autonomyDefault() {
         return modulationControl.current().getAutonomyDays();
@@ -86,16 +102,42 @@ public class RainbowLiveOnboardingController {
         return bindingService.wallets(user).stream().map(w -> walletQuote(user, w, asset, amount)).toList();
     }
 
+    /** Routes existantes de l'actif sur chaque wallet, **sans calcul de frais** (affichage initial de « Où acheter ? »). */
+    @GetMapping("/path-routes")
+    public List<WalletRoutes> pathRoutes(@RequestParam String asset) {
+        User user = authenticationFacade.getConnectedUser();
+        return bindingService.wallets(user).stream().map(w -> walletRoutes(user, w, asset)).toList();
+    }
+
+    private WalletRoutes walletRoutes(User user, Wallet wallet, String asset) {
+        String exchange = wallet.getWebProviderCode() == null ? null : wallet.getWebProviderCode().name();
+        boolean tradeKey = exchangeService.hasTradeKey(user, wallet.getWebProviderCode());
+        try {
+            List<RouteDto> routes = pathQuoteService.routesWallet(user, wallet.getId(), asset).stream()
+                    .map(r -> new RouteDto(r.routeKey(), r.direct(), r.chosen())).toList();
+            String def = routes.stream().filter(RouteDto::direct).findFirst()
+                    .or(() -> routes.stream().filter(RouteDto::chosen).findFirst()).map(RouteDto::routeKey).orElse(null);
+            return new WalletRoutes(wallet.getId(), wallet.getName(), exchange, tradeKey, routes, def, null);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            log.warn("Routes wallet={} actif={} indisponibles : {}", wallet.getId(), asset, e.toString());
+            return new WalletRoutes(wallet.getId(), wallet.getName(), exchange, tradeKey, List.of(), null,
+                    e.getMessage() == null ? "Routes indisponibles" : e.getMessage());
+        }
+    }
+
     private WalletPathQuote walletQuote(User user, Wallet wallet, String asset, BigDecimal amount) {
         String exchange = wallet.getWebProviderCode() == null ? null : wallet.getWebProviderCode().name();
+        boolean tradeKey = exchangeService.hasTradeKey(user, wallet.getWebProviderCode());
         try {
-            return new WalletPathQuote(wallet.getId(), wallet.getName(), exchange,
+            return new WalletPathQuote(wallet.getId(), wallet.getName(), exchange, tradeKey,
                     PathQuoteDto.of(pathQuoteService.quoteWallet(user, wallet.getId(), asset, amount)), null);
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (RuntimeException e) {
             log.warn("Devis chemin wallet={} actif={} indisponible : {}", wallet.getId(), asset, e.toString());
-            return new WalletPathQuote(wallet.getId(), wallet.getName(), exchange, null,
+            return new WalletPathQuote(wallet.getId(), wallet.getName(), exchange, tradeKey, null,
                     e.getMessage() == null ? "Devis indisponible" : e.getMessage());
         }
     }

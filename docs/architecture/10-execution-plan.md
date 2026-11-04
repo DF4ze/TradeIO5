@@ -7,7 +7,9 @@ Vérifié le : 2026-10-12 (`service/execution/**`, `model/entity/execution/**`, 
 ## Mode et activation
 
 - `tradeio.execution.mode` ∈ `OFF|DRY_RUN|LIVE` (`ExecutionSettings`, défaut `DRY_RUN`). `OFF` coupe aussi le dry-run (aucun plan). **`LIVE` est refusé au démarrage** (`IllegalStateException`) sans `tradeio.execution.live-unlocked=true` et sans `TRADEIO_MASTER_KEY` ([`10-execution-reelle.md`](10-execution-reelle.md)) ; valeur inconnue refusée aussi.
-- `RainbowLiveBinding.executionEnabled` (défaut `false`, modifié par `PUT /api/rainbow-live/bindings/{id}/execution`). Binding non activé ⇒ actif `DISABLED` (visible, sans étape) ; tous les actifs désactivés ⇒ plan `DISABLED`.
+- `RainbowLiveBinding.executionEnabled` (défaut `false`, modifié par `PUT /api/rainbow-live/bindings/{id}/execution`). Binding ni actif ni en simulation ⇒ actif `DISABLED` (visible, sans étape) ; tous les actifs désactivés ⇒ plan `DISABLED`.
+- **Simulation** (`RainbowLiveBinding.simulation`, modifiée par `PUT …/execution {mode}`) : l'actif est planifié comme un actif actif (chemin, coûts, carry, cash partagé) et la ligne d'actif porte `simulated = true` (tag « Simulation » au Journal et dans Actifs gérés). `OrderExecutor` **saute** les actifs simulés : aucun ordre n'est envoyé. `simulated` entre dans le hash des entrées.
+- **Achat minimum** (`minBuyUsd` du binding) : un achat dont le montant est inférieur au minimum est `BLOCKED`/`BELOW_MIN` avec avertissement ; le mécanisme de carry ci-dessous le cumule jusqu'au minimum (le minimum entre dans le hash des entrées).
 - Constantes mutualisées (`ExecutionDefaults`) : durée de vie du plan 5 min (`tradeio.execution.plan-ttl`), tolérance de slippage du prix plafond 0,1 % (`tradeio.execution.slippage-tolerance-pct`), seuils Fee Test, nœuds interdits (fiat + `USDT`), intermédiaires (`BTC`, `ETH`) dont seul `BTC` est choisi automatiquement, profondeur max 2.
 
 ## Déclenchement
@@ -42,7 +44,7 @@ Pas de persistance, pas d'écriture, aucune dépendance à un port d'ordre ; lec
 | Table | Contenu |
 |---|---|
 | `rainbow_live_order_plan` | user, `run_day`, `revision` (unique avec les 2 précédents), `status` (`PLANNED|BLOCKED|DISABLED|SUPERSEDED|EXECUTING|EXECUTED|PARTIAL|FAILED|CANCELLED` persistés ; les quatre derniers de l'exécution réelle), `mode`, coût, niveau Fee Test, `block_reason`, `inputs_hash`, `created_at`, `expires_at` |
-| `rainbow_live_order_plan_asset` | par actif : priorité, wallet, action voulue, `outcome` (`OK|BLOCKED|DISABLED|NO_ACTION`), raison, coût, niveau, avertissement, `carry_in_usd`, `carry_out_usd`, `base_amount` (FK plan, `ON DELETE CASCADE`) |
+| `rainbow_live_order_plan_asset` | par actif : priorité, wallet, action voulue, `outcome` (`OK|BLOCKED|DISABLED|NO_ACTION`), raison, coût, niveau, avertissement, `carry_in_usd`, `carry_out_usd`, `base_amount`, `simulated` (FK plan, `ON DELETE CASCADE`) |
 | `rainbow_live_order_event` | audit **append-only** de l'exécution (plan, étape, `clOrdId`, type, charge JSON) ; `execution_control` : ligne unique (kill switch, multiplicateurs) |
 | `rainbow_live_order_step` | `step_rank`, actif, `wallet_id`, `inst_id`, `side`, `ord_type` (`LIMIT_IOC`), `sz`, `px` (plafond), `quote_amount`, `cl_ord_id`, frais / spread / slippage %, `status` (`PLANNED|SUBMITTED|FILLED|PARTIAL|REJECTED|CANCELED|UNKNOWN`), `estimation` (`BOOK|TICKER`), et après exécution : `ord_id`, tailles envoyée / remplie, prix moyen, frais (+ devise), quantité reçue, mid du re-devis, slippage réel, horodatages, dernière erreur (FK plan, `ON DELETE CASCADE`) |
 

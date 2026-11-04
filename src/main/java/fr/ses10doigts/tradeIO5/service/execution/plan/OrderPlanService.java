@@ -182,7 +182,7 @@ public class OrderPlanService {
             plan.addAsset(RainbowLiveOrderPlanAsset.builder().assetSymbol(a.assetSymbol()).priority(a.priority())
                     .walletId(a.walletId()).action(a.action()).outcome(a.outcome()).blockReason(a.blockReason())
                     .costPct(a.costPct()).feeTestLevel(a.feeTestLevel()).warning(a.warning())
-                    .carryInUsd(a.carryInUsd()).carryOutUsd(a.carryOutUsd()).baseAmount(base).build());
+                    .carryInUsd(a.carryInUsd()).carryOutUsd(a.carryOutUsd()).baseAmount(base).simulated(a.simulated()).build());
             a.steps().forEach(s -> plan.addStep(RainbowLiveOrderStep.builder().rank(s.rank()).assetSymbol(s.assetSymbol())
                     .instId(s.instId()).side(s.side()).ordType(StepOrderType.LIMIT_IOC).sz(s.sz()).px(s.px())
                     .quoteAmount(s.quoteAmount()).walletId(a.walletId())
@@ -244,12 +244,18 @@ public class OrderPlanService {
         if (block == null) {
             return new AssetInput(binding.getAssetSymbol(), binding.getPriority(), binding.isExecutionEnabled(),
                     binding.getWallet().getId(), binding.getWallet().getWebProviderCode(), binding.getWallet().getCredential(),
-                    null, null, null, null, Map.of(), transit, carryIn, base, binding.getPreferredRoute());
+                    null, null, null, null, Map.of(), transit, carryIn, base, binding.getPreferredRoute(), binding.isSimulation(),
+                    minBuyOf(binding));
         }
         return new AssetInput(binding.getAssetSymbol(), binding.getPriority(), binding.isExecutionEnabled(),
                 binding.getWallet().getId(), binding.getWallet().getWebProviderCode(), binding.getWallet().getCredential(),
                 block.getStatus(), block.getActionType(), decimal(block.getActionAmountUsdc()),
-                decimal(block.getActionQuantity()), cashOf(binding, block), transit, carryIn, base, binding.getPreferredRoute());
+                decimal(block.getActionQuantity()), cashOf(binding, block), transit, carryIn, base, binding.getPreferredRoute(),
+                binding.isSimulation(), minBuyOf(binding));
+    }
+
+    private static BigDecimal minBuyOf(RainbowLiveBinding binding) {
+        return decimal(binding.getMinBuyUsd());
     }
 
     private static Map<String, BigDecimal> cashOf(RainbowLiveBinding binding, RainbowLiveLiveBlock block) {

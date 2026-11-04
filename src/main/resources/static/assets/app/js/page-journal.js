@@ -5,7 +5,6 @@
   'use strict';
   const TIO = g.TIO, h = TIO.h, ui = TIO.ui, F = TIO.fmt;
   const PERIODS = [{ value: '7', label: '7 j' }, { value: '30', label: '30 j' }, { value: '90', label: '90 j' }];
-  const ZONES = ['Extrême bas', 'Zone X2', 'Zone X1', 'Zone X0,5', "Pas d'achat", 'Extrême haut'];
   const STATE_KINDS = [['MOON_ACTIVE', 'To the moon actif'], ['SELL_TRAILING', 'Trailing-stop de vente'], ['COOLDOWN', 'Cooldown'],
     ['LOCKED_UNTIL_DOWN2', 'Attente sous Down2'], ['BUY_TRAILING', "Trailing-stop d'achat"], ['WATCHING', 'En surveillance']];
   const WAITING = new Set(['MOON_ACTIVE', 'SELL_TRAILING', 'COOLDOWN', 'LOCKED_UNTIL_DOWN2', 'BUY_TRAILING']);
@@ -14,20 +13,7 @@
   const num = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
   const plural = (n, one, many) => n + ' ' + (n > 1 ? many : one);
 
-  /** Libellé, détail chiffré et couleur de l'état de la machine (nul si la passe du jour n'a pas été jouée). */
-  function stateText(st) {
-    if (!st) return null;
-    const px = (v) => (TIO.isNum(num(v)) ? F.price(num(v)) : F.dash);
-    const armed = TIO.isNum(num(st.armedDays)) && st.armedDays > 0 ? ' · armé depuis ' + F.days(st.armedDays) : '';
-    switch (st.kind) {
-      case 'MOON_ACTIVE': return { tone: 'accent', label: 'To the moon actif', detail: 'plus haut ' + px(st.referencePrice) + ' · stop à ' + px(st.triggerPrice) };
-      case 'SELL_TRAILING': return { tone: 'warn', label: 'Trailing-stop de vente actif', detail: 'plus haut ' + px(st.referencePrice) + ' · stop à ' + px(st.triggerPrice) + armed };
-      case 'COOLDOWN': return { tone: 'accent', label: 'Cooldown', detail: 'reprise dans ' + F.days(st.cooldownDays) + (st.buyLocked ? ' · puis attente sous Down2 (' + px(st.down2) + ')' : '') };
-      case 'LOCKED_UNTIL_DOWN2': return { tone: 'warn', label: 'Vendu · attente sous Down2', detail: 'clôture ' + px(st.close) + ' · Down2 ' + px(st.down2) };
-      case 'BUY_TRAILING': return { tone: 'info', label: "Attente trailing-stop d'achat", detail: 'plus bas ' + px(st.referencePrice) + ' · déclenche à ' + px(st.triggerPrice) + armed };
-      default: return { tone: 'muted', label: 'En surveillance', detail: (ZONES[st.zone] || 'Zone inconnue') + ' · clôture ' + px(st.close) };
-    }
-  }
+  const stateText = TIO.stateText;
 
   // ---------- fusion décisions + plans + liens : jour -> lignes ----------
   function buildDays(plans, decisions, bindings) {
@@ -117,6 +103,7 @@
       h('div', null, h('a', { class: 'btn', href: ficheHref(row) }, 'Voir sur la courbe →')),
       st ? h('div', { class: 'small' }, h('strong', null, st.label), h('div', { class: 'muted' }, st.detail)) : null,
       row.alert ? h('div', { class: 'warn small' }, row.alert.label + (pa && TIO.isNum(num(pa.costPct)) ? ' · coût du chemin ' + F.pct(num(pa.costPct), 2) : '')) : null,
+      pa && pa.simulated ? h('div', { class: 'muted small' }, 'Simulation : le plan est chiffré comme un vrai, mais rien n\'est envoyé à l\'exchange.') : null,
       pa && pa.warning ? h('div', { class: 'warn small' }, pa.warning) : null,
       pa && pa.steps && pa.steps.length ? h('div', { class: 'stack' }, h('strong', { class: 'small' }, 'Ordres'), pa.steps.map(stepLine)) : null,
       row.decision && (row.decision.action === 'BUY' || row.decision.action === 'SELL') ? h('details', null, h('summary', { class: 'small' }, 'Pourquoi ce montant ?'), h('div', { class: 'stack' }, TIO.explain.why(row.symbol, row.decision))) : null,
@@ -129,7 +116,8 @@
     const decisionChip = row.action === 'BUY' ? ui.chip('▲ Achat', 'ok') : row.action === 'SELL' ? ui.chip('▽ Vente', 'down')
       : row.action === 'BLOCKED' ? ui.chip('Bloqué', 'warn') : ui.chip('Rien à faire', 'plain');
     const out = row.planAsset && row.planAsset.outcome;
-    const outChip = out === 'OK' ? ui.chip('Prêt', 'ok') : out === 'DISABLED' ? ui.chip('Désactivé', 'warn') : null;
+    const sim = row.planAsset && row.planAsset.simulated;
+    const outChip = out === 'DISABLED' ? ui.chip('Désactivé', 'warn') : sim ? ui.chip('Simulation', 'sim') : out === 'OK' ? ui.chip('Prêt', 'ok') : null;
     const info = h('button', { class: 'btn jr-info', type: 'button', 'aria-label': 'Détail ' + row.symbol + (row.exchange ? ' ' + row.exchange : '') }, 'ⓘ');
     info.addEventListener('click', () => TIO.ui.bubble(info, detailNode(row, day), 'Détail ' + row.symbol));
     return h('div', { class: 'jr-row' },

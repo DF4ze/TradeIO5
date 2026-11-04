@@ -12,6 +12,16 @@
 
   const text = (v) => (v == null ? DASH : String(v));
 
+  /* Exchanges proposés d'office ; complétés par ceux de l'état d'exécution et des clés Trade déjà saisies. */
+  const BASE_PROVIDERS = ['KRAKEN', 'OKX'];
+  const PROVIDER_LABELS = { KRAKEN: 'Kraken', OKX: 'OKX' };
+  /* Ce que la validation d'une route contrôle réellement, par exchange. */
+  const ROUTE_NOTES = {
+    KRAKEN: 'Kraken contrôle aussi le solde : la jambe 2 est refusée « fonds insuffisants » tant que l\'intermédiaire (ex. BTC) n\'est pas détenu, c\'est attendu.',
+    OKX: 'OKX : contrôles locaux seuls (paire, tailles, tick, plafonds), pas de contrôle de solde côté exchange : la jambe 2 est jugée comme une jambe isolée.'
+  };
+  const GENERIC_ROUTE_NOTE = 'Selon l\'exchange, le solde de l\'intermédiaire est contrôlé ou non ; un refus « fonds insuffisants » sur la jambe 2 est attendu tant que la jambe 1 n\'est pas exécutée.';
+
   function limitsText(i) {
     if (!i) { return ''; }
     return 'Limites : taille min ' + text(i.minSz) + ' · coût min ' + text(i.costMin) + ' · lot ' + text(i.lotSz)
@@ -30,6 +40,7 @@
     instruments = new Map(list.map((i) => [i.instId, i]));
     byId('adm-ot-inst-list').replaceChildren(...list.map((i) => el('option', { value: i.instId })));
     showLimits();
+    renderRouteHeader();
   }
 
   function renderUsers() {
@@ -41,15 +52,39 @@
     byId('adm-ot-user').replaceChildren(...options);
   }
 
+  function renderProviders() {
+    const select = byId('adm-ot-provider');
+    const current = select.value;
+    const known = new Set(BASE_PROVIDERS);
+    ((core.state && core.state.orderProviders) || []).forEach((p) => known.add(p));
+    credentials.filter((c) => c.scope === 'TRADE').forEach((c) => known.add(c.provider));
+    select.replaceChildren(...Array.from(known).map((p) => el('option', { value: p, text: PROVIDER_LABELS[p] || p })));
+    select.value = known.has(current) ? current : BASE_PROVIDERS[0];
+  }
+
+  /** Bloc route : exchange courant, rappel de ce qui est contrôlé, datalist des paires de la jambe 2. */
+  function renderRouteHeader() {
+    const provider = byId('adm-ot-provider').value;
+    byId('adm-ot-r2-provider').textContent = PROVIDER_LABELS[provider] || provider;
+    byId('adm-ot-r2-note').textContent = ROUTE_NOTES[provider] || GENERIC_ROUTE_NOTE;
+    byId('adm-ot-r2-inst-list').replaceChildren(...Array.from(instruments.keys()).map((id) => el('option', { value: id })));
+  }
+
   async function loadAll() {
     credentials = await api('GET', '/api/admin/credentials');
+    renderProviders();
     renderUsers();
     await loadCatalog();
   }
 
   function onProviderChange() {
     renderUsers();
+    renderRouteHeader();
     run(null, loadCatalog);
+  }
+
+  function onRouteSizeModeChange() {
+    byId('adm-ot-r2-size-label').textContent = byId('adm-ot-r2-sizemode').value === 'sz' ? 'Taille (base)' : 'Montant (cotation)';
   }
 
   function onSizeModeChange() {
@@ -185,12 +220,13 @@
       side: byId('adm-ot-side').value, px: byId('adm-ot-px').value.trim().replace(',', '.')
     };
     leg1[mode] = byId('adm-ot-size').value.trim().replace(',', '.');
+    const mode2 = byId('adm-ot-r2-sizemode').value;
     const leg2 = {
       userId: leg1.userId, provider: leg1.provider, instId: byId('adm-ot-r2-inst').value.trim().toUpperCase(),
-      side: byId('adm-ot-r2-side').value, sz: byId('adm-ot-r2-sz').value.trim().replace(',', '.'),
-      px: byId('adm-ot-r2-px').value.trim().replace(',', '.')
+      side: byId('adm-ot-r2-side').value, px: byId('adm-ot-r2-px').value.trim().replace(',', '.')
     };
-    if (!leg2.instId || !numeric.test(leg1.px) || !numeric.test(leg1[mode]) || !numeric.test(leg2.sz) || !numeric.test(leg2.px)) {
+    leg2[mode2] = byId('adm-ot-r2-sz').value.trim().replace(',', '.');
+    if (!leg2.instId || !numeric.test(leg1.px) || !numeric.test(leg1[mode]) || !numeric.test(leg2[mode2]) || !numeric.test(leg2.px)) {
       core.showAlert('Route : renseigner les deux jambes (nombres simples, sans « / » ni texte).');
       return;
     }
@@ -209,6 +245,7 @@
   byId('adm-ot-form').addEventListener('submit', submit);
   byId('adm-ot-provider').addEventListener('change', onProviderChange);
   byId('adm-ot-sizemode').addEventListener('change', onSizeModeChange);
+  byId('adm-ot-r2-sizemode').addEventListener('change', onRouteSizeModeChange);
   byId('adm-ot-side').addEventListener('change', onSideChange);
   byId('adm-ot-real').addEventListener('change', onRealToggle);
   byId('adm-ot-reconcile').addEventListener('click', reconcile);

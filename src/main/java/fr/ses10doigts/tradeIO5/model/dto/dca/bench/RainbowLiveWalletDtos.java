@@ -23,7 +23,18 @@ public final class RainbowLiveWalletDtos {
     public record LiveAssetDto(String assetSymbol, Long bindingId, Long presetId, String presetName, Long walletId,
                                String walletName, String exchange, double bagPercent, int priority,
                                String tradability, String tradabilityMessage, boolean executionEnabled, boolean firstLiveArmed,
-                               boolean firstLiveConfirmed, String routeKey, List<TransitDto> transit, LiveSnapshotDto snapshot) {
+                               boolean firstLiveConfirmed, String routeKey, List<TransitDto> transit, LiveSnapshotDto snapshot,
+                               String executionMode) {
+
+        /** Sans mode explicite : dérivé de l'interrupteur d'exécution (simulation non distinguée). */
+        public LiveAssetDto(String assetSymbol, Long bindingId, Long presetId, String presetName, Long walletId,
+                            String walletName, String exchange, double bagPercent, int priority,
+                            String tradability, String tradabilityMessage, boolean executionEnabled, boolean firstLiveArmed,
+                            boolean firstLiveConfirmed, String routeKey, List<TransitDto> transit, LiveSnapshotDto snapshot) {
+            this(assetSymbol, bindingId, presetId, presetName, walletId, walletName, exchange, bagPercent, priority, tradability,
+                    tradabilityMessage, executionEnabled, firstLiveArmed, firstLiveConfirmed, routeKey, transit, snapshot,
+                    executionEnabled ? "ACTIVE" : "DISABLED");
+        }
     }
 
     /**

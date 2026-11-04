@@ -87,6 +87,7 @@ Interdits : aplat Rainbow, plus de deux éléments Rainbow saturés dans un mêm
 | Puces de périmètre | contour `--line` ; active : fond violet 24 %, contour et texte `--accent` |
 | Calendrier de décisions | case 1 jour : achat `--s3`, renforcé `--s5`, vente `--s0`, rien `--line`, **carry = hachuré orange** (`repeating-linear-gradient(135deg, --s1 0 2px, transparent 2px 6px)` + contour) |
 | Infobulle de graphique | fond `--bg`, contour `--line`, rayon 10 px, texte 11,5 px |
+| Pastille d'aide « i » (`ui.info`) | à droite d'un titre de carte : cercle 16 px contour `--muted`, bulle au survol/focus/tap (fond `--bg`, contour `--line`, rayon 10 px, 12 px) ; contour orange quand elle porte une alerte |
 
 ### Graphiques
 

@@ -50,6 +50,7 @@ import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.hamcrest.Matchers.closeTo;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -154,7 +155,7 @@ class PortfolioControllerTest {
     }
 
     @Test
-    @DisplayName("Actifs : valeur, investi net (achats − ventes), PnL et prix moyen d'achat")
+    @DisplayName("Actifs : valeur, investi net (achats − ventes), PnL latent vs prix moyen d'achat")
     void assets() throws Exception {
         snapshot(TODAY, 200.0, 0.015, 60000.0);
         trade(TradeSide.BUY, "0.01", "40000", 1);
@@ -166,9 +167,12 @@ class PortfolioControllerTest {
                 .andExpect(jsonPath("$[0].assetSymbol").value("BTC"))
                 .andExpect(jsonPath("$[0].value").value(900.0))
                 .andExpect(jsonPath("$[0].investedNet").value(600.0))
-                .andExpect(jsonPath("$[0].pnl").value(300.0))
-                .andExpect(jsonPath("$[0].pnlPct").value(50.0))
-                .andExpect(jsonPath("$[0].avgBuyPrice").value(45000.0));
+                .andExpect(jsonPath("$[0].pnl").value(225.0))
+                .andExpect(jsonPath("$[0].pnlPct").value(closeTo(100.0 / 3.0, 1e-9)))
+                .andExpect(jsonPath("$[0].avgBuyPrice").value(45000.0))
+                .andExpect(jsonPath("$[0].realizedPnl").value(75.0))
+                .andExpect(jsonPath("$[0].totalPnl").value(300.0))
+                .andExpect(jsonPath("$[0].sells").value(1));
     }
 
     @Test

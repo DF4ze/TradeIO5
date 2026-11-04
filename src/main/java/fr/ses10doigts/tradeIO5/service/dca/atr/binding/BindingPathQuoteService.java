@@ -105,6 +105,27 @@ public class BindingPathQuoteService {
         return quote(bindingService.walletOf(user, walletId), assetSymbol, amount, "wallet=" + walletId, null);
     }
 
+    /**
+     * Routes qui existent pour acheter {@code assetSymbol} sur le wallet, **sans calcul de frais** (catalogue seul : aucun prix, carnet
+     * ni solde lu). Mêmes contrôles de wallet que {@link #quoteWallet}.
+     */
+    public List<PathFinder.RouteRef> routesWallet(User user, Long walletId, String assetSymbol) {
+        if (assetSymbol == null || assetSymbol.isBlank()) {
+            throw new IllegalArgumentException("asset est requis");
+        }
+        Wallet wallet = bindingService.walletOf(user, walletId);
+        ApiCredential credential = wallet.getCredential();
+        WebProviderCode provider = wallet.getWebProviderCode();
+        if (!wallet.isEnabled() || credential == null || !credential.isEnabled()) {
+            throw new PathQuoteUnavailableException("Wallet désactivé ou sans credential active");
+        }
+        if (provider == null || !catalog.supports(provider)) {
+            throw new PathQuoteUnavailableException("Exchange non pris en charge : " + provider);
+        }
+        return pathFinder.routes(catalog.liveInstruments(credential.getWebProvider()), forbiddenNodes,
+                new HashSet<>(groupService.members(AssetGroup.USD)), assetSymbol, ExecutionDefaults.MAX_PATH_DEPTH, displayOnlyIntermediaries());
+    }
+
     private Result quote(Wallet wallet, String assetSymbol, BigDecimal amount, String origin, String preferredRoute) {
         ApiCredential credential = wallet.getCredential();
         WebProviderCode provider = wallet.getWebProviderCode();

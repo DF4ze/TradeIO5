@@ -141,6 +141,31 @@ public class RainbowLiveBinding {
     @Column(name = "execution_enabled", nullable = false)
     private boolean executionEnabled;
 
+    /**
+     * Mode simulation (défaut faux) : lien non exécuté mais dont toute la chaîne (signal, dimensionnement, plan d'ordres chiffré)
+     * est jouée et taguée « simulation ». Exclusif de {@link #executionEnabled} (voir {@link #executionMode()}).
+     */
+    @Column(name = "simulation", nullable = false)
+    private boolean simulation;
+
+    /**
+     * Achat minimum (USD) choisi par l'utilisateur ; nul = aucun minimum propre. Un achat (mise du jour + carry) sous ce
+     * minimum n'est pas passé : il est reporté (carry) jusqu'à atteindre le minimum.
+     */
+    @Column(name = "min_buy_usd")
+    private Double minBuyUsd;
+
+    /** Mode d'exécution dérivé : actif prime sur simulation. */
+    public BindingExecutionMode executionMode() {
+        return executionEnabled ? BindingExecutionMode.ACTIVE : simulation ? BindingExecutionMode.SIMULATION : BindingExecutionMode.DISABLED;
+    }
+
+    /** Pose le mode (exclusif) ; ne touche pas à la double validation du 1ᵉʳ ordre réel. */
+    public void applyExecutionMode(BindingExecutionMode mode) {
+        executionEnabled = mode == BindingExecutionMode.ACTIVE;
+        simulation = mode == BindingExecutionMode.SIMULATION;
+    }
+
     /** Double validation du 1ᵉʳ ordre réel : l'admin arme ({@code firstLiveApprovedAt}), puis l'utilisateur confirme. */
     @Column(name = "first_live_approved_at")
     private Instant firstLiveApprovedAt;

@@ -1,6 +1,13 @@
 package fr.ses10doigts.tradeIO5.controller;
 
 import fr.ses10doigts.tradeIO5.model.entity.modulation.RainbowModulationControl;
+import fr.ses10doigts.tradeIO5.model.entity.user.ModulationChangeSource;
+import fr.ses10doigts.tradeIO5.model.entity.user.ModulationValues;
+import fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile;
+import fr.ses10doigts.tradeIO5.model.entity.user.UserModulationHistory;
+import fr.ses10doigts.tradeIO5.service.UserModulationService;
+import java.time.Instant;
+import java.util.List;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
 import fr.ses10doigts.tradeIO5.service.modulation.ModulationDefaults;
@@ -27,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserModulationSettingsController {
 
     private final UserTradingSettingsService settingsService;
+    private final UserModulationService modulationService;
     private final RainbowModulationControlService controlService;
     private final IAuthenticationFacade authenticationFacade;
 
@@ -45,13 +53,26 @@ public class UserModulationSettingsController {
         }
     }
 
-    public record ModulationSettingsDto(ModulationSettings settings, LimitsDto limits) {
+    /** {@code profile} : profil en vigueur ({@code CUSTOM} dès qu'un paramètre a été modifié à la main) ; nul si jamais choisi. */
+    public record ModulationSettingsDto(ModulationSettings settings, LimitsDto limits, StartingProfile profile) {
+        public ModulationSettingsDto(ModulationSettings settings, LimitsDto limits) {
+            this(settings, limits, null);
+        }
+    }
+
+    /** Une ligne d'historique : quand, d'où (profil ou manuel), profil avant / après, valeurs avant / après. */
+    public record ChangeDto(Instant at, ModulationChangeSource source, StartingProfile profileBefore, StartingProfile profileAfter,
+                            ModulationValues before, ModulationValues after) {
+        static ChangeDto of(UserModulationHistory h) {
+            return new ChangeDto(h.getOccurredAt(), h.getSource(), h.getProfileBefore(), h.getProfileAfter(), h.getBefore(), h.getAfter());
+        }
     }
 
     @GetMapping
     public ModulationSettingsDto get() {
-        return new ModulationSettingsDto(settingsService.getModulationSettings(authenticationFacade.getConnectedUser()),
-                LimitsDto.of(controlService.current()));
+        var user = authenticationFacade.getConnectedUser();
+        return new ModulationSettingsDto(settingsService.getModulationSettings(user), LimitsDto.of(controlService.current()),
+                modulationService.profileOf(user));
     }
 
     @PutMapping
@@ -61,11 +82,15 @@ public class UserModulationSettingsController {
             throw new IllegalArgumentException("exposureMin, exposureMax, power et bias sont obligatoires");
         }
         var user = authenticationFacade.getConnectedUser();
-        ModulationSettings saved = request.regulationMarginPct() == null
-                ? settingsService.setModulationSettings(user, request.exposureMin(), request.exposureMax(), request.power(), request.bias())
-                : settingsService.setModulationSettings(user, request.exposureMin(), request.exposureMax(), request.power(), request.bias(),
-                request.regulationMarginPct());
-        return new ModulationSettingsDto(saved, LimitsDto.of(controlService.current()));
+        UserModulationService.Result saved = modulationService.update(user, request.exposureMin(), request.exposureMax(), request.power(),
+                request.bias(), request.regulationMarginPct());
+        return new ModulationSettingsDto(saved.settings(), LimitsDto.of(controlService.current()), saved.profile());
+    }
+
+    /** Historique des changements de modulation (profil choisi ou paramètre modifié), du plus récent au plus ancien. */
+    @GetMapping("/history")
+    public List<ChangeDto> history() {
+        return modulationService.history(authenticationFacade.getConnectedUser()).stream().map(ChangeDto::of).toList();
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

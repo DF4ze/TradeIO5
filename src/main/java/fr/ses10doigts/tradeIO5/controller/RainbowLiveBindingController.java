@@ -1,6 +1,7 @@
 package fr.ses10doigts.tradeIO5.controller;
 
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.PathQuoteDto;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.BindingExecutionMode;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveBindingDtos.BindingDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveBindingDtos.CheckDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveBindingDtos.CheckedBindingDto;
@@ -82,13 +83,21 @@ public class RainbowLiveBindingController {
         return CheckedBindingDto.of(bindingService.update(authenticationFacade.getConnectedUser(), id, request));
     }
 
-    public record ExecutionRequest(boolean enabled) {
+    /** Corps du PUT : {@code mode} prime ; sans mode, {@code enabled} vrai = ACTIVE, faux ou absent = DISABLED. */
+    public record ExecutionRequest(Boolean enabled, BindingExecutionMode mode) {
+        public ExecutionRequest(boolean enabled) {
+            this(enabled, null);
+        }
+
+        BindingExecutionMode resolved() {
+            return mode != null ? mode : Boolean.TRUE.equals(enabled) ? BindingExecutionMode.ACTIVE : BindingExecutionMode.DISABLED;
+        }
     }
 
-    /** Interrupteur d'exécution du binding (défaut éteint). */
+    /** Mode d'exécution du binding (défaut désactivé) : désactivé, simulation ou actif. */
     @PutMapping("/{id}/execution")
     public BindingDto setExecution(@PathVariable Long id, @RequestBody ExecutionRequest request) {
-        return BindingDto.of(bindingService.setExecution(authenticationFacade.getConnectedUser(), id, request.enabled()));
+        return BindingDto.of(bindingService.setExecutionMode(authenticationFacade.getConnectedUser(), id, request.resolved()));
     }
 
     /** Confirmation du 1ᵉʳ ordre réel (après armement admin). */

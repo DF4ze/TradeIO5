@@ -8,7 +8,7 @@
   <main class="tio-main" id="app">
     <header class="tio-head">
       <h1>Administration</h1>
-      <div class="sub">Welcome in Admin's Page <span th:text="${name}"></span></div>
+      <div class="sub">Exécution, clés et modulation · connecté en tant que <strong th:text="${name}"></strong></div>
     </header>
     <div id="admin-root" th:attr="data-username=${name}">
     					<!-- Bandeau permanent (tous onglets) : alimenté par GET /api/admin/execution/state -->

@@ -82,7 +82,7 @@
    */
   TIO.assetChart = function (container) {
     if (!LW) { TIO.mount(container, TIO.ui.error(new Error('Bibliothèque de graphique indisponible'))); return null; }
-    const colors = { text: css('--text'), muted: css('--muted'), line: css('--line'), up: css('--up'), down: css('--down'), accent: css('--accent') };
+    const colors = { text: css('--text'), muted: css('--muted'), line: css('--line'), up: css('--up'), down: css('--down'), accent: css('--accent'), sim: css('--sim') };
     const chart = LW.createChart(container, {
       width: container.clientWidth, height: container.clientHeight || 340, autoSize: false,
       layout: { background: { type: 'solid', color: 'transparent' }, textColor: colors.muted, fontFamily: 'Manrope, system-ui, sans-serif', fontSize: 11 },
@@ -126,7 +126,7 @@
     container.addEventListener('dblclick', clearMeasure);
 
     return {
-      update(bands, trades, avgBuy) {
+      update(bands, trades, avgBuy, simTrades) {
         clearMeasure();
         const pts = (bands && bands.points) || [];
         price.setData(pts.filter((p) => TIO.isNum(p.close)).map((p) => ({ time: p.day, value: p.close })));
@@ -141,7 +141,10 @@
           .map((t) => (t.side === 'SELL'
             ? { time: t.day, position: 'aboveBar', color: colors.down, shape: 'arrowDown', text: '' }
             : { time: t.day, position: 'belowBar', color: colors.up, shape: 'arrowUp', text: '' }));
-        price.setMarkers(markers);
+        const sim = (simTrades || []).filter((t) => !first || t.day >= first).map((t) => (t.side === 'SELL'
+          ? { time: t.day, position: 'aboveBar', color: colors.sim, shape: 'arrowDown', text: 'S' }
+          : { time: t.day, position: 'belowBar', color: colors.sim, shape: 'arrowUp', text: 'S' }));
+        price.setMarkers(markers.concat(sim).sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0)));
         chart.timeScale().fitContent();
       },
       destroy() { ro.disconnect(); chart.remove(); },

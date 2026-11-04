@@ -132,6 +132,55 @@ class HomeOverviewServiceTest {
     }
 
     @Test
+    @DisplayName("Prix moyen et PnL par wallet : propres à chaque provider, agrégat cohérent")
+    void assetPerformancePerWallet() {
+        when(transactionRepository.findByWalletOrderByTimestampAsc(w1)).thenReturn(List.of(
+                Transaction.builder().asset("BTC").side(TradeSide.BUY).quantity(new BigDecimal("1")).price(new BigDecimal("80"))
+                        .timestamp(LocalDateTime.of(TODAY.minusDays(5), java.time.LocalTime.NOON)).wallet(w1).build()));
+        when(transactionRepository.findByWalletOrderByTimestampAsc(w2)).thenReturn(List.of(
+                Transaction.builder().asset("BTC").side(TradeSide.BUY).quantity(new BigDecimal("0.5")).price(new BigDecimal("60"))
+                        .timestamp(LocalDateTime.of(TODAY.minusDays(3), java.time.LocalTime.NOON)).wallet(w2).build()));
+        var btc = service.assetPerformance(user, null).getFirst();
+        var p1 = btc.parts().stream().filter(x -> x.walletId() == 1L).findFirst().orElseThrow();
+        var p2 = btc.parts().stream().filter(x -> x.walletId() == 2L).findFirst().orElseThrow();
+        assertEquals(80.0, p1.avgBuyPrice(), 1e-9);
+        assertEquals(20.0, p1.pnl(), 1e-9);
+        assertEquals(25.0, p1.pnlPct(), 1e-9);
+        assertEquals(60.0, p2.avgBuyPrice(), 1e-9);
+        assertEquals(20.0, p2.pnl(), 1e-9);
+        assertEquals(100.0 / 1.5, p2.pnlPct(), 1e-9);
+        assertEquals(p1.pnl() + p2.pnl(), btc.pnl(), 1e-9);
+    }
+
+    @Test
+    @DisplayName("Réalisé : ventes par wallet, actif entièrement vendu conservé, résumé par période")
+    void realizedAndSummary() {
+        when(transactionRepository.findByWalletOrderByTimestampAsc(w1)).thenReturn(List.of(
+                Transaction.builder().asset("BTC").side(TradeSide.BUY).quantity(new BigDecimal("2")).price(new BigDecimal("50"))
+                        .timestamp(LocalDateTime.of(TODAY.minusDays(20), java.time.LocalTime.NOON)).wallet(w1).build(),
+                Transaction.builder().asset("BTC").side(TradeSide.SELL).quantity(new BigDecimal("1")).price(new BigDecimal("90"))
+                        .timestamp(LocalDateTime.of(TODAY.minusDays(2), java.time.LocalTime.NOON)).wallet(w1).build(),
+                Transaction.builder().asset("ETH").side(TradeSide.BUY).quantity(new BigDecimal("1")).price(new BigDecimal("10"))
+                        .timestamp(LocalDateTime.of(TODAY.minusDays(9), java.time.LocalTime.NOON)).wallet(w1).build(),
+                Transaction.builder().asset("ETH").side(TradeSide.SELL).quantity(new BigDecimal("1")).price(new BigDecimal("15"))
+                        .timestamp(LocalDateTime.of(TODAY.minusDays(8), java.time.LocalTime.NOON)).wallet(w1).build()));
+        var perf = service.assetPerformance(user, 1L);
+        var btc = perf.stream().filter(a -> a.assetSymbol().equals("BTC")).findFirst().orElseThrow();
+        var eth = perf.stream().filter(a -> a.assetSymbol().equals("ETH")).findFirst().orElseThrow();
+        assertEquals(40.0, btc.realizedPnl(), 1e-9);            // 1 x (90 − 50)
+        assertEquals(50.0, btc.pnl(), 1e-9);                    // 1 BTC détenu x (100 − PRU 50)
+        assertEquals(90.0, btc.totalPnl(), 1e-9);   // 40 réalisé + 50 latent
+        assertEquals(5.0, eth.realizedPnl(), 1e-9);             // entièrement vendu : réalisé conservé
+        assertEquals(0.0, eth.quantity(), 1e-9);
+
+        var sum7 = service.pnlSummary(user, 1L, PortfolioPeriod.D7);
+        assertEquals(45.0, sum7.realized(), 1e-9);
+        assertEquals(40.0, sum7.realizedInPeriod(), 1e-9);      // la vente d'ETH (J−8) est hors des 7 jours
+        assertEquals(50.0, sum7.unrealized(), 1e-9);
+        assertEquals(95.0, sum7.total(), 1e-9);
+    }
+
+    @Test
     @DisplayName("Historique : un achat est annulé à rebours (qté et stable avant le trade)")
     void historyUndoesTrades() {
         when(transactionRepository.findByWalletOrderByTimestampAsc(w1)).thenReturn(List.of(Transaction.builder()

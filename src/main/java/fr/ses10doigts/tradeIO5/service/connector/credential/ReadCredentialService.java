@@ -79,8 +79,9 @@ public class ReadCredentialService {
                     .webProviderCode(webProvider.getCode()).description("Compte " + name + " (lecture seule)")
                     .webProvider(webProvider).user(user).creationDate(LocalDateTime.ofInstant(clock.now(), ZoneOffset.UTC))
                     .credential(credential).build());
-        } else if (wallet.getCredential() == null || !wallet.getCredential().getId().equals(credential.getId())) {
+        } else if (wallet.getCredential() == null || !wallet.getCredential().getId().equals(credential.getId()) || !wallet.isEnabled()) {
             wallet.setCredential(credential);
+            wallet.setEnabled(true);
             walletRepository.save(wallet);
         }
     }

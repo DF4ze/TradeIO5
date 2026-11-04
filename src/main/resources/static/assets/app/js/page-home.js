@@ -47,7 +47,7 @@
         pnl ? h('div', { class: 'row' },
           h('span', { class: 'num value-md ' + TIO.sign(pnl.amount) }, (pnl.amount > 0 ? '▲ ' : pnl.amount < 0 ? '▽ ' : '') + F.signedUsd(pnl.amount, 0)),
           h('span', { class: 'num ' + TIO.sign(pnl.pct) }, F.signedPct(pnl.pct)),
-          h('span', { class: 'muted small' }, 'depuis le ' + F.day(pnl.since)), ui.pnlNote())
+          h('span', { class: 'muted small' }, 'variation du patrimoine depuis le ' + F.day(pnl.since)), ui.pnlNote())
           : h('div', { class: 'muted' }, 'Variation : ' + F.dash + ' (historique indisponible)'),
         chart || ui.empty('Historique indisponible', 'Aucun trade enregistré ni cours disponible sur cette période.'),
         chart ? ui.note('Courbe estimée : soldes actuels remontés à rebours à partir des trades enregistrés, valorisés au cours du jour. Les dépôts et retraits ne sont pas pris en compte.') : null,
@@ -55,6 +55,67 @@
         unavailableNote(hold.unavailable),
       ];
     }, { hero: true, span: true, aside });
+    onSelect(card);
+    return card;
+  }
+
+  /** Profits réels (ventes) et latents (positions), frais inclus ; réalisé sur la période choisie, total cumulé depuis le premier trade. */
+  function profitsCard() {
+    const period = { v: '30d' };
+    let card;
+    const aside = ui.periods(PERIODS, period.v, (v) => { period.v = v; card.reload(); });
+    const info = ui.info();
+    card = ui.widget('Profits', () => TIO.getOnce('/api/portfolio/pnl' + TIO.qs({ walletId: sel.wallet, period: period.v })), (p) => {
+      if (p.total === null && !(p.realized > 0 || p.realized < 0)) {
+        return ui.empty('Aucun profit à afficher', 'Aucune vente ni position valorisable avec un prix moyen d\'achat.');
+      }
+      const label = (PERIODS.find((x) => x.value === period.v) || {}).label || '';
+      const pct = (n) => (TIO.isNum(n) ? ' ' + F.signedPct(n, 1) : '');
+      info.set([
+        'Réalisé cumulé ' + F.signedUsd(p.realized, 0) + pct(p.realizedPct) + ' · ' + p.sellsInPeriod + ' vente(s) sur la période · frais cumulés ' + F.usd(p.fees, 2),
+        'Réalisé = gains des ventes, net de frais, contre le prix moyen d\'achat. Latent = positions actuelles contre leur prix moyen d\'achat. Total = réalisé cumulé + latent.',
+        p.incomplete ? '⚠ Historique incomplet : des ventes dépassent les achats enregistrés (dépôts ou transferts non suivis) ; elles sont plafonnées à la quantité connue.' : null,
+        p.partial ? '⚠ Certains actifs n\'ont pas de cours ou de prix moyen : ils sont exclus du latent.' : null,
+      ], p.incomplete || p.partial);
+      return [
+        h('div', { class: 'stats' },
+          ui.stat('Réalisé · ' + label, h('span', null, ui.profit(p.realizedInPeriod), h('span', { class: 'small muted' }, pct(p.realizedInPeriodPct)))),
+          ui.stat('Latent', h('span', null, ui.profit(p.unrealized), h('span', { class: 'small muted' }, pct(p.unrealizedPct)))),
+          ui.stat('Total depuis le début', h('span', null, ui.profit(p.total), h('span', { class: 'small muted' }, pct(p.totalPct))))),
+      ];
+    }, { hero: true, span: true, aside, info });
+    onSelect(card);
+    return card;
+  }
+
+  /** Frais payés (courtage) : poids face au capital investi, au volume échangé et aux gains bruts ; répartition par provider et par actif. */
+  function feesCard() {
+    const card = ui.widget('Frais', () => Promise.all([TIO.getOnce('/api/portfolio/pnl' + TIO.qs({ walletId: sel.wallet, period: 'all' })),
+      TIO.safe(TIO.getOnce('/api/portfolio/asset-performance' + walletQs()), [])]), ([p, assets]) => {
+      if (!(p.fees > 0)) return ui.empty('Aucun frais enregistré', 'Les frais apparaissent dès qu\'un trade en comporte.');
+      const ratio = (a, b) => (b > 0 ? F.pct(a / b * 100, 2) : F.dash);
+      const gross = TIO.isNum(p.total) ? p.total + p.fees : null;
+      const byProvider = new Map();
+      assets.forEach((a) => (a.parts || []).forEach((x) => {
+        const k = x.walletId, e = byProvider.get(k) || { name: (x.exchange ? exchangeName(x.exchange) + ' · ' : '') + (x.walletName || ('wallet ' + k)), fees: 0, volume: 0 };
+        e.fees += x.fees; e.volume += x.volume; byProvider.set(k, e);
+      }));
+      const row = (name, fees, volume) => h('div', { class: 'hold-row' }, h('div', { class: 'grow' }, h('div', { class: 'num' }, name),
+        h('div', { class: 'muted small' }, ratio(fees, volume) + ' du volume échangé')),
+        h('div', { class: 'r' }, h('div', { class: 'num' }, F.usd(fees, 2)), h('div', { class: 'muted small' }, F.pct(fees / p.fees * 100, 0) + ' des frais')));
+      const providers = [...byProvider.values()].filter((e) => e.fees > 0).sort((a, b) => b.fees - a.fees);
+      const top = assets.filter((a) => a.fees > 0).sort((a, b) => b.fees - a.fees).slice(0, 5);
+      return [
+        h('div', { class: 'stats' },
+          ui.stat('Frais cumulés', F.usd(p.fees, 2)),
+          ui.stat('Du capital investi', ratio(p.fees, p.bought)),
+          ui.stat('Du volume échangé', ratio(p.fees, p.volume)),
+          ui.stat('Des gains bruts', gross !== null && gross > 0 ? F.pct(p.fees / gross * 100, 1) : F.dash)),
+        providers.length > 1 ? h('div', { class: 'stack' }, h('div', { class: 'muted small' }, 'Par provider'), providers.map((e) => row(e.name, e.fees, e.volume))) : null,
+        top.length ? h('div', { class: 'stack' }, h('div', { class: 'muted small' }, 'Par actif'), top.map((a) => row(a.assetSymbol, a.fees, a.volume))) : null,
+        ui.note('Gains bruts = total (réalisé + latent) + frais. Frais pris en compte : stable, devise de cotation, actif acheté ou devise avec cours ; les autres sont ignorés.'),
+      ];
+    }, { span: true });
     onSelect(card);
     return card;
   }
@@ -122,6 +183,11 @@
   const TX_PAGE = 10;
   const TX_MERGE_MS = 5 * 60 * 1000;
   /** Regroupe les exécutions d'un même ordre fractionné : même exchange, actif, sens, origine et cotation, chacune à moins de 5 min de la précédente. */
+  /** Frais en dollars d'une ou plusieurs exécutions (« 0,42 $ ») ; vide sans frais ou cours inconnu. */
+  const feeSpan = (fills) => {
+    const n = fills.reduce((a, f) => a + (f.feeUsd != null ? Number(f.feeUsd) : 0), 0);
+    return h('span', { class: 'tx-fee nw', title: 'Frais' }, n > 0 ? 'frais ' + F.usd(n, 2) : '');
+  };
   function mergeFills(trades) {
     const out = [];
     const open = new Map();   // clé → groupe en cours (le plus ancien membre sert de référence au chaînage)
@@ -145,14 +211,14 @@
     return h('div', { class: 'tx-row' },
       h('span', { class: 'when' }, F.dateTime(g.latest)),
       h('span', { class: 'prov' }, exchangeName(g.exchange)),
-      ui.chip(g.side === 'BUY' ? '▲ Achat' : '▽ Vente', g.side === 'BUY' ? 'ok' : 'down'),
-      originChip(g),
+      h('span', { class: 'side' }, ui.chip(g.side === 'BUY' ? '▲ Achat' : '▽ Vente', g.side === 'BUY' ? 'ok' : 'down')),
+      h('span', { class: 'orig' }, originChip(g)),
       h('span', { class: 'asset' }, ui.coin(g.assetSymbol), h('span', { class: 'num' }, g.assetSymbol)),
-      count > 1 ? ui.tag(count + ' exécutions') : null,
-      h('span', { class: 'grow' }),
-      h('span', { class: 'num small muted nw' }, F.qty(g.quantity) + ' × ' + money(g.price, g.quoteCurrency)),
+      h('span', { class: 'cnt' }, count > 1 ? ui.tag(count + ' exéc.') : ''),
+      h('span', { class: 'num small muted nw qp' }, F.qty(g.quantity) + ' × ' + money(g.price, g.quoteCurrency)),
       h('span', { class: 'num nw amt' }, money(g.notional, g.quoteCurrency)),
-      count > 1 ? h('span', { class: 'chev', 'aria-hidden': 'true' }, '›') : null);
+      feeSpan(g.fills),
+      h('span', { class: 'chev', 'aria-hidden': 'true' }, count > 1 ? '›' : ''));
   }
   function transactionsCard() {
     const card = ui.widget('Transactions', syncThenList, (trades) => {
@@ -166,9 +232,10 @@
         TIO.mount(body, groups.slice(0, shown).map((g) => {
           if (g.fills.length === 1) return txRow(g, 1);
           const detail = h('div', { class: 'fold-body' }, g.fills.map((f) => h('div', { class: 'tx-row tx-row--sub' },
-            h('span', { class: 'when' }, F.dateTime(f.timestamp)), h('span', { class: 'grow' }),
-            h('span', { class: 'num small muted nw' }, F.qty(Number(f.quantity)) + ' × ' + money(f.price, f.quoteCurrency)),
-            h('span', { class: 'num nw amt' }, money(f.notional, f.quoteCurrency)))));
+            h('span', { class: 'when' }, F.dateTime(f.timestamp)),
+            h('span', { class: 'prov' }), h('span', { class: 'side' }), h('span', { class: 'orig' }), h('span', { class: 'asset' }), h('span', { class: 'cnt' }),
+            h('span', { class: 'num small muted nw qp' }, F.qty(Number(f.quantity)) + ' × ' + money(f.price, f.quoteCurrency)),
+            h('span', { class: 'num nw amt' }, money(f.notional, f.quoteCurrency)), feeSpan([f]), h('span', { class: 'chev' }))));
           return h('details', { class: 'fold' }, h('summary', null, txRow(g, g.fills.length)), detail);
         }));
         TIO.mount(foot, shown < groups.length
@@ -203,10 +270,13 @@
     if (all('NOPASS')) return ui.chip('Pas encore de passe', 'unknown');
     return ui.chip('Mixte', 'plain');
   }
+  /** Mode d'exécution du lien en clair (lien sans mode explicite : dérivé de l'interrupteur). */
+  const execText = (it) => ((it.executionMode || (it.executionEnabled ? 'ACTIVE' : 'DISABLED')) === 'ACTIVE' ? 'Exécution activée'
+    : it.executionMode === 'SIMULATION' ? 'Simulation (rien n\'est envoyé)' : 'Désactivé (rien n\'est joué)');
   function decisionRow(it, label) {
     return h('a', { class: 'item card-link', href: link(it.assetSymbol), style: { 'text-decoration': 'none', color: 'inherit' } },
-      label ? h('div', { class: 'grow' }, h('div', { class: 'small' }, label), h('div', { class: 'muted small' }, it.executionEnabled ? 'Exécution activée' : 'Simulation (rien n\'est envoyé)'))
-        : [ui.coin(it.assetSymbol), h('div', { class: 'grow' }, h('div', { class: 'num' }, it.assetSymbol), h('div', { class: 'muted small' }, exchangeName(it.exchange) + ' · ' + (it.executionEnabled ? 'Exécution activée' : 'Simulation (rien n\'est envoyé)')))],
+      label ? h('div', { class: 'grow' }, h('div', { class: 'small' }, label), h('div', { class: 'muted small' }, execText(it)))
+        : [ui.coin(it.assetSymbol), h('div', { class: 'grow' }, h('div', { class: 'num' }, it.assetSymbol), h('div', { class: 'muted small' }, exchangeName(it.exchange) + ' · ' + execText(it)))],
       actionChip(it));
   }
   function decisionsCard() {
@@ -300,8 +370,9 @@
   TIO.start(function (root) {
     const user = document.body.dataset.user || '';
     const adv = TIO.modeAtLeast('advanced');
-    const cards = [patrimoineCard(), holdingsCard(), donutCard(), priceCard(), transactionsCard(), decisionsCard(), cashCard()];
+    const cards = [patrimoineCard(), profitsCard(), holdingsCard(), donutCard(), priceCard(), transactionsCard(), decisionsCard(), cashCard()];
     if (adv) cards.push(freeZoneCard(), powerCard(), biasCard(), carryCard());
+    cards.push(feesCard());   // tout en bas de la page
     TIO.mount(root, ui.pageHeader('Bonjour' + (user ? ', ' + user : '')), ui.demoBanner(), ui.alerts(), selector(), h('div', { class: 'grid grid--3' }, cards),
       adv ? null : h('p', { class: 'note' }, 'Mode Simple. ', h('a', { href: TIO.href('/app/settings') }, 'Passer en Avancé'), ' pour voir la bande d\'exposition, puissance, biais et reporté.'));
   });

@@ -101,8 +101,9 @@
       retry ? h('button', { class: 'btn', type: 'button', onclick: retry }, 'Réessayer') : null);
   };
   /** Charge puis affiche ; échec ⇒ état d'erreur avec « Réessayer ». render(data) renvoie un nœud (ou une liste). */
-  ui.load = async function (el, loader, render) {
-    TIO.mount(el, ui.loading());
+  /** `soft` : rechargement silencieux, l'ancien contenu reste affiché jusqu'à l'arrivée des données (pas de scintillement). */
+  ui.load = async function (el, loader, render, soft) {
+    if (!(soft && el.firstChild)) TIO.mount(el, ui.loading());
     try {
       const data = await loader();
       TIO.mount(el, render(data));
@@ -116,9 +117,9 @@
     const o = opts || {};
     const body = h('div', { class: 'stack' });
     const card = h('section', { class: 'card' + (o.hero ? ' card--hero' : '') + (o.span ? ' span-all' : ''), 'aria-label': title },
-      h('div', { class: 'card-title' }, title, o.aside ? h('span', { class: 'push' }, o.aside) : null), body);
+      h('div', { class: 'card-title' }, title, o.info || null, o.aside ? h('span', { class: 'push' }, o.aside) : null), body);
     ui.load(body, loader, render);
-    card.reload = () => ui.load(body, loader, render);
+    card.reload = () => ui.load(body, loader, render, true);
     return card;
   };
 
@@ -153,7 +154,7 @@
     const input = h('input', { type: 'checkbox', role: 'switch', 'aria-label': opts.label, disabled: !!opts.disabled });
     input.checked = !!opts.checked;
     if (opts.onChange) input.addEventListener('change', () => opts.onChange(input.checked, input));
-    return { el: h('span', { class: 'switch' }, input, h('i', { 'aria-hidden': 'true' })), input };
+    return { el: h('span', { class: 'switch' + (opts.state ? ' switch--state' : '') }, input, h('i', { 'aria-hidden': 'true' })), input };
   };
   ui.setting = function (label, desc, control) {
     return h('div', { class: 'setting' }, h('div', null, h('div', { class: 'lbl' }, label), desc ? h('div', { class: 'desc' }, desc) : null), control);
@@ -162,6 +163,15 @@
     const fid = id || ('f' + Math.random().toString(36).slice(2, 8));
     input.id = fid;
     return h('div', { class: 'field' }, h('label', { for: fid }, label), input, hint ? h('div', { class: 'hint' }, hint) : null);
+  };
+  /** Champ numérique stylé : [préfixe] valeur [unité]. o = { value, unit, prefix, min, step, placeholder, label, onChange(value|null) }. Retourne { el, input, get() }. */
+  ui.numberInput = function (o) {
+    const input = h('input', { type: 'number', min: o.min ?? '0', step: o.step ?? 'any', inputmode: 'decimal', placeholder: o.placeholder || '', 'aria-label': o.label || null });
+    input.value = o.value ?? '';
+    const get = () => (input.value === '' ? null : Number(input.value));
+    if (o.onChange) input.addEventListener('change', () => o.onChange(get()));
+    const el = h('label', { class: 'numbox' }, o.prefix ? h('span', { class: 'nb-u' }, o.prefix) : null, input, o.unit ? h('span', { class: 'nb-u' }, o.unit) : null);
+    return { el, input, get };
   };
   ui.bar = (pct) => h('div', { class: 'bar', role: 'img', 'aria-label': TIO.fmt.pct(pct, 0), style: { '--p': TIO.clamp(pct || 0, 0, 100) + '%' } }, h('i'));
 
@@ -225,6 +235,29 @@
       hide() { tip.classList.add('hidden'); },
     };
   };
+  // survol/focus de tout élément [data-tip] (attribut `title` des h() converti en data-tip) : même infobulle, positionnée au-dessus
+  (function () {
+    let tip = null;
+    function hide() { if (tip) { tip.remove(); tip = null; } }
+    function show(el) {
+      hide();
+      const txt = el.getAttribute('data-tip');
+      if (!txt) return;
+      tip = ui.tipEl({ class: 'tip tip--fixed' });
+      tip.textContent = txt; tip.classList.remove('hidden');
+      document.body.appendChild(tip);
+      const r = el.getBoundingClientRect(), w = tip.offsetWidth, hh = tip.offsetHeight;
+      const left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+      const top = r.top - hh - 8 < 8 ? r.bottom + 8 : r.top - hh - 8;
+      tip.style.left = left + 'px'; tip.style.top = top + 'px';
+    }
+    const pick = (e) => e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
+    document.addEventListener('pointerover', (e) => { const el = pick(e); if (el) show(el); });
+    document.addEventListener('pointerout', (e) => { const el = pick(e); if (el && !el.contains(e.relatedTarget)) hide(); });
+    document.addEventListener('focusin', (e) => { const el = pick(e); if (el) show(el); });
+    document.addEventListener('focusout', hide);
+    document.addEventListener('scroll', hide, true);
+  })();
   // clic (détail) : ui.bubble(opener, content, title) -> ferme via ×, Échap ou clic extérieur ; bottom-sheet en mobile
   let bubble = null;
   ui.closeBubble = function () {
@@ -270,7 +303,7 @@
       if (state) {
         if (state.killSwitch) chips.appendChild(ui.chip('Exécution suspendue (kill switch)', 'warn'));
         else if (state.liveExecution) chips.appendChild(ui.chip('Exécution réelle', 'ok'));
-        else chips.appendChild(ui.chip('Simulation', 'accent'));
+        else chips.appendChild(ui.chip('Simulation', 'sim'));
       } else {
         chips.appendChild(ui.chip('État inconnu', 'unknown'));
       }
@@ -347,25 +380,41 @@
     });
     return box;
   };
-  /** Formulaire de saisie d'une clé de LECTURE (soldes) : jamais affiché ensuite, champs vidés après envoi. */
-  ui.readKeyForm = function (onSaved) {
-    const provider = h('select', null, h('option', { value: 'OKX' }, 'OKX'), h('option', { value: 'KRAKEN' }, 'Kraken'));
-    const key = h('input', { type: 'password', autocomplete: 'off', spellcheck: 'false' });
-    const secret = h('input', { type: 'password', autocomplete: 'off', spellcheck: 'false' });
-    const pass = h('input', { type: 'password', autocomplete: 'off', spellcheck: 'false' });
-    const passField = ui.field('Passphrase', pass, 'Requise pour OKX uniquement.');
-    provider.addEventListener('change', () => passField.classList.toggle('hidden', provider.value !== 'OKX'));
-    const submit = h('button', { class: 'btn btn--primary', type: 'button', onclick: async () => {
-      submit.disabled = true;
-      try {
-        await TIO.post('/api/credentials/read', { provider: provider.value, apiKey: key.value, secretKey: secret.value, passphrase: provider.value === 'OKX' ? pass.value : null, enabled: true });
-        TIO.toast('Clé de lecture enregistrée'); key.value = ''; secret.value = ''; pass.value = '';
-        if (onSaved) onSaved(provider.value);
-      } catch (e) { TIO.toast(e.message, true); } finally { submit.disabled = false; }
-    } }, 'Enregistrer la clé');
-    return h('div', { class: 'stack' },
-      h('div', { class: 'note' }, 'Clé en lecture seule : elle sert à lire vos soldes et ne peut passer aucun ordre. Elle est chiffrée au repos et n\'est plus jamais affichée.'),
-      ui.field('Exchange', provider), ui.field('Clé API', key), ui.field('Clé secrète', secret), passField, h('div', { class: 'row' }, submit));
+  /** Onglets des deux pages de réglages (navigation, pas d'état) : Stratégie / Utilisateur. */
+  ui.settingsTabs = (active) => ui.segmented([{ value: 'strategy', label: 'Stratégie' }, { value: 'user', label: 'Utilisateur' }], active,
+    (v) => { if (v !== active) g.location.href = TIO.href('/app/settings/' + v); }, 'Réglages');
+  /** Enregistre les préférences (le PUT remplace le bloc complet : on renvoie les valeurs courantes + le changement). Thème : sombre seul. */
+  ui.savePrefs = (prefs, patch) => TIO.put('/api/user/preferences',
+    Object.assign({ displayMode: prefs.displayMode, alertsDisabled: prefs.alertsDisabled, maxOrderUsd: prefs.caps.maxOrderUsd, maxDayUsd: prefs.caps.maxDayUsd }, patch));
+  /** Pastille « i » à droite d'un titre : infobulle au survol (ou au focus/tap) ; `.set(lignes, alerte)` remplit le contenu. */
+  ui.info = () => {
+    const pop = h('span', { class: 'info-pop', role: 'tooltip' });
+    const el = h('span', { class: 'info', tabindex: '0', 'aria-label': 'Détails' }, 'i', pop);
+    el.set = (lines, warn) => {
+      TIO.clear(pop);
+      lines.filter(Boolean).forEach((l) => pop.appendChild(h('span', { style: { display: 'block' } }, l)));
+      el.classList.toggle('info--warn', !!warn);
+    };
+    return el;
+  };
+  /** Montant signé coloré (vert/rouge) avec flèche ; « — » sans valeur. */
+  ui.profit = (n, digits) => h('span', { class: 'num ' + TIO.sign(n) }, TIO.isNum(n) ? (n > 0 ? '▲ ' : n < 0 ? '▽ ' : '') + TIO.fmt.signedUsd(n, digits == null ? 0 : digits) : TIO.fmt.dash);
+  const num = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
+  /** Libellé, détail chiffré et couleur de l'état de la machine (nul si la passe du jour n'a pas été jouée). */
+  const F = TIO.fmt;
+  const ZONES = ['Extrême bas', 'Zone X2', 'Zone X1', 'Zone X0,5', "Pas d'achat", 'Extrême haut'];
+  TIO.stateText = function (st) {
+    if (!st) return null;
+    const px = (v) => (TIO.isNum(num(v)) ? F.price(num(v)) : F.dash);
+    const armed = TIO.isNum(num(st.armedDays)) && st.armedDays > 0 ? ' · armé depuis ' + F.days(st.armedDays) : '';
+    switch (st.kind) {
+      case 'MOON_ACTIVE': return { tone: 'accent', label: 'To the moon actif', detail: 'plus haut ' + px(st.referencePrice) + ' · stop à ' + px(st.triggerPrice) };
+      case 'SELL_TRAILING': return { tone: 'warn', label: 'Trailing-stop de vente actif', detail: 'plus haut ' + px(st.referencePrice) + ' · stop à ' + px(st.triggerPrice) + armed };
+      case 'COOLDOWN': return { tone: 'accent', label: 'Cooldown', detail: 'reprise dans ' + F.days(st.cooldownDays) + (st.buyLocked ? ' · puis attente sous Down2 (' + px(st.down2) + ')' : '') };
+      case 'LOCKED_UNTIL_DOWN2': return { tone: 'warn', label: 'Vendu · attente sous Down2', detail: 'clôture ' + px(st.close) + ' · Down2 ' + px(st.down2) };
+      case 'BUY_TRAILING': return { tone: 'info', label: "Attente trailing-stop d'achat", detail: 'plus bas ' + px(st.referencePrice) + ' · déclenche à ' + px(st.triggerPrice) + armed };
+      default: return { tone: 'muted', label: 'En surveillance', detail: (ZONES[st.zone] || 'Zone inconnue') + ' · clôture ' + px(st.close) };
+    }
   };
   ui.pnlNote = () => h('div', { class: 'note' }, 'hors dépôts/retraits');
 })(window);

@@ -95,7 +95,7 @@ public class OrderExecutor {
         }
     }
 
-    private record AssetView(String symbol, Long walletId, BigDecimal costPct) {
+    private record AssetView(String symbol, Long walletId, BigDecimal costPct, boolean simulated) {
         /** Clé de blocage et de journal : un même actif peut être exécuté sur plusieurs wallets. */
         String key() {
             return keyOf(symbol, walletId);
@@ -260,7 +260,7 @@ public class OrderExecutor {
         for (AssetView asset : plan.assets()) {
             List<StepView> assetSteps = plan.steps().stream().filter(asset::owns)
                     .sorted(Comparator.comparingInt(StepView::rank)).toList();
-            if (assetSteps.isEmpty()) {
+            if (assetSteps.isEmpty() || asset.simulated()) { // une simulation n'envoie jamais rien
                 continue;
             }
             if (!liveAllowed()) {
@@ -772,7 +772,7 @@ public class OrderExecutor {
     private PlanView loadPlan(Long planId) {
         PlanView view = tx.execute(status -> plans.findById(planId).map(plan -> new PlanView(plan.getId(), plan.getUser(), plan.getDay(),
                 plan.getExpiresAt(), plan.getStatus(),
-                plan.getAssets().stream().map(a -> new AssetView(a.getAssetSymbol(), a.getWalletId(), a.getCostPct())).toList(),
+                plan.getAssets().stream().map(a -> new AssetView(a.getAssetSymbol(), a.getWalletId(), a.getCostPct(), a.isSimulated())).toList(),
                 plan.getSteps().stream().map(s -> new StepView(s.getId(), s.getRank(), s.getAssetSymbol(), s.getWalletId(), s.getInstId(), s.getSide(),
                         s.getSz(), s.getPx(), s.getQuoteAmount(), s.getClOrdId(), s.getFeePct(),
                         s.getFeePct().add(s.getSpreadPct()).add(s.getSlippagePct()), s.getStatus(), s.getSentSz(),

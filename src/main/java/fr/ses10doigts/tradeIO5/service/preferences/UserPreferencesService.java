@@ -7,6 +7,7 @@ import fr.ses10doigts.tradeIO5.model.entity.user.UserTradingSettings;
 import fr.ses10doigts.tradeIO5.model.enumerate.AlertType;
 import fr.ses10doigts.tradeIO5.repository.UserTradingSettingsRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
+import fr.ses10doigts.tradeIO5.service.UserModulationService;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService.ModulationSettings;
 import fr.ses10doigts.tradeIO5.service.market.instrument.ExecutionDefaults;
@@ -34,7 +35,7 @@ public class UserPreferencesService {
     static final double WARN_RATIO = 0.8;
 
     private final UserTradingSettingsRepository repository;
-    private final UserTradingSettingsService tradingSettings;
+    private final UserModulationService modulation;
 
     /** Plafonds personnels en vigueur (valeurs nulles = pas de plafond personnel). */
     public record UserCaps(BigDecimal maxOrderUsd, BigDecimal maxDayUsd) {
@@ -77,16 +78,8 @@ public class UserPreferencesService {
      */
     @Transactional
     public ProfileResult applyProfile(User user, StartingProfile profile) {
-        if (profile == null) {
-            throw new IllegalArgumentException("Profil obligatoire (PRUDENT, BALANCED, DYNAMIC)");
-        }
-        ModulationSettings current = tradingSettings.getModulationSettings(user);
-        ModulationSettings saved = tradingSettings.setModulationSettings(user, profile.exposureMin(), profile.exposureMax(),
-                current.power(), current.bias());
-        UserTradingSettings s = settingsOf(user);
-        s.setStartingProfile(profile);
-        repository.save(s);
-        return new ProfileResult(profile, saved);
+        UserModulationService.Result result = modulation.applyProfile(user, profile);
+        return new ProfileResult(result.profile(), result.settings());
     }
 
     /** Plafonds personnels pour l'exécution ; jamais {@code null}. */

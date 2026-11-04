@@ -1,6 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.binding;
 
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.BindingExecutionMode;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveMode;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
@@ -59,9 +60,14 @@ public class RainbowLiveBindingService {
 
     /** Modification : l'actif est immuable ; {@code bagPercent} / {@code priority} nuls => inchangés. */
     public record UpdateRequest(Long presetId, Long walletId, Double bagPercent, Integer priority, Double baseAmount,
-                                boolean resetBaseAmount) {
+                                boolean resetBaseAmount, Double minBuyUsd, boolean resetMinBuy) {
+        public UpdateRequest(Long presetId, Long walletId, Double bagPercent, Integer priority, Double baseAmount,
+                             boolean resetBaseAmount) {
+            this(presetId, walletId, bagPercent, priority, baseAmount, resetBaseAmount, null, false);
+        }
+
         public UpdateRequest(Long presetId, Long walletId, Double bagPercent, Integer priority) {
-            this(presetId, walletId, bagPercent, priority, null, false);
+            this(presetId, walletId, bagPercent, priority, null, false, null, false);
         }
     }
 
@@ -103,7 +109,8 @@ public class RainbowLiveBindingService {
         toSave.setPreferredRoute(optionalRoute(req.preferredRoute(), req.assetSymbol()));
         if (archived != null) { // réactivation : repart d'un lien neuf (exécution coupée, 1er ordre à re-valider)
             toSave.setArchivedAt(null);
-            toSave.setExecutionEnabled(false);
+            toSave.applyExecutionMode(BindingExecutionMode.DISABLED);
+            toSave.setMinBuyUsd(null);
             toSave.setFirstLiveApprovedAt(null);
             toSave.setFirstLiveConfirmedAt(null);
         }
@@ -147,6 +154,11 @@ public class RainbowLiveBindingService {
         } else if (req.baseAmount() != null) {
             binding.setBaseAmount(optionalBaseAmount(req.baseAmount()));
         }
+        if (req.resetMinBuy()) {
+            binding.setMinBuyUsd(null);
+        } else if (req.minBuyUsd() != null) {
+            binding.setMinBuyUsd(optionalMinBuy(req.minBuyUsd()));
+        }
         RainbowLiveBinding saved = bindingRepository.save(binding);
         log.info("Binding modifié id={} user={} actif={} preset={} wallet={} bag={}% priorité={}",
                 saved.getId(), user.getId(), saved.getAssetSymbol(), saved.getPreset().getId(),
@@ -161,13 +173,26 @@ public class RainbowLiveBindingService {
      */
     @Transactional
     public RainbowLiveBinding setExecution(User user, Long id, boolean enabled) {
+        return setExecutionMode(user, id, enabled ? BindingExecutionMode.ACTIVE : BindingExecutionMode.DISABLED);
+    }
+
+    /**
+     * Mode d'exécution du lien (propriétaire) : {@code DISABLED}, {@code SIMULATION} (chaîne jouée et taguée, jamais d'ordre) ou
+     * {@code ACTIVE} (mêmes règles que {@link #setExecution} : armement automatique du 1ᵉʳ ordre réel).
+     */
+    @Transactional
+    public RainbowLiveBinding setExecutionMode(User user, Long id, BindingExecutionMode mode) {
+        if (mode == null) {
+            throw new IllegalArgumentException("Mode d'exécution obligatoire (DISABLED, SIMULATION, ACTIVE)");
+        }
         RainbowLiveBinding binding = owned(user, id);
-        binding.setExecutionEnabled(enabled);
+        boolean enabled = mode == BindingExecutionMode.ACTIVE;
+        binding.applyExecutionMode(mode);
         if (enabled && binding.getFirstLiveApprovedAt() == null) {
             binding.setFirstLiveApprovedAt(clock.now());
             log.info("Binding {} user={} : 1er ordre réel armé automatiquement à la 1re activation", id, user.getId());
         }
-        log.info("Binding {} user={} executionEnabled={}", id, user.getId(), enabled);
+        log.info("Binding {} user={} mode d'exécution={}", id, user.getId(), mode);
         return bindingRepository.save(binding);
     }
 
@@ -204,7 +229,7 @@ public class RainbowLiveBindingService {
     public void delete(User user, Long id) {
         RainbowLiveBinding binding = owned(user, id);
         binding.setArchivedAt(clock.now());
-        binding.setExecutionEnabled(false);
+        binding.applyExecutionMode(BindingExecutionMode.DISABLED);
         binding.setFirstLiveApprovedAt(null);
         binding.setFirstLiveConfirmedAt(null);
         bindingRepository.save(binding);
@@ -310,6 +335,13 @@ public class RainbowLiveBindingService {
             throw new IllegalArgumentException("baseAmount doit être > 0 : " + baseAmount);
         }
         return baseAmount;
+    }
+
+    private static Double optionalMinBuy(Double minBuyUsd) {
+        if (minBuyUsd != null && (Double.isNaN(minBuyUsd) || Double.isInfinite(minBuyUsd) || minBuyUsd <= 0)) {
+            throw new IllegalArgumentException("minBuyUsd doit être > 0 : " + minBuyUsd);
+        }
+        return minBuyUsd;
     }
 
     /** Route imposée : nulle/vide => aucune ; sinon nœuds {@code A>B[>C]} en majuscules, dernier nœud = l'actif du lien. */

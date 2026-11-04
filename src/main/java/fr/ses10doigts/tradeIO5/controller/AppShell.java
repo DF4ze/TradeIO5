@@ -4,12 +4,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.ui.Model;
 
 import fr.ses10doigts.tradeIO5.model.entity.user.DisplayMode;
-import fr.ses10doigts.tradeIO5.model.entity.user.UiTheme;
 import fr.ses10doigts.tradeIO5.service.preferences.UserPreferencesService.Preferences;
 
 /**
  * Attributs communs de la coquille de la charte (thème, mode d'affichage, identité, navigation) posés sur toute page qui l'utilise :
- * pages {@code /app/**}, {@code /admin} et {@code /info}. Préférences absentes ⇒ sombre et mode simple.
+ * pages {@code /app/**}, {@code /admin} et {@code /info}. Thème toujours sombre ; préférences absentes ⇒ mode simple.
  */
 final class AppShell {
 
@@ -23,7 +22,7 @@ final class AppShell {
         model.addAttribute("username", name);
         model.addAttribute("initial", name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase());
         model.addAttribute("admin", auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority())));
-        model.addAttribute("theme", prefs != null && prefs.theme() == UiTheme.LIGHT ? "light" : "dark");
+        model.addAttribute("theme", "dark"); // thème sombre seul : le clair n'est plus proposé (une préférence « clair » déjà enregistrée est ignorée)
         DisplayMode mode = prefs == null || prefs.displayMode() == null ? DisplayMode.SIMPLE : prefs.displayMode();
         model.addAttribute("displayMode", mode.name().toLowerCase());
     }

@@ -61,12 +61,71 @@
 .tio-admin .list-group-item { padding: 10px 14px; border-top: 1px solid var(--line); background: var(--surface); }
 .tio-admin .list-group-item:first-child { border-top: 0; }
 
-/* onglets */
-.tio-admin .nav-tabs { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 4px; margin: 0; width: max-content; max-width: 100%; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); }
-.tio-admin .nav-tabs .nav-link { border: 0; background: transparent; color: var(--muted); padding: 7px 16px; border-radius: 999px; font-weight: 700; font-size: 13px; cursor: pointer; }
-.tio-admin .nav-tabs .nav-link.active { background: var(--brand); color: var(--on-accent); }
-.tio-admin .tab-pane { display: none; }
-.tio-admin .tab-pane.active { display: block; }
-.tio-admin .tab-pane > * + * { margin-top: 12px; }
+/* ---------- relookage Admin (graphique seul) ---------- */
 .tio-admin #admin-root { display: flex; flex-direction: column; gap: var(--gap); }
-.tio-admin .adm-panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: var(--pad); box-shadow: var(--shadow); }
+.tio-admin .tio-head h1 { display: flex; align-items: center; gap: 10px; }
+.tio-admin .tio-head h1::before { content: ""; width: 8px; height: 22px; border-radius: 4px; background: var(--spectrum); }
+
+/* bandeau d'état : une tuile par information */
+.tio-admin #adm-banner { position: relative; display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; padding: 14px var(--pad); border-radius: var(--r); box-shadow: var(--shadow); }
+.tio-admin #adm-banner::before { content: ""; position: absolute; top: 0; left: 26px; right: 26px; height: 2px; background: var(--spectrum); opacity: .5; border-radius: 2px; }
+.tio-admin #adm-banner > span:not(.text-muted) { display: flex; flex-direction: column; gap: 2px; min-width: 110px; padding: 8px 14px; border-radius: 18px; background: var(--bg); font-size: 11px; font-weight: 600; color: var(--muted); }
+.tio-admin #adm-banner > span strong { font-size: 15px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums lining-nums; }
+.tio-admin #adm-banner strong.text-danger { color: var(--down); } .tio-admin #adm-banner strong.text-success { color: var(--up); }
+.tio-admin #adm-banner > button { align-self: center; }
+.tio-admin #adm-banner > .text-muted { flex: 1 1 100%; font-size: 11px; }
+.tio-admin #adm-banner.alert-warning { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); background: color-mix(in srgb, var(--warn) 7%, var(--surface)); }
+.tio-admin #adm-alert { border-radius: 18px; }
+
+/* onglets : pilule défilante, indicateur dégradé */
+.tio-admin .nav-tabs { display: flex; flex-wrap: nowrap; gap: 4px; list-style: none; padding: 4px; margin: 0; width: max-content; max-width: 100%; overflow-x: auto; scrollbar-width: none; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.tio-admin .nav-tabs::-webkit-scrollbar { display: none; }
+.tio-admin .nav-tabs .nav-link { border: 0; background: transparent; color: var(--muted); padding: 8px 18px; border-radius: 999px; font: inherit; font-weight: 700; font-size: 13px; white-space: nowrap; cursor: pointer; transition: color .15s, background .15s; }
+.tio-admin .nav-tabs .nav-link:hover { color: var(--text); }
+.tio-admin .nav-tabs .nav-link.active { background: var(--brand); color: var(--on-accent); }
+
+/* panneau = carte de la charte */
+.tio-admin .tab-content { padding-top: 0; }
+.tio-admin .tab-pane { display: none; }
+.tio-admin .tab-pane.active { position: relative; display: flex; flex-direction: column; gap: 12px; padding: var(--pad); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); min-width: 0; }
+.tio-admin .tab-pane.active::before { content: ""; position: absolute; top: 0; left: 26px; right: 26px; height: 2px; background: var(--spectrum); opacity: .5; border-radius: 2px; }
+.tio-admin .tab-pane > * + * { margin-top: 0; }
+.tio-admin .tab-pane > h5 { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; margin: 0; }
+.tio-admin .tab-pane > h5::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+.tio-admin h6 { font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 0 6px; }
+.tio-admin .tab-pane > p { margin: 0; line-height: 1.5; max-width: 90ch; }
+
+/* sous-blocs (ex. route à deux jambes, dernier résultat) = sous-tuiles */
+.tio-admin .tab-pane .border:not(.border-danger) { border: 1px solid var(--line); background: var(--bg); border-radius: 18px; padding: 14px; }
+.tio-admin .tab-pane .border-danger { border-radius: 18px; padding: 14px; background: color-mix(in srgb, var(--down) 6%, var(--bg)); }
+.tio-admin pre { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* tableaux */
+.tio-admin .table-responsive { border: 1px solid var(--line); border-radius: 18px; background: var(--bg); }
+.tio-admin .table th { white-space: nowrap; border-bottom: 1px solid var(--line); }
+.tio-admin .table td { border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); font-variant-numeric: tabular-nums; }
+.tio-admin .table tbody tr:first-child td { border-top: 0; }
+.tio-admin .table tbody tr:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+
+/* champs */
+.tio-admin .form-control:focus, .tio-admin .form-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.tio-admin .form-control::placeholder { color: color-mix(in srgb, var(--muted) 70%, transparent); }
+.tio-admin .form-control-sm, .tio-admin .form-select-sm { border-radius: 12px; }
+.tio-admin form.row { align-items: flex-start; }
+
+/* boutons */
+.tio-admin .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-weight: 700; font-size: 13px; cursor: pointer; transition: border-color .15s, filter .15s; }
+.tio-admin .btn:hover:not(:disabled) { border-color: var(--accent); filter: brightness(1.06); }
+.tio-admin .btn:disabled { opacity: .5; cursor: not-allowed; }
+.tio-admin .btn-primary:hover:not(:disabled), .tio-admin .btn-success:hover:not(:disabled), .tio-admin .btn-warning:hover:not(:disabled), .tio-admin .btn-danger:hover:not(:disabled) { border-color: transparent; }
+
+/* console : étapes numérotées */
+.tio-admin .list-group-numbered { display: flex; flex-direction: column; gap: 8px; border: 0; border-radius: 0; overflow: visible; counter-reset: lg; }
+.tio-admin .list-group-numbered > .list-group-item { position: relative; padding: 12px 14px 12px 52px; border: 1px solid var(--line); border-radius: 18px; background: var(--bg); }
+.tio-admin .list-group-numbered > .list-group-item::before { content: counter(lg); counter-increment: lg; position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: var(--brand); color: var(--on-accent); font-size: 12px; font-weight: 800; }
+.tio-admin .list-group-numbered > .list-group-item > div { min-height: 30px; }
+
+/* coches / interrupteurs */
+.tio-admin .form-switch .form-check-input { appearance: auto; }
+.tio-admin hr { border: 0; border-top: 1px solid var(--line); }
+@media (max-width: 767px) { .tio-admin .tab-pane.active { padding: 16px; } .tio-admin #adm-banner > span:not(.text-muted) { flex: 1 1 calc(50% - 10px); } }

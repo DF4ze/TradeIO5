@@ -26,7 +26,7 @@
       TIO.safe(TIO.get('/api/rainbow-live/live-wallet'), []),
       TIO.safe(TIO.get('/api/rainbow-live/bindings/' + b.id + '/transactions'), null),
     ]);
-    return { b, perf: perf.find((p) => p.assetSymbol === sym) || null, decisions, plans, live: live.find((l) => l.assetSymbol === sym) || null, trades };
+    return { b, perf: (() => { const agg = perf.find((p) => p.assetSymbol === sym) || null; const part = agg && (agg.parts || []).find((x) => x.walletId === b.walletId); return part ? { ...agg, quantity: part.quantity, avgBuyPrice: part.avgBuyPrice, pnl: part.pnl, pnlPct: part.pnlPct, realizedPnl: part.realizedPnl, realizedPct: part.realizedPct, totalPnl: part.totalPnl, fees: part.fees, sells: part.sells, incomplete: part.incomplete } : agg; })(), decisions, plans, live: live.find((l) => l.assetSymbol === sym) || null, trades };
   }
 
   function render(sym, data) {
@@ -40,21 +40,22 @@
     const headCard = ui.card(null, h('div', { class: 'row' }, ui.coin(sym), h('div', { class: 'grow' }, h('div', { class: 'num value-lg' }, sym), h('div', { class: 'muted small' }, b.walletName + (b.exchange ? ' · ' + b.exchange : ''))),
       ui.statusChip(b.tradability, null)),
       h('div', { class: 'stats' }, ui.stat('Cours', F.price(perf && perf.price)), ui.stat('Position', F.qty(perf && perf.quantity)), ui.stat('Valeur', F.usd(perf && perf.value, 0)),
-        ui.stat('PnL', h('span', { class: TIO.sign(perf && perf.pnl) }, perf ? F.signedUsd(perf.pnl, 0) + ' (' + F.signedPct(perf.pnlPct) + ')' : F.dash)), ui.stat('Prix moyen', F.price(perf && perf.avgBuyPrice))),
+        ui.stat('Latent', h('span', null, ui.profit(perf && perf.pnl), perf && TIO.isNum(perf.pnlPct) ? ' (' + F.signedPct(perf.pnlPct) + ')' : '')), ui.stat('Réalisé', ui.profit(perf && perf.realizedPnl)), ui.stat('Total', ui.profit(perf && perf.totalPnl)), ui.stat('Prix moyen', F.price(perf && perf.avgBuyPrice))),
       TIO.charts.priceVsAvg(perf && perf.price, perf && perf.avgBuyPrice), ui.cardOpts({ hero: true, span: true }));
 
     // --- graphique ---
+    const simTrades = plans.flatMap((p) => (p.assets || []).filter((a) => a.simulated && a.assetSymbol === sym && a.walletId === b.walletId && a.outcome === 'OK' && (a.action === 'BUY' || a.action === 'SELL')).map((a) => ({ day: p.day, side: a.action })));
     const chartBox = h('div', { id: 'asset-chart', tabindex: '0', 'aria-label': 'Graphique du cours ' + sym });
     const status = h('div', { class: 'row small muted' });
     const refreshBands = async () => {
       TIO.mount(status, 'Chargement…');
       try {
         const bands = await TIO.get('/api/rainbow-live/bindings/' + b.id + '/bands' + TIO.qs({ period: state.period, simulated: state.simulated ? 'true' : null }));
-        if (state.chart) state.chart.update(bands, trades, perf && perf.avgBuyPrice);
+        if (state.chart) state.chart.update(bands, trades, perf && perf.avgBuyPrice, simTrades);
         TIO.mount(table, h('div', { class: 'scroll-x' }, h('table', { class: 'tbl' }, h('thead', null, h('tr', null, ['Jour', 'Cours', 'Moyenne', 'Zone'].map((t) => h('th', null, t)))),
           h('tbody', null, (bands.points || []).slice(-30).reverse().map((p) => h('tr', null, h('td', null, F.dayLong(p.day)), h('td', null, F.price(p.close)), h('td', null, F.price(p.sma)), h('td', null, TIO.isNum(p.zone) ? String(p.zone) : F.dash)))))));
         TIO.mount(status, bands.points && bands.points.length ? [ui.chip(state.simulated ? 'Bandes simulées (recalculées, non figées)' : 'Bandes figées (calculées à chaque passe)', state.simulated ? 'warn' : 'plain'),
-          h('span', null, '▲ achat · ▽ vente · ┆ prix moyen · Shift-clic ×2 : mesurer')] : 'Aucune donnée de bandes sur cette période.');
+          h('span', null, '▲ achat · ▽ vente · ┆ prix moyen · Shift-clic ×2 : mesurer'), simTrades.length ? ui.chip('S = action simulée (rien envoyé)', 'sim') : null] : 'Aucune donnée de bandes sur cette période.');
       } catch (e) { TIO.mount(status, ui.error(e, refreshBands)); }
     };
     const sim = ui.switchEl({ label: 'Afficher les bandes simulées', checked: false, onChange: (on) => { state.simulated = on; refreshBands(); } });

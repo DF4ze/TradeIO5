@@ -35,7 +35,7 @@ Tout est scopé à l'utilisateur connecté (JWT cookie) ; ressource d'un autre u
 | Étaler le cash sur N jours/mois | `GET /api/rainbow-live/onboarding/proposals?walletId=&days=` | `days` ∈ bornes admin (7–365, défaut `autonomyDays` = 90) ; lecture seule |
 | Appliquer les montants proposés | `PUT /bindings/{id}` `{baseAmount}` | déclenchement **manuel** (rien ne se lie tout seul) |
 
-[GUI] carte « Démarrage » (explication repliable, wallet, « Lier mes actifs », « Montants proposés » avec colonnes autonomie « proposée » / « actuelle », « Appliquer »). Parcours en 4 étapes (exchange, actif, profil, montant) = [Prévu]. Le **profil** Prudent / Équilibré / Dynamique n'existe pas en back (bande proposée = neutre) : **[À implémenter]**.
+[GUI] page **Ajouter un actif** (`/app/onboarding`) : actif → comparateur de frais de tous les exchanges (`GET /onboarding/path-quotes`) → montant de base par jour ; pas de choix de profil (le profil déjà paramétré s'applique, réglable dans Réglages). Page **Exchanges** (`/app/exchanges`) : clés lecture / écriture par exchange (`GET /api/exchanges`, tests et suppressions : cf. [`../api/rest-endpoints.md`](../api/rest-endpoints.md)). Les actions ci-dessus (lier, proposer des montants) restent des endpoints sans écran dédié.
 
 ### 1.3 Liens (bindings) = « mes actifs »
 
@@ -46,9 +46,10 @@ Unique par (user, actif, wallet). `GET /api/rainbow-live/bindings`, `POST` (cré
 | Preset alimentant le lien | `presetId` | doit être du même actif et du user ; changer = « bascule » (événement `LIVE_SWITCH`) ; propositions : `GET /bindings/candidates?walletId=&asset=` → `[{id, name, mode, origin SYSTEM\|CUSTOM, alreadyLinkedBindingId?}]` |
 | Wallet | `walletId` | du user ; clé unique (actif, wallet) ⇒ 409 si déjà lié |
 | Montant de base du lien | `baseAmount` (> 0, fini) ; `resetBaseAmount=true` | vide = montant du preset ; ne met à l'échelle que les **achats** ; modifier le montant remet le **carry à zéro** (le dire à l'utilisateur) |
+| Achat minimum | `PUT /{id}` `minBuyUsd` (`resetMinBuy` pour retirer) | sous ce montant l'achat est reporté en carry |
 | Part de la position offerte | `bagPercent` 0–100 (défaut 100) | dynamique : % de la position réelle que la stratégie peut vendre |
 | Priorité de passage du cash | `priority` | défaut = rang d'actif (BTC 0, ETH 1, PAXG 2) ; ordre de consommation du cash commun |
-| Interrupteur d'exécution | `PUT /{id}/execution` `{enabled}` | défaut **éteint** ; n'envoie rien en soi ; la 1ʳᵉ activation arme automatiquement le 1ᵉʳ ordre réel. L'écran affiche d'abord exchange, chemin d'achat et Fee Test, puis une seule validation (activation + confirmation) |
+| Mode d'exécution | `PUT /{id}/execution` `{mode DISABLED\|SIMULATION\|ACTIVE}` | défaut **Désactivé** ; Simulation = chaîne complète jouée sans ordre (tag « Simulation » Journal / Actifs gérés) ; Actif n'envoie rien en soi ; la 1ʳᵉ activation arme automatiquement le 1ᵉʳ ordre réel. L'écran affiche d'abord exchange, chemin d'achat et Fee Test, puis une seule validation (activation + confirmation) |
 | Confirmer le 1ᵉʳ ordre réel | `POST /{id}/confirm-first-live` | possible dès que l'exécution du lien est activée (sinon 409) ; enchaînée par l'écran avec l'activation |
 | Vérifier la disponibilité | `GET /{id}/check` | appelle l'exchange (lecture seule), persiste le statut |
 | Comparer les routes d'achat | `GET /{id}/path-quote?amount=` | lecture seule, `amount` > 0 USD |
@@ -83,7 +84,7 @@ Validations clés : fenêtres ≥ 2, `0 ≤ exit ≤ enter`, `confirm ≥ 1`, `b
 
 ### 1.5 Modulation (curseurs)
 
-`GET/PUT /api/user/modulation-settings` — corps complet obligatoire `{exposureMin, exposureMax, power, bias}`. Neutre = 0 / 100 / 1 / 0. Pris en compte à la **passe suivante** (valeurs clampées aux bornes admin à ce moment-là).
+`GET/PUT /api/user/modulation-settings` — corps complet obligatoire `{exposureMin, exposureMax, power, bias}` (+ `regulationMarginPct`) ; réponse `{settings, limits, profile}` : une modification réelle bascule le profil sur `CUSTOM`. `GET /api/user/modulation-settings/history` ⇒ `[{at, source PROFILE|MANUAL, profileBefore, profileAfter, before, after}]` (50 derniers). Neutre = 0 / 100 / 1 / 0. Pris en compte à la **passe suivante** (valeurs clampées aux bornes admin à ce moment-là).
 
 | Curseur | Contrainte (limites admin lues dans `limits`) |
 |---|---|
@@ -123,7 +124,7 @@ Données du signal calculées en base mais **non exposées** par l'API (bloc `Ra
 
 ### 2.3 Liens — `BindingDto`
 
-`id, assetSymbol, presetId, presetName, walletId, walletName, exchange, bagPercent, priority, baseAmount?, tradability?, quoteMember?, routeKey?, executionEnabled, firstLiveArmed, firstLiveConfirmed`.
+`id, assetSymbol, presetId, presetName, walletId, walletName, exchange, bagPercent, priority, baseAmount?, tradability?, quoteMember?, routeKey?, minBuyUsd?, executionEnabled, executionMode, firstLiveArmed, firstLiveConfirmed`.
 `tradability` = dernier `BindingCheck` : `OK, TRADABLE_VIA_INTERMEDIARY, NOT_TRADABLE_WITHOUT_FIAT, WALLET_DISABLED, CREDENTIAL_INVALID, PROVIDER_UNSUPPORTED, BALANCE_UNAVAILABLE, INSTRUMENT_UNAVAILABLE` (+ `message`, `ok`, `executable`, `blocked`). `TRADABLE_VIA_INTERMEDIARY` = route à deux jambes (ex. USDC → BTC → PAXG) : bandeau d'information.
 État du 1ᵉʳ ordre réel : à confirmer (exécution activée) → validé.
 
@@ -154,7 +155,7 @@ Exposition affichée dans la jauge = `exposureAfter` (sinon `exposureBefore`) du
 
 `PlanDto` : `id, day, revision, status, mode, totalCostPct, feeTestLevel, blockReason?, createdAt, expiresAt (5 min)`, + par actif `assets[{assetSymbol, action, outcome OK|BLOCKED|DISABLED|NO_ACTION, blockReason?, costPct, feeTestLevel, warning?, walletId, carryInUsd, carryOutUsd, steps[{rank, instId, side, ordType, sz, px, quoteAmount, clOrdId, feePct, spreadPct, slippagePct, estimation BOOK|TICKER}]}]`.
 `/latest` ajoute après exécution : `executionBlockReason?` (`ACTIF:RAISON;…`), `executionStartedAt?`, `executionFinishedAt?`, et par étape `status, filledSz?, avgFillPx?, feeAmount?, feeCurrency?, receivedAmount?, receivedCurrency?, realSlippagePct?, lastError?`.
-Statuts de plan : `PLANNED, BLOCKED, EXPIRED, DISABLED, EXECUTING, EXECUTED, PARTIAL, FAILED, CANCELLED` ; d'étape : `PLANNED, SUBMITTED, FILLED, PARTIAL, REJECTED, CANCELED, UNKNOWN`. Raisons de blocage de plan : `NO_PATH, BELOW_MIN, INSUFFICIENT_FUNDS_AFTER_FEES, NOT_TRADABLE_WITHOUT_FIAT, READING_UNAVAILABLE`. Raisons d'exécution : `COST_RED, COST_DRIFT, BELOW_MIN, REQUOTE_UNAVAILABLE, NO_BASE_AMOUNT, MODE_NOT_LIVE, KILL_SWITCH, PORT_UNAVAILABLE`…
+Chaque actif d'un plan porte `simulated` (lien en simulation : planifié, jamais exécuté). Statuts de plan : `PLANNED, BLOCKED, EXPIRED, DISABLED, EXECUTING, EXECUTED, PARTIAL, FAILED, CANCELLED` ; d'étape : `PLANNED, SUBMITTED, FILLED, PARTIAL, REJECTED, CANCELED, UNKNOWN`. Raisons de blocage de plan : `NO_PATH, BELOW_MIN, INSUFFICIENT_FUNDS_AFTER_FEES, NOT_TRADABLE_WITHOUT_FIAT, READING_UNAVAILABLE`. Raisons d'exécution : `COST_RED, COST_DRIFT, BELOW_MIN, REQUOTE_UNAVAILABLE, NO_BASE_AMOUNT, MODE_NOT_LIVE, KILL_SWITCH, PORT_UNAVAILABLE`…
 Fee Test (coût total, somme brute des jambes) : `GREEN` < 0,2 % ≤ `WARNING` ≤ 0,8 % < `RED` (en %, jamais en bps). Mention « non envoyé » en DRY_RUN. Carry : `carryInUsd` / `carryOutUsd` par actif (badge « Reporté » + somme).
 
 Audit : `GET /execution-plans/{id}/events?page=&size=` (≤ 100) → `{page, size, totalElements, items[{id, stepId?, clOrdId?, type, payload, createdAt}]}` ; types `PLAN_STARTED, STEP_REQUOTED, STEP_SUBMITTING, STEP_ACK, STEP_RESULT, STEP_UNKNOWN, STEP_RECONCILED, STEP_SKIPPED, PARTIAL_REMAINDER, BLOCKED, ALERT, PLAN_RESULT` (alerte `TRANSIT_STOCK`).
@@ -210,7 +211,7 @@ Infos : bandeau permanent (`/api/admin/execution/state` : mode, LIVE déverrouil
 | Autonomie courante | `autonomyDays` de `/api/portfolio/summary` ; à la demande : `proposals` (onboarding) | [OK] |
 | Décisions du jour | `live-wallet` (action par lien), `lastRun` | [OK] |
 | Carte actif : statut, position, dernière décision | `BindingDto`, `snapshot`, `lastRun` | [OK] |
-| Carte actif : valeur, PnL | `/api/portfolio/assets` | [OK] |
+| Carte actif : valeur, latent, réalisé, total | `/api/portfolio/assets` | [OK] |
 | Graphique : achats/ventes réels, prix moyen d'achat | `/api/rainbow-live/bindings/{id}/transactions` | [OK] (prix : candles en base, endpoint de série à prévoir avec les bandes, §6 #7) |
 | Graphique : bandes Rainbow historiques (figées / simulées `simulate`) | blocs de signal des runs, non exposés | **[À implémenter]** (§2.2) |
 | Frise Signal → Modulation → Plafonds → Plan → Exécution → Résultat | `lastRun`, `modulation`, `plan.steps`, `events` | [OK] (données réparties sur 4 endpoints) |
@@ -219,14 +220,13 @@ Infos : bandeau permanent (`/api/admin/execution/state` : mode, LIVE déverrouil
 | Journal : filtres (alertes seulement, masquer « Rien à faire », actif, provider, état, période) | — | [OK] (côté navigateur, sur la période chargée) |
 | Réglages : mode, bande/puissance/biais | §1.1, §1.5 | [OK] |
 | Réglages : clés lecture, plafonds utilisateur, alertes | — | **[À implémenter]** |
-| Onboarding : profil Prudent/Équilibré/Dynamique | — | **[À implémenter]** |
 | Modes Simple / Avancé / Expert | préférence `displayMode` | [OK] — contenu : [`../architecture/11-front-app.md`](../architecture/11-front-app.md) |
 
 ### Répartition cible par mode (étude, à valider)
 
 | Mode | Contenu |
 |---|---|
-| Simple | décisions, PnL, montant de base, interrupteur d'exécution |
+| Simple | décisions, PnL, montant de base, mode d'exécution |
 | Avancé | + bande d'exposition, puissance, biais, plafonds, part de la position offerte |
 | Expert | + paramètres de la stratégie, presets, modulation détaillée (seul mode fonctionnel) |
 
@@ -245,12 +245,12 @@ Pastille de statut unique (OK / ATTENTION / BLOQUÉ / INCONNU, pointillé si don
 - Historisation : les instantanés démarrent au premier jour de passe après déploiement, sans reconstruction rétroactive ; avant, l'affichage est « — ».
 - Répartition affichée = répartition **réelle** (aucune dépendance à l'étude de répartition cible).
 - Hors périmètre : alertes e-mail/notification, i18n (français seul), PWA. `/user` est retiré à parité fonctionnelle.
-- **PnL V1** = valeur actuelle − investi net (achats − ventes) ; les dépôts/retraits du wallet ne sont pas suivis. Chaque widget qui en dépend (Patrimoine, PnL) porte une mention visible « hors dépôts/retraits ». Cible : prendre les flux en compte, mention retirée alors.
+- **Profits** : *réalisé* (gains des ventes, net de frais, contre le prix moyen d'achat — PRU, calculé par wallet × actif en rejouant les trades), *latent* (quantité détenue × (cours − PRU)), *total* = réalisé cumulé + latent. Accueil : carte « Profits » (réalisé sur la période choisie, latent, total depuis le début). Actifs gérés / fiche d'un lien : latent, réalisé, total du provider du lien. Carte « Frais » : frais cumulés, en % du capital investi, du volume échangé et des gains bruts (total + frais), répartis par provider et par actif. La courbe de patrimoine garde sa variation de valeur « hors dépôts/retraits » (libellée « variation du patrimoine »).
 - Mode démo : jeu de données fictif séparé ; ne touche ni au kill switch ni à l'exécution (en prod le kill switch est engagé).
 
 ### Disponible
 
-Endpoints `GET /api/portfolio/summary` (patrimoine, PnL de période hors dépôts/retraits, autonomie courante agrégée), `GET /api/portfolio/assets` (valeur, investi net, PnL, prix moyen par actif), `GET /api/rainbow-live/bindings/{id}/transactions` (achats/ventes réels et prix moyen), `GET /api/rainbow-live/next-pass` (prochaine passe), `GET /api/rainbow-live/bindings/{id}/bands` (bandes Rainbow figées) : cf. [`../api/rest-endpoints.md`](../api/rest-endpoints.md).
+Endpoints `GET /api/portfolio/summary` (patrimoine, PnL de période hors dépôts/retraits, autonomie courante agrégée), `GET /api/portfolio/assets` (valeur, réalisé, latent par actif), `GET /api/portfolio/pnl` (profits réalisés/latents par période), `GET /api/rainbow-live/bindings/{id}/transactions` (achats/ventes réels et prix moyen), `GET /api/rainbow-live/next-pass` (prochaine passe), `GET /api/rainbow-live/bindings/{id}/bands` (bandes Rainbow figées) : cf. [`../api/rest-endpoints.md`](../api/rest-endpoints.md).
 
 Instantané quotidien immuable du patrimoine par (user, wallet, jour UTC) : stable, actifs, patrimoine, exposition, bande en vigueur, une ligne par actif — cf. [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md). Démarre au premier jour de passe après déploiement ; avant : « — ».
 
@@ -262,4 +262,4 @@ Instantané quotidien immuable du patrimoine par (user, wallet, jour UTC) : stab
 
 Sans back à créer : Exposition (jauge), Décisions du jour, Puissance, Biais, Zone libre (dérivée de la bande et de l'exposition), Reporté (`carryIn/Out` des plans).
 
-Écrans construits (`/app/**`, [`11-front-app.md`](../architecture/11-front-app.md)) : Accueil, Actifs gérés, fiche actif, Journal, Réglages, onboarding en 4 étapes, modes Simple / Avancé / Expert. Restent à construire : Données, Santé, Stratégies (cf. [`known-gaps/front-gaps.md`](../known-gaps/front-gaps.md)).
+Écrans construits (`/app/**`, [`11-front-app.md`](../architecture/11-front-app.md)) : Accueil, Actifs gérés, fiche actif, Journal, Réglages, Ajouter un actif (comparateur de frais), Exchanges (clés lecture/écriture), modes Simple / Avancé / Expert. Restent à construire : Données, Santé, Stratégies (cf. [`known-gaps/front-gaps.md`](../known-gaps/front-gaps.md)).

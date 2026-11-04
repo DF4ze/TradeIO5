@@ -121,6 +121,6 @@ public class OrderPlanQueryService {
                         s.getReceivedCurrency(), s.getRealSlippagePct(), s.getLastError()))
                 .toList();
         return new AssetDto(a.getAssetSymbol(), a.getAction(), a.getOutcome(), a.getBlockReason(), a.getCostPct(),
-                a.getFeeTestLevel(), a.getWarning(), steps, a.getWalletId(), a.getCarryInUsd(), a.getCarryOutUsd());
+                a.getFeeTestLevel(), a.getWarning(), steps, a.getWalletId(), a.getCarryInUsd(), a.getCarryOutUsd(), a.isSimulated());
     }
 }

@@ -14,16 +14,26 @@ import java.util.Map;
  * (devise -> quantité, jambe 2 à terminer avant tout nouvel achat). {@code carryInUsd} : montants d'achat reportés (sous le minimum
  * du provider) à ajouter à la mise du jour ; {@code baseAmount} : base amount du preset au jour du plan (instantané).
  * {@code preferredRoute} : route d'achat imposée par l'utilisateur sur le lien (nulle = la moins chère).
- * {@code status} nul : aucun snapshot live pour la passe.
+ * {@code status} nul : aucun snapshot live pour la passe. {@code simulated} : lien en simulation (plan chiffré complet, tagué, jamais
+ * exécuté) ; {@code minBuyUsd} : achat minimum de l'utilisateur (nul = aucun), un achat (mise + carry) en dessous est reporté.
  */
 public record AssetInput(String assetSymbol, int priority, boolean executionEnabled, Long walletId, WebProviderCode provider,
                          ApiCredential credential, PortfolioStatus status, RainbowLiveAction action, BigDecimal amountUsd,
                          BigDecimal quantity, Map<String, BigDecimal> cashByMember,
                          Map<String, BigDecimal> transitStock, BigDecimal carryInUsd, BigDecimal baseAmount,
-                         String preferredRoute) {
+                         String preferredRoute, boolean simulated, BigDecimal minBuyUsd) {
 
     public AssetInput {
         carryInUsd = carryInUsd == null ? BigDecimal.ZERO : carryInUsd;
+    }
+
+    /** Sans simulation ni achat minimum. */
+    public AssetInput(String assetSymbol, int priority, boolean executionEnabled, Long walletId, WebProviderCode provider,
+                      ApiCredential credential, PortfolioStatus status, RainbowLiveAction action, BigDecimal amountUsd,
+                      BigDecimal quantity, Map<String, BigDecimal> cashByMember, Map<String, BigDecimal> transitStock,
+                      BigDecimal carryInUsd, BigDecimal baseAmount, String preferredRoute) {
+        this(assetSymbol, priority, executionEnabled, walletId, provider, credential, status, action, amountUsd, quantity,
+                cashByMember, transitStock, carryInUsd, baseAmount, preferredRoute, false, null);
     }
 
     /** Sans route imposée. */

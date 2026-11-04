@@ -133,6 +133,6 @@ public class AdminOrderTestService {
     private static boolean fundsRelated(ValidationReportDto report) {
         String text = ((report.exchangeCode() == null ? "" : report.exchangeCode()) + " "
                 + (report.message() == null ? "" : report.message())).toLowerCase();
-        return text.contains("insufficient") || text.contains("funds");
+        return text.contains("insufficient") || text.contains("funds") || text.contains("51008");
     }
 }

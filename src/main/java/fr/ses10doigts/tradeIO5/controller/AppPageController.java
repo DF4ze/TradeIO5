@@ -46,14 +46,30 @@ public class AppPageController {
         return page(model, "journal", "Journal");
     }
 
+    /** Ancienne adresse unique des réglages : renvoie vers les réglages stratégiques. */
     @GetMapping("/app/settings")
-    public String settings(Model model) {
-        return page(model, "settings", "Réglages");
+    public String settings() {
+        return "redirect:/app/settings/strategy";
+    }
+
+    @GetMapping("/app/settings/strategy")
+    public String settingsStrategy(Model model) {
+        return page(model, "settings-strategy", "Réglages stratégiques");
+    }
+
+    @GetMapping("/app/settings/user")
+    public String settingsUser(Model model) {
+        return page(model, "settings-user", "Réglages utilisateur");
     }
 
     @GetMapping("/app/onboarding")
     public String onboarding(Model model) {
-        return page(model, "onboarding", "Démarrage");
+        return page(model, "onboarding", "Ajouter un actif");
+    }
+
+    @GetMapping("/app/exchanges")
+    public String exchanges(Model model) {
+        return page(model, "exchanges", "Exchanges");
     }
 
     /** Catalogue des composants communs (page de démonstration, aucune donnée réelle). */

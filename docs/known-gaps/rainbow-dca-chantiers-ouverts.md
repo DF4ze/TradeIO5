@@ -54,6 +54,17 @@ Ordre voulu : d'abord boucler le fonctionnel du back, puis :
 - **Charte graphique** à définir. Besoins d'interface déjà collectés (réglage des `asset_provider` depuis la GUI, affichage de la source des candles d'un lien) : [`../graphique/remarques-gui.md`](../graphique/remarques-gui.md).
 - **Saisie des credentials d'exchange** : faite pour la clé **TRADE OKX** (page `/admin`, onglet Credentials, `POST /api/credentials/trade`, cf. [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md)). Saisie des clés **READ** : `POST /api/credentials/read` (chiffrées, wallet créé). Reste à faire : autres exchanges que OKX/Kraken, gestion fine des wallets (renommer, désactiver).
 
+## 5b-bis. Élargissement des exchanges disponibles (à faire)
+
+Aujourd'hui seuls OKX et Kraken (lecture + ordres) et Binance (lecture, données) sont gérés. Besoin (Clem, 2026-11-04) : élargir la liste des exchanges proposés aux utilisateurs.
+
+À couvrir :
+- **Connecteurs** : lecture des soldes (`ReadOnlyBalanceReader`), catalogue d'instruments, frais réels, carnet, historique des trades, port d'ordres (`service.execution.exchange`) par exchange ajouté.
+- **Candles** : source D1 native par exchange (cf. §8bis), `asset_provider`.
+- **Fee Test / chemin d'achat** : `PathFinder` et routes par exchange ; restrictions de compte (ex. EEA : paires USDT refusées).
+- **UI** : page de gestion des Exchanges (liste, clés Read/Write) pilotée par la liste des exchanges supportés, comparateur de frais.
+- **Étude préalable** : critères de choix des exchanges (API, paires USDC, frais, conformité UE), à cadrer avec Clem.
+
 ## 5c. Chemin d'achat via intermédiaire non stable (vérifié le 2026-10-12)
 
 - **Constat** : PAXG n'a aucune paire spot en USDC/USDT sur Kraken (USD, EUR, XBT, ETH) ; la route sans fiat est `USDC → BTC → PAXG` (ETH chiffré, affiché, jamais choisi). Sur OKX, le compte EEA de Clem reçoit `51155` sur les paires USDT, USDT est exclu : seuls BTC et ETH (en USDC) sont achetables.

@@ -19,6 +19,7 @@
     for (const [k, v] of Object.entries(attrs)) {
       if (v === null || v === undefined || v === false) continue;
       if (k === 'class') el.setAttribute('class', v);
+      else if (k === 'title') el.setAttribute('data-tip', String(v)); // jamais d'infobulle native : ui.js affiche [data-tip]
       else if (k === 'text') el.textContent = String(v);
       else if (k === 'style' && typeof v === 'object') for (const [p, val] of Object.entries(v)) el.style.setProperty(p, String(val));
       else if (k === 'dataset') for (const [p, val] of Object.entries(v)) el.dataset[p] = String(val);

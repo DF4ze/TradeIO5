@@ -59,7 +59,8 @@ public class RainbowLiveWalletQueryService {
                 wallet.getWebProviderCode() == null ? null : wallet.getWebProviderCode().name(),
                 b.getBagPercent(), b.getPriority(),
                 b.getTradability() == null ? null : b.getTradability().name(), tradabilityMessage(b),
-                b.isExecutionEnabled(), b.getFirstLiveApprovedAt() != null, b.getFirstLiveConfirmedAt() != null, b.getRouteKey(), transit, latest == null ? null : snapshotOf(latest));
+                b.isExecutionEnabled(), b.getFirstLiveApprovedAt() != null, b.getFirstLiveConfirmedAt() != null, b.getRouteKey(), transit, latest == null ? null : snapshotOf(latest),
+                b.executionMode().name());
     }
 
     /** Snapshot live du run ; nul s'il n'en a pas (preset pas encore joué en live). */

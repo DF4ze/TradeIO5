@@ -21,7 +21,8 @@ public final class RainbowLiveBindingDtos {
                              String tradability, String quoteMember, String routeKey, String preferredRoute,
                              String feeTestRoute, java.math.BigDecimal feeTestPct, String feeTestLevel,
                              java.math.BigDecimal feeTestAmount, java.time.Instant feeTestAt,
-                             boolean executionEnabled, boolean firstLiveArmed, boolean firstLiveConfirmed) {
+                             boolean executionEnabled, boolean firstLiveArmed, boolean firstLiveConfirmed,
+                             String executionMode, Double minBuyUsd) {
         public static BindingDto of(RainbowLiveBinding b) {
             return new BindingDto(b.getId(), b.getAssetSymbol(), b.getPreset().getId(), b.getPreset().getName(),
                     b.getWallet().getId(), b.getWallet().getName(),
@@ -30,7 +31,8 @@ public final class RainbowLiveBindingDtos {
                     b.getTradability() == null ? null : b.getTradability().name(), b.getQuoteMember(), b.getRouteKey(), b.getPreferredRoute(),
                     b.getFeeTestRoute(), b.getFeeTestPct(), b.getFeeTestLevel() == null ? null : b.getFeeTestLevel().name(),
                     b.getFeeTestAmount(), b.getFeeTestAt(),
-                    b.isExecutionEnabled(), b.getFirstLiveApprovedAt() != null, b.getFirstLiveConfirmedAt() != null);
+                    b.isExecutionEnabled(), b.getFirstLiveApprovedAt() != null, b.getFirstLiveConfirmedAt() != null,
+                    b.executionMode().name(), b.getMinBuyUsd());
         }
     }
 

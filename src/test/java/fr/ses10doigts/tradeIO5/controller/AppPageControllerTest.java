@@ -71,10 +71,10 @@ class AppPageControllerTest {
     @Test
     @DisplayName("Chaque page : 200, thème et mode des préférences, navigation, script de la page")
     void everyPageRenders() throws Exception {
-        for (String page : List.of("home:/app", "assets:/app/assets", "journal:/app/journal", "settings:/app/settings", "onboarding:/app/onboarding", "components:/app/components")) {
+        for (String page : List.of("home:/app", "assets:/app/assets", "journal:/app/journal", "settings-strategy:/app/settings/strategy", "settings-user:/app/settings/user", "onboarding:/app/onboarding", "components:/app/components")) {
             String name = page.substring(0, page.indexOf(':'));
             String html = render(page.substring(page.indexOf(':') + 1));
-            assertTrue(html.contains("data-theme=\"light\""), name + " : thème");
+            assertTrue(html.contains("data-theme=\"dark\""), name + " : thème sombre seul, même si la préférence enregistrée est « clair »");
             assertTrue(html.contains("data-page=\"" + name + "\"") && html.contains("data-mode=\"advanced\"") && html.contains("data-user=\"clem\""), name + " : attributs");
             assertTrue(html.contains("assets/app/css/tradeio.css") && html.contains("assets/app/js/core.js"), name + " : feuille et noyau");
             assertTrue(html.contains("assets/app/js/page-" + name + ".js"), name + " : script de page");

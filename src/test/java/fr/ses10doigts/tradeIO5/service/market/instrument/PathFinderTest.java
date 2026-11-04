@@ -460,4 +460,26 @@ class PathFinderTest {
         // BTC-USDC, ETH-USDC, PAXG-BTC, PAXG-ETH : 4 arêtes, chacune lue une fois pour ce montant
         assertEquals(4, source.marketCalls);
     }
+
+    @Test
+    @DisplayName("routes() : routes du catalogue sans aucun appel de marché, directe d'abord, intermédiaire exposé non retenu")
+    void routesWithoutMarket() {
+        InstrumentInfo paxgBtc = inst("PAXG", "BTC", "0.0001", "0.0001", "0.1");
+        InstrumentInfo ethUsdc = inst("ETH", "USDC", "0.0001", "0.0001", "0.1");
+        InstrumentInfo paxgEth = inst("PAXG", "ETH", "0.0001", "0.0001", "0.1");
+        List<PathFinder.RouteRef> routes = finder.routes(List.of(PAXG_USDC, BTC_USDC, paxgBtc, ethUsdc, paxgEth), FIAT,
+                Set.of("USDC"), "PAXG", 2, Set.of("ETH"));
+
+        assertEquals(List.of("USDC>PAXG", "USDC>BTC>PAXG", "USDC>ETH>PAXG"), routes.stream().map(PathFinder.RouteRef::routeKey).toList());
+        assertTrue(routes.get(0).direct());
+        assertFalse(routes.get(1).direct());
+        assertTrue(routes.get(1).chosen());
+        assertFalse(routes.get(2).chosen());
+    }
+
+    @Test
+    @DisplayName("routes() : aucune route quand l'actif n'est pas atteignable")
+    void routesNone() {
+        assertTrue(finder.routes(List.of(BTC_USDC), FIAT, Set.of("USDC"), "PAXG", 2, Set.of()).isEmpty());
+    }
 }

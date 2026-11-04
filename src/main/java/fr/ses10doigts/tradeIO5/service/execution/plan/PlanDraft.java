@@ -19,7 +19,15 @@ public record PlanDraft(List<AssetDraft> assets, PlanStatus status, BigDecimal t
     public record AssetDraft(String assetSymbol, int priority, Long walletId, RainbowLiveAction action,
                              AssetPlanOutcome outcome, PlanBlockReason blockReason, BigDecimal costPct,
                              FeeTestLevel feeTestLevel, String warning, List<StepDraft> steps, BigDecimal carryInUsd,
-                             BigDecimal carryOutUsd) {
+                             BigDecimal carryOutUsd, boolean simulated) {
+
+        /** Sans simulation. */
+        public AssetDraft(String assetSymbol, int priority, Long walletId, RainbowLiveAction action, AssetPlanOutcome outcome,
+                          PlanBlockReason blockReason, BigDecimal costPct, FeeTestLevel feeTestLevel, String warning,
+                          List<StepDraft> steps, BigDecimal carryInUsd, BigDecimal carryOutUsd) {
+            this(assetSymbol, priority, walletId, action, outcome, blockReason, costPct, feeTestLevel, warning, steps, carryInUsd,
+                    carryOutUsd, false);
+        }
 
         /** Sans carry. */
         public AssetDraft(String assetSymbol, int priority, Long walletId, RainbowLiveAction action, AssetPlanOutcome outcome,
@@ -31,7 +39,13 @@ public record PlanDraft(List<AssetDraft> assets, PlanStatus status, BigDecimal t
 
         public AssetDraft withCarry(BigDecimal in, BigDecimal out) {
             return new AssetDraft(assetSymbol, priority, walletId, action, outcome, blockReason, costPct, feeTestLevel, warning,
-                    steps, in, out);
+                    steps, in, out, simulated);
+        }
+
+        /** Marque l'actif comme joué en simulation (plan chiffré, jamais exécuté). */
+        public AssetDraft asSimulated(boolean value) {
+            return new AssetDraft(assetSymbol, priority, walletId, action, outcome, blockReason, costPct, feeTestLevel, warning,
+                    steps, carryInUsd, carryOutUsd, value);
         }
     }
 

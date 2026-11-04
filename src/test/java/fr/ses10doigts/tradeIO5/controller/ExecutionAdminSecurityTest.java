@@ -5,6 +5,7 @@ import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingPathQuoteService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingNotFoundException;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingService;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.BindingExecutionMode;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.execution.ExecutionControlService;
 import fr.ses10doigts.tradeIO5.service.admin.AdminCredentialService;
@@ -115,7 +116,7 @@ class ExecutionAdminSecurityTest {
     void ownerScoped() {
         User me = User.builder().id(1L).build();
         when(FACADE.getConnectedUser()).thenReturn(me);
-        when(BINDINGS.setExecution(me, 99L, true)).thenThrow(RainbowLiveBindingNotFoundException.binding(99L));
+        when(BINDINGS.setExecutionMode(me, 99L, BindingExecutionMode.ACTIVE)).thenThrow(RainbowLiveBindingNotFoundException.binding(99L));
         when(BINDINGS.confirmFirstLive(me, 99L)).thenThrow(RainbowLiveBindingNotFoundException.binding(99L));
         loginAs("ROLE_USER");
         assertThrows(RainbowLiveBindingNotFoundException.class,

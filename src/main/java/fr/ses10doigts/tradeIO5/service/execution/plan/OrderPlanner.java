@@ -131,7 +131,7 @@ public class OrderPlanner {
         Map<Long, Map<String, BigDecimal>> pools = new HashMap<>();
         List<PlanDraft.AssetDraft> drafts = new ArrayList<>();
         for (AssetInput input : ordered) {
-            drafts.add(withCarry(input, planAsset(input, contexts, pools)));
+            drafts.add(withCarry(input, planAsset(input, contexts, pools)).asSimulated(input.simulated() && !input.executionEnabled()));
         }
         return summarize(drafts);
     }
@@ -159,7 +159,7 @@ public class OrderPlanner {
 
     private PlanDraft.AssetDraft planAsset(AssetInput in, Map<Long, WalletContext> contexts,
                                            Map<Long, Map<String, BigDecimal>> pools) {
-        if (!in.executionEnabled()) {
+        if (!in.executionEnabled() && !in.simulated()) {
             return draft(in, AssetPlanOutcome.DISABLED, null, null, null, null, List.of());
         }
         if (in.status() == PortfolioStatus.NOT_TRADABLE) {
@@ -199,6 +199,10 @@ public class OrderPlanner {
             return draft(in, AssetPlanOutcome.NO_ACTION, null, null, null, null, List.of());
         }
         BigDecimal amount = effectiveAmount(in);
+        if (in.minBuyUsd() != null && amount.compareTo(in.minBuyUsd()) < 0) { // sous l'achat minimum de l'utilisateur : reporté (carry)
+            return draft(in, AssetPlanOutcome.BLOCKED, PlanBlockReason.BELOW_MIN, null, null,
+                    "Sous votre achat minimum (" + pct(in.minBuyUsd()) + " $) : reporté, cumulé jusqu'au minimum", List.of());
+        }
         List<PlanDraft.StepDraft> steps = new ArrayList<>();
         List<String> notes = new ArrayList<>();
         finishTransitLegs(in, ctx, steps, notes);
@@ -480,6 +484,12 @@ public class OrderPlanner {
             canonical.append(i.assetSymbol()).append('|').append(i.priority()).append('|').append(i.executionEnabled()).append('|')
                     .append(i.walletId()).append('|').append(i.status()).append('|').append(i.action()).append('|')
                     .append(plain(i.amountUsd())).append('|').append(plain(i.quantity())).append('|').append(plain(i.carryInUsd())).append('|');
+            if (i.simulated()) {
+                canonical.append("sim|");
+            }
+            if (i.minBuyUsd() != null) {
+                canonical.append("min=").append(plain(i.minBuyUsd())).append('|');
+            }
             new TreeMap<>(i.cashByMember()).forEach((member, value) -> canonical.append(member).append('=').append(plain(value)).append(','));
             canonical.append('|');
             new TreeMap<>(i.transitStock()).forEach((currency, value) -> canonical.append(currency).append('=').append(plain(value)).append(','));

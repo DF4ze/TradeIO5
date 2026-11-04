@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
+import fr.ses10doigts.tradeIO5.service.UserModulationService;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
 import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlService;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
@@ -35,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @DataJpaTest
-@Import({UserPreferencesService.class, UserTradingSettingsService.class, RainbowModulationControlService.class,
+@Import({UserPreferencesService.class, UserModulationService.class, UserTradingSettingsService.class, RainbowModulationControlService.class,
         UserPreferencesControllerTest.ClockConfig.class})
 @DisplayName("UserPreferencesController : thème, alertes, plafonds personnels, profil de départ")
 class UserPreferencesControllerTest {

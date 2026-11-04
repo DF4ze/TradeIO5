@@ -164,6 +164,37 @@ public class PathFinder {
         return quote;
     }
 
+    /** Route existante, sans chiffrage : clé, directe (1 jambe) ou non, retenue automatiquement ou non. */
+    public record RouteRef(String routeKey, boolean direct, boolean chosen) {
+    }
+
+    /**
+     * Routes qui existent dans le catalogue (monnaies de départ {@code sources} vers {@code target}), **sans aucun appel de marché** :
+     * ni prix, ni frais, ni carnet. Mêmes nœuds interdits et profondeur que {@link #find}. Sert à vérifier qu'un chemin existe avant
+     * tout calcul de frais ; directes d'abord, puis par clé.
+     */
+    public List<RouteRef> routes(List<InstrumentInfo> instruments, Set<String> forbiddenNodes, Set<String> sources, String target,
+                                 int maxDepth, Set<String> displayOnly) {
+        int depth = Math.min(maxDepth, ExecutionDefaults.MAX_PATH_DEPTH);
+        Map<String, List<Edge>> edgesFrom = new HashMap<>();
+        for (InstrumentInfo i : instruments) {
+            if (forbiddenNodes.contains(i.base()) || forbiddenNodes.contains(i.quote())) {
+                continue;
+            }
+            for (LegSide side : LegSide.values()) {
+                Edge edge = new Edge(i, side);
+                edgesFrom.computeIfAbsent(edge.from(), k -> new ArrayList<>()).add(edge);
+            }
+        }
+        List<Candidate> found = new ArrayList<>();
+        sources.stream().filter(s -> !forbiddenNodes.contains(s) && !s.equals(target))
+                .forEach(s -> collect(s, s, target, edgesFrom, depth, new ArrayList<>(), found));
+        return found.stream().map(c -> {
+            Priced p = new Priced(c, List.of(), BigDecimal.ZERO, PathEstimation.BOOK);
+            return new RouteRef(p.routeKey(), c.edges().size() == 1, p.intermediate() == null || !displayOnly.contains(p.intermediate()));
+        }).distinct().sorted(Comparator.comparing((RouteRef r) -> !r.direct()).thenComparing(RouteRef::routeKey)).toList();
+    }
+
     private static boolean isChosen(Priced p, Request request) {
         if (request.preferredRoute() != null) {
             return p.routeKey().equals(request.preferredRoute());

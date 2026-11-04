@@ -34,7 +34,7 @@ import java.util.TreeMap;
 /**
  * Lecture du patrimoine et de la performance, <b>base seule</b> (instantanés quotidiens et transactions ; aucun appel exchange),
  * scopée à l'utilisateur. PnL de période = variation de valeur entre deux instantanés (dépôts/retraits non suivis) ; PnL d'actif =
- * valeur − (achats − ventes).
+ * réalisé + latent en prix moyen pondéré (cf. {@link PnlLedger}).
  */
 @Service
 @RequiredArgsConstructor
@@ -97,24 +97,29 @@ public class PortfolioQueryService {
             double notional = t.getQuantity().multiply(t.getPrice()).doubleValue();
             invested += t.getSide() == TradeSide.BUY ? notional : -notional;
         }
+        PnlLedger.Result ledger = ledger(txs);
         boolean priced = h[3] == 1 || h[0] <= EPSILON;
         Double value = priced ? h[1] : null;
-        Double pnl = value == null ? null : value - invested;
-        Double pct = pnl == null || Math.abs(invested) < EPSILON ? null : pnl / Math.abs(invested) * 100.0;
-        return new AssetPerformanceDto(symbol, h[0], Double.isNaN(h[2]) ? null : h[2], value, invested, pnl, pct, avgBuyPrice(txs));
+        Double price = Double.isNaN(h[2]) ? null : h[2];
+        Double avg = ledger.avgPrice();
+        boolean known = priced && avg != null && avg > EPSILON && price != null;
+        Double pnl = known ? h[0] * (price - avg) : null;
+        Double pct = known && h[0] * avg > EPSILON ? pnl / (h[0] * avg) * 100.0 : null;
+        Double realizedPct = ledger.soldCost() > EPSILON ? ledger.realized() / ledger.soldCost() * 100.0 : null;
+        Double total = pnl == null && ledger.sells() == 0 ? null : ledger.realized() + (pnl == null ? 0 : pnl);
+        return new AssetPerformanceDto(symbol, h[0], price, value, invested, pnl, pct, avg, ledger.realized(), realizedPct, total,
+                ledger.fees(), ledger.volume(), ledger.bought(), ledger.sells(), ledger.incomplete(), List.of());
     }
 
-    /** Prix moyen pondéré des achats ; nul sans achat. */
+    /** Rejeu des trades en PRU (devise de cotation supposée dollar ; frais pris seulement en stable ou dans l'actif). */
+    private static PnlLedger.Result ledger(List<Transaction> txs) {
+        return PnlLedger.replay(txs.stream().map(t -> PnlLedger.fill(t, t.getAsset(), 1.0,
+                t.getFeeCurrency() != null && PnlLedger.STABLES.contains(t.getFeeCurrency().toUpperCase()) ? 1.0 : null)).toList());
+    }
+
+    /** Prix moyen pondéré (PRU) de la quantité restante après rejeu des trades ; nul sans position. */
     static Double avgBuyPrice(List<Transaction> txs) {
-        BigDecimal cost = BigDecimal.ZERO;
-        BigDecimal qty = BigDecimal.ZERO;
-        for (Transaction t : txs) {
-            if (t.getSide() == TradeSide.BUY) {
-                cost = cost.add(t.getQuantity().multiply(t.getPrice()));
-                qty = qty.add(t.getQuantity());
-            }
-        }
-        return qty.signum() > 0 ? cost.doubleValue() / qty.doubleValue() : null;
+        return ledger(txs).avgPrice();
     }
 
     /** Un point par jour, wallets additionnés ; valeur nulle si un wallet du jour n'est pas exploitable (jamais une somme partielle). */

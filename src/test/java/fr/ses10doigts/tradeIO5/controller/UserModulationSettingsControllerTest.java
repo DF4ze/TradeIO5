@@ -3,6 +3,8 @@ package fr.ses10doigts.tradeIO5.controller;
 import fr.ses10doigts.tradeIO5.model.entity.modulation.RainbowModulationControl;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
+import fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile;
+import fr.ses10doigts.tradeIO5.service.UserModulationService;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService.ModulationSettings;
 import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlService;
@@ -29,16 +31,18 @@ class UserModulationSettingsControllerTest {
 
     private final User user = User.builder().id(1L).username("alice").build();
     private UserTradingSettingsService settings;
+    private UserModulationService modulation;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         settings = mock(UserTradingSettingsService.class);
+        modulation = mock(UserModulationService.class);
         RainbowModulationControlService control = mock(RainbowModulationControlService.class);
         IAuthenticationFacade facade = mock(IAuthenticationFacade.class);
         when(facade.getConnectedUser()).thenReturn(user);
         when(control.current()).thenReturn(RainbowModulationControl.defaults(Instant.EPOCH, null));
-        mockMvc = MockMvcBuilders.standaloneSetup(new UserModulationSettingsController(settings, control, facade)).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(new UserModulationSettingsController(settings, modulation, control, facade)).build();
     }
 
     @Test
@@ -55,20 +59,21 @@ class UserModulationSettingsControllerTest {
     @Test
     @DisplayName("PUT : délègue pour l'utilisateur connecté")
     void putDelegates() throws Exception {
-        when(settings.setModulationSettings(user, 20, 80, 1.5, 0.2)).thenReturn(new ModulationSettings(20, 80, 1.5, 0.2));
+        when(modulation.update(user, 20, 80, 1.5, 0.2, null))
+                .thenReturn(new UserModulationService.Result(StartingProfile.CUSTOM, new ModulationSettings(20, 80, 1.5, 0.2)));
 
         mockMvc.perform(put("/api/user/modulation-settings").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"exposureMin\":20,\"exposureMax\":80,\"power\":1.5,\"bias\":0.2}"))
                 .andExpect(status().isOk())
-                .andExpect(content().json("{\"settings\":{\"exposureMin\":20,\"power\":1.5}}"));
+                .andExpect(content().json("{\"settings\":{\"exposureMin\":20,\"power\":1.5},\"profile\":\"CUSTOM\"}"));
 
-        verify(settings).setModulationSettings(user, 20, 80, 1.5, 0.2);
+        verify(modulation).update(user, 20, 80, 1.5, 0.2, null);
     }
 
     @Test
     @DisplayName("PUT : erreur de validation => 400 avec message")
     void putValidationErrorIs400() throws Exception {
-        when(settings.setModulationSettings(user, 50, 50, 1, 0)).thenThrow(new IllegalArgumentException("bande invalide"));
+        when(modulation.update(user, 50, 50, 1, 0, null)).thenThrow(new IllegalArgumentException("bande invalide"));
 
         mockMvc.perform(put("/api/user/modulation-settings").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"exposureMin\":50,\"exposureMax\":50,\"power\":1,\"bias\":0}"))

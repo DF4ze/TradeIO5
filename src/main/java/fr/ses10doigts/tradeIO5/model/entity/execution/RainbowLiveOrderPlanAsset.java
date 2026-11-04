@@ -86,6 +86,10 @@ public class RainbowLiveOrderPlanAsset {
     @Column(name = "carry_out_usd", precision = 24, scale = 8)
     private BigDecimal carryOutUsd;
 
+    /** Actif joué en simulation : plan chiffré complet, tagué, jamais exécuté. */
+    @Column(name = "simulated", nullable = false)
+    private boolean simulated;
+
     /** Base amount du preset au jour du plan (instantané) : un changement de base remet le carry à zéro. */
     @Column(name = "base_amount", precision = 24, scale = 8)
     private BigDecimal baseAmount;

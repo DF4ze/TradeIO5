@@ -2,6 +2,7 @@ package fr.ses10doigts.tradeIO5.controller;
 
 import fr.ses10doigts.tradeIO5.controller.RainbowLiveControllerAdvice.ErrorResponse;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.AssetPerformanceDto;
+import fr.ses10doigts.tradeIO5.model.dto.portfolio.PnlSummaryDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.AutonomyDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.BindingTradesDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.HoldingsDto;
@@ -70,6 +71,12 @@ public class PortfolioController {
     @GetMapping("/portfolio/asset-performance")
     public List<AssetPerformanceDto> assetPerformance(@RequestParam(required = false) Long walletId) {
         return homeService.assetPerformance(authenticationFacade.getConnectedUser(), walletId);
+    }
+
+    /** Profits réalisés (période et cumulé) et latents, frais inclus ; un wallet ou tous. */
+    @GetMapping("/portfolio/pnl")
+    public PnlSummaryDto pnl(@RequestParam(required = false) Long walletId, @RequestParam(defaultValue = "30d") String period) {
+        return homeService.pnlSummary(authenticationFacade.getConnectedUser(), walletId, PortfolioPeriod.of(period));
     }
 
     /** Historique reconstruit à rebours depuis les trades (estimation, hors dépôts/retraits). */

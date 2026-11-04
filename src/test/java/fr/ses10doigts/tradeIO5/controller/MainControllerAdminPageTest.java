@@ -77,7 +77,7 @@ class MainControllerAdminPageTest {
     void adminPageContainsTabs() throws Exception {
         String html = page();
 
-        assertTrue(html.contains("Welcome in Admin's Page") && html.contains("data-theme=\"dark\""), "contenu existant conservé, charte sombre par défaut");
+        assertTrue(html.contains("connecté en tant que") && html.contains("data-theme=\"dark\""), "contenu existant conservé, charte sombre par défaut");
         assertTrue(html.contains("assets/app/css/tradeio.css") && html.contains("admin-compat.css") && !html.contains("bootstrap"), "charte, sans Bootstrap");
         assertTrue(html.contains("data-username=\"clem\""), "nom de l'admin transmis au JS");
         assertTrue(html.contains("Se déconnecter"), "navbar existante conservée");

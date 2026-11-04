@@ -30,7 +30,7 @@ Pipeline affiché sur la fiche, de gauche à droite : Signal → Modulation → 
 
 ## 3. Navigation utilisateur
 
-Onglets : **Accueil | Mes actifs | Journal | Réglages**. Une fiche actif s'ouvre depuis Accueil ou Mes actifs (retour vers Mes actifs). L'onboarding est un parcours à part, affiché tant qu'aucun actif n'est configuré.
+Onglets : **Accueil | Actifs gérés | Exchanges | Journal | Réglages**. Une fiche actif s'ouvre depuis Accueil ou Mes actifs (retour vers Mes actifs). L'onboarding est un parcours à part, affiché tant qu'aucun actif n'est configuré.
 
 ## 4. Écrans utilisateur
 
@@ -41,7 +41,8 @@ Onglets : **Accueil | Mes actifs | Journal | Réglages**. Une fiche actif s'ouvr
 | Fiche actif | **écran central** : graphique, PnL total, dernière décision (pipeline + « Pourquoi ce montant ? »), historique, réglages de l'actif | PC : graphique large à gauche, PnL / décision / réglages à droite |
 | Journal | décisions et alertes groupées par jour, filtres (tout / exécutions / décisions / alertes, actif, période), détail d'une ligne | exécutions : état, mise, chemin, frais (réels, Fee Test), slippage, raison de blocage ; carry visible |
 | Réglages | mode, clés d'échange (lecture seule), bande d'exposition / puissance / biais, plafonds, sécurité (exécution réelle, alertes), compte | Avancé et Expert n'apparaissent que dans leur mode |
-| Onboarding | 4 étapes en accordéon : exchange (clé lecture), actif, profil (Prudent / Équilibré / Dynamique), montant et confirmation | exécution réelle coupée par défaut ; PC : récapitulatif à droite |
+| Ajouter un actif | 3 cartes : actif, où acheter (comparateur des frais de tous les exchanges, un seul choix exchange + route), montant de base par jour ; pas de choix de profil | exécution réelle coupée par défaut |
+| Exchanges | liste + détail : clé lecture seule, clé écriture, ajout / suppression | une clé d'écriture est requise pour exécuter |
 
 ### Graphique de la fiche
 
@@ -56,7 +57,7 @@ Contenu : prix, bandes du Rainbow (zone d'achat, zone de vente, moyenne), **acha
 
 | Mode | Ajoute | État |
 |---|---|---|
-| Simple | décisions, PnL, montant de base, interrupteur d'exécution | à construire |
+| Simple | décisions, PnL, montant de base, mode d'exécution | à construire |
 | Avancé | + bande d'exposition, puissance, biais, plafonds, part de la position offerte | à construire |
 | Expert | + paramètres de la stratégie, presets, modulation détaillée | seul mode fonctionnel aujourd'hui (page `/user`) |
 

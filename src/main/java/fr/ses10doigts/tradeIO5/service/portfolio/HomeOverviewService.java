@@ -3,6 +3,7 @@ package fr.ses10doigts.tradeIO5.service.portfolio;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.AssetPerformanceDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.HoldingsDto;
+import fr.ses10doigts.tradeIO5.model.dto.portfolio.PnlSummaryDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.PortfolioHistoryDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.PortfolioPointDto;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.PortfolioSummaryDto;
@@ -65,7 +66,7 @@ public class HomeOverviewService {
     private static final Duration PRICE_TTL = Duration.ofMinutes(10);
     private static final Duration PRICE_FAIL_TTL = Duration.ofMinutes(1);
     /** Stablecoins valorisés au nominal (1 USD), en plus des membres du groupe USD. */
-    private static final Set<String> STABLES = Set.of("USDC", "USDT", "DAI", "FDUSD", "TUSD", "PYUSD", "USDE", "USD", "ZUSD");
+    private static final Set<String> STABLES = PnlLedger.STABLES;
 
     private record PriceEntry(Instant at, NavigableMap<LocalDate, Double> closes) {
     }
@@ -143,55 +144,163 @@ public class HomeOverviewService {
 
     // ---------- prix moyen d'achat ----------
 
+    private record Computation(List<AssetPerformanceDto> assets, Map<String, PnlLedger.Result> ledgers) {
+    }
+
     /**
-     * Par actif détenu (hors stables) : quantité, cours, valeur et prix moyen pondéré des achats enregistrés (manuels et TradeIO ;
-     * cotation non dollar convertie au cours D1 du jour du trade). {@code investedNet} = achats − ventes ; PnL = valeur − investi net (nul sans cours).
+     * Par actif (hors stables) : quantité, cours, valeur, prix moyen pondéré (PRU), <b>latent</b>, <b>réalisé</b> et frais, par wallet puis
+     * agrégés. Les trades (manuels et TradeIO ; cotation non dollar convertie au cours D1 du jour du trade) sont rejoués par wallet x actif
+     * ({@link PnlLedger}). Latent = quantité détenue (live) x (cours − PRU) ; prix moyen agrégé = moyenne des PRU pondérée par la quantité
+     * détenue, de sorte que latent agrégé = somme des latents par wallet. Un actif entièrement vendu reste listé (réalisé conservé).
      */
     public List<AssetPerformanceDto> assetPerformance(User user, Long walletId) {
+        return compute(user, walletId).assets();
+    }
+
+    /** Profits réalisés et latents, réalisé sur la période (ventes dont la date tombe dans la période) et cumulé. */
+    public PnlSummaryDto pnlSummary(User user, Long walletId, PortfolioPeriod period) {
+        Computation c = compute(user, walletId);
+        LocalDate today = clock.now().atOffset(ZoneOffset.UTC).toLocalDate();
+        LocalDate from = period.from(today);
+        double realized = 0, soldCost = 0, periodGain = 0, periodCost = 0, fees = 0, volume = 0, bought = 0;
+        int periodSells = 0;
+        boolean incomplete = false;
+        for (PnlLedger.Result r : c.ledgers().values()) {
+            realized += r.realized();
+            soldCost += r.soldCost();
+            fees += r.fees();
+            volume += r.volume();
+            bought += r.bought();
+            incomplete |= r.incomplete();
+            for (PnlLedger.Realization x : r.realizations()) {
+                if (!x.at().toLocalDate().isBefore(from)) {
+                    periodGain += x.amount();
+                    periodCost += x.cost();
+                    periodSells++;
+                }
+            }
+        }
+        double unrealized = 0, heldCost = 0;
+        boolean anyLatent = false, partial = false;
+        for (AssetPerformanceDto a : c.assets()) {
+            for (AssetPerformanceDto.Part part : a.parts()) {
+                if (part.pnl() != null) {
+                    anyLatent = true;
+                    unrealized += part.pnl();
+                    heldCost += part.quantity() * part.avgBuyPrice();
+                }
+            }
+            partial |= a.quantity() > EPSILON && a.pnl() == null;
+        }
+        Double total = anyLatent || soldCost > EPSILON ? realized + unrealized : null;
+        double engaged = soldCost + heldCost;
+        return new PnlSummaryDto(period.code(), from, realized, soldCost > EPSILON ? realized / soldCost * 100.0 : null, periodGain,
+                periodCost > EPSILON ? periodGain / periodCost * 100.0 : null, periodSells, anyLatent ? unrealized : null,
+                anyLatent && heldCost > EPSILON ? unrealized / heldCost * 100.0 : null, total,
+                total != null && engaged > EPSILON ? total / engaged * 100.0 : null, fees, volume, bought, incomplete, partial);
+    }
+
+    private Computation compute(User user, Long walletId) {
         HoldingsDto holdings = holdings(user, walletId);
         Set<String> stables = stableSymbols();
-        Map<String, double[]> acc = new HashMap<>();   // symbole -> {coût des achats, quantité achetée, investi net} en dollars
-        Map<String, NavigableMap<LocalDate, Double>> quoteCloses = new HashMap<>();
+        Map<String, List<PnlLedger.Fill>> fills = new HashMap<>();   // "walletId|symbole" -> trades en dollars
+        Map<String, Double> invested = new HashMap<>();              // symbole -> achats − ventes
+        Map<String, NavigableMap<LocalDate, Double>> closesBy = new HashMap<>();
         for (Wallet w : scope(user, walletId)) {
             MarketDataSource source = LiveCandleSource.of(w);
             for (Transaction t : transactionRepository.findByWalletOrderByTimestampAsc(w)) {
-                if (stables.contains(assetOf(t))) {
+                String asset = assetOf(t);
+                if (stables.contains(asset)) {
                     continue;
                 }
+                LocalDate day = t.getTimestamp().toLocalDate();
                 // cotation non dollar (ex. PAXG acheté en BTC) : convertie au cours D1 de la devise de cotation le jour du trade
-                double rate = 1.0;
-                if (t.getQuoteCurrency() != null && !stables.contains(t.getQuoteCurrency().toUpperCase())) {
-                    var close = quoteCloses.computeIfAbsent(t.getQuoteCurrency().toUpperCase(),
-                            q -> closes(q, source == null ? Set.of() : Set.of(source))).floorEntry(t.getTimestamp().toLocalDate());
-                    if (close == null) {
-                        continue;   // pas de cours de conversion : trade ignoré plutôt que mal converti
-                    }
-                    rate = close.getValue();
+                Double rate = t.getQuoteCurrency() == null ? Double.valueOf(1.0) : usdAt(t.getQuoteCurrency(), day, source, stables, closesBy);
+                if (rate == null) {
+                    continue;   // pas de cours de conversion : trade ignoré plutôt que mal converti
                 }
-                double q = t.getQuantity().doubleValue(), notional = q * t.getPrice().doubleValue() * rate;
-                double[] a = acc.computeIfAbsent(assetOf(t), k -> new double[3]);
-                if (t.getSide() == TradeSide.BUY) {
-                    a[0] += notional;
-                    a[1] += q;
-                    a[2] += notional;
-                } else {
-                    a[2] -= notional;
-                }
+                // frais : en stable (1 $), dans la devise de cotation, ou convertis au cours D1 de leur devise ; inconnus ⇒ ignorés
+                Double feeRate = t.getFeeCurrency() == null ? null
+                        : t.getFeeCurrency().equalsIgnoreCase(t.getQuoteCurrency()) ? rate : usdAt(t.getFeeCurrency(), day, source, stables, closesBy);
+                PnlLedger.Fill fill = PnlLedger.fill(t, asset, rate, feeRate);
+                fills.computeIfAbsent(w.getId() + "|" + asset, k -> new ArrayList<>()).add(fill);
+                invested.merge(asset, (fill.isBuy() ? 1 : -1) * fill.qty() * fill.priceUsd(), Double::sum);
             }
         }
+        Map<String, PnlLedger.Result> ledgers = new HashMap<>();
+        fills.forEach((k, f) -> ledgers.put(k, PnlLedger.replay(f)));
+
+        Map<String, HoldingsDto.Line> lines = new LinkedHashMap<>();
+        holdings.assets().stream().filter(l -> !l.stable()).forEach(l -> lines.put(l.assetSymbol(), l));
+        ledgers.keySet().forEach(k -> lines.putIfAbsent(k.substring(k.indexOf('|') + 1), null));   // entièrement vendus : réalisé conservé
+
         List<AssetPerformanceDto> out = new ArrayList<>();
-        for (HoldingsDto.Line line : holdings.assets()) {
-            if (line.stable()) {
-                continue;
+        Map<Long, Wallet> byId = new HashMap<>();
+        scope(user, walletId).forEach(w -> byId.put(w.getId(), w));
+        lines.forEach((symbol, line) -> out.add(performance(symbol, line, ledgers, invested.getOrDefault(symbol, 0.0), byId)));
+        return new Computation(out, ledgers);
+    }
+
+    private static AssetPerformanceDto performance(String symbol, HoldingsDto.Line line, Map<String, PnlLedger.Result> ledgers, double invested,
+                                                   Map<Long, Wallet> wallets) {
+        Double price = line == null ? null : line.price();
+        Map<Long, Double> held = new LinkedHashMap<>();   // walletId -> quantité détenue (live)
+        if (line != null) {
+            if (line.parts().isEmpty()) {
+                held.put(null, line.quantity());
             }
-            double[] a = acc.get(line.assetSymbol());
-            Double avg = a != null && a[1] > EPSILON ? a[0] / a[1] : null;
-            double invested = a == null ? 0 : a[2];
-            Double pnl = line.value() == null ? null : line.value() - invested;
-            Double pct = pnl == null || Math.abs(invested) < EPSILON ? null : pnl / Math.abs(invested) * 100.0;
-            out.add(new AssetPerformanceDto(line.assetSymbol(), line.quantity(), line.price(), line.value(), invested, pnl, pct, avg));
+            line.parts().forEach(p -> held.put(p.walletId(), p.quantity()));
         }
-        return out;
+        ledgers.keySet().stream().filter(k -> k.endsWith("|" + symbol)).forEach(k -> held.putIfAbsent(Long.valueOf(k.substring(0, k.indexOf('|'))), 0.0));
+
+        List<AssetPerformanceDto.Part> parts = new ArrayList<>();
+        double realized = 0, soldCost = 0, fees = 0, volume = 0, bought = 0, heldCostKnown = 0, qtyKnown = 0, latent = 0;
+        int sells = 0;
+        boolean incomplete = false, anyLatent = false;
+        for (Map.Entry<Long, Double> e : held.entrySet()) {
+            PnlLedger.Result r = ledgers.get(e.getKey() + "|" + symbol);
+            double q = e.getValue();
+            Double avg = r == null ? null : r.avgPrice();
+            boolean known = avg != null && avg > EPSILON && price != null;
+            Double pnl = known ? q * (price - avg) : null;
+            double rz = r == null ? 0 : r.realized(), sc = r == null ? 0 : r.soldCost();
+            Double rzPct = sc > EPSILON ? rz / sc * 100.0 : null;
+            int sl = r == null ? 0 : r.sells();
+            Wallet wallet = wallets.get(e.getKey());
+            parts.add(new AssetPerformanceDto.Part(e.getKey(), wallet == null ? null : wallet.getName(), wallet == null ? null : exchange(wallet), q, avg, pnl, known && q * avg > EPSILON ? pnl / (q * avg) * 100.0 : null, rz,
+                    rzPct, pnl == null && sl == 0 ? null : rz + (pnl == null ? 0 : pnl), r == null ? 0 : r.fees(), r == null ? 0 : r.volume(), r == null ? 0 : r.bought(), sl, r != null && r.incomplete()));
+            realized += rz;
+            soldCost += sc;
+            fees += r == null ? 0 : r.fees();
+            volume += r == null ? 0 : r.volume();
+            bought += r == null ? 0 : r.bought();
+            sells += sl;
+            incomplete |= r != null && r.incomplete();
+            if (known) {
+                anyLatent = true;
+                latent += pnl;
+                heldCostKnown += q * avg;
+                qtyKnown += q;
+            }
+        }
+        double quantity = line == null ? 0 : line.quantity();
+        Double avgAgg = anyLatent && qtyKnown > EPSILON ? heldCostKnown / qtyKnown : null;
+        Double pnl = anyLatent ? latent : null;
+        Double total = pnl == null && sells == 0 ? null : realized + (pnl == null ? 0 : pnl);
+        return new AssetPerformanceDto(symbol, quantity, price, line == null ? null : line.value(), invested, pnl,
+                anyLatent && heldCostKnown > EPSILON ? latent / heldCostKnown * 100.0 : null, avgAgg, realized,
+                soldCost > EPSILON ? realized / soldCost * 100.0 : null, total, fees, volume, bought, sells, incomplete, parts);
+    }
+
+    /** Valeur en dollars d'une unité de {@code symbol} au jour donné (stable = 1) ; nulle sans cours D1. */
+    private Double usdAt(String symbol, LocalDate day, MarketDataSource source, Set<String> stables,
+                         Map<String, NavigableMap<LocalDate, Double>> closesBy) {
+        String sym = symbol.toUpperCase();
+        if (stables.contains(sym)) {
+            return 1.0;
+        }
+        var close = closesBy.computeIfAbsent(sym, q -> closes(q, source == null ? Set.of() : Set.of(source))).floorEntry(day);
+        return close == null ? null : close.getValue();
     }
 
     // ---------- historique reconstruit ----------
@@ -292,15 +401,38 @@ public class HomeOverviewService {
     @Transactional(readOnly = true)
     public List<TradeLineDto> transactions(User user, Long walletId) {
         List<TradeLineDto> out = new ArrayList<>();
+        Set<String> stables = stableSymbols();
+        Map<String, NavigableMap<LocalDate, Double>> closesBy = new HashMap<>();
         for (Wallet w : scope(user, walletId)) {
+            MarketDataSource source = LiveCandleSource.of(w);
             for (Transaction t : transactionRepository.findByWalletOrderByTimestampAsc(w)) {
                 out.add(new TradeLineDto(t.getId(), t.getTimestamp(), t.getSide().name(), assetOf(t), t.getQuantity(), t.getPrice(),
-                        t.getQuantity().multiply(t.getPrice()), t.getFee(), t.getFeeCurrency(), w.getId(), w.getName(), exchange(w),
-                        t.getQuoteCurrency(), originOf(t).name()));
+                        t.getQuantity().multiply(t.getPrice()), t.getFee(), t.getFeeCurrency(), feeUsd(t, source, stables, closesBy),
+                        w.getId(), w.getName(), exchange(w), t.getQuoteCurrency(), originOf(t).name()));
             }
         }
         out.sort(Comparator.comparing(TradeLineDto::timestamp).reversed());
         return out.size() > MAX_TRADES ? out.subList(0, MAX_TRADES) : out;
+    }
+
+    /** Frais d'un trade en dollars : stable = 1, devise de cotation ou actif du trade ⇒ converti à leur cours, autre ⇒ cours D1 du jour ; nul si sans frais ou cours inconnu. */
+    private Double feeUsd(Transaction t, MarketDataSource source, Set<String> stables,
+                          Map<String, NavigableMap<LocalDate, Double>> closesBy) {
+        if (t.getFee() == null || t.getFee().signum() <= 0 || t.getFeeCurrency() == null) {
+            return null;
+        }
+        LocalDate day = t.getTimestamp().toLocalDate();
+        String ccy = t.getFeeCurrency().toUpperCase();
+        Double quoteRate = t.getQuoteCurrency() == null ? Double.valueOf(1.0) : usdAt(t.getQuoteCurrency(), day, source, stables, closesBy);
+        Double rate;
+        if (ccy.equalsIgnoreCase(t.getQuoteCurrency())) {
+            rate = quoteRate;
+        } else if (ccy.equals(assetOf(t))) {
+            rate = quoteRate == null ? null : t.getPrice().doubleValue() * quoteRate;
+        } else {
+            rate = usdAt(ccy, day, source, stables, closesBy);
+        }
+        return rate == null ? null : t.getFee().doubleValue() * rate;
     }
 
     /** Symbole d'un trade nettoyé (« PAXG/ » ⇒ « PAXG ») : seuls lettres, chiffres et point sont conservés. */
