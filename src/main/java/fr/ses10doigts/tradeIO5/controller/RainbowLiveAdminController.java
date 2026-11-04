@@ -4,6 +4,7 @@ import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.StrategyDto;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowAssetStrategyService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveExecutionService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveQueryService;
+import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,7 @@ import java.util.Map;
  * Déclenchement manuel d'une passe du bench grandeur nature Rainbow (même patron que
  * {@link DecisionOrchestratorAdminController}). Réservé ROLE_ADMIN.
  * {@code POST /api/admin/rainbow-live/run[?day=YYYY-MM-DD]} : {@code day} (UTC) force le jour traité.
+ * {@code POST /api/admin/rainbow-live/resync[?presetId=]} : resynchronisation forcée de l'état moteur Trend Mix.
  */
 @Slf4j
 @RestController
@@ -37,12 +39,25 @@ public class RainbowLiveAdminController {
     private final RainbowLiveExecutionService executionService;
     private final DomainClock clock;
     private final RainbowAssetStrategyService strategyService;
+    private final IAuthenticationFacade authenticationFacade;
 
     @PostMapping("/run")
     public ResponseEntity<RainbowLiveExecutionService.PassSummary> run(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate day) {
         log.info("RainbowLiveAdminController : déclenchement manuel day={}", day);
         return ResponseEntity.ok(executionService.runPass(clock.now(), day));
+    }
+
+    /**
+     * Resynchronisation FORCÉE de l'état moteur des presets Trend Mix actifs (ou du seul {@code presetId}) jusqu'à la veille :
+     * rejeu de la fenêtre sur les clôtures, sans run ni ordre (cf. {@link RainbowLiveExecutionService#resync}). Tracée au
+     * journal admin (action RUN).
+     */
+    @PostMapping("/resync")
+    public ResponseEntity<RainbowLiveExecutionService.ResyncSummary> resync(@RequestParam(required = false) Long presetId) {
+        String actor = authenticationFacade.getConnectedUser().getUsername();
+        log.info("RainbowLiveAdminController : resynchronisation forcée presetId={} par {}", presetId, actor);
+        return ResponseEntity.ok(executionService.resync(clock.now(), presetId, true, actor, "resynchronisation forcée (admin)"));
     }
 
     /**

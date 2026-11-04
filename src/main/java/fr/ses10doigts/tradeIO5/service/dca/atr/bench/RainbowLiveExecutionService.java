@@ -93,6 +93,13 @@ public class RainbowLiveExecutionService {
     public record PassSummary(LocalDate day, int processed, int skipped, int errors) {
     }
 
+    /**
+     * Récapitulatif d'une resynchronisation d'état (log + réponse de l'endpoint admin) : {@code toDay} = dernier jour
+     * (clôturé) auquel l'état est ramené, presets Trend Mix actifs uniquement.
+     */
+    public record ResyncSummary(LocalDate toDay, int resynced, int upToDate, int skipped, int errors) {
+    }
+
     /** Série D1 d'un actif tronquée au jour traité (la bougie du jour suivant, éventuelle, est ignorée) et sa provenance. */
     private record AssetSeries(RainbowAtrDataset dataset, int dayIdx, List<MarketData> candles, MarketDataSource source,
                                boolean substituted) {
@@ -156,6 +163,54 @@ public class RainbowLiveExecutionService {
         PassSummary summary = new PassSummary(day, counters.processed, counters.skipped, counters.errors);
         log.info("Bench Rainbow : fin passe jour={} traités={} sautés={} erreurs={}",
                 day, summary.processed(), summary.skipped(), summary.errors());
+        return summary;
+    }
+
+    /**
+     * Resynchronise l'état moteur des presets Trend Mix actifs (ou du seul {@code presetId}) jusqu'à la veille de {@code asOf}
+     * (dernière bougie clôturée), sans run ni ordre : cf. {@link RainbowTrendLiveService#resync}. Appelée au démarrage du serveur
+     * ({@code force = false} : seuls les presets en retard sont recalculés) et par l'endpoint admin ({@code force = true}).
+     * Série indisponible (bougie de la veille absente, ex. candles pas encore à jour) ⇒ preset compté « sauté », rattrapé par la
+     * détection de trou de la prochaine passe.
+     */
+    public synchronized ResyncSummary resync(Instant asOf, Long presetId, boolean force, String actor, String reason) {
+        LocalDate target = dayFor(asOf).minusDays(1);
+        log.info("Bench Rainbow : début resynchronisation jusqu'au {} (preset={}, force={}, {})", target, presetId, force, reason);
+        Counters counters = new Counters();
+        int resynced = 0;
+        int upToDate = 0;
+        PassContext ctx = new PassContext(asOf, target, new HashMap<>());
+        for (List<RainbowLivePreset> presets : collectPresets(counters).values()) {
+            Map<Long, MarketDataSource> referenceSources = referenceSources(liveSlotsOf(presets.getFirst().getUser(), counters));
+            for (RainbowLivePreset preset : presets) {
+                if (!preset.isTrendMix() || presetId != null && !presetId.equals(preset.getId())) {
+                    continue;
+                }
+                SeriesLookup lookup = seriesFor(ctx, preset.getAssetSymbol(), referenceSources.get(preset.getId()));
+                if (lookup.outcome() != SeriesOutcome.OK) {
+                    if (lookup.outcome() == SeriesOutcome.FAILED) {
+                        counters.errors++;
+                    } else {
+                        counters.skipped++;
+                    }
+                    continue;
+                }
+                try {
+                    AssetSeries series = lookup.series();
+                    if (trendService.resync(preset, series.candles(), series.dataset(), series.dayIdx(), force, actor, reason)) {
+                        resynced++;
+                    } else {
+                        upToDate++;
+                    }
+                } catch (Exception e) {
+                    counters.errors++;
+                    log.error("Bench Rainbow : échec resynchronisation preset={} actif={}", preset.getId(), preset.getAssetSymbol(), e);
+                }
+            }
+        }
+        ResyncSummary summary = new ResyncSummary(target, resynced, upToDate, counters.skipped, counters.errors);
+        log.info("Bench Rainbow : fin resynchronisation jusqu'au {} resynchronisés={} à jour={} sautés={} erreurs={}",
+                target, resynced, upToDate, summary.skipped(), summary.errors());
         return summary;
     }
 

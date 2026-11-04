@@ -61,7 +61,7 @@ import static org.mockito.Mockito.when;
 
 @DataJpaTest
 @Import({RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class, RainbowLivePresetService.class, RainbowAssetStrategyService.class, RainbowLiveRunService.class, RainbowLiveBindingRunService.class, RainbowLiveExecutionService.class,
-        RainbowTrendLiveService.class, RainbowAthService.class,
+        RainbowTrendLiveService.class, fr.ses10doigts.tradeIO5.service.admin.AdminActionLogService.class, RainbowAthService.class,
         RainbowLiveExecutionServiceTest.ClockConfig.class, UserTradingSettingsService.class, RainbowModulationControlService.class,
         fr.ses10doigts.tradeIO5.service.portfolio.PortfolioSnapshotService.class})
 @DisplayName("Live Rainbow : service d'exécution (passe quotidienne 23:55 UTC)")

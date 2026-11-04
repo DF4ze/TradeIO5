@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.controller;
 
+import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAssetStrategy;
@@ -51,7 +52,7 @@ class RainbowLiveAdminControllerTest {
     @BeforeEach
     void setUp() {
         ObjectMapper om = new ObjectMapper().findAndRegisterModules().disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        mockMvc = MockMvcBuilders.standaloneSetup(new RainbowLiveAdminController(service, new FixedDomainClock(NOW), strategyService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new RainbowLiveAdminController(service, new FixedDomainClock(NOW), strategyService, mock(IAuthenticationFacade.class)))
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(om)).build();
     }
 

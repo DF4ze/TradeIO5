@@ -36,6 +36,12 @@ public final class RainbowLiveDefaultPresets {
     public static final String PASS_2355_CRON_PROPERTY = "tradeio.rainbow-live.pass-2355-cron";
     /** Placeholders {@code @Scheduled} : défaut {@code -} (= {@code Scheduled.CRON_DISABLED}, job non enregistré). */
     public static final String PASS_2355_CRON = "${" + PASS_2355_CRON_PROPERTY + ":-}";
+    /** Active la resynchronisation de l'état moteur Trend Mix au démarrage du serveur (absent ⇒ désactivée, ex. tests). */
+    public static final String RESYNC_ON_STARTUP_PROPERTY = "tradeio.rainbow-live.resync-on-startup";
+    /** Acteur du journal admin pour les resynchronisations automatiques (trou de passes constaté). */
+    public static final String RESYNC_ACTOR = "auto-resync";
+    /** Cible du journal admin ({@code AdminAction.RUN}) d'une resynchronisation : préfixe + id du preset. */
+    public static final String RESYNC_TARGET_PREFIX = "rainbow-resync:preset:";
 
 
     private static final RainbowAtrGlobals PINE = RainbowAtrGlobals.pineDefault();

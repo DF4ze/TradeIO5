@@ -130,13 +130,3 @@ Question : vaut-il mieux enchaîner les étapes (la fin de l'une déclenche la s
 Risque à étudier : si une étape devient plus longue (plus d'actifs, de liens, de providers, candles lentes ; la passe prend déjà ~8 s pour 3 presets), l'étape suivante peut démarrer alors que la précédente n'est pas finie et lire des runs incomplets. Les plans d'ordres expirent 5 min après leur création (`plan-ttl=PT5M`) : un enchaînement par cron doit donc rester dans cette fenêtre, ce que le chaînage garantirait mieux.
 
 À couvrir par l'étude : orchestrateur unique ou événements, comportement en cas d'échec d'une étape (arrêt de la chaîne ou poursuite), reprise, idempotence, observabilité, lien avec le kill switch et le `DecisionOrchestrator` (cron 06:00).
-
-## 12. Resynchronisation forcée de l'état du moteur (à faire)
-
-Constat de Clem (2026-10-31). L'état de la machine Rainbow d'un preset Trend Mix (`RainbowLiveEngineState` : verrou d'achat après vente, cooldown, armements) est **incrémental** : la passe du jour repart de la dernière ligne antérieure si le hash de config est identique, quel que soit son âge (`RainbowTrendLiveService#loadOrBootstrap`). Si le VPS rate des passes (panne, redémarrage, job inactif), l'état ne voit pas les événements manqués. Exemple ETH : aucune passe du 11 au 26/10 ⇒ le déverrouillage du 12/10 (clôture < DOWN2) n'a jamais été vu ; le verrou est resté actif, puis le passage en Bear (DOWN2 plus bas) l'a maintenu jusqu'à un hypothétique nouveau franchissement. Le signal reste faux (« Rien à faire » en zone d'achat) sur une longue période, sans aucune alerte.
-
-À faire :
-- Pouvoir **forcer** la resynchronisation d'un preset (ré-amorçage par `RainbowAtrReplay.runFull` sur la fenêtre, comme pour un hash différent) au lieu d'attendre un événement qui peut ne jamais arriver : action admin (par preset ou globale) + déclenchement possible hors passe.
-- Détection automatique d'un trou (dernier `state_day` < veille) ⇒ ré-amorçage automatique, avec WARN.
-- Alerte admin si un trou de passes est constaté.
-- Test de non-régression : état avec trou de N jours ⇒ état identique à un rejeu continu.

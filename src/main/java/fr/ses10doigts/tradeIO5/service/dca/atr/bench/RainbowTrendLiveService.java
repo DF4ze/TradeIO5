@@ -1,11 +1,14 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
+import fr.ses10doigts.tradeIO5.model.entity.admin.AdminAction;
+import fr.ses10doigts.tradeIO5.model.entity.admin.AdminActionOutcome;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveEngineState;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveEngineStateRepository;
+import fr.ses10doigts.tradeIO5.service.admin.AdminActionLogService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.AthReference;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrBand;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrDataset;
@@ -61,6 +64,7 @@ public class RainbowTrendLiveService {
     private final RainbowAthService athService;
     private final RainbowLivePresetConfigResolver configResolver;
     private final RainbowLivePresetEventService eventService;
+    private final AdminActionLogService journal;
 
     /**
      * Bloc à enregistrer + demande live du signal (dimensionnée ensuite par lien) + écritures différées (état, ATH) à
@@ -138,18 +142,82 @@ public class RainbowTrendLiveService {
     }
 
     /**
-     * État de fin du dernier jour antérieur à {@code day} s'il a été calculé avec la config EFFECTIVE courante
-     * ({@code configHash}). Sinon (1re passe, ou config changée — réglage perso modifié, révision de la stratégie
-     * suivie) : amorçage par rejeu de la fenêtre avec la config courante, enregistré pour la veille.
+     * État de fin du dernier jour antérieur à {@code day}, utilisé tel quel seulement s'il est à jour : calculé avec la
+     * config EFFECTIVE courante ({@code configHash}) ET sans trou de passes (dernier jour d'état = veille de {@code day}
+     * dans la série, cf. {@link #resync}). Sinon (1re passe, config changée — réglage perso modifié, révision de la
+     * stratégie suivie —, ou trou de passes : service arrêté, série sautée faute de bougie) : amorçage par rejeu de la
+     * fenêtre avec la config courante, enregistré pour la veille. Un trou est tracé (WARN + journal admin) : sans ce
+     * ré-amorçage, un événement manqué (ex. levée du verrou d'achat) ne serait jamais vu.
      */
     private Start loadOrBootstrap(RainbowLivePreset preset, LocalDate day, RainbowAtrDataset ds, int dayIdx,
                                   RainbowAtrParamSet[] sets, int[] setOfBar, String configHash) {
         Optional<RainbowLiveEngineState> previous = stateRepository.findFirstByPresetAndDayBeforeOrderByDayDesc(preset, day);
-        if (previous.isPresent() && Objects.equals(configHash, previous.get().getConfigHash())) {
+        boolean sameConfig = previous.isPresent() && Objects.equals(configHash, previous.get().getConfigHash());
+        LocalDate expectedLast = dayIdx > 0 ? dayOf(ds.time(dayIdx - 1)) : day.minusDays(1);
+        boolean gap = sameConfig && previous.get().getDay().isBefore(expectedLast);
+        if (sameConfig && !gap) {
             return new Start(previous.get().toState(), previous.get().getPositionQty());
         }
-        boolean reseed = previous.isPresent();
-        int startIdx = Math.min(firstIndexOnOrAfter(ds, day.minusMonths(configResolver.analysisWindowMonths(preset))), dayIdx);
+        Start start = bootstrap(preset, day, ds, dayIdx, sets, setOfBar, configHash);
+        if (previous.isPresent() && !sameConfig && preset.isFollowingStrategy()) {
+            eventService.recordStrategyChange(preset, preset.getAssetStrategy().getRevision());
+        }
+        if (gap) {
+            traceGap(preset, previous.get().getDay(), expectedLast, RainbowLiveDefaultPresets.RESYNC_ACTOR, "trou de passes");
+        }
+        log.info("Bench Rainbow (Trend Mix) : preset={} état {} par rejeu de {} jour(s) jusqu'à la veille de {}",
+                preset.getId(), previous.isEmpty() ? "amorcé" : gap ? "resynchronisé (trou de passes)" : "ré-amorcé (config changée)",
+                Math.max(0, dayIdx - startIndex(preset, day, ds, dayIdx)), day);
+        return start;
+    }
+
+    /**
+     * Resynchronisation de l'état d'un preset jusqu'à la bougie {@code lastIdx} (incluse), SANS run, SANS ordre : seul
+     * l'état moteur (verrou, cooldown, armements, position virtuelle) avance. Sans {@code force}, ne fait rien si l'état est
+     * déjà à jour (config effective identique et dernier jour d'état ≥ jour de {@code lastIdx}).
+     *
+     * @param ds dataset borné à {@code lastIdx} (la bougie du jour encore ouverte n'en fait pas partie)
+     * @return {@code true} si l'état a été recalculé
+     */
+    public boolean resync(RainbowLivePreset preset, List<MarketData> candles, RainbowAtrDataset ds, int lastIdx,
+                          boolean force, String actor, String reason) {
+        LocalDate lastDay = dayOf(ds.time(lastIdx));
+        String configHash = configResolver.effectiveHash(preset);
+        Optional<RainbowLiveEngineState> latest = stateRepository.findFirstByPresetAndDayBeforeOrderByDayDesc(preset, lastDay.plusDays(1));
+        boolean upToDate = latest.isPresent() && Objects.equals(configHash, latest.get().getConfigHash())
+                && !latest.get().getDay().isBefore(lastDay);
+        if (upToDate && !force) {
+            return false;
+        }
+        RainbowLiveTrendConfigs.Resolved cfg = configResolver.trendConfig(preset);
+        TrendMixCalculator.Params tp = cfg.trend();
+        TrendRegime[] regime = TrendMixCalculator.compute(candles, ds.sma(tp.smaPeriod()), ds.atr(tp.atrPeriod()), tp).regime();
+        int[] setOfBar = RainbowSetSelector.select(regime, cfg.range());
+        bootstrap(preset, lastDay.plusDays(1), ds, lastIdx + 1, cfg.sets(), setOfBar, configHash);
+        LocalDate previousDay = latest.map(RainbowLiveEngineState::getDay).orElse(null);
+        traceGap(preset, previousDay, lastDay, actor, reason);
+        log.warn("Bench Rainbow (Trend Mix) : preset={} état resynchronisé jusqu'au {} ({}, dernier état connu : {})",
+                preset.getId(), lastDay, reason, previousDay);
+        return true;
+    }
+
+    private void traceGap(RainbowLivePreset preset, LocalDate lastStateDay, LocalDate resyncedTo, String actor, String reason) {
+        log.warn("Bench Rainbow (Trend Mix) : preset={} actif={} {} : dernier état {} -> resynchronisé jusqu'au {}",
+                preset.getId(), preset.getAssetSymbol(), reason, lastStateDay, resyncedTo);
+        journal.record(actor, AdminAction.RUN, RainbowLiveDefaultPresets.RESYNC_TARGET_PREFIX + preset.getId(),
+                AdminActionLogService.payload("asset", preset.getAssetSymbol(), "reason", reason,
+                        "lastStateDay", lastStateDay == null ? null : lastStateDay.toString(), "resyncedTo", resyncedTo.toString()),
+                AdminActionOutcome.OK);
+    }
+
+    private int startIndex(RainbowLivePreset preset, LocalDate day, RainbowAtrDataset ds, int dayIdx) {
+        return Math.min(firstIndexOnOrAfter(ds, day.minusMonths(configResolver.analysisWindowMonths(preset))), dayIdx);
+    }
+
+    /** Amorçage par rejeu de la fenêtre jusqu'à la bougie précédant {@code dayIdx} ; état enregistré pour ce jour. */
+    private Start bootstrap(RainbowLivePreset preset, LocalDate day, RainbowAtrDataset ds, int dayIdx,
+                            RainbowAtrParamSet[] sets, int[] setOfBar, String configHash) {
+        int startIdx = startIndex(preset, day, ds, dayIdx);
         RainbowAtrReplay.Result boot = RainbowAtrReplay.runFull(ds, sets, setOfBar, startIdx, dayIdx - 1);
         if (dayIdx > 0) {
             LocalDate stateDay = dayOf(ds.time(dayIdx - 1));
@@ -160,11 +228,6 @@ public class RainbowTrendLiveService {
             row.setConfigHash(configHash);
             stateRepository.save(row);
         }
-        if (reseed && preset.isFollowingStrategy()) {
-            eventService.recordStrategyChange(preset, preset.getAssetStrategy().getRevision());
-        }
-        log.info("Bench Rainbow (Trend Mix) : preset={} état {} par rejeu de {} jour(s) jusqu'à la veille de {}",
-                preset.getId(), reseed ? "ré-amorcé (config changée)" : "amorcé", Math.max(0, dayIdx - startIdx), day);
         return new Start(boot.finalState(), boot.finalPosition());
     }
 

@@ -48,6 +48,7 @@ Tous ces endpoints partagent le préfixe `/api/admin/decision`. Introduits progr
 | Méthode | Chemin | Rôle | Effet |
 |---|---|---|---|
 | POST | `/api/admin/rainbow-live/run[?day=YYYY-MM-DD]` | ADMIN | Exécute le run quotidien (tous users actifs, presets `enabled`) sur la bougie D1 ouverte ; `day` (UTC) force le jour. Réponse : `{day, processed, skipped, errors}`. Aucun ordre réel |
+| POST | `/api/admin/rainbow-live/resync[?presetId=]` | ADMIN | Resynchronisation **forcée** de l'état moteur des presets Trend Mix actifs (ou d'un seul) jusqu'à la veille : rejeu de la fenêtre sur les clôtures, sans run ni ordre ; tracée au journal admin (action `RUN`). Réponse : `{toDay, resynced, upToDate, skipped, errors}` |
 | PUT | `/api/admin/rainbow-live/strategies/{id}` | ADMIN | Modifie une stratégie Actif : corps `{analysisWindowMonths, trendConfig}` (mêmes validations que les presets) ⇒ `StrategyDto` avec `revision` + 1 ; prise en compte au prochain run chez les users qui la suivent. 400 `{error}` si invalide |
 
 ## Plan d'ordres dry-run (admin, `ExecutionPlanAdminController`)

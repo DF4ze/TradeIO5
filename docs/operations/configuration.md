@@ -28,6 +28,7 @@ Vérifié le : 2026-10-03 (`configuration/**`, `RainbowLiveDefaultPresets`).
 | `tradeio.backup.dir` | `backup/historical` | Dossier des backups `candle` / `etf_flow_snapshot` (gitignoré) |
 | `tradeio.backup.historical-cron` | `0 0 4 * * SUN` | Cron du backup hebdomadaire des données historiques (`-` désactive) |
 | `tradeio.rainbow-live.pass-2355-cron` | `-` (désactivé) | Cron du run Rainbow quotidien 23:55 UTC (bougie D1 ouverte ; signal + dimensionnement sur wallet réel lecture seule) |
+| `tradeio.rainbow-live.resync-on-startup` | absent (désactivé) ; `true` dans `application.properties` | Au démarrage, resynchronise l'état moteur des presets Trend Mix actifs jusqu'à la veille s'il est en retard (`RainbowLiveResyncRunner`, sans run ni ordre) |
 | `tradeio.execution.mode` | `DRY_RUN` | Mode global d'exécution `OFF\|DRY_RUN\|LIVE` ; `OFF` coupe le plan dry-run, `LIVE` exige `live-unlocked=true` et `TRADEIO_MASTER_KEY` (sinon échec au démarrage) |
 | `tradeio.execution.live-unlocked` | `false` | Déverrouillage de `LIVE` (avec le mode) ; à laisser `false` hors exécution réelle |
 | `TRADEIO_MASTER_KEY` (variable d'environnement) | – | Clé maître AES-256 (base64, 32 octets) chiffrant les clés API (TRADE `enc:v1:`, READ `encr:v1:`) ; jamais en base ni dans un fichier versionné |

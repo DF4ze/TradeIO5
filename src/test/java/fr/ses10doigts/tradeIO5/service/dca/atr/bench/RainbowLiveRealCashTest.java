@@ -69,7 +69,7 @@ import static org.mockito.Mockito.when;
  */
 @DataJpaTest
 @Import({RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class, RainbowLivePresetService.class, RainbowAssetStrategyService.class, RainbowLiveRunService.class,
-        RainbowLiveExecutionService.class, RainbowLiveBindingRunService.class, RainbowTrendLiveService.class, RainbowAthService.class, fr.ses10doigts.tradeIO5.service.portfolio.PortfolioSnapshotService.class,
+        RainbowLiveExecutionService.class, RainbowLiveBindingRunService.class, RainbowTrendLiveService.class, fr.ses10doigts.tradeIO5.service.admin.AdminActionLogService.class, RainbowAthService.class, fr.ses10doigts.tradeIO5.service.portfolio.PortfolioSnapshotService.class,
         RainbowLiveRealCashTest.ClockConfig.class, UserTradingSettingsService.class, RainbowModulationControlService.class})
 @DisplayName("Bench Rainbow : preset live sur vrai cash (ledger, blocage, indisponibilité, rejeu, jour suivant)")
 class RainbowLiveRealCashTest {

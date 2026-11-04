@@ -3,6 +3,8 @@ package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
 import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlService;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
+import fr.ses10doigts.tradeIO5.model.entity.admin.AdminAction;
+import fr.ses10doigts.tradeIO5.repository.admin.AdminActionLogRepository;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketDataset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAthReference;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveEngineState;
@@ -57,7 +59,7 @@ import static org.mockito.Mockito.when;
 
 @DataJpaTest
 @Import({RainbowAssetStrategyService.class, RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class, RainbowLivePresetService.class, RainbowLiveRunService.class, RainbowLiveBindingRunService.class, RainbowLiveExecutionService.class, fr.ses10doigts.tradeIO5.service.portfolio.PortfolioSnapshotService.class,
-        RainbowTrendLiveService.class, RainbowAthService.class, RainbowTrendLiveServiceTest.ClockConfig.class, UserTradingSettingsService.class, RainbowModulationControlService.class})
+        RainbowTrendLiveService.class, fr.ses10doigts.tradeIO5.service.admin.AdminActionLogService.class, RainbowAthService.class, RainbowTrendLiveServiceTest.ClockConfig.class, UserTradingSettingsService.class, RainbowModulationControlService.class})
 @DisplayName("Live Rainbow : presets Trend Mix (état persisté, ATH en base)")
 class RainbowTrendLiveServiceTest {
 
@@ -88,6 +90,7 @@ class RainbowTrendLiveServiceTest {
     @Autowired private RainbowAssetStrategyService strategyService;
     @Autowired private RainbowLivePresetEventService eventService;
     @Autowired private RainbowLivePresetConfigResolver configResolver;
+    @Autowired private AdminActionLogRepository adminLog;
 
     private List<MarketData> candles;
     private RainbowLivePreset btc;
@@ -325,5 +328,86 @@ class RainbowTrendLiveServiceTest {
         assertEquals(ownHash, stateRepository.findByPresetAndDay(btc, day(FIRST + 5)).orElseThrow().getConfigHash());
         assertEquals(ownHash, stateRepository.findByPresetAndDay(btc, day(FIRST + 6)).orElseThrow().getConfigHash(),
                 "le preset perso continue sans ré-amorçage");
+    }
+
+    // --- Trou de passes (service arrêté, série sautée) : l'état doit être resynchronisé, jamais figé
+
+    /** État final du rejeu de la fenêtre de {@code windowMonths} mois précédant le jour {@code anchor}, jusqu'au jour {@code last} (inclus). */
+    private RainbowAtrState replayedState(int last, int anchor, int windowMonths) {
+        RainbowAtrDataset ds = RainbowAtrDataset.fromMarketData(candles.subList(0, last + 1));
+        TrendMixCalculator.Params tp = TrendMixCalculator.Params.defaults();
+        int[] setOfBar = RainbowSetSelector.select(
+                TrendMixCalculator.compute(candles.subList(0, last + 1), ds.sma(tp.smaPeriod()), ds.atr(tp.atrPeriod()), tp).regime(),
+                RainbowSetSelector.RangeMapping.KEEP_PREVIOUS);
+        RainbowAtrParamSet[] sets = RainbowAtrPresets.bearBull(ASSET).toArray(new RainbowAtrParamSet[0]);
+        long from = day(anchor).minusMonths(windowMonths).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+        int startIdx = 0;
+        while (ds.time(startIdx) < from) {
+            startIdx++;
+        }
+        return RainbowAtrReplay.runFull(ds, sets, setOfBar, startIdx, last).finalState();
+    }
+
+    private void assertSameMachine(RainbowAtrState expected, RainbowAtrState actual) {
+        assertEquals(expected.buyArmed(), actual.buyArmed());
+        assertEquals(expected.sellArmed(), actual.sellArmed());
+        assertEquals(expected.buyLocked(), actual.buyLocked());
+        assertEquals(expected.buyArmedDays(), actual.buyArmedDays());
+        assertEquals(expected.sellArmedDays(), actual.sellArmedDays());
+        assertEquals(expected.cooldown(), actual.cooldown());
+        assertEquals(expected.moon().active(), actual.moon().active());
+    }
+
+    private long resyncEntries() {
+        return adminLog.findAllByOrderByIdDesc(org.springframework.data.domain.Pageable.unpaged()).getContent().stream().filter(e -> e.getAction() == AdminAction.RUN
+                && e.getTarget().startsWith(RainbowLiveDefaultPresets.RESYNC_TARGET_PREFIX + btc.getId())).count();
+    }
+
+    @Test
+    @DisplayName("Trou de passes : la passe suivante ré-amorce l'état (== rejeu continu), trace au journal admin, aucun run pour les jours manqués")
+    void gapTriggersResync() {
+        for (int i = FIRST; i <= FIRST + 5; i++) {
+            pass2355(i);
+        }
+        assertEquals(0, resyncEntries(), "passes continues : aucune resynchronisation");
+
+        int resumed = FIRST + 26; // 20 jours sans passe
+        pass2355(resumed);
+
+        assertSameMachine(replayedState(resumed, resumed, 6), stateRepository.findByPresetAndDay(btc, day(resumed)).orElseThrow().toState());
+        assertTrue(stateRepository.findByPresetAndDay(btc, day(resumed - 1)).isPresent(), "état de la veille resynchronisé");
+        assertEquals(1, resyncEntries(), "le trou est tracé au journal admin");
+        for (int i = FIRST + 6; i < resumed; i++) {
+            assertTrue(runRepository.findByPresetAndDay(btc, day(i)).isEmpty(), "aucun run rétroactif, jour " + i);
+        }
+        assertTrue(runRepository.findByPresetAndDay(btc, day(resumed)).isPresent());
+
+        pass2355(resumed + 1);
+        assertEquals(1, resyncEntries(), "plus de trou : pas de nouvelle resynchronisation");
+    }
+
+    @Test
+    @DisplayName("Resync forcée / au démarrage : état ramené à la veille sans run ni ordre ; sans force, un état à jour n'est pas recalculé")
+    void resyncBringsStateToYesterday() {
+        for (int i = FIRST; i <= FIRST + 5; i++) {
+            pass2355(i);
+        }
+        int today = FIRST + 30;
+        Instant now = day(today).atTime(10, 0).toInstant(ZoneOffset.UTC);
+
+        var first = service.resync(now, btc.getId(), false, "test", "démarrage");
+        assertEquals(day(today - 1), first.toDay());
+        assertEquals(1, first.resynced());
+        assertSameMachine(replayedState(today - 1, today, 6), stateRepository.findByPresetAndDay(btc, day(today - 1)).orElseThrow().toState());
+        assertTrue(runRepository.findByPresetAndDay(btc, day(today - 1)).isEmpty(), "aucun run créé");
+        assertEquals(1, resyncEntries());
+
+        var second = service.resync(now, btc.getId(), false, "test", "démarrage");
+        assertEquals(0, second.resynced());
+        assertEquals(1, second.upToDate());
+
+        var forced = service.resync(now, btc.getId(), true, "admin", "forcée");
+        assertEquals(1, forced.resynced());
+        assertEquals(2, resyncEntries());
     }
 }
