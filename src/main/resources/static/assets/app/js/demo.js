@@ -117,7 +117,7 @@
       hist.push(close); const w = hist.slice(-20); const sma = w.reduce((a, b) => a + b, 0) / w.length, atr = sma * 0.035;
       const zone = Math.max(0, Math.min(5, Math.round(2 + (close - sma) / atr)));
       pts.push({ day: iso(-i), close: r2(close), sma: r2(sma), atr: r2(atr), boundDown2: r2(sma - 2 * atr), boundDown1: r2(sma - atr), boundUp1: r2(sma + atr), boundUp2: r2(sma + 2 * atr), boundUp3: r2(sma + 3 * atr),
-        zone, activeSet: 'BULL', trendRegime: 'BULL' });
+        zone, activeSet: 'BULL', trendRegime: 'BULL', action: i % 23 === 5 ? 'BUY' : i % 41 === 7 ? 'SELL' : null });
     }
     return { bindingId: a.id, assetSymbol: symbol, presetName: 'Trend Mix ' + symbol, simulated: !!simulated, points: pts };
   }

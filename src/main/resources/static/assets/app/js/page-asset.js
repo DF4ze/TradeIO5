@@ -33,7 +33,7 @@
     const { b, perf, decisions, plans, trades } = data;
     if (!b) return ui.empty('Actif non suivi', sym + ' n\'est relié à aucun exchange.', h('a', { class: 'btn btn--primary', href: TIO.href('/app/onboarding') }, 'Démarrer'));
 
-    const state = { period: '90d', simulated: false, selected: decisions[0] || null, chart: null };
+    const state = { period: '90d', simulated: false, virtual: true, selected: decisions[0] || null, chart: null };
     const planFor = (d) => (d ? plans.find((p) => p.day === d.day) || null : null);
 
     // --- en-tête ---
@@ -51,18 +51,24 @@
       TIO.mount(status, 'Chargement…');
       try {
         const bands = await TIO.get('/api/rainbow-live/bindings/' + b.id + '/bands' + TIO.qs({ period: state.period, simulated: state.simulated ? 'true' : null }));
-        if (state.chart) state.chart.update(bands, trades, perf && perf.avgBuyPrice, simTrades);
+                if (state.chart) state.chart.update(bands, trades, perf && perf.avgBuyPrice, simTrades, state.virtual);
         TIO.mount(table, h('div', { class: 'scroll-x' }, h('table', { class: 'tbl' }, h('thead', null, h('tr', null, ['Jour', 'Cours', 'Moyenne', 'Zone'].map((t) => h('th', null, t)))),
           h('tbody', null, (bands.points || []).slice(-30).reverse().map((p) => h('tr', null, h('td', null, F.dayLong(p.day)), h('td', null, F.price(p.close)), h('td', null, F.price(p.sma)), h('td', null, TIO.isNum(p.zone) ? String(p.zone) : F.dash)))))));
         TIO.mount(status, bands.points && bands.points.length ? [ui.chip(state.simulated ? 'Bandes simulées (recalculées, non figées)' : 'Bandes figées (calculées à chaque passe)', state.simulated ? 'warn' : 'plain'),
-          h('span', null, '▲ achat · ▽ vente · ┆ prix moyen · Shift-clic ×2 : mesurer'), simTrades.length ? ui.chip('S = action simulée (rien envoyé)', 'sim') : null] : 'Aucune donnée de bandes sur cette période.');
+          h('span', null, '▲ achat · ▽ vente · ┆ prix moyen · Shift-clic ×2 : mesurer'), simTrades.length ? ui.chip('S = action simulée (rien envoyé)', 'sim') : null,
+          state.virtual && (bands.points || []).some((p) => p.action) ? ui.chip('V = achat/vente virtuel du moteur', 'accent') : null] : 'Aucune donnée de bandes sur cette période.');
       } catch (e) { TIO.mount(status, ui.error(e, refreshBands)); }
     };
     const sim = ui.switchEl({ label: 'Afficher les bandes simulées', checked: false, onChange: (on) => { state.simulated = on; refreshBands(); } });
+    const virt = ui.switchEl({ label: 'Achats/ventes virtuels', checked: true, onChange: (on) => {
+      state.virtual = on;
+      refreshBands();
+    } });
     const table = h('div');
     const chartCard = ui.card('Cours et bandes Rainbow',
       h('div', { class: 'row row--between' }, ui.periods(PERIODS, state.period, (v) => { state.period = v; refreshBands(); }),
-        h('label', { class: 'row small' }, sim.el, h('span', null, 'Bandes simulées'))), chartBox, status, h('details', null, h('summary', { class: 'small' }, 'Données du graphique (tableau)'), table), ui.cardOpts({ span: true }));
+        h('div', { class: 'row small' }, h('label', { class: 'row small' }, sim.el, h('span', null, 'Bandes simulées')),
+          h('label', { class: 'row small' }, virt.el, h('span', null, 'Achats/ventes virtuels')))), chartBox, status, h('details', null, h('summary', { class: 'small' }, 'Données du graphique (tableau)'), table), ui.cardOpts({ span: true }));
 
     // --- décisions / frise / pourquoi ---
     const pipeBox = h('div', { class: 'stack' }), whyBox = h('div', { class: 'stack' }), listBox = h('div', { class: 'list' });

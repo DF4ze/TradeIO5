@@ -94,11 +94,11 @@ public class RainbowBandsSimulator {
         double atr = ds.atr(tuning.atrPeriod())[i];
         LocalDate day = Instant.ofEpochMilli(ds.time(i)).atOffset(ZoneOffset.UTC).toLocalDate();
         if (Double.isNaN(sma) || Double.isNaN(atr)) {
-            return new RainbowBandsDto.Point(day, close, null, null, null, null, null, null, null, null, set, regime);
+            return new RainbowBandsDto.Point(day, close, null, null, null, null, null, null, null, null, set, regime, null);
         }
         RainbowAtrBand b = RainbowAtrBand.of(close, sma, atr, tuning);
         return new RainbowBandsDto.Point(day, close, b.sma(), b.atr(), b.down2(), b.down1(), b.up1(), b.up2(), b.up3(), b.zone(),
-                set, regime);
+                set, regime, null);
     }
 
     private static LocalDate dayOf(MarketData c) {

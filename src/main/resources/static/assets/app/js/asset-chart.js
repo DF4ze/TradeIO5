@@ -126,7 +126,7 @@
     container.addEventListener('dblclick', clearMeasure);
 
     return {
-      update(bands, trades, avgBuy, simTrades) {
+      update(bands, trades, avgBuy, simTrades, showVirtual) {
         clearMeasure();
         const pts = (bands && bands.points) || [];
         price.setData(pts.filter((p) => TIO.isNum(p.close)).map((p) => ({ time: p.day, value: p.close })));
@@ -144,7 +144,11 @@
         const sim = (simTrades || []).filter((t) => !first || t.day >= first).map((t) => (t.side === 'SELL'
           ? { time: t.day, position: 'aboveBar', color: colors.sim, shape: 'arrowDown', text: 'S' }
           : { time: t.day, position: 'belowBar', color: colors.sim, shape: 'arrowUp', text: 'S' }));
-        price.setMarkers(markers.concat(sim).sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0)));
+        // Achats/ventes virtuels du moteur (position virtuelle, indépendante du wallet) : losange creux « V », masquables.
+        const virtual = showVirtual === false ? [] : pts.filter((p) => p.action === 'BUY' || p.action === 'SELL').map((p) => (p.action === 'SELL'
+          ? { time: p.day, position: 'aboveBar', color: colors.accent, shape: 'circle', text: 'V▽' }
+          : { time: p.day, position: 'belowBar', color: colors.accent, shape: 'circle', text: 'V▲' }));
+        price.setMarkers(markers.concat(sim, virtual).sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0)));
         chart.timeScale().fitContent();
       },
       destroy() { ro.disconnect(); chart.remove(); },

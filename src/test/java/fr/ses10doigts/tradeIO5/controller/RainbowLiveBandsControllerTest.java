@@ -3,6 +3,7 @@ package fr.ses10doigts.tradeIO5.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
@@ -85,19 +86,19 @@ class RainbowLiveBandsControllerTest {
         RainbowLivePreset preset = presetService.create(alice, new CreateRequest("BTC", "live", true, 6, c.toTuning(), c.toGlobals()));
         binding = bindingRepository.save(RainbowLiveBinding.builder().user(alice).assetSymbol("BTC").preset(preset)
                 .wallet(wallet).bagPercent(100).priority(0).build());
-        run(preset, LocalDate.of(2026, 7, 1), 100.0);
-        run(preset, LocalDate.of(2026, 10, 19), 200.0);
-        run(preset, LocalDate.of(2026, 10, 20), 210.0);
+        run(preset, LocalDate.of(2026, 7, 1), 100.0, null);
+        run(preset, LocalDate.of(2026, 10, 19), 200.0, RainbowLiveAction.BUY);
+        run(preset, LocalDate.of(2026, 10, 20), 210.0, RainbowLiveAction.BLOCKED);
         when(facade.getConnectedUser()).thenReturn(alice);
         mvc = MockMvcBuilders.standaloneSetup(new RainbowLiveBandsController(service, facade))
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(new ObjectMapper().findAndRegisterModules()))
                 .build();
     }
 
-    private void run(RainbowLivePreset preset, LocalDate day, double close) {
+    private void run(RainbowLivePreset preset, LocalDate day, double close, RainbowLiveAction action) {
         runRepository.save(RainbowLiveRun.builder().preset(preset).user(alice).assetSymbol("BTC").day(day).signal(RainbowLivePassBlock.builder()
                 .close(close).sma(close - 1).atr(2.0).boundDown2(close - 5).boundDown1(close - 3).boundUp1(close + 3)
-                .boundUp2(close + 5).boundUp3(close + 8).zone(2).build()).build());
+                .boundUp2(close + 5).boundUp3(close + 8).zone(2).actionType(action).build()).build());
     }
 
     @Test
@@ -109,7 +110,9 @@ class RainbowLiveBandsControllerTest {
                 .andExpect(jsonPath("$.points.length()").value(2))
                 .andExpect(jsonPath("$.points[0].day[2]").value(19))
                 .andExpect(jsonPath("$.points[1].boundUp3").value(218.0))
-                .andExpect(jsonPath("$.points[1].zone").value(2));
+                .andExpect(jsonPath("$.points[1].zone").value(2))
+                .andExpect(jsonPath("$.points[0].action").value("BUY"))
+                .andExpect(jsonPath("$.points[1].action").doesNotExist());
         mvc.perform(get(url).param("period", "all")).andExpect(jsonPath("$.points.length()").value(3));
     }
 
@@ -118,7 +121,7 @@ class RainbowLiveBandsControllerTest {
     void simulatedBands() throws Exception {
         when(simulator.simulate(org.mockito.ArgumentMatchers.eq(binding), org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of(new RainbowBandsDto.Point(
-                java.time.LocalDate.of(2026, 10, 18), 100.0, 98.0, 2.0, 90.0, 94.0, 102.0, 106.0, 110.0, 1, "BEAR", "BEAR")));
+                java.time.LocalDate.of(2026, 10, 18), 100.0, 98.0, 2.0, 90.0, 94.0, 102.0, 106.0, 110.0, 1, "BEAR", "BEAR", null)));
         mvc.perform(get("/api/rainbow-live/bindings/" + binding.getId() + "/bands").param("simulated", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.simulated").value(true))

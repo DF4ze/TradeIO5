@@ -176,6 +176,15 @@
       + s.errors + ' erreur(s).';
   }
 
+  /** Resynchronisation forcée de l'état moteur Trend Mix jusqu'à la veille (rejeu, aucun run ni ordre). */
+  async function resync() {
+    const s = await api('POST', '/api/admin/rainbow-live/resync');
+    const box = byId('adm-result');
+    box.className = 'border rounded p-2 small';
+    box.textContent = 'Resync jusqu\'au ' + s.toDay + ' : ' + s.resynced + ' resynchronisé(s), ' + s.upToDate
+      + ' à jour, ' + s.skipped + ' ignoré(s), ' + s.errors + ' erreur(s).';
+  }
+
   async function runPlan() {
     const p = selectedPlan();
     const wasLifted = !kill();
@@ -195,6 +204,7 @@
   }
 
   bind('adm-btn-pass', livePass);
+  bind('adm-btn-resync', resync);
   bind('adm-btn-plan', plan);
   bind('adm-btn-reset', resetPlan);
   bind('adm-btn-lift', () => setKillSwitch(false));

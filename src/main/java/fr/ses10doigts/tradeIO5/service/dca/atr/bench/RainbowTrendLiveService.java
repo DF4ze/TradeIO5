@@ -193,6 +193,9 @@ public class RainbowTrendLiveService {
         TrendMixCalculator.Params tp = cfg.trend();
         TrendRegime[] regime = TrendMixCalculator.compute(candles, ds.sma(tp.smaPeriod()), ds.atr(tp.atrPeriod()), tp).regime();
         int[] setOfBar = RainbowSetSelector.select(regime, cfg.range());
+        // toute la chaîne est périmée (la passe suivante rejoue la veille depuis l'état d'avant : il doit être sain ou absent)
+        stateRepository.deleteByPreset(preset);
+        stateRepository.flush();
         bootstrap(preset, lastDay.plusDays(1), ds, lastIdx + 1, cfg.sets(), setOfBar, configHash);
         LocalDate previousDay = latest.map(RainbowLiveEngineState::getDay).orElse(null);
         traceGap(preset, previousDay, lastDay, actor, reason);

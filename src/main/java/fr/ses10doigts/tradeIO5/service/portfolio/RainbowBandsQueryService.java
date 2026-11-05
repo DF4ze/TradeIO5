@@ -1,6 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.portfolio;
 
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.RainbowBandsDto;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
@@ -50,8 +51,14 @@ public class RainbowBandsQueryService {
         return new RainbowBandsDto(binding.getId(), binding.getAssetSymbol(), binding.getPreset().getName(), false, points);
     }
 
+    /** BUY / SELL du moteur ce jour-là ; NONE, BLOCKED (achat refusé faute de cash, rien d'acheté) ou absent ⇒ null. */
+    private static String action(RainbowLivePassBlock s) {
+        RainbowLiveAction a = s.getActionType();
+        return a == RainbowLiveAction.BUY || a == RainbowLiveAction.SELL ? a.name() : null;
+    }
+
     private static RainbowBandsDto.Point point(LocalDate day, RainbowLivePassBlock s) {
         return new RainbowBandsDto.Point(day, s.getClose(), s.getSma(), s.getAtr(), s.getBoundDown2(), s.getBoundDown1(),
-                s.getBoundUp1(), s.getBoundUp2(), s.getBoundUp3(), s.getZone(), s.getActiveSet(), s.getTrendRegime());
+                s.getBoundUp1(), s.getBoundUp2(), s.getBoundUp3(), s.getZone(), s.getActiveSet(), s.getTrendRegime(), action(s));
     }
 }
