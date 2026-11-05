@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Bandes Rainbow figées d'un lien : valeurs réellement vues par le moteur à chaque passe (run du preset), un point par jour joué.
  * {@code action} : BUY / SELL quand le moteur a voulu acheter / vendre ce jour-là (achat/vente virtuel, indépendant du wallet), sinon
- * {@code null} ; toujours {@code null} sur les bandes simulées. {@code simulated=false} : aucun point recalculé. Valeurs nulles (« — ») quand le run ne les porte pas.
+ * {@code null} ; sur les bandes simulées, repris des runs figés du même jour (les bandes sont recalculées, pas les décisions). {@code simulated=false} : aucun point recalculé. Valeurs nulles (« — ») quand le run ne les porte pas.
  */
 public record RainbowBandsDto(Long bindingId, String assetSymbol, String presetName, boolean simulated, List<Point> points) {
 

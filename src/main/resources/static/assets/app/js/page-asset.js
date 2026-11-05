@@ -19,18 +19,39 @@
     const wallet = new URLSearchParams(g.location.search).get('wallet'); // exchange précis quand l'actif est sur plusieurs
     const b = bindings.find((x) => x.assetSymbol === sym && wallet && String(x.walletId) === wallet) || bindings.find((x) => x.assetSymbol === sym);
     if (!b) return { b: null };
-    const [perf, decisions, plans, live, trades] = await Promise.all([
+    const [perf, decisions, plans, live, trades, allBands] = await Promise.all([
       TIO.safe(TIO.get('/api/portfolio/assets'), []),
       TIO.safe(TIO.get('/api/rainbow-live/decisions' + TIO.qs({ assetSymbol: sym })), []),
       TIO.safe(TIO.get('/api/rainbow-live/execution-plans'), []),
       TIO.safe(TIO.get('/api/rainbow-live/live-wallet'), []),
       TIO.safe(TIO.get('/api/rainbow-live/bindings/' + b.id + '/transactions'), null),
+      TIO.safe(TIO.get('/api/rainbow-live/bindings/' + b.id + '/bands' + TIO.qs({ period: 'all' })), null),
     ]);
-    return { b, perf: (() => { const agg = perf.find((p) => p.assetSymbol === sym) || null; const part = agg && (agg.parts || []).find((x) => x.walletId === b.walletId); return part ? { ...agg, quantity: part.quantity, avgBuyPrice: part.avgBuyPrice, pnl: part.pnl, pnlPct: part.pnlPct, realizedPnl: part.realizedPnl, realizedPct: part.realizedPct, totalPnl: part.totalPnl, fees: part.fees, sells: part.sells, incomplete: part.incomplete } : agg; })(), decisions, plans, live: live.find((l) => l.assetSymbol === sym) || null, trades };
+    return { b, perf: (() => { const agg = perf.find((p) => p.assetSymbol === sym) || null; const part = agg && (agg.parts || []).find((x) => x.walletId === b.walletId); return part ? { ...agg, quantity: part.quantity, avgBuyPrice: part.avgBuyPrice, pnl: part.pnl, pnlPct: part.pnlPct, realizedPnl: part.realizedPnl, realizedPct: part.realizedPct, totalPnl: part.totalPnl, fees: part.fees, sells: part.sells, incomplete: part.incomplete } : agg; })(), decisions, plans, live: live.find((l) => l.assetSymbol === sym) || null, trades, allBands };
+  }
+
+  /** Bilan du lien depuis ses trades réels : achats, ventes, position restante, gain total et DCA fixe de référence (même capital, répartition quotidienne depuis le 1er achat). */
+  function summarize(perf, trades, allBands) {
+    const list = (trades && trades.trades) || [];
+    if (!list.length) return null;
+    const sum = (side) => list.filter((t) => t.side === side).reduce((t, x) => t + Number(x.quantity) * Number(x.price), 0);
+    const bought = sum('BUY'), sold = sum('SELL');
+    const price = perf && perf.price, qty = perf ? perf.quantity : 0;
+    const remaining = TIO.isNum(price) ? qty * price : null;
+    const gain = remaining === null ? null : sold + remaining - bought;
+    const first = list.map((t) => String(t.timestamp).slice(0, 10)).sort()[0];
+    const closes = ((allBands && allBands.points) || []).filter((p) => p.day >= first && TIO.isNum(p.close) && p.close > 0);
+    let dca = null;
+    if (closes.length > 1 && bought > 0) {
+      const per = bought / closes.length;
+      const value = closes.reduce((t, p) => t + per / p.close, 0) * closes[closes.length - 1].close;
+      dca = { pnl: value - bought, pct: (value / bought - 1) * 100, days: closes.length };
+    }
+    return { bought, sold, net: bought - sold, remaining, gain, gainPct: gain !== null && bought > 0 ? gain / bought * 100 : null, first, dca };
   }
 
   function render(sym, data) {
-    const { b, perf, decisions, plans, trades } = data;
+    const { b, perf, decisions, plans, trades, allBands } = data;
     if (!b) return ui.empty('Actif non suivi', sym + ' n\'est relié à aucun exchange.', h('a', { class: 'btn btn--primary', href: TIO.href('/app/onboarding') }, 'Démarrer'));
 
     const state = { period: '90d', simulated: false, virtual: true, selected: decisions[0] || null, chart: null };
@@ -70,6 +91,21 @@
         h('div', { class: 'row small' }, h('label', { class: 'row small' }, sim.el, h('span', null, 'Bandes simulées')),
           h('label', { class: 'row small' }, virt.el, h('span', null, 'Achats/ventes virtuels')))), chartBox, status, h('details', null, h('summary', { class: 'small' }, 'Données du graphique (tableau)'), table), ui.cardOpts({ span: true }));
 
+    // --- bilan (équivalent de l'encart du Pine) ---
+    const sm = summarize(perf, trades, allBands);
+    const pct = (n) => (TIO.isNum(n) ? ' (' + F.signedPct(n) + ')' : '');
+    const summaryCard = ui.card('Bilan depuis le 1er achat' + (sm ? ' (' + F.day(sm.first) + ')' : ''), sm
+      ? h('div', { class: 'stats' },
+        ui.stat('Total investi (achats − ventes)', F.usd(sm.net, 0)),
+        ui.stat('Total achats', F.usd(sm.bought, 0)),
+        ui.stat('Total ventes', F.usd(sm.sold, 0)),
+        ui.stat('Valeur position restante', F.usd(sm.remaining, 0)),
+        ui.stat('Gain total (ventes + position − achats)', h('span', null, ui.profit(sm.gain), pct(sm.gainPct))),
+        ui.stat('PnL réel', h('span', null, ui.profit(perf && perf.realizedPnl), pct(perf && perf.realizedPct))),
+        ui.stat('PnL latent', h('span', null, ui.profit(perf && perf.pnl), pct(perf && perf.pnlPct))),
+        ui.stat('PnL d\'un DCA fixe (même capital, ' + (sm.dca ? sm.dca.days + ' j' : '—') + ')', sm.dca ? h('span', null, ui.profit(sm.dca.pnl), pct(sm.dca.pct)) : F.dash))
+      : ui.empty('Pas encore d\'achat', 'Le bilan apparaît après le premier trade de ce lien.'), ui.cardOpts({ span: true }));
+
     // --- décisions / frise / pourquoi ---
     const pipeBox = h('div', { class: 'stack' }), whyBox = h('div', { class: 'stack' }), listBox = h('div', { class: 'list' });
     const paint = () => {
@@ -86,7 +122,7 @@
       ui.card('Frise de décision', pipeBox, ui.cardOpts({ span: true })));
 
     g.requestAnimationFrame(() => { state.chart = TIO.assetChart(chartBox); refreshBands(); });
-    return [headCard, chartCard, grid,
+    return [headCard, chartCard, summaryCard, grid,
       TIO.modeAtLeast('expert') ? h('p', { class: 'note span-all' }, 'Stratégie et presets de cet actif : ', h('a', { href: '/user' }, 'espace Expert')) : null];
   }
 

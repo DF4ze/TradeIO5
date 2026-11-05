@@ -237,6 +237,7 @@
     btn.addEventListener('click', () => run(btn, async () => {
       await api('PUT', '/api/admin/execution/kill-switch', { engaged: !core.state.killSwitch });
       await refreshState();
+      document.dispatchEvent(new CustomEvent('tio:killswitch-changed'));
     }));
   }
 
@@ -246,6 +247,9 @@
       btn.addEventListener('shown.bs.tab', () => activate(btn.dataset.admTab));
     });
     refreshState().catch((e) => showAlert(e.message));
+    document.addEventListener('tio:killswitch', (e) => {
+      if (core.state && core.state.killSwitch !== e.detail.killSwitch) { refreshState().catch(() => { /* idem */ }); }
+    });
     setInterval(() => { refreshState().catch(() => { /* bandeau périmé jusqu'au prochain tour */ }); }, STATE_REFRESH_MS);
     activate('console');
   }

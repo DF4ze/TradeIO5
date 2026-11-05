@@ -196,6 +196,7 @@
   async function setKillSwitch(engaged) {
     await api('PUT', EXEC + '/kill-switch', { engaged });
     await reload();
+    document.dispatchEvent(new CustomEvent('tio:killswitch-changed'));
   }
 
   function bind(id, action) {

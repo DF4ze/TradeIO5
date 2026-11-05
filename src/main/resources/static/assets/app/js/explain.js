@@ -45,9 +45,25 @@
     if (!m) return ui.empty('Pas de détail pour ce jour', 'Le détail du calcul est conservé à partir de la première passe.');
     const final = TIO.isNum(m.finalAmountUsd) ? m.finalAmountUsd : m.modulatedBuyUsd;
     const out = [];
+    const st = d.strategyState, trend = st && TIO.trendLabel(st.trendRegime);
+    const athPct = st && TIO.isNum(st.athDistance) ? st.athDistance * 100 : null;
+    const facBuy = st && TIO.isNum(st.buyFactor) ? st.buyFactor : null;
+    // Pourquoi ce signal : tendance, jeu de paramètres, zone du cours, distance à l'ATH.
+    const why1 = st ? [trend ? 'Tendance ' + trend : null, st.activeSet ? 'jeu « ' + st.activeSet + ' »' : null, 'cours en ' + TIO.zoneLabel(st.zone),
+      athPct !== null ? F.pct(athPct, 0) + ' sous l\'ATH' + (facBuy !== null && m.signalBuyUsd > 0 ? ' (facteur ATH × ' + F.num(facBuy, 2) + ')' : '') : null].filter(Boolean).join(' · ') : null;
     out.push(h('p', null, m.signalBuyUsd > 0
       ? 'Le signal du jour proposait ' + F.usd(m.signalBuyUsd) + '. Après vos réglages et les plafonds : ' + F.usd(final) + '.'
       : m.signalSellQty > 0 ? 'Le signal du jour proposait de vendre ' + F.qty(m.signalSellQty) + ' ' + sym + '.' : 'Le signal du jour ne proposait aucun achat.'));
+    if (why1) out.push(h('p', { class: 'muted' }, 'Signal : ' + why1 + '.'));
+    if (TIO.modeAtLeast('advanced') && st) {
+      const mach = TIO.stateText(st);
+      out.push(h('div', { class: 'stack' },
+        trend ? calc('Tendance', trend, st.activeSet ? 'jeu de paramètres ' + st.activeSet : null) : null,
+        calc('Zone du cours', TIO.zoneLabel(st.zone), TIO.isNum(st.close) ? 'clôture ' + F.price(st.close) + (TIO.isNum(st.down2) ? ' · Down2 ' + F.price(st.down2) : '') : null),
+        athPct !== null ? calc('Distance à l\'ATH', F.pct(athPct, 1), 'facteur achat × ' + F.num(facBuy, 2) + ' · vente × ' + F.num(st.sellFactor, 2)) : null,
+        m.signalBuyUsd > 0 && facBuy > 0 ? calc('Montant de zone (avant ATH)', F.usd(m.signalBuyUsd / facBuy), 'signal ÷ facteur ATH = base × multiplicateur de zone') : null,
+        mach ? calc('Machine', mach.label, mach.detail) : null));
+    }
     if (TIO.modeAtLeast('advanced') && m.signalBuyUsd > 0) {
       out.push(h('div', { class: 'stack' },
         calc('Signal du jour', F.usd(m.signalBuyUsd)),

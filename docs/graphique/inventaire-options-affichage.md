@@ -213,7 +213,7 @@ Infos : bandeau permanent (`/api/admin/execution/state` : mode, LIVE déverrouil
 | Carte actif : statut, position, dernière décision | `BindingDto`, `snapshot`, `lastRun` | [OK] |
 | Carte actif : valeur, latent, réalisé, total | `/api/portfolio/assets` | [OK] |
 | Graphique : achats/ventes réels, prix moyen d'achat | `/api/rainbow-live/bindings/{id}/transactions` | [OK] (prix : candles en base, endpoint de série à prévoir avec les bandes, §6 #7) |
-| Graphique : achats/ventes **virtuels** du moteur (marqueurs « V », bascule « Achats/ventes virtuels », activée par défaut) | `action` de chaque point de `/api/rainbow-live/bindings/{id}/bands` (bandes figées uniquement) | [OK] (position virtuelle, indépendante du wallet ; distincts des achats/ventes réels et des actions simulées « S ») |
+| Graphique : achats/ventes **virtuels** du moteur (marqueurs « V », bascule « Achats/ventes virtuels », activée par défaut) | `action` de chaque point de `/api/rainbow-live/bindings/{id}/bands` (bandes figées ; en simulé, `action` est repris des runs figés du même jour) | [OK] (position virtuelle, indépendante du wallet ; distincts des achats/ventes réels et des actions simulées « S ») |
 | Graphique : bandes Rainbow historiques (figées / simulées `simulate`) | blocs de signal des runs, non exposés | **[À implémenter]** (§2.2) |
 | Frise Signal → Modulation → Plafonds → Plan → Exécution → Résultat | `lastRun`, `modulation`, `plan.steps`, `events` | [OK] (données réparties sur 4 endpoints) |
 | Journal : plans, exécutions, frais réels, slippage, Fee Test, carry | plans (`from`/`to`), `events` | [OK] |

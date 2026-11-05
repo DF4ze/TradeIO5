@@ -14,8 +14,11 @@ package fr.ses10doigts.tradeIO5.model.dto.portfolio;
  * @param armedDays      jours depuis l'armement (trailing)
  * @param buyLocked      le verrou d'achat « jusqu'à Down2 » est encore actif (peut accompagner un cooldown)
  * @param zone           zone Rainbow du jour (0 = EXTREME_BAS ... 5 = EXTREME_HAUT)
+ * @param athDistance    distance du cours à l'ATH (0..1, 0,3 = 30 % sous l'ATH) ; sert à la modulation ATH
+ * @param buyFactor      facteur ATH appliqué à l'achat (1 = neutre) ; {@code sellFactor} : idem à la vente
  */
 public record StrategyStateDto(String kind, Double close, Double referencePrice, Double triggerPrice, Double down2,
                                Integer cooldownDays, Integer armedDays, boolean buyLocked, Integer zone,
-                               String activeSet, String trendRegime) {
+                               String activeSet, String trendRegime,
+                               Double athDistance, Double buyFactor, Double sellFactor) {
 }

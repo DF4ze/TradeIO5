@@ -403,6 +403,8 @@
   /** Libellé, détail chiffré et couleur de l'état de la machine (nul si la passe du jour n'a pas été jouée). */
   const F = TIO.fmt;
   const ZONES = ['Extrême bas', 'Zone X2', 'Zone X1', 'Zone X0,5', "Pas d'achat", 'Extrême haut'];
+  TIO.zoneLabel = (z) => ZONES[z] || 'zone inconnue';
+  TIO.trendLabel = (t) => ({ UP: 'haussière (Bull)', DOWN: 'baissière (Bear)', RANGE: 'range' }[t] || t || null);
   TIO.stateText = function (st) {
     if (!st) return null;
     const px = (v) => (TIO.isNum(num(v)) ? F.price(num(v)) : F.dash);

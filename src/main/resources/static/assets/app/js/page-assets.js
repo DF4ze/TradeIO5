@@ -136,9 +136,13 @@
     const st = item.state;
     const feeLvl = b.feeTestLevel === 'WARNING' || b.feeTestLevel === 'RED' ? FEE_LEVEL[b.feeTestLevel] : null;
     const feeChip = feeLvl ? ui.chip(feeLvl[0] + (TIO.isNum(b.feeTestPct) ? ' · ' + F.pct(Number(b.feeTestPct), 2) : ''), feeLvl[1]) : null;
+    const chartLink = h('a', { class: 'icon-btn', href: TIO.href('/app/assets/' + encodeURIComponent(sym) + '?wallet=' + encodeURIComponent(b.walletId)), title: 'Fiche et graphique de ' + sym, 'aria-label': 'Ouvrir la fiche et le graphique de ' + sym,
+      onclick: (e) => e.stopPropagation() },
+      TIO.svg('svg', { viewBox: '0 0 24 24', width: 18, height: 18, fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' },
+        TIO.svg('path', { d: 'M3 3v18h18' }), TIO.svg('path', { d: 'M7 15l4-5 3 3 5-7' })));
     const head = h('summary', { class: 'asset-row' },
       ui.coin(sym),
-      h('div', { class: 'asset-id' }, h('div', { class: 'asset-name' }, h('span', { class: 'num asset-sym' }, sym), h('span', { class: 'asset-caret', 'aria-hidden': 'true' }, '›')),
+      h('div', { class: 'asset-id' }, h('div', { class: 'asset-name' }, h('span', { class: 'num asset-sym' }, sym), chartLink, h('span', { class: 'asset-caret', 'aria-hidden': 'true' }, '›')),
         h('div', { class: 'muted small' }, pos ? F.qty(pos.quantity) + ' ' + sym : 'Aucune position')),
       h('div', { class: 'asset-strat' }, st
         ? [h('div', { class: 'asset-strat-label' }, h('span', { class: 'jr-dot jr-dot--' + st.tone, 'aria-hidden': 'true' }), st.label), h('div', { class: 'muted small' }, st.detail)]

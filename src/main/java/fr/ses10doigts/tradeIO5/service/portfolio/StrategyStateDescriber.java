@@ -50,7 +50,8 @@ public final class StrategyStateDescriber {
     private static StrategyStateDto build(RainbowLivePassBlock s, String kind, Double ref, Double trigger, Integer armedDays,
                                           int cooldown, boolean locked) {
         return new StrategyStateDto(kind, s.getClose(), ref, trigger, s.getBoundDown2(), cooldown > 0 ? cooldown : null,
-                armedDays, locked, s.getZone(), s.getActiveSet(), s.getTrendRegime());
+                armedDays, locked, s.getZone(), s.getActiveSet(), s.getTrendRegime(),
+                s.getAthDistance(), s.getBuyFactor(), s.getSellFactor());
     }
 
     private static Double below(Double ref, Double pct) {
