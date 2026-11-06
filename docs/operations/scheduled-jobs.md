@@ -17,7 +17,23 @@ Vérifié le : 2026-10-10 (`service/scheduler/**`).
 | `ExecutionJob` | `tradeio.execution.run-cron` | `-` (`CRON_DISABLED`) | **Non** (UTC ; exécute les plans du run 23:55 ; sans effet hors mode `LIVE` déverrouillé, kill switch respecté ; cf. [`architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md)) | `POST /api/admin/execution/run?planId=` |
 | `ExecutionPlanJob` | `tradeio.execution.plan-cron` | `-` (`CRON_DISABLED`) | **Non** (cible `0 58 23 * * *`, **UTC**, juste après le run 23:55 ; plan dry-run, rien n'est envoyé) | `POST /api/admin/execution/plan` |
 
-**Profils non versionnés** (`application-dev/prod.properties`) : d'après Clem et la mémoire projet (2026-10-04), l'orchestrateur est activé depuis le 2026-09-03 (`0 0 6 * * *`) et le job `RainbowLivePass2355Job` tourne quotidiennement sur le VPS. Toujours vérifier dans le profil actif.
+**Ordre de résolution de la config** (le dernier écrase le précédent) : `application.properties` (dans le jar) → `application-prod.properties` (dans le jar, profil `prod` via `--spring.profiles.active=prod`) → `application-prod.properties` **externe** du VPS (`/home/oklm/TradeIO/`, répertoire de travail du service `tradeio`, prioritaire sur le classpath) → variables d'environnement de `/etc/tradeio/tradeio.env` (ne contient que `TRADEIO_MASTER_KEY`). `/var/param/*.properties` ne concerne pas TradeIO.
+
+**Valeurs effectives en prod** (vérifiées le 2026-11-06, VPS) :
+
+| Propriété | `application.properties` | `application-prod` local (repo) | `application-prod` VPS (effectif) |
+|---|---|---|---|
+| `tradeio.execution.mode` | `DRY_RUN` | `LIVE` | **`LIVE`** |
+| `tradeio.execution.live-unlocked` | `false` | `true` | **`true`** |
+| `tradeio.decision.orchestrator-cron` | `-` | `0 0 6 * * *` | **`0 0 6 * * *`** |
+| `tradeio.rainbow-live.pass-2355-cron` | `-` | absent | **`0 55 23 * * *`** (UTC) |
+| `tradeio.execution.plan-cron` | `-` | absent | **`0 58 23 * * *`** (UTC) |
+| `tradeio.execution.run-cron` | `-` | absent | **`0 59 23 * * *`** (UTC) |
+| `snapshot-cron`, `archival-cron` | `-` | absents | absents → **désactivés** |
+
+Le fichier du repo ne reflète donc pas la prod : la planification Rainbow → plan → exécution (23:55 / 23:58 / 23:59 UTC) n'existe que dans le fichier externe du VPS. Constat dans les logs du VPS (nuit du 05→06/11, soit 00:55 / 00:58 / 00:59 heure de Paris) : les trois jobs ont tourné (`errors=0`). `DecisionOrchestratorJob` tourne chaque jour à 06:00 ; une stack trace est présente dans `TradeIO5-error.2026-11-04.log` (déjà vue les 11 et 12/10), non analysée ici.
+
+Les autres jobs (veille média, historisation ETF flow, backup hebdo) gardent leurs défauts du code.
 
 `-` est la valeur spéciale Spring (`Scheduled.CRON_DISABLED`) qui désactive l'enregistrement de la tâche planifiée — vérifié empiriquement dans le projet (test dédié sur `DecisionScenarioSnapshotJob`), pas seulement supposé.
 

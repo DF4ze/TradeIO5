@@ -87,6 +87,13 @@ public final class ExecutionDefaults {
     /** Fenêtre par défaut (jours) de la liste admin des plans. */
     public static final int ADMIN_PLAN_WINDOW_DAYS = 7;
 
+    /** Console admin : taille maximale d'un lot synchrone d'actions groupées (surcharge : {@link #BULK_MAX_PLANS_PROPERTY}). */
+    public static final int BULK_MAX_PLANS = 10;
+    public static final String BULK_MAX_PLANS_PROPERTY = "tradeio.execution.bulk.max-plans";
+
+    /** Saisie obligatoire (sans accent, identique côté UI) pour confirmer une exécution groupée. */
+    public static final String BULK_RUN_CONFIRM = "EXECUTER";
+
     public static final String FEE_TEST_WARN_PROPERTY = "tradeio.execution.fee-test.warn-pct";
     public static final String FEE_TEST_RED_PROPERTY = "tradeio.execution.fee-test.red-pct";
     public static final String MODE_PROPERTY = "tradeio.execution.mode";

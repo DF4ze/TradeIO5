@@ -42,20 +42,32 @@ public class AdminPlanTriggerService {
      * levées) ; un jour clôturé garde son run.
      */
     public PlanSummary reset(Long planId, String actor) {
+        return reset(planId, actor, null, null);
+    }
+
+    /**
+     * Reset d'un lot : les séries D1 sont partagées via {@code batch} (nul : recalcul isolé, comportement unitaire) et le
+     * {@code batchId} est ajouté au journal.
+     */
+    PlanSummary reset(Long planId, String actor, RainbowLiveExecutionService.RecomputeBatch batch, String batchId) {
         String target = "reset#" + planId;
         try {
             OrderPlanService.ResetTarget resetTarget = planService.resetTarget(planId);
-            if (resetTarget.day().equals(RainbowLiveExecutionService.dayFor(clock.now()))) {
-                executionService.recomputeDay(resetTarget.user(), clock.now(), resetTarget.day());
+            if (resetTarget.day().equals(RainbowLiveExecutionService.dayFor(batch == null ? clock.now() : batch.asOf()))) {
+                if (batch == null) {
+                    executionService.recomputeDay(resetTarget.user(), clock.now(), resetTarget.day());
+                } else {
+                    executionService.recomputeDay(resetTarget.user(), batch.asOf(), resetTarget.day(), batch);
+                }
             }
             PlanSummary summary = planService.resetPlan(planId);
             journal.record(actor, AdminAction.PLAN, target, AdminActionLogService.payload("planned", summary.planned(),
                     "blocked", summary.blocked(), "disabled", summary.disabled(), "unchanged", summary.unchanged(),
-                    "skipped", summary.skipped()), AdminActionOutcome.OK);
+                    "skipped", summary.skipped(), "batchId", batchId), AdminActionOutcome.OK);
             return summary;
         } catch (RuntimeException e) {
-            journal.record(actor, AdminAction.PLAN, target, AdminActionLogService.payload("error", e.getClass().getSimpleName()),
-                    e instanceof IllegalArgumentException ? AdminActionOutcome.REFUSED : AdminActionOutcome.ERROR);
+            journal.record(actor, AdminAction.PLAN, target, AdminActionLogService.payload("error", e.getClass().getSimpleName(),
+                    "batchId", batchId), e instanceof IllegalArgumentException ? AdminActionOutcome.REFUSED : AdminActionOutcome.ERROR);
             throw e;
         }
     }

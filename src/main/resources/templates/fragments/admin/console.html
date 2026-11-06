@@ -1,26 +1,82 @@
 <div th:fragment="console" class="tab-pane fade show active" id="adm-pane-console" role="tabpanel">
 	<h5>Console d'exécution</h5>
-	<p class="text-muted small">Procédure OKX en 7 étapes. Aucun ordre ne part tant que LIVE est verrouillé ou que le kill switch est engagé ; chaque blocage est expliqué.</p>
+	<p class="text-muted small">Plans de tous les utilisateurs : filtres, actions groupées (calcul d'éligibilité côté serveur) et, dans le détail d'un plan, procédure individuelle en 7 étapes. Aucun ordre ne part tant que LIVE est verrouillé ou que le kill switch est engagé ; chaque blocage est expliqué.</p>
 
-	<div class="row g-2 align-items-end mb-3">
-		<div class="col-12 col-md-6">
-			<label class="form-label" for="adm-plan-select">Plan</label>
-			<select class="form-select" id="adm-plan-select"></select>
+	<!-- Filtres -->
+	<div class="d-flex flex-wrap align-items-end gap-2 mb-2" id="adm-filters">
+		<div>
+			<label class="form-label" for="adm-f-day">Jour (UTC)</label>
+			<div class="d-flex gap-1">
+				<button type="button" class="btn btn-sm btn-outline-secondary" id="adm-f-prev" aria-label="Jour précédent">◀</button>
+				<input type="date" class="form-control form-control-sm w-auto" id="adm-f-day">
+				<button type="button" class="btn btn-sm btn-outline-secondary" id="adm-f-next" aria-label="Jour suivant">▶</button>
+			</div>
 		</div>
-		<div class="col-auto">
-			<button type="button" class="btn btn-outline-secondary" id="adm-plans-reload">Recharger les plans</button>
+		<div class="form-check mb-1">
+			<input class="form-check-input" type="checkbox" id="adm-f-alldays">
+			<label class="form-check-label small" for="adm-f-alldays">Tous les jours</label>
 		</div>
+		<div>
+			<label class="form-label" for="adm-f-user">Utilisateur</label>
+			<select class="form-select form-select-sm" id="adm-f-user"></select>
+		</div>
+		<div>
+			<label class="form-label" for="adm-f-status">Statut</label>
+			<select class="form-select form-select-sm" id="adm-f-status"></select>
+		</div>
+		<button type="button" class="btn btn-sm btn-outline-secondary" id="adm-plans-reload" title="Recharger les plans">⟳</button>
 	</div>
-	<div id="adm-plan-summary" class="mb-3"></div>
+
+	<!-- Actions globales du jour -->
+	<div class="d-flex flex-wrap align-items-center gap-2 mb-2" id="adm-global-actions">
+		<button type="button" class="btn btn-sm btn-outline-primary" id="adm-btn-pass" title="Signal + snapshot live de tous les users, aucun ordre">Lancer la passe</button>
+		<button type="button" class="btn btn-sm btn-outline-warning" id="adm-btn-resync" title="Recalcule l'état moteur Trend Mix (rejeu jusqu'à la veille), sans run ni ordre">Resynchroniser</button>
+		<button type="button" class="btn btn-sm btn-primary" id="adm-btn-plan" title="Planifie tous les users du jour (idempotent)">Planifier tous</button>
+		<span class="small ms-2">Kill switch : <strong id="adm-ks-console">—</strong></span>
+		<button type="button" class="btn btn-sm btn-warning" id="adm-btn-lift-global">Lever</button>
+		<button type="button" class="btn btn-sm btn-outline-secondary" id="adm-btn-engage-global">Réengager</button>
+	</div>
+
+	<!-- Chips de statut -->
+	<div class="d-flex flex-wrap gap-1 mb-2" id="adm-chips"></div>
+
+	<!-- Tableau de plans -->
+	<div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+		<button type="button" class="btn btn-sm btn-outline-secondary" id="adm-sel-problem" title="Coche tous les plans EXPIRED / BLOCKED affichés">Sélectionner EXPIRED/BLOCKED</button>
+		<span class="small text-muted" id="adm-plans-count"></span>
+	</div>
+	<table class="table table-sm" id="adm-plans-table">
+		<thead><tr>
+			<th><input type="checkbox" id="adm-sel-all" aria-label="Tout sélectionner"></th>
+			<th>Jour</th><th>User</th><th>Rév</th><th>Statut</th><th>Actifs / étapes</th><th>Armé</th><th>Confirmé</th><th>Blocage / erreur</th><th></th>
+		</tr></thead>
+		<tbody id="adm-plans-body"></tbody>
+	</table>
+
+	<!-- Actions groupées -->
+	<div class="border rounded p-2 mb-3 d-none" id="adm-bulk-bar">
+		<div class="d-flex flex-wrap align-items-center gap-2">
+			<strong id="adm-bulk-count"></strong>
+			<button type="button" class="btn btn-sm btn-outline-secondary" id="adm-bulk-reset">Réinitialiser</button>
+			<button type="button" class="btn btn-sm btn-outline-warning" id="adm-bulk-arm">Armer</button>
+			<button type="button" class="btn btn-sm btn-danger" id="adm-bulk-run">Exécuter</button>
+			<button type="button" class="btn btn-sm btn-outline-danger" id="adm-bulk-reconcile">Réconcilier</button>
+		</div>
+		<div id="adm-bulk-panel" class="mt-2 small"></div>
+	</div>
+
+	<!-- Détail d'un plan : résumé + procédure individuelle en 7 étapes -->
+	<div id="adm-plan-detail" class="border rounded p-2 mb-3 d-none">
+		<div class="d-flex justify-content-between align-items-center mb-1">
+			<strong id="adm-detail-title"></strong>
+			<button type="button" class="btn btn-sm btn-outline-secondary" id="adm-detail-close">Fermer</button>
+		</div>
+		<div id="adm-plan-summary" class="mb-3"></div>
 
 	<ol class="list-group list-group-numbered" id="adm-steps">
 		<li class="list-group-item" id="adm-step-1">
 			<div class="d-flex flex-wrap align-items-center gap-2">
-				<strong>Passe live puis plan</strong>
-				<input type="date" class="form-control form-control-sm w-auto" id="adm-plan-day" aria-label="Jour (UTC, optionnel)">
-				<button type="button" class="btn btn-sm btn-outline-primary" id="adm-btn-pass" title="Signal + snapshot live de tous les users, aucun ordre">Lancer la passe</button>
-				<button type="button" class="btn btn-sm btn-outline-warning" id="adm-btn-resync" title="Recalcule l'état moteur Trend Mix (rejeu jusqu'à la veille), sans run ni ordre">Resynchroniser</button>
-				<button type="button" class="btn btn-sm btn-primary" id="adm-btn-plan">Planifier</button>
+				<strong>Plan</strong>
 				<button type="button" class="btn btn-sm btn-outline-secondary" id="adm-btn-reset" title="Plan sélectionné bloqué, expiré ou désactivé, sans ordre envoyé : le recalcule en nouvelle révision (relancer la passe avant pour rafraîchir les soldes)">Réinitialiser le plan</button>
 				<span class="small" id="adm-state-1"></span>
 			</div>
@@ -68,6 +124,7 @@
 			</div>
 		</li>
 	</ol>
+	</div>
 
 	<h6 class="mt-4">Dernier résultat</h6>
 	<div id="adm-result" class="border rounded p-2 small text-muted">Aucune action lancée.</div>

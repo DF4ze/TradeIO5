@@ -20,5 +20,7 @@ public enum AdminAction {
     /** Modification des plafonds de dépense et des seuils Fee Test. */
     LIMITS,
     /** Déclaration ou modification d'un provider (nom, URL, activation). */
-    PROVIDER
+    PROVIDER,
+    /** Une ligne par lot d'actions groupées de la Console (cible {@code batch:<id>}). */
+    BULK
 }

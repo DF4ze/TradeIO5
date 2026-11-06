@@ -48,13 +48,19 @@ public class AdminExecutionService {
     }
 
     public void arm(Long bindingId, String actor) {
+        arm(bindingId, actor, null);
+    }
+
+    /** Armement tracé ; {@code batchId} (nul hors lot) est ajouté au payload du journal. */
+    void arm(Long bindingId, String actor, String batchId) {
         String target = "binding:" + bindingId;
         try {
             bindings.arm(bindingId);
-            journal.record(actor, AdminAction.ARM_BINDING, target, null, AdminActionOutcome.OK);
+            journal.record(actor, AdminAction.ARM_BINDING, target,
+                    batchId == null ? null : AdminActionLogService.payload("batchId", batchId), AdminActionOutcome.OK);
         } catch (RuntimeException e) {
             journal.record(actor, AdminAction.ARM_BINDING, target, AdminActionLogService.payload("error",
-                    e.getClass().getSimpleName()), outcomeOf(e));
+                    e.getClass().getSimpleName(), "batchId", batchId), outcomeOf(e));
             throw e;
         }
     }
@@ -65,6 +71,21 @@ public class AdminExecutionService {
      */
     public ExecutionResult run(Long planId, String actor) {
         boolean lifted = !control.current().isKillSwitch();
+        try {
+            return runWithoutReengage(planId, actor, null);
+        } finally {
+            if (lifted) {
+                reengage("plan:" + planId, actor);
+            }
+        }
+    }
+
+    /**
+     * Cœur de {@link #run} : exécute ou réconcilie et journalise, <b>sans rengager</b> le kill switch (le lot rengage une
+     * seule fois à sa fin).
+     */
+    ExecutionResult runWithoutReengage(Long planId, String actor, String batchId) {
+        boolean lifted = !control.current().isKillSwitch();
         AdminAction action = planRepository.findById(planId).map(p -> p.getStatus() == PlanStatus.EXECUTING)
                 .orElse(false) ? AdminAction.RECONCILE : AdminAction.RUN;
         String target = "plan:" + planId;
@@ -73,24 +94,25 @@ public class AdminExecutionService {
             Map<String, String> blocked = new LinkedHashMap<>();
             result.blocked().forEach((asset, reason) -> blocked.put(asset, reason.name()));
             journal.record(actor, action, target, AdminActionLogService.payload("status", result.status(), "sent", result.sent(),
-                    "blocked", blocked.isEmpty() ? null : blocked, "killSwitchWasLifted", lifted),
+                    "blocked", blocked.isEmpty() ? null : blocked, "killSwitchWasLifted", lifted, "batchId", batchId),
                     result.sent() == 0 && !blocked.isEmpty() ? AdminActionOutcome.REFUSED : AdminActionOutcome.OK);
             return result;
         } catch (RuntimeException e) {
             journal.record(actor, action, target, AdminActionLogService.payload("error", e.getClass().getSimpleName(),
-                    "killSwitchWasLifted", lifted), outcomeOf(e));
+                    "killSwitchWasLifted", lifted, "batchId", batchId), outcomeOf(e));
             throw e;
-        } finally {
-            if (lifted) {
-                reengage(planId, actor);
-            }
         }
     }
 
-    private void reengage(Long planId, String triggeredBy) {
+    /** Rengagement unique de fin de lot. */
+    void reengageBatch(String batchId, String triggeredBy) {
+        reengage("batch:" + batchId, triggeredBy);
+    }
+
+    private void reengage(String target, String triggeredBy) {
         control.setKillSwitch(true, ExecutionDefaults.AUTO_REENGAGE_ACTOR);
-        log.info("Kill switch rengagé automatiquement après le run du plan {}", planId);
-        journal.record(ExecutionDefaults.AUTO_REENGAGE_ACTOR, AdminAction.AUTO_REENGAGE, "plan:" + planId,
+        log.info("Kill switch rengagé automatiquement après le run de {}", target);
+        journal.record(ExecutionDefaults.AUTO_REENGAGE_ACTOR, AdminAction.AUTO_REENGAGE, target,
                 AdminActionLogService.payload("triggeredBy", triggeredBy), AdminActionOutcome.OK);
     }
 

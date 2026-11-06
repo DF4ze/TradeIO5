@@ -88,6 +88,24 @@ class AdminExecutionServiceTest {
     }
 
     @Test
+    @DisplayName("runWithoutReengage : exécute et journalise (batchId) sans jamais rengager ; reengageBatch rengage une fois")
+    void runWithoutReengageKeepsKillSwitchLifted() {
+        killSwitch(false);
+        when(executor.execute(42L)).thenReturn(new ExecutionResult(42L, PlanStatus.EXECUTED, Map.of(), 1));
+
+        service.runWithoutReengage(42L, "clem", "b1");
+
+        verify(control, never()).setKillSwitch(anyBoolean(), any());
+        verify(journal).record(eq("clem"), eq(AdminAction.RUN), eq("plan:42"), any(), eq(AdminActionOutcome.OK));
+
+        service.reengageBatch("b1", "clem");
+
+        verify(control).setKillSwitch(true, ExecutionDefaults.AUTO_REENGAGE_ACTOR);
+        verify(journal).record(eq(ExecutionDefaults.AUTO_REENGAGE_ACTOR), eq(AdminAction.AUTO_REENGAGE), eq("batch:b1"), any(),
+                eq(AdminActionOutcome.OK));
+    }
+
+    @Test
     @DisplayName("Blocage : rien d'envoyé => RUN REFUSED au journal, kill switch quand même rengagé")
     void reengagedAfterBlock() {
         killSwitch(false);

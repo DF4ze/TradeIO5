@@ -89,8 +89,37 @@ public class RainbowLiveExecutionService {
     private final RainbowModulationControlService modulationControl;
     private final PortfolioSnapshotService snapshotService;
 
-    /** Récapitulatif d'une passe (log + réponse de l'endpoint admin). */
-    public record PassSummary(LocalDate day, int processed, int skipped, int errors) {
+    /**
+     * Récapitulatif d'une passe (log + réponse de l'endpoint admin). Durées en ms : {@code loadMs} = chargement des séries D1,
+     * {@code signalMs} = rejeu des presets (hors chargement), {@code linksMs} = liens live (dont d'éventuels chargements de
+     * séries de lien), {@code totalMs} = durée totale.
+     */
+    public record PassSummary(LocalDate day, int processed, int skipped, int errors, long loadMs, long signalMs, long linksMs,
+                              long totalMs) {
+        public PassSummary(LocalDate day, int processed, int skipped, int errors) {
+            this(day, processed, skipped, errors, 0, 0, 0, 0);
+        }
+    }
+
+    /**
+     * Session de recalcul groupé (opaque) : partage les séries D1 déjà chargées par (actif, source) entre plusieurs
+     * {@code recomputeDay} du même {@code asOf}, un contexte par jour.
+     */
+    public static final class RecomputeBatch {
+        private final Instant asOf;
+        private final Map<LocalDate, PassContext> contexts = new HashMap<>();
+
+        private RecomputeBatch(Instant asOf) {
+            this.asOf = asOf;
+        }
+
+        public Instant asOf() {
+            return asOf;
+        }
+
+        private PassContext contextFor(LocalDate day) {
+            return contexts.computeIfAbsent(day, d -> new PassContext(asOf, d, new HashMap<>(), new long[1]));
+        }
     }
 
     /**
@@ -115,7 +144,7 @@ public class RainbowLiveExecutionService {
     }
 
     /** Contexte d'une passe : séries déjà chargées par (actif, source). */
-    private record PassContext(Instant asOf, LocalDate day, Map<SeriesKey, SeriesLookup> series) {
+    private record PassContext(Instant asOf, LocalDate day, Map<SeriesKey, SeriesLookup> series, long[] loadNanos) {
     }
 
     /** Signal d'un lien : demande dimensionnée + exchange réel des candles et substitution éventuelle. */
@@ -135,11 +164,27 @@ public class RainbowLiveExecutionService {
         int processed;
         int skipped;
         int errors;
+        long signalNanos;
+        long linksNanos;
+    }
+
+    private static long ms(long nanos) {
+        return nanos / 1_000_000;
+    }
+
+    private static PassSummary summaryOf(LocalDate day, Counters counters, long loadNanos, long startNanos) {
+        return new PassSummary(day, counters.processed, counters.skipped, counters.errors, ms(loadNanos), ms(counters.signalNanos),
+                ms(counters.linksNanos), ms(System.nanoTime() - startNanos));
     }
 
     /** Jour UTC traité : le jour de {@code asOf} (la passe tourne à 23:55 UTC, sur la bougie du jour encore ouverte). */
     public static LocalDate dayFor(Instant asOf) {
         return asOf.atOffset(ZoneOffset.UTC).toLocalDate();
+    }
+
+    /** Nouvelle session de recalcul groupé : même {@code asOf} pour tout le lot (cf. {@link #recomputeDay(User, Instant, LocalDate, RecomputeBatch)}). */
+    public RecomputeBatch newRecomputeBatch(Instant asOf) {
+        return new RecomputeBatch(asOf);
     }
 
     public PassSummary runPass(Instant asOf) {
@@ -152,17 +197,19 @@ public class RainbowLiveExecutionService {
     public synchronized PassSummary runPass(Instant asOf, LocalDate dayOverride) {
         LocalDate day = dayOverride != null ? dayOverride : dayFor(asOf);
         log.info("Bench Rainbow : début passe jour={} (asOf={})", day, asOf);
+        long start = System.nanoTime();
         Counters counters = new Counters();
 
         Map<Long, List<RainbowLivePreset>> presetsByUser = collectPresets(counters);
-        PassContext ctx = new PassContext(asOf, day, new HashMap<>());
+        PassContext ctx = new PassContext(asOf, day, new HashMap<>(), new long[1]);
         for (List<RainbowLivePreset> presets : presetsByUser.values()) {
             runUser(ctx, presets, counters);
         }
 
-        PassSummary summary = new PassSummary(day, counters.processed, counters.skipped, counters.errors);
-        log.info("Bench Rainbow : fin passe jour={} traités={} sautés={} erreurs={}",
-                day, summary.processed(), summary.skipped(), summary.errors());
+        PassSummary summary = summaryOf(day, counters, ctx.loadNanos()[0], start);
+        log.info("Bench Rainbow : fin passe jour={} traités={} sautés={} erreurs={} (chargement={} ms, signal={} ms, liens={} ms, total={} ms)",
+                day, summary.processed(), summary.skipped(), summary.errors(), summary.loadMs(), summary.signalMs(),
+                summary.linksMs(), summary.totalMs());
         return summary;
     }
 
@@ -172,18 +219,30 @@ public class RainbowLiveExecutionService {
      * si un ordre est parti.
      */
     public synchronized PassSummary recomputeDay(User user, Instant asOf, LocalDate day) {
+        return recomputeDay(user, asOf, day, new RecomputeBatch(asOf));
+    }
+
+    /** Idem, avec les séries D1 partagées par la session {@code batch} (même {@code asOf} pour tout le lot). */
+    public synchronized PassSummary recomputeDay(User user, Instant asOf, LocalDate day, RecomputeBatch batch) {
+        if (!batch.asOf().equals(asOf)) {
+            throw new IllegalArgumentException("asOf différent de celui de la session de recalcul");
+        }
         log.info("Bench Rainbow : recalcul forcé jour={} user={} (asOf={})", day, user.getId(), asOf);
+        long start = System.nanoTime();
         Counters counters = new Counters();
+        PassContext ctx = batch.contextFor(day);
+        long loadBefore = ctx.loadNanos()[0];
         presetService.ensureStrategyPresets(user);
         List<RainbowLivePreset> enabled = presetService.list(user).stream().filter(RainbowLivePreset::isEnabled).toList();
         if (!enabled.isEmpty()) {
             runService.discardDay(user, day);
             bindingRunService.discardDay(user, day);
-            runUser(new PassContext(asOf, day, new HashMap<>()), enabled, counters);
+            runUser(ctx, enabled, counters);
         }
-        PassSummary summary = new PassSummary(day, counters.processed, counters.skipped, counters.errors);
-        log.info("Bench Rainbow : fin recalcul forcé jour={} user={} traités={} sautés={} erreurs={}",
-                day, user.getId(), summary.processed(), summary.skipped(), summary.errors());
+        PassSummary summary = summaryOf(day, counters, ctx.loadNanos()[0] - loadBefore, start);
+        log.info("Bench Rainbow : fin recalcul forcé jour={} user={} traités={} sautés={} erreurs={} (chargement={} ms, signal={} ms, liens={} ms, total={} ms)",
+                day, user.getId(), summary.processed(), summary.skipped(), summary.errors(), summary.loadMs(), summary.signalMs(),
+                summary.linksMs(), summary.totalMs());
         return summary;
     }
 
@@ -200,7 +259,7 @@ public class RainbowLiveExecutionService {
         Counters counters = new Counters();
         int resynced = 0;
         int upToDate = 0;
-        PassContext ctx = new PassContext(asOf, target, new HashMap<>());
+        PassContext ctx = new PassContext(asOf, target, new HashMap<>(), new long[1]);
         for (List<RainbowLivePreset> presets : collectPresets(counters).values()) {
             Map<Long, MarketDataSource> referenceSources = referenceSources(liveSlotsOf(presets.getFirst().getUser(), counters));
             for (RainbowLivePreset preset : presets) {
@@ -256,6 +315,7 @@ public class RainbowLiveExecutionService {
     /** Série D1 de (actif, source) : chargée une seule fois par passe (mémorisée dans le contexte, y compris échec/absence). */
     private SeriesLookup seriesFor(PassContext ctx, String asset, MarketDataSource source) {
         return ctx.series().computeIfAbsent(new SeriesKey(asset, source), key -> {
+            long start = System.nanoTime();
             try {
                 AssetSeries series = loadSeries(asset, source, ctx.day(), ctx.asOf());
                 return series == null ? new SeriesLookup(null, SeriesOutcome.SKIPPED)
@@ -264,6 +324,8 @@ public class RainbowLiveExecutionService {
                 log.error("Bench Rainbow : chargement D1 impossible pour {} source={} (jour {}), sauté",
                         asset, source, ctx.day(), e);
                 return new SeriesLookup(null, SeriesOutcome.FAILED);
+            } finally {
+                ctx.loadNanos()[0] += System.nanoTime() - start;
             }
         });
     }
@@ -295,6 +357,7 @@ public class RainbowLiveExecutionService {
                 continue;
             }
             presetSeries.put(preset.getId(), lookup.series());
+            long signalStart = System.nanoTime();
             try {
                 if (runPreset(ctx.day(), preset, lookup.series(), demands)) {
                     counters.processed++;
@@ -305,9 +368,16 @@ public class RainbowLiveExecutionService {
                 counters.errors++;
                 log.error("Bench Rainbow : échec preset={} actif={} user={} jour {}",
                         preset.getId(), preset.getAssetSymbol(), preset.getUser().getId(), ctx.day(), e);
+            } finally {
+                counters.signalNanos += System.nanoTime() - signalStart;
             }
         }
-        runLinks(ctx, user, slots, presetById, demands, presetSeries, referenceSources, counters);
+        long linksStart = System.nanoTime();
+        try {
+            runLinks(ctx, user, slots, presetById, demands, presetSeries, referenceSources, counters);
+        } finally {
+            counters.linksNanos += System.nanoTime() - linksStart;
+        }
     }
 
     /** Source de référence d'un preset = candles de son lien le plus prioritaire qui a un exchange ({@code slots} déjà triés). */

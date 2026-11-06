@@ -163,13 +163,42 @@ public class OrderPlanService {
     }
 
     private void requireResettable(RainbowLiveOrderPlan latest, Long planId) {
+        if (!isResettable(latest)) {
+            throw new IllegalArgumentException("Plan #" + planId + " non réinitialisable (statut " + latest.effectiveStatus(clock.now())
+                    + ", des ordres ont été envoyés ou sont à réconcilier)");
+        }
+    }
+
+    private boolean isResettable(RainbowLiveOrderPlan latest) {
         PlanStatus effective = latest.effectiveStatus(clock.now());
         boolean statusOk = effective == PlanStatus.PLANNED || effective == PlanStatus.BLOCKED || effective == PlanStatus.EXPIRED
                 || effective == PlanStatus.DISABLED || effective == PlanStatus.CANCELLED;
-        if (!statusOk || latest.getSteps().stream().anyMatch(st -> st.getStatus() != StepStatus.PLANNED)) {
-            throw new IllegalArgumentException("Plan #" + planId + " non réinitialisable (statut " + effective
-                    + ", des ordres ont été envoyés ou sont à réconcilier)");
+        return statusOk && latest.getSteps().stream().allMatch(st -> st.getStatus() == StepStatus.PLANNED);
+    }
+
+    /** Verdict de réinitialisation d'un plan (sans rien modifier) : source unique de l'éligibilité, unitaire comme groupée. */
+    public enum ResetCheck { OK, NOT_FOUND, SUPERSEDED, NOT_RESETTABLE }
+
+    public ResetCheck resetCheck(Long planId) {
+        Optional<RainbowLiveOrderPlan> plan = planRepository.findById(planId);
+        if (plan.isEmpty()) {
+            return ResetCheck.NOT_FOUND;
         }
+        if (!settings.planningEnabled()) {
+            return ResetCheck.NOT_RESETTABLE;
+        }
+        ResetCheck check = transaction.execute(status -> {
+            Optional<RainbowLiveOrderPlan> latest = planRepository.findFirstByUserAndDayOrderByRevisionDesc(plan.get().getUser(),
+                    plan.get().getDay());
+            if (latest.isEmpty()) {
+                return ResetCheck.NOT_FOUND;
+            }
+            if (!latest.get().getId().equals(planId)) {
+                return ResetCheck.SUPERSEDED;
+            }
+            return isResettable(latest.get()) ? ResetCheck.OK : ResetCheck.NOT_RESETTABLE;
+        });
+        return check == null ? ResetCheck.NOT_FOUND : check;
     }
 
     private UserResult planUser(User user, LocalDate day, boolean force) {

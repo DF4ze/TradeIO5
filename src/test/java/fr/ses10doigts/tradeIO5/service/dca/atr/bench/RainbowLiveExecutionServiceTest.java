@@ -451,6 +451,51 @@ class RainbowLiveExecutionServiceTest {
         verify(datasetEngine).getDailyDatasetForAsset("BTC", RainbowLiveDefaultPresets.D1_LOOKBACK_CANDLES, ASOF_2355, null);
     }
 
+    @Test
+    @DisplayName("recomputeDay avec RecomputeBatch : D1 chargé UNE fois pour N users partageant (actif, source)")
+    void recomputeBatchSharesSeries() {
+        User bob = user("bob", true);
+        presetsAllAssets(alice);
+        presetsAllAssets(bob);
+        RainbowLiveExecutionService.RecomputeBatch batch = service.newRecomputeBatch(ASOF_2355);
+
+        service.recomputeDay(alice, ASOF_2355, LAST_DAY, batch);
+        service.recomputeDay(bob, ASOF_2355, LAST_DAY, batch);
+
+        verify(datasetEngine, times(1)).getDailyDatasetForAsset(eq("BTC"), anyInt(), any(Instant.class), isNull());
+    }
+
+    @Test
+    @DisplayName("recomputeDay sans batch : comportement inchangé (un chargement par appel)")
+    void recomputeWithoutBatchReloads() {
+        User bob = user("bob", true);
+        presetsAllAssets(alice);
+        presetsAllAssets(bob);
+
+        service.recomputeDay(alice, ASOF_2355, LAST_DAY);
+        service.recomputeDay(bob, ASOF_2355, LAST_DAY);
+
+        verify(datasetEngine, times(2)).getDailyDatasetForAsset(eq("BTC"), anyInt(), any(Instant.class), isNull());
+    }
+
+    @Test
+    @DisplayName("recomputeDay : asOf différent de celui de la session => refus")
+    void recomputeBatchRejectsOtherAsOf() {
+        presetsAllAssets(alice);
+        RainbowLiveExecutionService.RecomputeBatch batch = service.newRecomputeBatch(ASOF_2355);
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> service.recomputeDay(alice, ASOF_2355.plusSeconds(60), LAST_DAY, batch));
+    }
+
+    @Test
+    @DisplayName("PassSummary expose les durées (chargement, signal, liens, total)")
+    void passSummaryExposesDurations() {
+        presetsAllAssets(alice);
+        PassSummary s = service.runPass(ASOF_2355);
+        org.junit.jupiter.api.Assertions.assertTrue(s.loadMs() >= 0 && s.signalMs() >= 0 && s.linksMs() >= 0);
+        org.junit.jupiter.api.Assertions.assertTrue(s.totalMs() >= s.loadMs());
+    }
+
     // ---------------------------------------------------------------- presets / users
 
     @Test

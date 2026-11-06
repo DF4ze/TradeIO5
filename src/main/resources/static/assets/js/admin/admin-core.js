@@ -163,6 +163,53 @@
     PAIR_UNKNOWN: ['Paire native inconnue au catalogue.', 'Rafraîchir le catalogue (sinon paire inexistante).']
   };
 
+  /** Motifs d'inéligibilité d'une action groupée de la Console (table unique, codes de BulkSkipReason). */
+  const BULK_REASONS = {
+    NOT_FOUND: 'Plan introuvable.',
+    NOT_RESETTABLE: 'Non réinitialisable (ordres partis ou à réconcilier, ou planification désactivée).',
+    NOT_ACTIVE: 'Plan non actif (ni PLANNED ni EXECUTING).',
+    NOTHING_TO_ARM: 'Rien à armer (liens déjà armés).',
+    NOT_PLANNED: 'Plan non exécutable (pas PLANNED ou expiré) : le réinitialiser.',
+    NOT_ARMED: 'Un lien n\'est pas armé.',
+    NOT_CONFIRMED: 'Confirmation du propriétaire attendue.',
+    KILL_SWITCH_ENGAGED: 'Kill switch engagé : le lever d\'abord.',
+    NOT_IN_FLIGHT: 'Aucune étape à réconcilier.',
+    SUPERSEDED: 'Plan remplacé par une révision plus récente.'
+  };
+
+  const bulkReason = (code) => BULK_REASONS[code] || (code ? 'Motif inconnu : ' + code : '');
+
+  /** Tableau simple : en-têtes texte, lignes = tableaux de cellules (texte ou nœuds). */
+  function table(headers, rows) {
+    return el('table', { class: 'table table-sm mb-1' },
+      el('thead', null, el('tr', null, headers.map((h) => el('th', { text: h })))),
+      el('tbody', null, rows.map((cells) => el('tr', null, cells.map((c) => el('td', null, c))))));
+  }
+
+  /**
+   * Modale native (<dialog>) : lignes de récap + saisie d'un mot de confirmation (bouton actif seulement si saisi à
+   * l'identique). Résout true si confirmé, false sinon.
+   */
+  function askConfirm(title, lines, word, label) {
+    return new Promise((resolve) => {
+      const input = el('input', { type: 'text', class: 'form-control', autocomplete: 'off', 'aria-label': 'Confirmation' });
+      const ok = el('button', { type: 'button', class: 'btn btn-danger', text: label || 'Confirmer', disabled: true });
+      const cancel = el('button', { type: 'button', class: 'btn btn-outline-secondary', text: 'Annuler' });
+      const dlg = el('dialog', { class: 'p-3 border rounded' },
+        el('h6', { text: title }), ...lines.map((l) => el('div', { class: 'small', text: l })),
+        el('div', { class: 'mt-2 small', text: 'Saisir ' + word + ' pour confirmer :' }), input,
+        el('div', { class: 'd-flex gap-2 mt-3' }, ok, cancel));
+      const done = (v) => { dlg.close(); dlg.remove(); resolve(v); };
+      input.addEventListener('input', () => { ok.disabled = input.value !== word; });
+      ok.addEventListener('click', () => done(true));
+      cancel.addEventListener('click', () => done(false));
+      dlg.addEventListener('cancel', () => { dlg.remove(); resolve(false); });
+      document.body.append(dlg);
+      dlg.showModal();
+      input.focus();
+    });
+  }
+
   /** Phrase + action suggérée pour un code de blocage (ou un texte contenant un code connu, ex. 51155). */
   function explain(code) {
     const key = String(code == null ? '' : code).trim();
@@ -255,7 +302,7 @@
   }
 
   window.AdminCore = Object.assign(core, {
-    el, empty, api, ApiError, run, showAlert, hideAlert, explain, explainBlocks, fmtDate, refreshState, register, start, DASH,
+    el, empty, api, ApiError, run, BULK_REASONS, bulkReason, table, askConfirm, showAlert, hideAlert, explain, explainBlocks, fmtDate, refreshState, register, start, DASH,
     onState: (fn) => stateListeners.push(fn), byId: $
   });
 })();

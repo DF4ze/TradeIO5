@@ -36,6 +36,7 @@ Vérifié le : 2026-10-03 (`configuration/**`, `RainbowLiveDefaultPresets`).
 | `tradeio.okx.read.*` / `tradeio.okx.trade.*` | – | `apiKey`, `secretKey`, `passphrase` OKX semés par `ApiCredentialInitializer` (TRADE chiffré, créé si absent) ; fichier de propriétés gitignoré |
 | `tradeio.execution.plan-cron` | `-` (désactivé) | Cron (UTC) du plan d'ordres dry-run, cible `0 58 23 * * *` |
 | `tradeio.execution.plan-ttl` | `PT5M` | Durée de vie d'un plan avant `EXPIRED` |
+| `tradeio.execution.bulk.max-plans` | `10` | Taille maximale d'un lot d'actions groupées de la Console admin (lot synchrone ; à relever selon les durées mesurées) |
 | `tradeio.execution.slippage-tolerance-pct` | `0.1` | Tolérance (%) appliquée au prix de référence pour le prix plafond des ordres limit IOC |
 | `tradeio.execution.fee-test.warn-pct` / `red-pct` | `0.2` / `0.8` | Seuils Fee Test (coût total en %) |
 | `tradeio.execution.forbidden-nodes` | devises fiat | Nœuds interdits dans un chemin (liste CSV) |

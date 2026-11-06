@@ -47,6 +47,19 @@ class AdminPlanTriggerServiceTest {
     }
 
     @Test
+    void batchResetSharesRecomputeSession() {
+        RainbowLiveExecutionService.RecomputeBatch batch = mock(RainbowLiveExecutionService.RecomputeBatch.class);
+        when(batch.asOf()).thenReturn(NOW);
+        when(planService.resetTarget(24L)).thenReturn(new ResetTarget(user, LocalDate.of(2026, 11, 5)));
+        when(planService.resetPlan(24L)).thenReturn(SUMMARY);
+
+        service.reset(24L, "admin", batch, "b1");
+
+        verify(executionService).recomputeDay(user, NOW, LocalDate.of(2026, 11, 5), batch);
+        verify(executionService, never()).recomputeDay(any(), any(), any());
+    }
+
+    @Test
     void resetOfClosedDayKeepsStoredRun() {
         when(clock.now()).thenReturn(NOW);
         when(planService.resetTarget(7L)).thenReturn(new ResetTarget(user, LocalDate.of(2026, 11, 3)));
