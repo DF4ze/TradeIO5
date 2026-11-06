@@ -18,6 +18,9 @@ public interface RainbowLiveBindingRunRepository extends JpaRepository<RainbowLi
 
     long countByBinding(RainbowLiveBinding binding);
 
+    /** Supprime les runs de lien d'un utilisateur pour un jour (recalcul forcé du jour). */
+    long deleteByBindingUserAndDay(User user, LocalDate day);
+
     /** Dernier run de chaque lien (1 requête pour tous). */
     @Query("select r from RainbowLiveBindingRun r where r.binding in :bindings "
             + "and r.day = (select max(r2.day) from RainbowLiveBindingRun r2 where r2.binding = r.binding)")

@@ -20,6 +20,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveExecutionService;
+import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import org.mockito.Mockito;
 
 import java.lang.reflect.Field;
@@ -174,11 +176,11 @@ class AdminExecutionServiceTest {
         OrderPlanService planService = mock(OrderPlanService.class);
         LocalDate day = LocalDate.of(2026, 10, 11);
         when(planService.planAll(day)).thenReturn(new PlanSummary(day, 2, 0, 0, 0, 0, 0));
-        new AdminPlanTriggerService(planService, journal).plan(day, "clem");
+        new AdminPlanTriggerService(planService, mock(RainbowLiveExecutionService.class), mock(DomainClock.class), journal).plan(day, "clem");
         verify(journal).record(eq("clem"), eq(AdminAction.PLAN), eq("2026-10-11"), any(), eq(AdminActionOutcome.OK));
 
         when(planService.planAll(day)).thenThrow(new IllegalStateException("x"));
-        assertThrows(IllegalStateException.class, () -> new AdminPlanTriggerService(planService, journal).plan(day, "clem"));
+        assertThrows(IllegalStateException.class, () -> new AdminPlanTriggerService(planService, mock(RainbowLiveExecutionService.class), mock(DomainClock.class), journal).plan(day, "clem"));
         verify(journal).record(eq("clem"), eq(AdminAction.PLAN), eq("2026-10-11"), any(), eq(AdminActionOutcome.ERROR));
     }
 

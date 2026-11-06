@@ -5,6 +5,7 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository;
+import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -71,6 +72,17 @@ public class RainbowLiveRunService {
         log.info("Run rafraîchi sur la clôture preset={} actif={} jour={} close={}", preset.getId(), preset.getAssetSymbol(),
                 day, closed.getClose());
         return true;
+    }
+
+    /**
+     * Recalcul forcé d'un jour : supprime les runs de preset de l'utilisateur pour ce jour afin que la prochaine passe reparte
+     * du calcul courant (sans {@link #keepAction}). Réservé aux jours non clôturés dont aucun ordre n'est parti.
+     */
+    @Transactional
+    public long discardDay(User user, LocalDate day) {
+        long removed = runRepository.deleteByUserAndDay(user, day);
+        log.info("Runs de preset supprimés user={} jour={} : {} (recalcul forcé)", user.getId(), day, removed);
+        return removed;
     }
 
     /** {@code true} si un signal est enregistré pour ce jour (condition d'un rafraîchissement, sans effet de bord moteur). */

@@ -7,6 +7,8 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrBand;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrDataset;
+import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrReplay;
+import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowSignal;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrParamSet;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrTuning;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowSetSelector;
@@ -25,11 +27,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 
 /**
  * Bandes Rainbow recalculées à la demande (pointillé « simulé » avant le premier run) : mêmes indicateurs, même jeu de
- * paramètres (Trend Mix : jeu Bull/Bear choisi par le régime du jour) que la passe, sur les bougies D1 du lien. Aucune écriture,
+ * paramètres (Trend Mix : jeu Bull/Bear choisi par le régime du jour) que la passe, sur les bougies D1 du lien. Les achats/ventes
+ * virtuels ({@code action}) sont rejoués par {@link RainbowAtrReplay} sur toute la période affichée. Aucune écriture,
  * aucun état moteur, aucun appel authentifié.
  */
 @Service
@@ -65,40 +70,73 @@ public class RainbowBandsSimulator {
         TrendRegime[] regime = TrendMixCalculator.compute(candles, ds.sma(tp.smaPeriod()), ds.atr(tp.atrPeriod()), tp).regime();
         int[] setOfBar = RainbowSetSelector.select(regime, cfg.range());
         RainbowAtrParamSet[] sets = cfg.sets();
+        Map<Integer, String> actions = actions(ds, sets, setOfBar, firstIndex(candles, from));
         List<RainbowBandsDto.Point> out = new ArrayList<>();
         for (int i = 0; i < ds.size(); i++) {
             if (dayOf(candles.get(i)).isBefore(from)) {
                 continue;
             }
             RainbowAtrParamSet set = sets[setOfBar[i]];
-            out.add(point(ds, i, set.tuning(), set.name(), regime[i] == null ? null : regime[i].name()));
+            out.add(point(ds, i, set.tuning(), set.name(), regime[i] == null ? null : regime[i].name(), actions.get(i)));
         }
         return out;
     }
 
     private List<RainbowBandsDto.Point> single(RainbowLivePreset preset, List<MarketData> candles, RainbowAtrDataset ds,
                                                LocalDate from) {
-        RainbowAtrTuning tuning = configResolver.config(preset).toTuning();
+        var config = configResolver.config(preset);
+        RainbowAtrTuning tuning = config.toTuning();
+        RainbowAtrParamSet[] sets = {new RainbowAtrParamSet("fixed", tuning, config.toGlobals())};
+        Map<Integer, String> actions = actions(ds, sets, new int[ds.size()], firstIndex(candles, from));
         List<RainbowBandsDto.Point> out = new ArrayList<>();
         for (int i = 0; i < ds.size(); i++) {
             if (!dayOf(candles.get(i)).isBefore(from)) {
-                out.add(point(ds, i, tuning, null, null));
+                out.add(point(ds, i, tuning, null, null, actions.get(i)));
             }
         }
         return out;
     }
 
-    private static RainbowBandsDto.Point point(RainbowAtrDataset ds, int i, RainbowAtrTuning tuning, String set, String regime) {
+    /** Index de la première bougie du jour {@code from} ou après (taille du dataset si aucune). */
+    private static int firstIndex(List<MarketData> candles, LocalDate from) {
+        for (int i = 0; i < candles.size(); i++) {
+            if (!dayOf(candles.get(i)).isBefore(from)) {
+                return i;
+            }
+        }
+        return candles.size();
+    }
+
+    /**
+     * Achats/ventes virtuels du moteur rejoués sur la période affichée (machine à froid au premier jour, comme le pine sur la
+     * plage visible) : BUY / SELL par index de bougie. Indépendant du wallet et de l'état persisté.
+     */
+    private static Map<Integer, String> actions(RainbowAtrDataset ds, RainbowAtrParamSet[] sets, int[] setOfBar, int startIdx) {
+        Map<Integer, String> out = new HashMap<>();
+        if (startIdx >= ds.size()) {
+            return out;
+        }
+        for (RainbowAtrReplay.DayRow row : RainbowAtrReplay.run(ds, sets, setOfBar, startIdx, ds.size() - 1)) {
+            if (row.sellKind() != RainbowSignal.SellKind.NONE) {
+                out.put(row.index(), "SELL");
+            } else if (row.buyKind() != RainbowSignal.BuyKind.NONE) {
+                out.put(row.index(), "BUY");
+            }
+        }
+        return out;
+    }
+
+    private static RainbowBandsDto.Point point(RainbowAtrDataset ds, int i, RainbowAtrTuning tuning, String set, String regime, String action) {
         double close = ds.close(i);
         double sma = ds.sma(tuning.smaPeriod())[i];
         double atr = ds.atr(tuning.atrPeriod())[i];
         LocalDate day = Instant.ofEpochMilli(ds.time(i)).atOffset(ZoneOffset.UTC).toLocalDate();
         if (Double.isNaN(sma) || Double.isNaN(atr)) {
-            return new RainbowBandsDto.Point(day, close, null, null, null, null, null, null, null, null, set, regime, null);
+            return new RainbowBandsDto.Point(day, close, null, null, null, null, null, null, null, null, set, regime, action);
         }
         RainbowAtrBand b = RainbowAtrBand.of(close, sma, atr, tuning);
         return new RainbowBandsDto.Point(day, close, b.sma(), b.atr(), b.down2(), b.down1(), b.up1(), b.up2(), b.up3(), b.zone(),
-                set, regime, null);
+                set, regime, action);
     }
 
     private static LocalDate dayOf(MarketData c) {

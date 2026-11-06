@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import fr.ses10doigts.tradeIO5.security.model.User;
 import java.time.LocalDate;
 import java.util.Optional;
 
@@ -32,6 +33,17 @@ public class RainbowLiveBindingRunService {
         return runRepository.findByBindingAndDay(binding, day)
                 .map(RainbowLiveBindingRun::getLive)
                 .filter(RainbowLiveLiveBlock::hasLiveSnapshot);
+    }
+
+    /**
+     * Recalcul forcé d'un jour : supprime les snapshots de lien de l'utilisateur pour ce jour. Le {@link CashLedger} n'est pas
+     * persisté (reconstruit à chaque passe depuis ces snapshots) : la réservation de cash disparaît avec eux.
+     */
+    @Transactional
+    public long discardDay(User user, LocalDate day) {
+        long removed = runRepository.deleteByBindingUserAndDay(user, day);
+        log.info("Runs de lien supprimés user={} jour={} : {} (recalcul forcé)", user.getId(), day, removed);
+        return removed;
     }
 
     @Transactional

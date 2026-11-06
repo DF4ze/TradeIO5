@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import fr.ses10doigts.tradeIO5.security.model.User;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -16,6 +17,9 @@ public interface RainbowLiveRunRepository extends JpaRepository<RainbowLiveRun, 
     Optional<RainbowLiveRun> findByPresetAndDay(RainbowLivePreset preset, LocalDate day);
 
     List<RainbowLiveRun> findByPresetOrderByDayAsc(RainbowLivePreset preset);
+
+    /** Supprime les runs d'un utilisateur pour un jour (recalcul forcé du jour : cf. {@code RainbowLiveRunService#discardDay}). */
+    long deleteByUserAndDay(User user, LocalDate day);
 
     long countByPreset(RainbowLivePreset preset);
 

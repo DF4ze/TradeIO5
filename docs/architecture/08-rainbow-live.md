@@ -28,10 +28,10 @@ Suppression d'un preset ⇒ runs supprimés par FK. Édition d'un preset ⇒ mê
 ## Sémantique du run (`RainbowLiveRunService`)
 
 Horloge `DomainClock` (`computedAt`) ; un run par (preset, jour UTC).
-- **`upsert(preset, day, block)`** (passe du jour, 23:55 UTC) : crée le run ou, sur rejeu du même jour, remplace les indicateurs en **conservant l'action d'origine**.
+- **`upsert(preset, day, block)`** (passe du jour, 23:55 UTC) : crée le run ou, sur rejeu du même jour, remplace les indicateurs en **conservant l'action d'origine**. `discardDay(user, day)` supprime les runs de preset d'un utilisateur pour un jour (recalcul forcé, cf. ci-dessous).
 - **`refresh(preset, day, closedBlock)`** (passe du lendemain) : remplace les indicateurs d'un run existant par ceux calculés sur la bougie désormais **clôturée** ; l'action décidée à 23:55 reste figée. Sans run ce jour-là : `false`, rien n'est écrit (pas de rattrapage). `hasSignal(preset, day)` conditionne le rafraîchissement.
 - Chaque écriture rafraîchit le snapshot de config du run et le hash (aussi stocké dans le bloc) ; comparer au hash du preset détecte « config modifiée ».
-- `RainbowLiveBindingRunService` : `snapshotOf(binding, day)` / `upsert(binding, day, block)` ; rejeu du même jour : snapshot live existant conservé.
+- `RainbowLiveBindingRunService` : `snapshotOf(binding, day)` / `upsert(binding, day, block)` ; rejeu du même jour : snapshot live existant conservé ; `discardDay(user, day)` supprime les snapshots de lien d'un utilisateur pour un jour (recalcul forcé).
 
 ## Presets (`RainbowLivePresetService`)
 
@@ -76,6 +76,7 @@ Un preset lié par au moins un binding est dimensionné, **une fois par lien**, 
 - **Ordre et cash commun** (`CashLedger`) : par utilisateur, liens d'abord par `priority` croissante (puis rang d'actif, puis `bindingId`), un ledger par wallet (pool USD = USDC créé à la première lecture OK). Achat accepté ⇒ cash réservé ; achat > cash restant ⇒ **tout-ou-rien**, action `BLOCKED` + `INSUFFICIENT_CASH`. Les ventes ne sont pas créditées le jour même.
 - **Position tradable** = `bagPercent`/100 × position réelle (dynamique) ; vente plafonnée à la position tradable (`LiveSizing`). Achat et vente le même jour : la vente l'emporte.
 - **Snapshot par lien** (`RainbowLiveBindingRun`) : voir `RainbowLiveLiveBlock`. Une panne d'un lien n'affecte pas les autres. `UNAVAILABLE` ⇒ `NONE` + raison `UNAVAILABLE`, WARN.
+- **Recalcul forcé du jour** : `RainbowLiveExecutionService#recomputeDay(user, asOf, day)` supprime les runs de preset et de lien de l'utilisateur pour le jour puis rejoue sa passe sur la bougie courante (action figée et réservation de cash levées ; le `CashLedger` n'est pas persisté). Déclenché par le reset d'un plan du jour UTC ouvert ([`10-execution-plan.md`](10-execution-plan.md)), jamais si un ordre est parti.
 - **Rejeu du même jour** : snapshot et action live d'origine conservés ; un achat d'origine reste réservé dans le pool (pas de nouvelle lecture exchange). Le lendemain, une nouvelle lecture est faite pour le nouveau jour ; le snapshot de la veille n'est pas modifié.
 - **Garde** `RainbowLiveNoExchangeDependencyTest` : seules les implémentations de `RainbowPortfolioSource` peuvent dépendre de `service.connector`/`Wallet`/`ProviderApiService` dans le package du bench ; le port n'a aucune méthode d'ordre.
 

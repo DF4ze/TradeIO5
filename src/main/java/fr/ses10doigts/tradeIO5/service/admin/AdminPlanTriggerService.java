@@ -2,8 +2,10 @@ package fr.ses10doigts.tradeIO5.service.admin;
 
 import fr.ses10doigts.tradeIO5.model.entity.admin.AdminAction;
 import fr.ses10doigts.tradeIO5.model.entity.admin.AdminActionOutcome;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveExecutionService;
 import fr.ses10doigts.tradeIO5.service.execution.plan.OrderPlanService;
 import fr.ses10doigts.tradeIO5.service.execution.plan.OrderPlanService.PlanSummary;
+import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +17,8 @@ import java.time.LocalDate;
 public class AdminPlanTriggerService {
 
     private final OrderPlanService planService;
+    private final RainbowLiveExecutionService executionService;
+    private final DomainClock clock;
     private final AdminActionLogService journal;
 
     public PlanSummary plan(LocalDate day, String actor) {
@@ -32,10 +36,18 @@ public class AdminPlanTriggerService {
         }
     }
 
-    /** Remise à zéro d'un plan non envoyé (bloqué, expiré, désactivé…) : nouvelle révision, journal PLAN. */
+    /**
+     * Remise à zéro d'un plan non envoyé (bloqué, expiré, désactivé…) : nouvelle révision, journal PLAN. Pour le jour UTC ouvert,
+     * le signal Rainbow de l'utilisateur est d'abord recalculé à l'instant du reset (action figée et réservation de cash
+     * levées) ; un jour clôturé garde son run.
+     */
     public PlanSummary reset(Long planId, String actor) {
         String target = "reset#" + planId;
         try {
+            OrderPlanService.ResetTarget resetTarget = planService.resetTarget(planId);
+            if (resetTarget.day().equals(RainbowLiveExecutionService.dayFor(clock.now()))) {
+                executionService.recomputeDay(resetTarget.user(), clock.now(), resetTarget.day());
+            }
             PlanSummary summary = planService.resetPlan(planId);
             journal.record(actor, AdminAction.PLAN, target, AdminActionLogService.payload("planned", summary.planned(),
                     "blocked", summary.blocked(), "disabled", summary.disabled(), "unchanged", summary.unchanged(),

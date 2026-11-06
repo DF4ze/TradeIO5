@@ -77,7 +77,7 @@
           h('tbody', null, (bands.points || []).slice(-30).reverse().map((p) => h('tr', null, h('td', null, F.dayLong(p.day)), h('td', null, F.price(p.close)), h('td', null, F.price(p.sma)), h('td', null, TIO.isNum(p.zone) ? String(p.zone) : F.dash)))))));
         TIO.mount(status, bands.points && bands.points.length ? [ui.chip(state.simulated ? 'Bandes simulées (recalculées, non figées)' : 'Bandes figées (calculées à chaque passe)', state.simulated ? 'warn' : 'plain'),
           h('span', null, '▲ achat · ▽ vente · ┆ prix moyen · Shift-clic ×2 : mesurer'), simTrades.length ? ui.chip('S = action simulée (rien envoyé)', 'sim') : null,
-          state.virtual && (bands.points || []).some((p) => p.action) ? ui.chip('V = achat/vente virtuel du moteur', 'accent') : null] : 'Aucune donnée de bandes sur cette période.');
+          state.virtual && (bands.points || []).some((p) => p.action) ? ui.chip((state.simulated ? 'V = achat/vente virtuel du moteur, rejoué sur la période' : 'V = achat/vente virtuel du moteur'), 'accent') : null] : 'Aucune donnée de bandes sur cette période.');
       } catch (e) { TIO.mount(status, ui.error(e, refreshBands)); }
     };
     const sim = ui.switchEl({ label: 'Afficher les bandes simulées', checked: false, onChange: (on) => { state.simulated = on; refreshBands(); } });

@@ -15,9 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /** Historique des bandes Rainbow figées d'un lien (runs du preset en base, aucun calcul, aucun appel exchange). */
 @Service
@@ -44,16 +42,8 @@ public class RainbowBandsQueryService {
         LocalDate from = period.from(clock.now().atOffset(ZoneOffset.UTC).toLocalDate());
         if (simulated) {
             LocalDate to = clock.now().atOffset(ZoneOffset.UTC).toLocalDate();
-            // Les bandes sont recalculées, pas les décisions : BUY/SELL repris des runs figés du même jour (marqueurs « V »).
-            Map<LocalDate, String> actions = new HashMap<>();
-            for (var r : runRepository.findByPresetOrderByDayAsc(binding.getPreset())) {
-                if (r.getSignal() != null && action(r.getSignal()) != null) {
-                    actions.put(r.getDay(), action(r.getSignal()));
-                }
-            }
-            List<RainbowBandsDto.Point> sim = simulator.simulate(binding, from, to).stream()
-                    .map(p -> withAction(p, actions.get(p.day()))).toList();
-            return new RainbowBandsDto(binding.getId(), binding.getAssetSymbol(), binding.getPreset().getName(), true, sim);
+            return new RainbowBandsDto(binding.getId(), binding.getAssetSymbol(), binding.getPreset().getName(), true,
+                    simulator.simulate(binding, from, to));
         }
         List<RainbowBandsDto.Point> points = runRepository.findByPresetOrderByDayAsc(binding.getPreset()).stream()
                 .filter(r -> !r.getDay().isBefore(from) && r.getSignal() != null)
@@ -65,11 +55,6 @@ public class RainbowBandsQueryService {
     private static String action(RainbowLivePassBlock s) {
         RainbowLiveAction a = s.getActionType();
         return a == RainbowLiveAction.BUY || a == RainbowLiveAction.SELL ? a.name() : null;
-    }
-
-    private static RainbowBandsDto.Point withAction(RainbowBandsDto.Point p, String action) {
-        return new RainbowBandsDto.Point(p.day(), p.close(), p.sma(), p.atr(), p.boundDown2(), p.boundDown1(), p.boundUp1(),
-                p.boundUp2(), p.boundUp3(), p.zone(), p.activeSet(), p.trendRegime(), action);
     }
 
     private static RainbowBandsDto.Point point(LocalDate day, RainbowLivePassBlock s) {

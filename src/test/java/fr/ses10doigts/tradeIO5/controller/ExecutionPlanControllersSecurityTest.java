@@ -48,7 +48,7 @@ class ExecutionPlanControllersSecurityTest {
         ExecutionPlanAdminController admin() {
             IAuthenticationFacade facade = mock(IAuthenticationFacade.class);
             when(facade.getConnectedUser()).thenReturn(User.builder().id(1L).username("u").build());
-            return new ExecutionPlanAdminController(new AdminPlanTriggerService(PLAN_SERVICE, mock(AdminActionLogService.class)),
+            return new ExecutionPlanAdminController(new AdminPlanTriggerService(PLAN_SERVICE, mock(fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveExecutionService.class), mock(fr.ses10doigts.tradeIO5.service.market.DomainClock.class), mock(AdminActionLogService.class)),
                     new FixedDomainClock(Instant.parse("2026-10-09T23:58:00Z")), facade);
         }
 

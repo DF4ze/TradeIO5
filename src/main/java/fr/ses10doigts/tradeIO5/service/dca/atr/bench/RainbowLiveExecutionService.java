@@ -167,6 +167,27 @@ public class RainbowLiveExecutionService {
     }
 
     /**
+     * Recalcul forcé du jour pour un seul utilisateur : supprime ses runs de preset et de lien du jour (donc l'action figée et
+     * la réservation de cash) puis rejoue la passe sur la bougie courante. Appelé par le reset d'un plan du jour ouvert, jamais
+     * si un ordre est parti.
+     */
+    public synchronized PassSummary recomputeDay(User user, Instant asOf, LocalDate day) {
+        log.info("Bench Rainbow : recalcul forcé jour={} user={} (asOf={})", day, user.getId(), asOf);
+        Counters counters = new Counters();
+        presetService.ensureStrategyPresets(user);
+        List<RainbowLivePreset> enabled = presetService.list(user).stream().filter(RainbowLivePreset::isEnabled).toList();
+        if (!enabled.isEmpty()) {
+            runService.discardDay(user, day);
+            bindingRunService.discardDay(user, day);
+            runUser(new PassContext(asOf, day, new HashMap<>()), enabled, counters);
+        }
+        PassSummary summary = new PassSummary(day, counters.processed, counters.skipped, counters.errors);
+        log.info("Bench Rainbow : fin recalcul forcé jour={} user={} traités={} sautés={} erreurs={}",
+                day, user.getId(), summary.processed(), summary.skipped(), summary.errors());
+        return summary;
+    }
+
+    /**
      * Resynchronise l'état moteur des presets Trend Mix actifs (ou du seul {@code presetId}) jusqu'à la veille de {@code asOf}
      * (dernière bougie clôturée), sans run ni ordre : cf. {@link RainbowTrendLiveService#resync}. Appelée au démarrage du serveur
      * ({@code force = false} : seuls les presets en retard sont recalculés) et par l'endpoint admin ({@code force = true}).

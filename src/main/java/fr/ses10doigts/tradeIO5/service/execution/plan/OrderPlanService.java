@@ -130,19 +130,46 @@ public class OrderPlanService {
             if (!latest.getId().equals(planId)) {
                 throw new IllegalArgumentException("Plan #" + planId + " déjà remplacé par la révision " + latest.getRevision());
             }
-            PlanStatus effective = latest.effectiveStatus(clock.now());
-            boolean statusOk = effective == PlanStatus.PLANNED || effective == PlanStatus.BLOCKED || effective == PlanStatus.EXPIRED
-                    || effective == PlanStatus.DISABLED || effective == PlanStatus.CANCELLED;
-            if (!statusOk || latest.getSteps().stream().anyMatch(st -> st.getStatus() != StepStatus.PLANNED)) {
-                throw new IllegalArgumentException("Plan #" + planId + " non réinitialisable (statut " + effective
-                        + ", des ordres ont été envoyés ou sont à réconcilier)");
-            }
+            requireResettable(latest, planId);
             return planUser(user, day, true);
         });
         PlanSummary summary = new PlanSummary(day, result == UserResult.PLANNED ? 1 : 0, result == UserResult.BLOCKED ? 1 : 0,
                 result == UserResult.DISABLED ? 1 : 0, result == UserResult.UNCHANGED ? 1 : 0, result == UserResult.SKIPPED ? 1 : 0, 0);
         log.info("Plan d'ordres #{} réinitialisé : {}", planId, summary);
         return summary;
+    }
+
+    /** Utilisateur et jour d'un plan réinitialisable. */
+    public record ResetTarget(User user, LocalDate day) {
+    }
+
+    /**
+     * Valide qu'un plan est réinitialisable (sans rien modifier) : permet à l'appelant de recalculer le jour avant
+     * {@link #resetPlan}, qui revalide.
+     *
+     * @throws IllegalArgumentException plan inconnu, remplacé ou non réinitialisable
+     */
+    public ResetTarget resetTarget(Long planId) {
+        RainbowLiveOrderPlan plan = planRepository.findById(planId).orElseThrow(() -> new IllegalArgumentException("Plan inconnu : " + planId));
+        return transaction.execute(status -> {
+            RainbowLiveOrderPlan latest = planRepository.findFirstByUserAndDayOrderByRevisionDesc(plan.getUser(), plan.getDay())
+                    .orElseThrow(() -> new IllegalArgumentException("Plan inconnu : " + planId));
+            if (!latest.getId().equals(planId)) {
+                throw new IllegalArgumentException("Plan #" + planId + " déjà remplacé par la révision " + latest.getRevision());
+            }
+            requireResettable(latest, planId);
+            return new ResetTarget(latest.getUser(), latest.getDay());
+        });
+    }
+
+    private void requireResettable(RainbowLiveOrderPlan latest, Long planId) {
+        PlanStatus effective = latest.effectiveStatus(clock.now());
+        boolean statusOk = effective == PlanStatus.PLANNED || effective == PlanStatus.BLOCKED || effective == PlanStatus.EXPIRED
+                || effective == PlanStatus.DISABLED || effective == PlanStatus.CANCELLED;
+        if (!statusOk || latest.getSteps().stream().anyMatch(st -> st.getStatus() != StepStatus.PLANNED)) {
+            throw new IllegalArgumentException("Plan #" + planId + " non réinitialisable (statut " + effective
+                    + ", des ordres ont été envoyés ou sont à réconcilier)");
+        }
     }
 
     private UserResult planUser(User user, LocalDate day, boolean force) {

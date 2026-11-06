@@ -135,12 +135,18 @@
         if (avgLine) { price.removePriceLine(avgLine); avgLine = null; }
         if (TIO.isNum(avgBuy)) avgLine = price.createPriceLine({ price: avgBuy, color: colors.muted, lineWidth: 1, lineStyle: LW.LineStyle.Dotted, axisLabelVisible: true, title: 'Prix moyen' });
         const first = pts.length ? pts[0].day : null;
-        const markers = ((trades && trades.trades) || []).map((t) => ({ day: String(t.timestamp).slice(0, 10), side: t.side }))
-          .filter((t) => !first || t.day >= first)
-          .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0))
-          .map((t) => (t.side === 'SELL'
-            ? { time: t.day, position: 'aboveBar', color: colors.down, shape: 'arrowDown', text: '' }
-            : { time: t.day, position: 'belowBar', color: colors.up, shape: 'arrowUp', text: '' }));
+        // Exécutions d'un même ordre fractionné (même sens, chacune à moins de 5 min de la précédente) ⇒ un seul marqueur.
+        const MERGE_MS = 5 * 60 * 1000;
+        const fills = ((trades && trades.trades) || []).map((t) => ({ ms: new Date(t.timestamp).getTime(), side: t.side, day: String(t.timestamp).slice(0, 10) }))
+          .filter((t) => !first || t.day >= first).sort((a, b) => a.ms - b.ms);
+        const groups = [], lastBySide = {};
+        fills.forEach((f) => {
+          const gp = lastBySide[f.side];
+          if (gp && f.ms - gp.lastMs <= MERGE_MS) { gp.lastMs = f.ms; gp.count += 1; } else { lastBySide[f.side] = { day: f.day, side: f.side, lastMs: f.ms, count: 1 }; groups.push(lastBySide[f.side]); }
+        });
+        const markers = groups.map((t) => (t.side === 'SELL'
+          ? { time: t.day, position: 'aboveBar', color: colors.down, shape: 'arrowDown', text: t.count > 1 ? '×' + t.count : '' }
+          : { time: t.day, position: 'belowBar', color: colors.up, shape: 'arrowUp', text: t.count > 1 ? '×' + t.count : '' }));
         const sim = (simTrades || []).filter((t) => !first || t.day >= first).map((t) => (t.side === 'SELL'
           ? { time: t.day, position: 'aboveBar', color: colors.sim, shape: 'arrowDown', text: 'S' }
           : { time: t.day, position: 'belowBar', color: colors.sim, shape: 'arrowUp', text: 'S' }));
