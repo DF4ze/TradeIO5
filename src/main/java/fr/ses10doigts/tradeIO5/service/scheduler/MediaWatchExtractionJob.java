@@ -1,5 +1,10 @@
 package fr.ses10doigts.tradeIO5.service.scheduler;
 
+import fr.ses10doigts.tradeIO5.model.entity.doctor.JobTrigger;
+import fr.ses10doigts.tradeIO5.service.doctor.DoctorDefaults;
+import fr.ses10doigts.tradeIO5.service.doctor.JobOutcome;
+import fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorder;
+
 import fr.ses10doigts.tradeIO5.service.tree.media.TranscriptExtractionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,9 +26,10 @@ import org.springframework.stereotype.Component;
 public class MediaWatchExtractionJob {
 
     private final TranscriptExtractionService transcriptExtractionService;
+    private final JobRunRecorder recorder;
 
     @Scheduled(cron = "${tradeio.media-watch.extraction-cron:0 45 9,15,21,3 * * *}")
     public void processPendingVideos() {
-        transcriptExtractionService.processPendingVideos();
+        recorder.run(DoctorDefaults.JOB_MEDIA_EXTRACTION, JobTrigger.CRON, transcriptExtractionService::processPendingVideos);
     }
 }

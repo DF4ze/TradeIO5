@@ -22,5 +22,7 @@ public enum AdminAction {
     /** Déclaration ou modification d'un provider (nom, URL, activation). */
     PROVIDER,
     /** Une ligne par lot d'actions groupées de la Console (cible {@code batch:<id>}). */
-    BULK
+    BULK,
+    /** Acquittement ou mise en sommeil d'une alarme du Docteur (cible {@code alarm:<id>}). */
+    DOCTOR
 }

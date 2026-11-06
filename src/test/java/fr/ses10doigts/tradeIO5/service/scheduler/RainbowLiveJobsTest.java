@@ -36,7 +36,7 @@ class RainbowLiveJobsTest {
     void job2355Delegates() {
         when(service.runPass(NOW))
                 .thenReturn(new RainbowLiveExecutionService.PassSummary(LocalDate.of(2026, 9, 30), 3, 0, 0));
-        new RainbowLivePass2355Job(service, clock).run();
+        new RainbowLivePass2355Job(service, clock, fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorders.noop()).run();
         verify(service).runPass(NOW);
     }
 

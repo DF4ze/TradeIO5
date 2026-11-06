@@ -1,5 +1,10 @@
 package fr.ses10doigts.tradeIO5.service.scheduler;
 
+import fr.ses10doigts.tradeIO5.model.entity.doctor.JobTrigger;
+import fr.ses10doigts.tradeIO5.service.doctor.DoctorDefaults;
+import fr.ses10doigts.tradeIO5.service.doctor.JobOutcome;
+import fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorder;
+
 import fr.ses10doigts.tradeIO5.model.dto.provider.web.ApiCredentialDTO;
 import fr.ses10doigts.tradeIO5.model.dto.tree.indicator.external.EtfFlowResponse;
 import fr.ses10doigts.tradeIO5.model.enumerate.tree.indicator.IndicatorType;
@@ -39,15 +44,21 @@ public class EtfFlowHistorizationJob {
 
     private final CachingEtfFlowClient cachingEtfFlowClient;
     private final IndicatorCredentialResolver credentialResolver;
+    private final JobRunRecorder recorder;
 
     @Scheduled(cron = "${tradeio.etf-flow.historization-cron:0 0 7 * * *}")
     public void refreshDailySnapshots() {
+        recorder.runOutcome(DoctorDefaults.JOB_ETF_FLOW, JobTrigger.CRON, this::refreshAll);
+    }
+
+    private JobOutcome refreshAll() {
         ApiCredentialDTO credential = credentialResolver.resolve(IndicatorType.ETF_FLOW);
         if (credential == null) {
             logger.warn("EtfFlowHistorizationJob: aucune credential SOSOVALUE résolue, exécution ignorée.");
-            return;
+            return new JobOutcome(1, "aucune credential SOSOVALUE résolue");
         }
 
+        int errors = 0;
         for (EtfFlowAsset asset : EtfFlowAsset.values()) {
             try {
                 EtfFlowResponse response = cachingEtfFlowClient.refresh(credential, asset);
@@ -56,12 +67,15 @@ public class EtfFlowHistorizationJob {
                             asset, response.getDate(), response.getTotal());
                 } else {
                     logger.warn("EtfFlowHistorizationJob: réponse invalide pour {}, snapshot non persisté ce cycle.", asset);
+                    errors++;
                 }
             } catch (Exception e) {
                 // Isolation par asset (même principe que MediaWatchIngestionJob#pollActiveSources) :
                 // un échec sur un asset ne doit jamais empêcher la tentative sur l'autre.
+                errors++;
                 logger.error("EtfFlowHistorizationJob: échec du rafraîchissement pour {}", asset, e);
             }
         }
+        return new JobOutcome(errors, errors + " erreur(s) sur " + EtfFlowAsset.values().length + " asset(s)");
     }
 }

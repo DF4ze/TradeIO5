@@ -1,5 +1,10 @@
 package fr.ses10doigts.tradeIO5.service.scheduler;
 
+import fr.ses10doigts.tradeIO5.model.entity.doctor.JobTrigger;
+import fr.ses10doigts.tradeIO5.service.doctor.DoctorDefaults;
+import fr.ses10doigts.tradeIO5.service.doctor.JobOutcome;
+import fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorder;
+
 import fr.ses10doigts.tradeIO5.service.tree.decision.ArchivalResult;
 import fr.ses10doigts.tradeIO5.service.tree.decision.UserArchivalService;
 import lombok.RequiredArgsConstructor;
@@ -24,10 +29,11 @@ public class UserArchivalJob {
     private static final Logger log = LoggerFactory.getLogger(UserArchivalJob.class);
 
     private final UserArchivalService archivalService;
+    private final JobRunRecorder recorder;
 
     @Scheduled(cron = "${tradeio.decision.archival-cron:-}")
     public void archiveInactiveUsers() {
-        ArchivalResult result = archivalService.archiveInactiveUsers();
+        ArchivalResult result = recorder.run(DoctorDefaults.JOB_ARCHIVAL, JobTrigger.CRON, archivalService::archiveInactiveUsers, r -> 0);
         log.info("UserArchivalJob: archivage planifié exécuté ({} utilisateur(s) archivé(s), {}).",
                 result.archivedCount(), result.archivedAt());
     }

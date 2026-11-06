@@ -1,5 +1,10 @@
 package fr.ses10doigts.tradeIO5.service.scheduler;
 
+import fr.ses10doigts.tradeIO5.model.entity.doctor.JobTrigger;
+import fr.ses10doigts.tradeIO5.service.doctor.DoctorDefaults;
+import fr.ses10doigts.tradeIO5.service.doctor.JobOutcome;
+import fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorder;
+
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveExecutionService;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
@@ -20,9 +25,11 @@ public class RainbowLivePass2355Job {
 
     private final RainbowLiveExecutionService executionService;
     private final DomainClock clock;
+    private final JobRunRecorder recorder;
 
     @Scheduled(cron = RainbowLiveDefaultPresets.PASS_2355_CRON, zone = RainbowLiveDefaultPresets.SCHEDULER_ZONE)
     public void run() {
-        log.info("RainbowLivePass2355Job : {}", executionService.runPass(clock.now()));
+        log.info("RainbowLivePass2355Job : {}", recorder.run(DoctorDefaults.JOB_RAINBOW_PASS, JobTrigger.CRON,
+                () -> executionService.runPass(clock.now()), RainbowLiveExecutionService.PassSummary::errors));
     }
 }

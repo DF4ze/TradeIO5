@@ -30,7 +30,7 @@ class AdminPlanTriggerServiceTest {
     private final RainbowLiveExecutionService executionService = mock(RainbowLiveExecutionService.class);
     private final DomainClock clock = mock(DomainClock.class);
     private final AdminActionLogService journal = mock(AdminActionLogService.class);
-    private final AdminPlanTriggerService service = new AdminPlanTriggerService(planService, executionService, clock, journal);
+    private final AdminPlanTriggerService service = new AdminPlanTriggerService(planService, executionService, clock, journal, fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorders.noop());
     private final User user = new User();
 
     @Test

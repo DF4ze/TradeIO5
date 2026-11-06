@@ -7,6 +7,9 @@ import java.util.List;
 
 public interface TransitStockRepository extends JpaRepository<TransitStock, Long> {
 
+    /** Tous les stocks non résolus (Docteur). */
+    List<TransitStock> findByResolvedAtIsNull();
+
     /** Stocks actifs (non résolus) d'un wallet. */
     List<TransitStock> findByWalletIdAndResolvedAtIsNull(Long walletId);
 

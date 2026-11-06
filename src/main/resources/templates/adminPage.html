@@ -48,6 +48,9 @@
     						<li class="nav-item" role="presentation">
     							<button type="button" class="nav-link" id="adm-tab-limits" data-adm-tab="limits" data-bs-target="#adm-pane-limits" role="tab">Plafonds</button>
     						</li>
+    						<li class="nav-item" role="presentation">
+    							<button type="button" class="nav-link" id="adm-tab-doctor" data-adm-tab="doctor" data-bs-target="#adm-pane-doctor" role="tab">Diagnostic <span class="badge text-bg-secondary d-none" id="adm-doctor-badge"></span></button>
+    						</li>
     					</ul>
     
     					<div class="tab-content pt-3">
@@ -59,6 +62,7 @@
     						<div th:replace="~{fragments/admin/modulation :: modulation}"></div>
     						<div th:replace="~{fragments/admin/limits :: limits}"></div>
     						<div th:replace="~{fragments/admin/journal :: journal}"></div>
+    						<div th:replace="~{fragments/admin/doctor :: doctor}"></div>
     					</div>
     				</div>
   </main>
@@ -72,6 +76,7 @@
 <script th:src="@{/assets/js/admin/modulation.js}"></script>
 <script th:src="@{/assets/js/admin/limits.js}"></script>
 <script th:src="@{/assets/js/admin/journal.js}"></script>
+<script th:src="@{/assets/js/admin/doctor.js}"></script>
 <script th:src="@{/assets/app/js/admin-tabs.js}"></script>
 <script>AdminCore.start();</script>
 </body>

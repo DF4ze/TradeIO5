@@ -1,28 +1,15 @@
-# Docteur / Diagnostic Admin — chantier ouvert
+# Docteur / Diagnostic Admin — reste à faire
 
-Vérifié le : 2026-11-06 (code + décisions de Clem). **Rien n'est implémenté.** Conception : [`etudes/etude-diagnostic-docteur-admin.md`](../etudes/etude-diagnostic-docteur-admin.md).
-
-## Besoin
-Une page Administration « Diagnostic » qui résume les points de contrôle cruciaux à l'exécution (dernier run de planification, provider de candles, erreurs/warnings des logs, plans, credentials, infra) avec un gestionnaire d'alarmes (acquittement).
-
-## État actuel (manques)
-- Jobs : aucune trace persistée des exécutions (`log.info` seul) → pas de « dernier run OK ? ».
-- Logs : fichiers logback, WARN non isolé, rien en GUI.
-- Providers : pas de mémoire dernier succès/échec.
-- Seules alertes existantes : `UserAlertService` (par utilisateur, sans acquittement).
+Vérifié le : 2026-11-06. Le socle, le moteur, l'API et l'onglet Admin sont en place : voir [`architecture/12-doctor.md`](../architecture/12-doctor.md). Conception : [`etudes/etude-diagnostic-docteur-admin.md`](../etudes/etude-diagnostic-docteur-admin.md).
 
 ## Décisions
 - Observateur uniquement : le Docteur n'agit jamais seul (phase dev/test).
-- Pas de notification pour l'instant ; page Admin seule.
-- Alarmes visibles côté Admin uniquement.
-
-## Périmètre
-- `DecisionOrchestratorJob` (cron 06:00) est **exclu** de l'analyse du Docteur pour l'instant (décision 2026-11-06).
+- Pas de notification pour l'instant ; page Admin seule, alarmes visibles côté Admin uniquement.
+- `DecisionOrchestratorJob` (cron 06:00) exclu du périmètre.
 
 ## TODO
-- [ ] Socle : journal `job_run` + wrapper des jobs.
-- [ ] Moteur de checks, table `alarm`, acquittement, page Admin.
-- [ ] Agrégation des logs ERROR/WARN.
+- [ ] Agrégation des logs ERROR/WARN par signature (V1 : simple comptage 24 h en mémoire, vidé au redémarrage).
+- [ ] Contrôles non faits en V1 : fraîcheur des candles (B3), ping des providers (B1/B2), test des credentials (C3), jobs secondaires (A6), écarts de config.
 - [ ] **Bot Telegram** : push mobile des alarmes CRIT.
 - [ ] **« Doctor advertising »** : le Docteur pousse activement ses alarmes (sans ouvrir la page).
 - [ ] **Notifications par utilisateur** (alertes `UserAlertService` / credentials KO poussées à l'utilisateur concerné).

@@ -1,5 +1,10 @@
 package fr.ses10doigts.tradeIO5.service.scheduler;
 
+import fr.ses10doigts.tradeIO5.model.entity.doctor.JobTrigger;
+import fr.ses10doigts.tradeIO5.service.doctor.DoctorDefaults;
+import fr.ses10doigts.tradeIO5.service.doctor.JobOutcome;
+import fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorder;
+
 import fr.ses10doigts.tradeIO5.service.tree.decision.DecisionScenarioSnapshotService;
 import fr.ses10doigts.tradeIO5.service.tree.decision.SnapshotResult;
 import lombok.RequiredArgsConstructor;
@@ -25,10 +30,11 @@ public class DecisionScenarioSnapshotJob {
     private static final Logger log = LoggerFactory.getLogger(DecisionScenarioSnapshotJob.class);
 
     private final DecisionScenarioSnapshotService snapshotService;
+    private final JobRunRecorder recorder;
 
     @Scheduled(cron = "${tradeio.decision.snapshot-cron:-}")
     public void takeDailySnapshot() {
-        SnapshotResult result = snapshotService.takeSnapshot();
+        SnapshotResult result = recorder.run(DoctorDefaults.JOB_SNAPSHOT, JobTrigger.CRON, snapshotService::takeSnapshot, r -> 0);
         log.info("DecisionScenarioSnapshotJob: photo planifiée prise ({} scénario(s), {} décision(s), {}).",
                 result.scenarioCount(), result.decisionCount(), result.snapshotAt());
     }

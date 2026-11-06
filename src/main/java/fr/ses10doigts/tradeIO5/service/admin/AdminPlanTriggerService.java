@@ -1,5 +1,10 @@
 package fr.ses10doigts.tradeIO5.service.admin;
 
+import fr.ses10doigts.tradeIO5.model.entity.doctor.JobTrigger;
+import fr.ses10doigts.tradeIO5.service.doctor.DoctorDefaults;
+import fr.ses10doigts.tradeIO5.service.doctor.JobOutcome;
+import fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorder;
+
 import fr.ses10doigts.tradeIO5.model.entity.admin.AdminAction;
 import fr.ses10doigts.tradeIO5.model.entity.admin.AdminActionOutcome;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveExecutionService;
@@ -20,11 +25,13 @@ public class AdminPlanTriggerService {
     private final RainbowLiveExecutionService executionService;
     private final DomainClock clock;
     private final AdminActionLogService journal;
+    private final JobRunRecorder recorder;
 
     public PlanSummary plan(LocalDate day, String actor) {
         String target = day.toString();
         try {
-            PlanSummary summary = planService.planAll(day);
+            PlanSummary summary = recorder.run(DoctorDefaults.JOB_EXECUTION_PLAN, JobTrigger.MANUAL, () -> planService.planAll(day),
+                    PlanSummary::errors);
             journal.record(actor, AdminAction.PLAN, target, AdminActionLogService.payload("planned", summary.planned(),
                     "blocked", summary.blocked(), "disabled", summary.disabled(), "unchanged", summary.unchanged(),
                     "skipped", summary.skipped(), "errors", summary.errors()), AdminActionOutcome.OK);

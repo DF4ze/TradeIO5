@@ -1,5 +1,10 @@
 package fr.ses10doigts.tradeIO5.service.scheduler;
 
+import fr.ses10doigts.tradeIO5.model.entity.doctor.JobTrigger;
+import fr.ses10doigts.tradeIO5.service.doctor.DoctorDefaults;
+import fr.ses10doigts.tradeIO5.service.doctor.JobOutcome;
+import fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorder;
+
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveExecutionService;
 import fr.ses10doigts.tradeIO5.service.execution.run.OrderExecutor;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
@@ -20,9 +25,11 @@ public class ExecutionJob {
 
     private final OrderExecutor executor;
     private final DomainClock clock;
+    private final JobRunRecorder recorder;
 
     @Scheduled(cron = ExecutionDefaults.RUN_CRON, zone = ExecutionDefaults.SCHEDULER_ZONE)
     public void run() {
-        log.info("ExecutionJob : {}", executor.executeAll(RainbowLiveExecutionService.dayFor(clock.now())));
+        log.info("ExecutionJob : {}", recorder.run(DoctorDefaults.JOB_EXECUTION, JobTrigger.CRON,
+                () -> executor.executeAll(RainbowLiveExecutionService.dayFor(clock.now())), OrderExecutor.RunSummary::errors));
     }
 }

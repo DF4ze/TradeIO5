@@ -1,5 +1,10 @@
 package fr.ses10doigts.tradeIO5.controller;
 
+import fr.ses10doigts.tradeIO5.model.entity.doctor.JobTrigger;
+import fr.ses10doigts.tradeIO5.service.doctor.DoctorDefaults;
+import fr.ses10doigts.tradeIO5.service.doctor.JobOutcome;
+import fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorder;
+
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.StrategyDto;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowAssetStrategyService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveExecutionService;
@@ -40,12 +45,14 @@ public class RainbowLiveAdminController {
     private final DomainClock clock;
     private final RainbowAssetStrategyService strategyService;
     private final IAuthenticationFacade authenticationFacade;
+    private final JobRunRecorder recorder;
 
     @PostMapping("/run")
     public ResponseEntity<RainbowLiveExecutionService.PassSummary> run(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate day) {
         log.info("RainbowLiveAdminController : déclenchement manuel day={}", day);
-        return ResponseEntity.ok(executionService.runPass(clock.now(), day));
+        return ResponseEntity.ok(recorder.run(DoctorDefaults.JOB_RAINBOW_PASS, JobTrigger.MANUAL,
+                () -> executionService.runPass(clock.now(), day), RainbowLiveExecutionService.PassSummary::errors));
     }
 
     /**

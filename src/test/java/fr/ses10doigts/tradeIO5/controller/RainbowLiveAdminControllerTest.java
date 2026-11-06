@@ -52,7 +52,7 @@ class RainbowLiveAdminControllerTest {
     @BeforeEach
     void setUp() {
         ObjectMapper om = new ObjectMapper().findAndRegisterModules().disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        mockMvc = MockMvcBuilders.standaloneSetup(new RainbowLiveAdminController(service, new FixedDomainClock(NOW), strategyService, mock(IAuthenticationFacade.class)))
+        mockMvc = MockMvcBuilders.standaloneSetup(new RainbowLiveAdminController(service, new FixedDomainClock(NOW), strategyService, mock(IAuthenticationFacade.class), fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorders.noop()))
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(om)).build();
     }
 

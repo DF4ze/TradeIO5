@@ -45,7 +45,7 @@ class DecisionScenarioSnapshotJobTest {
         DecisionScenarioSnapshotService snapshotService = mock(DecisionScenarioSnapshotService.class);
         when(snapshotService.takeSnapshot()).thenReturn(new SnapshotResult(1, 1, Instant.now()));
 
-        DecisionScenarioSnapshotJob job = new DecisionScenarioSnapshotJob(snapshotService);
+        DecisionScenarioSnapshotJob job = new DecisionScenarioSnapshotJob(snapshotService, fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorders.noop());
         job.takeDailySnapshot();
 
         verify(snapshotService, times(1)).takeSnapshot();

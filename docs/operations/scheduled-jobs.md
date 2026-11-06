@@ -53,3 +53,15 @@ tradeio.execution.run-cron=-   # ne pas activer avant le déverrouillage LIVE (�
 `RainbowLivePass2355Job`, `ExecutionPlanJob` et `ExecutionJob` (cf. [`architecture/10-execution-plan.md`](../architecture/10-execution-plan.md)) déclarent `zone = "UTC"` explicitement (run Rainbow, cf. [`architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md)) ; ils ne suivent pas le fuseau JVM. Toutes les autres heures de cron sans `zone` explicite sur `@Scheduled` s'exécutent dans le fuseau horaire de la JVM (confirmé `Europe/Paris` en environnement de déploiement observé pour la veille média).
 
 Isolation par élément (asset, source) répétée dans plusieurs jobs (`EtfFlowHistorizationJob` par asset, `MediaWatchIngestionJob` par source) : un échec sur un élément n'empêche jamais la tentative sur les autres au sein du même cycle.
+
+## Journal d'exécution (`job_run`)
+
+Vérifié le : 2026-11-06 (`service/doctor/**`, `service/scheduler/**`).
+
+Chaque exécution d'un job planifié laisse une ligne `job_run` (table créée par `ddl-auto=update`) : job, déclencheur (`CRON` / `MANUAL`), statut (`OK` / `PARTIAL` si des éléments isolés sont en erreur / `FAILED` si exception), début, durée, nombre d'erreurs, résumé, message d'exception. L'écriture est best-effort (`JobRunRecorder`) : un échec du journal ne casse jamais le job, et l'exception du job est relancée à l'identique.
+
+Jobs tracés : `RainbowLivePass2355Job`, `ExecutionPlanJob`, `ExecutionJob`, `HistoricalDataBackupJob`, `MediaWatchIngestionJob`, `MediaWatchExtractionJob`, `EtfFlowHistorizationJob`, `DecisionScenarioSnapshotJob`, `UserArchivalJob`. Les déclenchements manuels `POST /api/admin/rainbow-live/run` et du plan du jour (Console) sont tracés en `MANUAL`. `DecisionOrchestratorJob` n'est pas tracé (hors périmètre du Docteur pour l'instant).
+
+Purge : `JobRunPurgeJob` (`tradeio.doctor.purge-cron`, défaut `0 30 3 * * *`, actif par défaut) supprime les traces de plus de 90 jours (`DoctorDefaults.JOB_RUN_RETENTION_DAYS`).
+
+Ce journal alimente le Docteur et s'affiche dans l'onglet Admin « Diagnostic » ([`architecture/12-doctor.md`](../architecture/12-doctor.md)). Le purge supprime aussi les alarmes résolues de plus de 90 jours.

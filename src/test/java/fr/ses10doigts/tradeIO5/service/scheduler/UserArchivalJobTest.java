@@ -37,7 +37,7 @@ class UserArchivalJobTest {
         UserArchivalService archivalService = mock(UserArchivalService.class);
         when(archivalService.archiveInactiveUsers()).thenReturn(new ArchivalResult(0, Instant.now()));
 
-        UserArchivalJob job = new UserArchivalJob(archivalService);
+        UserArchivalJob job = new UserArchivalJob(archivalService, fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorders.noop());
         job.archiveInactiveUsers();
 
         verify(archivalService, times(1)).archiveInactiveUsers();

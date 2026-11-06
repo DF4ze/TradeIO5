@@ -42,7 +42,7 @@ public class ExecutionPlanAdminController {
     }
 
     /** Remise à zéro d'un plan non envoyé (bloqué, expiré, désactivé…) : nouvelle révision même si les entrées sont inchangées. */
-    @PostMapping("/plans/{id}/reset")
+    @PostMapping("/plans/{id:\\d+}/reset") // id numérique : sinon /plans/bulk/reset serait capté ici (cf. ExecutionBulkAdminController)
     public ResponseEntity<OrderPlanService.PlanSummary> reset(@PathVariable Long id) {
         return ResponseEntity.ok(planService.reset(id, authenticationFacade.getConnectedUser().getUsername()));
     }

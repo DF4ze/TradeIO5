@@ -1,5 +1,10 @@
 package fr.ses10doigts.tradeIO5.service.scheduler;
 
+import fr.ses10doigts.tradeIO5.model.entity.doctor.JobTrigger;
+import fr.ses10doigts.tradeIO5.service.doctor.DoctorDefaults;
+import fr.ses10doigts.tradeIO5.service.doctor.JobOutcome;
+import fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorder;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import fr.ses10doigts.tradeIO5.model.dto.provider.web.ApiCredentialDTO;
@@ -53,16 +58,21 @@ public class MediaWatchIngestionJob {
     private final YoutubeRssClient rssClient;
     private final YoutubeTranscriptClient transcriptClient;
     private final MediaCredentialResolver credentialResolver;
+    private final JobRunRecorder recorder;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Scheduled(cron = "${tradeio.media-watch.poll-cron:0 30 9,15,21,3 * * *}")
     public void pollActiveSources() {
+        recorder.runOutcome(DoctorDefaults.JOB_MEDIA_INGESTION, JobTrigger.CRON, this::pollSources);
+    }
+
+    private JobOutcome pollSources() {
         List<ContentSourceEntity> sources = contentSourceRepository.findByActiveTrue();
 
         ApiCredentialDTO credential = credentialResolver.resolve(WebProviderCode.YOUTUBE);
         if (credential == null) {
             logger.warn("MediaWatchIngestionJob: aucune credential YOUTUBE résolue, exécution ignorée.");
-            return;
+            return new JobOutcome(1, "aucune credential YOUTUBE résolue");
         }
 
         int discovered = 0;
@@ -87,6 +97,8 @@ public class MediaWatchIngestionJob {
         logger.info("MediaWatchIngestionJob: exécution terminée — {} nouvelle(s) vidéo(s), "
                         + "{} déjà connue(s), {} source(s) en erreur (sur {} source(s) active(s)).",
                 discovered, alreadyKnown, errorSources, sources.size());
+        return new JobOutcome(errorSources, discovered + " nouvelle(s), " + alreadyKnown + " connue(s), " + errorSources
+                + " source(s) en erreur sur " + sources.size());
     }
 
     private int[] ingestSource(ContentSourceEntity source, ApiCredentialDTO credential) {

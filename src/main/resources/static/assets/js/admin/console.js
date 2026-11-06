@@ -127,8 +127,9 @@
     const head = el('div', { class: 'small' },
       el('strong', { text: 'Plan #' + plan.id + ' : ' }), plan.status + ' · coût ' + (plan.totalCostPct == null ? core.DASH : plan.totalCostPct + ' %')
       + ' · Fee Test ' + (plan.feeTestLevel || core.DASH) + ' · expire ' + core.fmtDate(plan.expiresAt));
+    const exchangeOf = (a) => (local.bindings.find((b) => b.walletId === a.walletId && b.userId === plan.userId) || {}).exchange;
     const assets = plan.assets.map((a) => el('div', { class: 'small mt-1' },
-      el('strong', { text: a.assetSymbol }), ' ' + a.action + ' → ' + a.outcome + (a.blockReason ? ' (' + a.blockReason + ')' : ''),
+      el('strong', { text: a.assetSymbol }), el('span', { class: 'text-muted', text: ' @' + (exchangeOf(a) || core.DASH) }), ' ' + a.action + ' → ' + a.outcome + (a.blockReason ? ' (' + a.blockReason + ')' : ''),
       a.steps.length ? el('table', { class: 'table table-sm mb-1' },
         el('thead', null, el('tr', null, ['#', 'Paire', 'Sens', 'Taille', 'Prix plafond', 'Montant', 'Statut', 'Rempli', 'Prix moy.', 'Frais', 'Erreur'].map((h) => el('th', { text: h })))),
         el('tbody', null, a.steps.map(stepRow))) : null));
@@ -243,6 +244,9 @@
     box.textContent = 'Plan #' + p.id + ' réinitialisé : ' + s.planned + ' planifié(s), ' + s.blocked + ' bloqué(s), '
       + s.disabled + ' désactivé(s), ' + s.skipped + ' ignoré(s).';
     await reload();
+    // la révision réinitialisée est remplacée par un nouveau plan (autre id) : le détail suit la nouvelle révision
+    const next = local.plans.find((x) => x.userId === p.userId && x.day === p.day);
+    if (next) { local.selectedId = next.id; render(); }
   }
 
   /** Passe Rainbow live manuelle (signal + snapshot live par lien) : prérequis du plan. Aucun ordre. */
@@ -334,7 +338,7 @@
 
   ['reset', 'arm', 'run', 'reconcile'].forEach((a) => {
     const btn = byId('adm-bulk-' + a);
-    btn.addEventListener('click', () => run(btn, () => bulk(a)));
+    btn.addEventListener('click', () => exclusive(btn, () => bulk(a), 'Lot en cours : la Console est verrouillée jusqu\'à la fin (un lot peut durer 30 s et plus)…'));
   });
 
   function shiftDay(delta) {
@@ -361,9 +365,36 @@
   });
   byId('adm-detail-close').addEventListener('click', () => { local.selectedId = null; render(); });
 
+  /**
+   * Action exclusive : toute la Console est verrouillée tant qu'elle dure (un lot peut prendre 30 s et plus : un second clic
+   * lancerait une action concurrente sur une vue périmée). En cas d'erreur le tableau est rechargé, la vue ayant pu changer
+   * (ex. plan remplacé par une nouvelle révision) avant que l'erreur ne soit affichée.
+   */
+  let busy = false;
+  function exclusive(button, action, note) {
+    if (busy) { return Promise.resolve(); }
+    busy = true;
+    const locked = [...byId('adm-pane-console').querySelectorAll('button, select, input')].filter((c) => !c.disabled);
+    locked.forEach((c) => { c.disabled = true; });
+    core.showAlert(note || 'Action en cours : la Console est verrouillée jusqu\'à la fin (elle peut durer 30 s et plus)…');
+    return run(button, async () => {
+      try {
+        return await action();
+      } catch (e) {
+        await reload().catch(() => { /* l'erreur d'origine prime */ });
+        throw e;
+      } finally {
+        locked.forEach((c) => { c.disabled = false; });
+        busy = false;
+        core.hideAlert();
+        render();
+      }
+    });
+  }
+
   function bind(id, action) {
     const btn = byId(id);
-    btn.addEventListener('click', () => run(btn, action));
+    btn.addEventListener('click', () => exclusive(btn, action));
   }
 
   bind('adm-btn-pass', livePass);
@@ -377,7 +408,8 @@
   bind('adm-btn-reconcile', runPlan);
   bind('adm-btn-engage', () => setKillSwitch(true));
   bind('adm-plans-reload', reload);
-  core.onState(() => { if (local.plans.length || local.bindings.length) { render(); } });
+  // pas de rendu pendant une action exclusive : il ré-activerait des contrôles verrouillés alors que l'action tourne encore
+  core.onState(() => { if (!busy && (local.plans.length || local.bindings.length)) { render(); } });
 
   core.register('console', { load: () => run(null, reload), show: () => run(null, reload) });
 })();

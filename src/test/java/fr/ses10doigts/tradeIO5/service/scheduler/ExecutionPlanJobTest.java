@@ -31,7 +31,7 @@ class ExecutionPlanJobTest {
     void delegates() {
         OrderPlanService service = mock(OrderPlanService.class);
 
-        new ExecutionPlanJob(service, new FixedDomainClock(NOW)).run();
+        new ExecutionPlanJob(service, new FixedDomainClock(NOW), fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorders.noop()).run();
 
         verify(service).planAll(LocalDate.of(2026, 10, 9));
     }
@@ -54,7 +54,7 @@ class ExecutionPlanJobTest {
 
         @Bean
         ExecutionPlanJob job() {
-            return new ExecutionPlanJob(mock(OrderPlanService.class), new FixedDomainClock(NOW));
+            return new ExecutionPlanJob(mock(OrderPlanService.class), new FixedDomainClock(NOW), fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorders.noop());
         }
     }
 

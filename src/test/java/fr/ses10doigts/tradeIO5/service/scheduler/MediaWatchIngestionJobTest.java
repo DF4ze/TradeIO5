@@ -54,7 +54,7 @@ class MediaWatchIngestionJobTest {
         transcriptClient = mock(YoutubeTranscriptClient.class);
         credentialResolver = mock(MediaCredentialResolver.class);
 
-        job = new MediaWatchIngestionJob(contentSourceRepository, videoContentRepository, rssClient, transcriptClient, credentialResolver);
+        job = new MediaWatchIngestionJob(contentSourceRepository, videoContentRepository, rssClient, transcriptClient, credentialResolver, fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorders.noop());
 
         when(credentialResolver.resolve(WebProviderCode.YOUTUBE)).thenReturn(credential);
     }

@@ -41,7 +41,7 @@ class EtfFlowHistorizationJobTest {
     void setUp() {
         cachingEtfFlowClient = mock(CachingEtfFlowClient.class);
         credentialResolver = mock(IndicatorCredentialResolver.class);
-        job = new EtfFlowHistorizationJob(cachingEtfFlowClient, credentialResolver);
+        job = new EtfFlowHistorizationJob(cachingEtfFlowClient, credentialResolver, fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorders.noop());
     }
 
     @Test
