@@ -1,6 +1,6 @@
 # Nettoyages à prévoir
 
-Vérifié le : 2026-11-06. Points de nettoyage / purge **non faits**, à regrouper ici.
+Vérifié le : 2026-11-07. Points de nettoyage / purge **non faits**, à regrouper ici.
 
 ## Déjà en place (pour mémoire)
 
@@ -16,6 +16,5 @@ Vérifié le : 2026-11-06. Points de nettoyage / purge **non faits**, à regroup
   - entités et repositories en lecture seule `model/entity/dca/bench/legacy/*` et `repository/dca/bench/legacy/*`, `AffectationMigrationService` et `AffectationMigrationInitializer` ;
   - colonne `strategy_revision` de `rainbow_live_preset_event` et valeurs d'enum `DETACH` / `STRATEGY_CHANGED` de `RainbowLivePresetEventType` encore possibles dans les lignes historiques ; champ `strategyRevision` de `PresetEventDto` (toujours nul) ;
   - noms hérités dans les DTO et le JS qui désignent maintenant l'Affectation (ex. `PresetEventDto`, `presetBeforeName`, endpoint `/preset-events`, tables `rainbow_live_preset_event`) : à renommer avec leur migration.
-- **Runs et états moteur des anciens presets non retenus** : supprimés par la migration (un seul preset par actif est converti en Affectation) ; rien à purger côté données.
-- **Simulations Espace Expert** : résultats en mémoire du processus (perdus au redémarrage, non partagés entre instances) ; `AssetProvider.maxHorizonDays` (limite H1) reste affiché par `GET /api/expert/assets` alors que la simulation juge la profondeur D1 (`MarketDataProviderLimits#maxD1Candles`) : à clarifier côté DTO au lot 4.
-- **Liste des simulations** : pas d'endpoint `GET /api/expert/simulations?type=&asset=` ; les écrans ne retrouvent pas une simulation après rechargement de la page (résultats en mémoire, mémoire locale = derniers réglages seulement).
+- **Simulations Espace Expert** : persistance et liste des simulations, clarification de `maxHorizonDays` dans `GET /api/expert/assets` : voir [`../etudes/etude-espace-expert.md`](../etudes/etude-espace-expert.md).
+- **Rappel avant le chantier legacy** : sauvegarde de la base, puis constater que la migration des Affectations s'est exécutée sur le VPS.

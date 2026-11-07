@@ -1,6 +1,6 @@
 # Roadmap — Espace Expert (paramétrage Trend / Rainbow par actif)
 
-Référence de conception : [`../etudes/etude-espace-expert.md`](../etudes/etude-espace-expert.md) (décisions, modèle cible, API, lignes du pine). À lire en premier dans chaque session. Cette roadmap découpe l'implémentation en lots, chacun lançable dans une discussion dédiée.
+**Statut : lots 1 à 5 réalisés (2026-11-07).** État courant : [`../architecture/13-espace-expert.md`](../architecture/13-espace-expert.md) et [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md) ; reste ouvert : [`../etudes/etude-espace-expert.md`](../etudes/etude-espace-expert.md). Trace de la réflexion conservée ci-dessous ; les prompts de lot exécutés ne sont plus à jour.
 
 ## Règles transverses (tous les lots)
 
@@ -17,11 +17,11 @@ Référence de conception : [`../etudes/etude-espace-expert.md`](../etudes/etude
 
 | Lot | Contenu | Dépend de |
 |---|---|---|
-| 1 | Modèle `TrendPreset` / `RainbowPreset` / `AssetAffectation` + presets de base + migration des données + moteur live lu via l'Affectation + retrait `ui-mode` et `FIXED` (prompt : `prompt-implementation-espace-expert-lot1.md`) | — |
-| 2 | Services et API presets / affectations, droits USER / ADMIN (prompt : `prompt-implementation-espace-expert-lot2.md`) | 1 |
-| 3 | Moteur de simulation (barre inactive, plage, chargement de données, éligibilité ; prompt : `prompt-implementation-espace-expert-lot3.md`) | 1 et 2 |
-| 4 | Écrans `/app/expert/{trend,rainbow,affectation}` + suppression `/user` (prompt : `prompt-implementation-espace-expert-lot4.md`) | 2, 3 |
-| 5 | Nettoyage, code mort, doc finale | 1 à 4 |
+| 1 ✅ | Modèle `TrendPreset` / `RainbowPreset` / `AssetAffectation` + presets de base + migration des données + moteur live lu via l'Affectation + retrait `ui-mode` et `FIXED` (prompt : `prompt-implementation-espace-expert-lot1.md`) | — |
+| 2 ✅ | Services et API presets / affectations, droits USER / ADMIN (prompt : `prompt-implementation-espace-expert-lot2.md`) | 1 |
+| 3 ✅ | Moteur de simulation (barre inactive, plage, chargement de données, éligibilité ; prompt : `prompt-implementation-espace-expert-lot3.md`) | 1 et 2 |
+| 4 ✅ | Écrans `/app/expert/{trend,rainbow,affectation}` + suppression `/user` (prompt : `prompt-implementation-espace-expert-lot4.md`) | 2, 3 |
+| 5 ✅ | Nettoyage, code mort, doc finale (prompt : `prompt-implementation-espace-expert-lot5.md`) | 1 à 4 |
 | Hors lots | Découverte et création des actifs | — |
 
 ## Lot 1 — Modèle et presets de base

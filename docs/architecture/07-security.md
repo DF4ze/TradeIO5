@@ -1,6 +1,6 @@
 # Sécurité
 
-Vérifié le : 2026-10-10 (`security/WebSecurityConfig`, `security/apikey/ApiKeyAuthFilter`, `security/jwt/*`, controllers, `service/connector/**`, `model/entity/exchange/ApiCredential`).
+Vérifié le : 2026-11-07 (`service/expert/ExpertAccessGuard`, `security/WebSecurityConfig`, `security/apikey/ApiKeyAuthFilter`, `security/jwt/*`, controllers, `service/connector/**`, `model/entity/exchange/ApiCredential`).
 
 ## Deux mécanismes d'authentification, cumulables
 
@@ -49,3 +49,7 @@ Vérifié le : 2026-10-10 (`security/WebSecurityConfig`, `security/apikey/ApiKey
 ## Accès propriétaire (Rainbow live)
 
 `RainbowLiveController` (`/api/rainbow-live`) : `@PreAuthorize("isAuthenticated()")` au niveau classe (test `RainbowLiveControllerSecurityTest`, qui active réellement la sécurité par méthode), pas de `ROLE_API_AGENT`. Isolation par propriétaire : un preset d'un autre utilisateur est indiscernable d'un preset inexistant (404, pas de fuite d'existence).
+
+## Espace Expert (`/api/expert/**`)
+
+`ExpertAccessGuard#require` en tête de chaque endpoint : authentifié + `displayMode` EXPERT (ADMIN compris), sinon 403 `EXPERT_MODE_REQUIRED` ; `@PreAuthorize("isAuthenticated()")` au niveau classe. Preset ou simulation d'un autre utilisateur ⇒ 404. Preset SYSTEM : modification réservée à `ROLE_ADMIN`, tracée dans `admin_action_log` (`AdminAction.PRESET`). Simulation bornée (une active par utilisateur, débit limité) : [`13-espace-expert.md`](13-espace-expert.md).
