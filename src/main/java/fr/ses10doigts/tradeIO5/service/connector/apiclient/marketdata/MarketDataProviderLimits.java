@@ -1,5 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata;
 
+import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
+
 /**
  * Plafonds d'API par exchange pour les bougies, en un seul endroit (ne pas les recopier dans les
  * clients). Un client dont le plafond est inférieur à la plage demandée doit paginer
@@ -27,6 +29,17 @@ public final class MarketDataProviderLimits {
 
     /** Espacement entre deux pages d'une même pagination, pour ménager le rate limit. */
     public static final long PAGE_PAUSE_MILLIS = 150;
+
+    /**
+     * Profondeur D1 demandée par la simulation de l'Espace Expert : le maximum que les providers savent servir (Binance par
+     * pagination complète, cache DB), l'ATH et l'automate To the moon exigeant tout l'historique. Constante unique.
+     */
+    public static final int MAX_D1_HISTORY_CANDLES = 5000;
+
+    /** Profondeur D1 maximale réellement servie par une source (Kraken plafonné à {@link #KRAKEN_OHLC_MAX}, les autres paginent). */
+    public static int maxD1Candles(MarketDataSource source) {
+        return source == MarketDataSource.KRAKEN ? KRAKEN_OHLC_MAX : MAX_D1_HISTORY_CANDLES;
+    }
 
     private MarketDataProviderLimits() {
     }

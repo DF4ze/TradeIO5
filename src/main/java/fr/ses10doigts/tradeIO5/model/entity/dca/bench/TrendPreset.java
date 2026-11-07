@@ -36,7 +36,7 @@ import java.time.Instant;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class TrendPreset {
+public class TrendPreset implements ExpertPreset {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

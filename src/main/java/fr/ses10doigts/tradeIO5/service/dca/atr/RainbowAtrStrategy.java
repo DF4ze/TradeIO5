@@ -45,9 +45,19 @@ public final class RainbowAtrStrategy {
      */
     public static StepResult step(RainbowAtrState state, RainbowAtrBand band, double high, AthReference ath,
                                   double position, RainbowAtrTuning t, RainbowAtrGlobals g) {
+        return step(state, band, high, ath, position, t, g, true);
+    }
+
+    /**
+     * @param allowNewEntries {@code false} sur une bougie INACTIVE (hors régime, cf. {@link RainbowAtrReplay#inactive}) : plus
+     *                        aucun nouvel armement (achat EXTREME_BAS, vente EXTREME_HAUT) ni achat de zone ; l'automate moon, les
+     *                        sorties moon et les armements déjà en cours (trailing stops, délais) continuent de vivre.
+     */
+    public static StepResult step(RainbowAtrState state, RainbowAtrBand band, double high, AthReference ath,
+                                  double position, RainbowAtrTuning t, RainbowAtrGlobals g, boolean allowNewEntries) {
         double cl = band.close();
         RainbowMoon.Step ms = RainbowMoon.advance(state.moon(), g.moonOn(), g.moonTrailingStopPct(), cl, high, ath.value());
-        return stepWithMoon(state, band, ms, ath.includingToday(high), position, t, g);
+        return stepWithMoon(state, band, ms, ath.includingToday(high), position, t, g, allowNewEntries);
     }
 
     /** Variante pour une bougie sans bornes : avance seulement l'automate moon. */
@@ -60,6 +70,11 @@ public final class RainbowAtrStrategy {
     /** Cœur de la machine ; {@code ms} = automate moon déjà avancé (permet au rejeu d'utiliser les drapeaux en cache). */
     static StepResult stepWithMoon(RainbowAtrState s, RainbowAtrBand band, RainbowMoon.Step ms, double athToday,
                                    double pos, RainbowAtrTuning t, RainbowAtrGlobals g) {
+        return stepWithMoon(s, band, ms, athToday, pos, t, g, true);
+    }
+
+    static StepResult stepWithMoon(RainbowAtrState s, RainbowAtrBand band, RainbowMoon.Step ms, double athToday,
+                                   double pos, RainbowAtrTuning t, RainbowAtrGlobals g, boolean allowNew) {
         double cl = band.close();
         int zone = band.zone();
         double eb = band.down2();
@@ -144,7 +159,7 @@ public final class RainbowAtrStrategy {
             } else {
                 highestSinceArmed = Math.max(highestSinceArmed, cl);
             }
-        } else if (zone == RainbowAtrEngine.EXTREME_HAUT && (cooldown == 0 || t.allowSellDuringCooldown())) {
+        } else if (allowNew && zone == RainbowAtrEngine.EXTREME_HAUT && (cooldown == 0 || t.allowSellDuringCooldown())) {
             sellArmed = true;
             highestSinceArmed = cl;
             sellArmedDays = 0;
@@ -176,20 +191,22 @@ public final class RainbowAtrStrategy {
                 } else {
                     lowestSinceArmed = Math.min(lowestSinceArmed, cl);
                 }
-            } else if (zone == RainbowAtrEngine.EXTREME_BAS) {
-                buyArmed = true;
-                lowestSinceArmed = cl;
-                buyArmedDays = 0;
-                buyArmedNow = true;
-            } else {
-                double im = switch (zone) {
-                    case RainbowAtrEngine.X2 -> g.multX2();
-                    case RainbowAtrEngine.X1 -> g.multX1();
-                    case RainbowAtrEngine.X0_5 -> g.multX0_5();
-                    default -> Double.NaN;
-                };
-                if (!Double.isNaN(im) && im > 0) {
-                    buyMult = im;
+            } else if (allowNew) { // bougie inactive : ni armement achat ni achat de zone (un armement en cours continue ci-dessus)
+                if (zone == RainbowAtrEngine.EXTREME_BAS) {
+                    buyArmed = true;
+                    lowestSinceArmed = cl;
+                    buyArmedDays = 0;
+                    buyArmedNow = true;
+                } else {
+                    double im = switch (zone) {
+                        case RainbowAtrEngine.X2 -> g.multX2();
+                        case RainbowAtrEngine.X1 -> g.multX1();
+                        case RainbowAtrEngine.X0_5 -> g.multX0_5();
+                        default -> Double.NaN;
+                    };
+                    if (!Double.isNaN(im) && im > 0) {
+                        buyMult = im;
+                    }
                 }
             }
         }

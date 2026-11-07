@@ -9,7 +9,9 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrPresets;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowSetSelector.RangeMapping;
 import fr.ses10doigts.tradeIO5.service.tree.trend.TrendMixCalculator;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Réglages Trend + jeux Rainbow : défauts du code, (dé)sérialisation JSON, normalisation (parties
@@ -72,15 +74,9 @@ public final class RainbowLiveTrendConfigs {
     }
 
     public static void validate(Resolved r) {
-        TrendMixCalculator.Params p = r.trend();
-        if (p.shortWindow() < 2 || p.mediumWindow() < 2 || p.longWindow() < 2) {
-            throw new IllegalArgumentException("Trend : fenêtres de régression ≥ 2");
-        }
-        if (p.slopeScale() <= 0 || p.enter() <= 0 || p.exit() < 0 || p.exit() > p.enter()) {
-            throw new IllegalArgumentException("Trend : slopeScale > 0, enter > 0, 0 ≤ exit ≤ enter");
-        }
-        if (p.confirm() < 1 || p.smaPeriod() < 2 || p.atrPeriod() < 1 || p.atrMultiplier() < 0) {
-            throw new IllegalArgumentException("Trend : confirm ≥ 1, smaPeriod ≥ 2, atrPeriod ≥ 1, atrMultiplier ≥ 0");
+        Map<String, String> trendErrors = trendErrors(r.trend());
+        if (!trendErrors.isEmpty()) {
+            throw new IllegalArgumentException("Trend : " + String.join(", ", trendErrors.values()));
         }
         for (RainbowAtrParamSet s : r.sets()) {
             if (s.tuning() == null || !s.tuning().isValid()) {
@@ -90,6 +86,42 @@ public final class RainbowLiveTrendConfigs {
                 throw new IllegalArgumentException("Jeu " + s.name() + " : baseAmount doit être > 0");
             }
         }
+    }
+
+    /** Règles de validité du Trend Mix par paramètre : nom du paramètre -> message ; vide ⇒ valide. */
+    public static Map<String, String> trendErrors(TrendMixCalculator.Params p) {
+        Map<String, String> errors = new LinkedHashMap<>();
+        if (!(p.shortWindow() >= 2)) {
+            errors.put("shortWindow", "fenêtre courte ≥ 2");
+        }
+        if (!(p.mediumWindow() >= 2)) {
+            errors.put("mediumWindow", "fenêtre moyenne ≥ 2");
+        }
+        if (!(p.longWindow() >= 2)) {
+            errors.put("longWindow", "fenêtre longue ≥ 2");
+        }
+        if (!(p.slopeScale() > 0)) {
+            errors.put("slopeScale", "slopeScale > 0");
+        }
+        if (!(p.enter() > 0)) {
+            errors.put("enter", "seuil d'entrée > 0");
+        }
+        if (!(p.exit() >= 0 && p.exit() <= p.enter())) {
+            errors.put("exit", "0 ≤ seuil de sortie ≤ seuil d'entrée");
+        }
+        if (!(p.confirm() >= 1)) {
+            errors.put("confirm", "confirmation ≥ 1");
+        }
+        if (!(p.smaPeriod() >= 2)) {
+            errors.put("smaPeriod", "période SMA ≥ 2");
+        }
+        if (!(p.atrPeriod() >= 1)) {
+            errors.put("atrPeriod", "période ATR ≥ 1");
+        }
+        if (!(p.atrMultiplier() >= 0)) {
+            errors.put("atrMultiplier", "multiplicateur ATR ≥ 0");
+        }
+        return errors;
     }
 
     private static RangeMapping parseRange(String s) {

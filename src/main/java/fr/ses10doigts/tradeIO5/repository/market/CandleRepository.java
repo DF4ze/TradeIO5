@@ -18,6 +18,9 @@ import java.util.List;
  */
 public interface CandleRepository extends JpaRepository<CandleEntity, Long> {
 
+    /** Nombre de bougies déjà en cache pour (source, paire, timeframe) : éligibilité d'une simulation, sans appel exchange. */
+    long countBySourceAndPairAndTimeFrame(MarketDataSource source, String pair, TimeFrame timeFrame);
+
     List<CandleEntity> findBySourceAndPairAndTimeFrameAndTimestampBetweenOrderByTimestampAsc(
             MarketDataSource source, String pair, TimeFrame timeFrame, Instant since, Instant until
     );

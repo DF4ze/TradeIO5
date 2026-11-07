@@ -19,7 +19,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -47,54 +46,6 @@ public final class RainbowAtrReplayMain {
             "Trend lent 30/60/120",
             "Prix vs SMA100 ±6 %",
             "Trend Mix (régression 14/30/60 + SMA100±1,25×ATR5) = méga-pine"};
-
-    /** Colonnes exportées (nom → extracteur), dans l'ordre du CSV. */
-    private static final Map<String, Function<DayRow, Object>> COLS = new LinkedHashMap<>();
-
-    static {
-        COLS.put("o", DayRow::open);
-        COLS.put("h", DayRow::high);
-        COLS.put("l", DayRow::low);
-        COLS.put("c", DayRow::close);
-        COLS.put("set", DayRow::set);
-        COLS.put("sma", r -> r.band().sma());
-        COLS.put("atr", r -> r.band().atr());
-        COLS.put("down2", r -> r.band().down2());
-        COLS.put("down1", r -> r.band().down1());
-        COLS.put("up1", r -> r.band().up1());
-        COLS.put("up2", r -> r.band().up2());
-        COLS.put("up3", r -> r.band().up3());
-        COLS.put("zone", r -> r.band().zone());
-        COLS.put("ath", DayRow::ath);
-        COLS.put("athDist", DayRow::athDistance);
-        COLS.put("buyFac", DayRow::buyAthFactor);
-        COLS.put("sellFac", DayRow::sellAthFactor);
-        COLS.put("moon", r -> r.moonMode() ? 1 : 0);
-        COLS.put("moonEntry", r -> r.moonEntry() ? 1 : 0);
-        COLS.put("buyKind", r -> r.buyKind().ordinal());
-        COLS.put("multZone", DayRow::multZone);
-        COLS.put("buyAmt", DayRow::buyAmount);
-        COLS.put("buyQty", DayRow::buyQuantity);
-        COLS.put("sellKind", r -> r.sellKind().ordinal());
-        COLS.put("sellFrac", DayRow::sellFraction);
-        COLS.put("sellQty", DayRow::sellQuantity);
-        COLS.put("sellProc", DayRow::sellProceeds);
-        COLS.put("buyArmNow", r -> r.buyArmedNow() ? 1 : 0);
-        COLS.put("sellArmNow", r -> r.sellArmedNow() ? 1 : 0);
-        COLS.put("buyArmed", r -> r.buyArmed() ? 1 : 0);
-        COLS.put("sellArmed", r -> r.sellArmed() ? 1 : 0);
-        COLS.put("locked", r -> r.buyLocked() ? 1 : 0);
-        COLS.put("cooldown", DayRow::cooldown);
-        COLS.put("reserve", DayRow::reserveQty);
-        COLS.put("pos", DayRow::position);
-        COLS.put("cost", DayRow::costBasis);
-        COLS.put("invested", DayRow::invested);
-        COLS.put("proceeds", DayRow::saleProceeds);
-        COLS.put("realized", DayRow::realizedGain);
-        COLS.put("potential", DayRow::potentialGain);
-        COLS.put("total", DayRow::totalGain);
-        COLS.put("fixedGain", DayRow::fixedGain);
-    }
 
     private RainbowAtrReplayMain() {
     }
@@ -224,12 +175,12 @@ public final class RainbowAtrReplayMain {
 
     private static void writeCsv(Path p, List<DayRow> rows, TrendRegime[] regime) throws IOException {
         StringBuilder sb = new StringBuilder("date,trend");
-        COLS.keySet().forEach(k -> sb.append(',').append(k));
+        RainbowReplayColumns.COLS.keySet().forEach(k -> sb.append(',').append(k));
         sb.append('\n');
         for (DayRow r : rows) {
             sb.append(Instant.ofEpochMilli(r.timeMillis()).atZone(ZoneOffset.UTC).toLocalDate()).append(',')
                     .append(regime[r.index()] == null ? "" : regime[r.index()].name());
-            for (Function<DayRow, Object> f : COLS.values()) {
+            for (Function<DayRow, Object> f : RainbowReplayColumns.COLS.values()) {
                 String v = num(f.apply(r));
                 sb.append(',').append("null".equals(v) ? "" : v);
             }
@@ -250,7 +201,7 @@ public final class RainbowAtrReplayMain {
             sb.append(i > 0 ? "," : "").append(trendCode(regime[rows.get(i).index()]));
         }
         sb.append(']');
-        for (Map.Entry<String, Function<DayRow, Object>> e : COLS.entrySet()) {
+        for (Map.Entry<String, Function<DayRow, Object>> e : RainbowReplayColumns.COLS.entrySet()) {
             sb.append(",\"").append(e.getKey()).append("\":[");
             for (int i = 0; i < rows.size(); i++) {
                 sb.append(i > 0 ? "," : "").append(num(e.getValue().apply(rows.get(i))));

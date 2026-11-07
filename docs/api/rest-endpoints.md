@@ -1,6 +1,6 @@
 # Endpoints REST
 
-Vérifié le : 2026-11-04 (`controller/**`, dont `RainbowLiveController`, `RainbowLiveBindingController`).
+Vérifié le : 2026-11-07 (`controller/**`, dont `Expert*Controller`, `RainbowLiveController`, `RainbowLiveBindingController`).
 
 ## Web (Thymeleaf, `MainController`)
 
@@ -189,6 +189,38 @@ Réponses (noms de champs) :
 - `AffectationDto` : `id, assetSymbol, name` (libellé « <Up> / <Down> »)`, enabled, complete, analysisWindowMonths, createdAt, updatedAt, trendPreset{id, name, origin}, rainbowUp{…}, rainbowDown{…}, tuning, globals` (config de référence = preset DOWN)`, runCount, firstRunDay?, lastRun?{day, close, zone, actionType, actionAmountUsdc, actionQuantity, activeSet?, trendRegime?}, trendConfig?` ; `origin` ∈ `SYSTEM|USER` ; `TrendConfigDto` = `{trend{shortWindow, mediumWindow, longWindow, slopeScale, enter, exit, confirm, smaPeriod, atrPeriod, atrMultiplier, wickDown, wickUp}, rangeMapping, bear{tuning, globals}, bull{tuning, globals}}` (`bear` = DOWN, `bull` = UP ; `tuning` = champs de `RainbowAtrTuning`, `globals` = champs de `RainbowAtrGlobals`, `baseAmount` inclus).
 - `PresetEventDto` : `id, assetSymbol, type (ENABLE|DISABLE|LIVE_SWITCH), presetBeforeId?, presetBeforeName?, presetAfterId?, presetAfterName?, occurredAt, reason?`.
 - Erreurs : `{"error": "<message>"}` (400 / 404 / 409, `RainbowLiveControllerAdvice`).
+
+## Espace Expert (utilisateur, `/api/expert`)
+
+Authentifié **et** `displayMode = EXPERT` (ADMIN compris), sinon 403 `EXPERT_MODE_REQUIRED` (garde `ExpertAccessGuard`, appelée par chaque contrôleur). Scopé à l'utilisateur connecté. Aucun appel exchange. Erreurs (`ExpertControllerAdvice`) : `{error, code, details}` ; 400 `VALIDATION` avec `details` = message par champ (rien n'est écrit).
+
+| Méthode | Chemin | Description |
+|---|---|---|
+| GET | `/api/expert/assets` | Actifs des presets de base : providers actifs, `exploitable`, `simulable` (≥ 1 provider actif), `eligibility` (`requiredPoints` D1 pour simuler l'Affectation de l'utilisateur, ou les presets de base ; par provider : `available` = bougies déjà en cache, `maxDepth`, `eligible` = cache suffisant, `loadable` = profondeur du provider suffisante) |
+| GET | `/api/expert/{trend,rainbow}-presets?asset=` | Presets visibles de l'actif : SYSTEM + ceux de l'appelant (en-têtes : `origin`, `mine`, `editable`, `deletable`, `usedBy`, `revision`, `referenceProvider`) |
+| GET | `/api/expert/{trend,rainbow}-presets/{id}` | Détail (réglages). Preset USER d'un autre ⇒ 404 `PRESET_NOT_FOUND` |
+| POST | `/api/expert/{trend,rainbow}-presets` | 201. Corps `{assetSymbol, name, copyFromId?, referenceProvider?}` : copie `copyFromId`, sinon le preset de base de l'actif (Trend = `TREND`, Rainbow = `RAINBOW_BEAR`). `referenceProvider` doit porter l'actif |
+| PUT | `/api/expert/{trend,rainbow}-presets/{id}` | Modifie (corps = réglages + `name`, `referenceProvider`, `revision` obligatoire). `revision` périmée ⇒ 409 `PRESET_REVISION_CONFLICT` (`currentRevision`). SYSTEM : ADMIN seul, sinon 403 `PRESET_SYSTEM_READ_ONLY` (invite à dupliquer). Sans changement ⇒ renvoyé tel quel, révision inchangée |
+| DELETE | `/api/expert/{trend,rainbow}-presets/{id}` | 204. SYSTEM ⇒ 403 `PRESET_SYSTEM_UNDELETABLE` ; installé dans une Affectation ⇒ 409 `PRESET_IN_USE` (liste actif + rôle) |
+| POST | `/api/expert/{trend,rainbow}-presets/{id}/duplicate` | 201. Corps optionnel `{assetSymbol?, name?}` : même actif ou autre, nom unique (suffixe « (copie) », « (copie) 2 »…), `referenceProvider` copié seulement si l'actif cible le porte, jamais affecté |
+| GET | `/api/expert/affectations`, `/{asset}` | Affectation (créée sur les presets de base si absente) : presets installés, `complete`, `providerGaps` (information : preset dont le `referenceProvider` diffère des liens de l'utilisateur sur l'actif) |
+| PUT | `/api/expert/affectations/{asset}` | Corps `{trendPresetId, rainbowUpId, rainbowDownId}` (manquant ⇒ 400, preset invisible ⇒ 404) ; `AssetAffectationService#assign` (purge moteur + `LIVE_SWITCH`) |
+
+### Simulations (`ExpertSimulationController`, `/api/expert/simulations`)
+
+Calcul asynchrone en mémoire (aucune table) : `QUEUED → LOADING_DATA → COMPUTING → DONE | FAILED`. Visible de son seul créateur (autre utilisateur ⇒ 404). Une simulation par (utilisateur, type, actif) : la relance remplace la précédente. Durée de vie 30 min après la fin, 5 résultats par utilisateur au plus (le plus ancien est libéré), une seule simulation active par utilisateur, 10 demandes / 60 s par utilisateur, file bornée (propriétés `tradeio.expert.simulation.*`). Données : pipeline cache D1 existant (aucun appel exchange hors pipeline), chargement unique par (actif, source), fallback d'un autre provider signalé (`meta.substituted` + `meta.warnings`).
+
+| Méthode | Chemin | Description |
+|---|---|---|
+| POST | `/api/expert/simulations` | 202 `{id, state}`. Corps `{type (TREND\|RAINBOW\|AFFECTATION), assetSymbol, provider?, from?, to?, trend?, rainbow?, signal?, rainbowUp?, rainbowDown?}` ; `trend` / `rainbow` / `rainbowUp` / `rainbowDown` = `{id}` ou `{draft}` (brouillon non enregistré, validé comme un preset). Défauts : Trend et jeux de l'Affectation de l'utilisateur ; plage = 24 derniers mois jusqu'à la dernière bougie fermée ; `provider` = provider de référence du preset. RAINBOW : `signal` UP\|DOWN (régime joué, défaut = slot de l'Affectation où le preset est installé) |
+| GET | `/api/expert/simulations/{id}` | 200 `{id, type, assetSymbol, state, progress, createdAt, finishedAt, expiresAt, error?, result?}`. Un échec asynchrone est un 200 avec `state = FAILED` et `error {code, message, details}` |
+| DELETE | `/api/expert/simulations/{id}` | 204, libère (annule si en cours) |
+
+`result` : `meta` (type, actif, provider demandé / utilisé / symbole, `substituted`, plage effective, libellés, `warnings`), `eligibility`, `phases` / `switches` (régimes sur la plage), `trendMetrics`, `chart` (séries par bougie : `d`, `trend` 0/1 UP/2 DOWN/3 RANGE, `active` 0/1, `cols` aux noms de `replay-template.html` = `RainbowReplayColumns.COLS` dont `pos` (taille du bag) et `reserve`, `wallet {capital, asset, stable, total}`, `sets`), `lines` (14 lignes du tableau pine : index, clé, libellé, valeur ou texte, unité). TREND : `cols` = o/h/l/c, pas de wallet ni de lignes.
+
+Erreurs (`ExpertControllerAdvice`) : 400 `VALIDATION` (corps, plage) ; 403 `EXPERT_MODE_REQUIRED` ; 404 `SIMULATION_NOT_FOUND` / `PRESET_NOT_FOUND` ; 409 `SIMULATION_ALREADY_RUNNING` ; 422 `ELIGIBILITY_INSUFFICIENT` (`details` : `requiredPoints`, `availablePoints`, `provider` ; au dépôt si aucun provider n'a la profondeur, sinon après chargement via `state = FAILED`) ; 429 `SIMULATION_RATE_LIMITED` / `SIMULATION_BUSY`.
+
+Effets d'une modification : réglages changés sur un preset installé ⇒ purge des états moteur + événement `LIVE_SWITCH` par Affectation concernée ; preset SYSTEM ⇒ propagé à tous les utilisateurs qui l'installent + ligne `AdminAction.PRESET` (cible `trend-preset:<id>` / `rainbow-preset:<id>`, payload : noms, provider, révision, nombre d'Affectations, changements). Renommage / provider seuls : révision +1, ni reset ni événement.
 
 ## Modulation Rainbow (paramètres admin et réglages utilisateur)
 

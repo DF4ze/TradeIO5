@@ -21,6 +21,43 @@ public record RainbowAtrResult(
     /** Évènement de trace (si {@code trace=true}) : type = BUY_ZONE, BUY_TRIGGERED, SELL, MOON_ENTRY, MOON_STOP, BUY_ARM, SELL_ARM. */
     public record Event(int index, String type, double quantity, double amount) { }
 
+    /**
+     * Agrégats du pine reconstitués depuis un rejeu jour par jour ({@link RainbowAtrReplay}) : seules les barres ACTIVES
+     * alimentent le DCA fixe de référence ({@code baseAmount} par barre, comme le rejeu). {@code rows} non vide.
+     */
+    public static RainbowAtrResult fromRows(List<RainbowAtrReplay.DayRow> rows, double baseAmount) {
+        RainbowAtrReplay.DayRow last = rows.getLast();
+        int zoneBuys = 0;
+        int triggeredBuys = 0;
+        int sells = 0;
+        int moonEntries = 0;
+        int moonStops = 0;
+        double fixedQty = 0;
+        double fixedInvested = 0;
+        for (RainbowAtrReplay.DayRow r : rows) {
+            if (r.buyKind() == RainbowSignal.BuyKind.ZONE) {
+                zoneBuys++;
+            } else if (r.buyKind() == RainbowSignal.BuyKind.TRIGGERED) {
+                triggeredBuys++;
+            }
+            if (r.sellKind() == RainbowSignal.SellKind.SELL) {
+                sells++;
+            } else if (r.sellKind() == RainbowSignal.SellKind.MOON_STOP) {
+                moonStops++;
+            }
+            moonEntries += r.moonEntry() ? 1 : 0;
+            if (r.active()) {
+                fixedQty += baseAmount / r.close();
+                fixedInvested += baseAmount;
+            }
+        }
+        return new RainbowAtrResult(last.invested(), last.saleProceeds(), last.position() * last.close(), last.realizedGain(),
+                last.costBasis(), last.position(), last.reserveQty(), fixedQty, fixedInvested, last.close(),
+                zoneBuys, triggeredBuys, sells, moonEntries, moonStops, rows.size(),
+                last.band().zone(), last.band().sma(), last.band().atr(), last.moonMode(), last.buyArmed(), last.sellArmed(),
+                last.buyLocked(), last.cooldown(), last.buyAthFactor(), last.sellAthFactor(), last.athDistance(), List.of());
+    }
+
     /** Gain potentiel = valeur restante - coût de revient restant. */
     public double potentialGain() { return currentValue - costBasis; }
 

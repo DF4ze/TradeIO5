@@ -19,8 +19,8 @@ Référence de conception : [`../etudes/etude-espace-expert.md`](../etudes/etude
 |---|---|---|
 | 1 | Modèle `TrendPreset` / `RainbowPreset` / `AssetAffectation` + presets de base + migration des données + moteur live lu via l'Affectation + retrait `ui-mode` et `FIXED` (prompt : `prompt-implementation-espace-expert-lot1.md`) | — |
 | 2 | Services et API presets / affectations, droits USER / ADMIN (prompt : `prompt-implementation-espace-expert-lot2.md`) | 1 |
-| 3 | Moteur de simulation (barre inactive, plage, chargement de données, éligibilité) | 1 (modèle), parallélisable avec 2 |
-| 4 | Écrans `/app/expert/{trend,rainbow,affectation}` + suppression `/user` | 2, 3 |
+| 3 | Moteur de simulation (barre inactive, plage, chargement de données, éligibilité ; prompt : `prompt-implementation-espace-expert-lot3.md`) | 1 et 2 |
+| 4 | Écrans `/app/expert/{trend,rainbow,affectation}` + suppression `/user` (prompt : `prompt-implementation-espace-expert-lot4.md`) | 2, 3 |
 | 5 | Nettoyage, code mort, doc finale | 1 à 4 |
 | Hors lots | Découverte et création des actifs | — |
 

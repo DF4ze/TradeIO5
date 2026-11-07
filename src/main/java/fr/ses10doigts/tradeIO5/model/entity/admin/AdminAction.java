@@ -24,5 +24,7 @@ public enum AdminAction {
     /** Une ligne par lot d'actions groupées de la Console (cible {@code batch:<id>}). */
     BULK,
     /** Acquittement ou mise en sommeil d'une alarme du Docteur (cible {@code alarm:<id>}). */
-    DOCTOR
+    DOCTOR,
+    /** Modification par un admin d'un preset SYSTEM de l'Espace Expert (cible {@code trend-preset:<id>} / {@code rainbow-preset:<id>}). */
+    PRESET
 }

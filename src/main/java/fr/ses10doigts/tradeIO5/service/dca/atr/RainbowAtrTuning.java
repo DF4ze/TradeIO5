@@ -3,6 +3,9 @@ package fr.ses10doigts.tradeIO5.service.dca.atr;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import fr.ses10doigts.tradeIO5.service.dca.ReentryMode;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * Paramètres "bornes + mécanisme" du Rainbow DCA ATR (pine {@code tools/pine/rainbow_dca_v4_atr_moon.pine},
  * source de vérité) : ce sont ceux qui peuvent changer selon le régime de Trend (cf.
@@ -103,9 +106,28 @@ public record RainbowAtrTuning(
     /** Monotonie des bornes (même règle que {@code RainbowDcaBacktestService#validate} en mode ATR). */
     @JsonIgnore
     public boolean isValid() {
-        return smaPeriod > 0 && atrPeriod > 0 && fixedDelayDays > 0 && cooldownDays >= 0
-                && sellFraction > 0 && sellFraction <= 1.0
-                && atrMultDown1 >= 0 && atrMultDown2 >= atrMultDown1
-                && atrMultUp1 >= 0 && atrMultUp1 <= atrMultUp2 && atrMultUp2 <= atrMultUp3;
+        return violations().isEmpty();
+    }
+
+    /** Règles de {@link #isValid()} par paramètre : nom du paramètre -> message ; vide ⇒ valide. */
+    public Map<String, String> violations() {
+        Map<String, String> v = new LinkedHashMap<>();
+        require(v, "smaPeriod", smaPeriod > 0, "période SMA > 0");
+        require(v, "atrPeriod", atrPeriod > 0, "période ATR > 0");
+        require(v, "fixedDelayDays", fixedDelayDays > 0, "délai > 0");
+        require(v, "cooldownDays", cooldownDays >= 0, "cooldown ≥ 0");
+        require(v, "sellFraction", sellFraction > 0 && sellFraction <= 1.0, "fraction vendue dans ]0, 1]");
+        require(v, "atrMultDown1", atrMultDown1 >= 0, "borne DOWN1 ≥ 0");
+        require(v, "atrMultDown2", atrMultDown2 >= atrMultDown1, "borne DOWN2 ≥ DOWN1");
+        require(v, "atrMultUp1", atrMultUp1 >= 0, "borne UP1 ≥ 0");
+        require(v, "atrMultUp2", atrMultUp1 <= atrMultUp2, "borne UP2 ≥ UP1");
+        require(v, "atrMultUp3", atrMultUp2 <= atrMultUp3, "borne UP3 ≥ UP2");
+        return v;
+    }
+
+    private static void require(Map<String, String> violations, String field, boolean ok, String message) {
+        if (!ok) {
+            violations.put(field, message);
+        }
     }
 }

@@ -11,6 +11,7 @@ import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RainbowAtrReplayTest {
@@ -98,5 +99,60 @@ class RainbowAtrReplayTest {
             assertEquals(2, sets.size());
             sets.forEach(s -> assertTrue(s.tuning().isValid(), s.name()));
         }
+    }
+
+    @Test
+    @DisplayName("Barres inactives : une ligne par barre, aucun nouvel armement ni achat de zone, sorties en cours conservées")
+    void inactiveBarsOnlyWindDown() {
+        RainbowAtrParamSet set = btcSets()[1];
+        for (long seed = 1; seed <= 6; seed++) {
+            RainbowAtrDataset ds = series(seed, 900);
+            int start = 150;
+            int[] setOfBar = new int[ds.size()];
+            for (int i = 0; i < setOfBar.length; i++) {
+                setOfBar[i] = (i / 90) % 2 == 0 ? 0 : RainbowAtrReplay.inactive(0);
+            }
+            List<DayRow> rows = RainbowAtrReplay.run(ds, new RainbowAtrParamSet[]{set}, setOfBar, start, ds.size() - 1);
+            assertEquals(ds.size() - start, rows.size(), "une ligne par barre, inactive comprise");
+            boolean sawInactive = false;
+            for (int j = 0; j < rows.size(); j++) {
+                DayRow r = rows.get(j);
+                assertEquals(!RainbowAtrReplay.isInactive(setOfBar[r.index()]), r.active());
+                if (r.active()) {
+                    continue;
+                }
+                sawInactive = true;
+                String msg = "seed=" + seed + " jour=" + r.index();
+                assertFalse(r.buyArmedNow() || r.sellArmedNow(), msg);
+                assertTrue(r.buyKind() != RainbowSignal.BuyKind.ZONE, msg);
+                if (r.sellKind() == RainbowSignal.SellKind.SELL) {
+                    assertTrue(rows.get(j - 1).sellArmed(), msg + " : vente sans armement antérieur");
+                }
+                if (r.buyKind() == RainbowSignal.BuyKind.TRIGGERED) {
+                    assertTrue(rows.get(j - 1).buyArmed(), msg + " : achat déclenché sans armement antérieur");
+                }
+            }
+            assertTrue(sawInactive);
+        }
+    }
+
+    @Test
+    @DisplayName("Toujours inactif : ni position, ni capital, ni DCA fixe")
+    void alwaysInactiveStaysFlat() {
+        RainbowAtrDataset ds = series(2, 900);
+        List<DayRow> rows = RainbowAtrReplay.run(ds, btcSets(),
+                RainbowSetSelector.fixed(ds.size(), RainbowAtrReplay.inactive(0)), 150, ds.size() - 1);
+        DayRow last = rows.getLast();
+        assertEquals(0.0, last.position(), 0.0);
+        assertEquals(0.0, last.invested(), 0.0);
+        assertEquals(0.0, last.fixedGain(), 0.0);
+    }
+
+    @Test
+    @DisplayName("Sans barre inactive : drapeau actif partout")
+    void noInactiveMeansAllActive() {
+        RainbowAtrDataset ds = series(4, 600);
+        assertTrue(RainbowAtrReplay.run(ds, btcSets(), RainbowSetSelector.fixed(ds.size(), 0), 150, ds.size() - 1)
+                .stream().allMatch(DayRow::active));
     }
 }

@@ -40,12 +40,12 @@ ALTER TABLE rainbow_live_binding DROP INDEX uk_rainbow_live_binding_user_asset;
 
 Réglages stratégiques : colonnes `rainbow_live_binding.simulation` (boolean `NOT NULL` : base existante ⇒ `ALTER TABLE rainbow_live_binding ADD COLUMN simulation BIT NOT NULL DEFAULT 0;`) et `min_buy_usd` (nullable), `rainbow_live_order_plan_asset.simulated` (boolean, même précaution), table `user_modulation_history` ; `starting_profile` gagne `FULL` et `CUSTOM` (enum MySQL natif, SQL manuel ci-dessous).
 
-Catalogue : colonnes `exchange_instrument.cost_min`, `native_pair`, `fee_currency` (nullables) ajoutées par `ddl-auto=update`, présentes dans `V1__init.sql`. **Base existante : `admin_action_log.action` est un `ENUM` MySQL natif, Hibernate n'y ajoute pas les valeurs `ORDER_VALIDATE`, `ORDER_SEND`, `ORDER_READ`, `MODULATION` et `LIMITS`** ⇒ SQL manuel avant le déploiement :
+Catalogue : colonnes `exchange_instrument.cost_min`, `native_pair`, `fee_currency` (nullables) ajoutées par `ddl-auto=update`, présentes dans `V1__init.sql`. **Base existante : `admin_action_log.action` est un `ENUM` MySQL natif, Hibernate n'y ajoute pas les valeurs `ORDER_VALIDATE`, `ORDER_SEND`, `ORDER_READ`, `MODULATION`, `LIMITS` et `PRESET`** ⇒ SQL manuel avant le déploiement :
 
 ```sql
 ALTER TABLE user_trading_settings MODIFY starting_profile ENUM('BALANCED','CUSTOM','DYNAMIC','FULL','PRUDENT');
 ALTER TABLE rainbow_live_binding_run MODIFY live_block_reason ENUM('BAND_LIMIT','INSUFFICIENT_CASH','NONE','NOT_TRADABLE_WITHOUT_FIAT','UNAVAILABLE');
-ALTER TABLE admin_action_log MODIFY action ENUM('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','LIMITS','MODULATION','ORDER_READ','ORDER_SEND','ORDER_VALIDATE','PLAN','RECONCILE','RUN') NOT NULL;
+ALTER TABLE admin_action_log MODIFY action ENUM('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','LIMITS','MODULATION','ORDER_READ','ORDER_SEND','ORDER_VALIDATE','PLAN','PRESET','RECONCILE','RUN') NOT NULL;
 ``` Le catalogue se remplit à nouveau au prochain rafraîchissement (ou `refresh(provider)`) : tant que `native_pair` est nul, Kraken ne peut recevoir aucun ordre (`PAIR_UNKNOWN`).
 
 ## Principe

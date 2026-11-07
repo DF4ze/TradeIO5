@@ -27,7 +27,8 @@ public final class RainbowAtrReplay {
             boolean buyArmedNow, boolean sellArmedNow,
             boolean buyArmed, boolean sellArmed, boolean buyLocked, int cooldown, double reserveQty,
             double position, double costBasis, double invested, double saleProceeds, double realizedGain,
-            double fixedGain
+            double fixedGain,
+            boolean active
     ) {
         public double potentialGain() { return position * close - costBasis; }
 
@@ -38,8 +39,27 @@ public final class RainbowAtrReplay {
     }
 
     /**
+     * Encodage d'une bougie INACTIVE (hors régime) dans {@code setOfBar} : {@code inactive(k)} = jeu {@code k} dont l'état
+     * continue de vivre sans nouvelle activité ({@link RainbowAtrStrategy#step}, {@code allowNewEntries=false}) et sans
+     * DCA fixe de référence. Une ligne est émise quand même ({@link DayRow#active()} = {@code false}).
+     */
+    public static int inactive(int setIndex) {
+        return ~setIndex;
+    }
+
+    public static boolean isInactive(int setOfBarValue) {
+        return setOfBarValue < 0;
+    }
+
+    /** Index de jeu d'une valeur de {@code setOfBar}, active ou non. */
+    public static int setIndex(int setOfBarValue) {
+        return setOfBarValue < 0 ? ~setOfBarValue : setOfBarValue;
+    }
+
+    /**
      * @param sets     jeux disponibles
-     * @param setOfBar index de jeu actif par bougie du dataset (longueur = {@code ds.size()})
+     * @param setOfBar index de jeu actif par bougie du dataset (longueur = {@code ds.size()}) ; {@link #inactive} pour une
+     *                 bougie hors régime
      */
     public static List<DayRow> run(RainbowAtrDataset ds, RainbowAtrParamSet[] sets, int[] setOfBar,
                                    int startIdx, int endIdx) {
@@ -68,7 +88,7 @@ public final class RainbowAtrReplay {
 
         RainbowMoon.State moon = RainbowMoon.State.INACTIVE;
         for (int j = 0; j < startIdx; j++) {
-            RainbowAtrGlobals gj = sets[setOfBar[j]].globals();
+            RainbowAtrGlobals gj = sets[setIndex(setOfBar[j])].globals();
             moon = RainbowMoon.advance(moon, gj.moonOn(), gj.moonTrailingStopPct(), ds.close(j), ds.high(j),
                     j > 0 ? ds.ath(j - 1) : Double.NaN).next();
         }
@@ -80,7 +100,8 @@ public final class RainbowAtrReplay {
         List<DayRow> rows = new ArrayList<>();
 
         for (int i = startIdx; i <= endIdx; i++) {
-            int k = setOfBar[i];
+            boolean active = !isInactive(setOfBar[i]);
+            int k = setIndex(setOfBar[i]);
             RainbowAtrParamSet set = sets[k];
             RainbowAtrTuning t = set.tuning();
             RainbowAtrGlobals g = set.globals();
@@ -96,7 +117,7 @@ public final class RainbowAtrReplay {
             }
             double athToday = ath.includingToday(hi);
             RainbowAtrBand band = RainbowAtrBand.of(cl, sma, atr, t);
-            RainbowAtrStrategy.StepResult r = RainbowAtrStrategy.step(st, band, hi, ath, pos, t, g);
+            RainbowAtrStrategy.StepResult r = RainbowAtrStrategy.step(st, band, hi, ath, pos, t, g, active);
             ath = ath.observe(hi, ds.time(i));
             st = r.state();
             RainbowSignal sig = r.signal();
@@ -122,8 +143,10 @@ public final class RainbowAtrReplay {
                 costBasis += buyAmt;
                 invested += buyAmt;
             }
-            fixedQty += base / cl;
-            fixedInvested += base;
+            if (active) {
+                fixedQty += base / cl;
+                fixedInvested += base;
+            }
 
             rows.add(new DayRow(i, ds.time(i), ds.open(i), hi, ds.low(i), cl, k, band, athToday, sig.athDistance(),
                     sig.buyAthFactor(), sig.sellAthFactor(), sig.moonMode(), sig.moonEntry(),
@@ -131,7 +154,7 @@ public final class RainbowAtrReplay {
                     sig.sellKind(), sig.sellFraction(), sellQty, sellProc,
                     sig.buyArmedNow(), sig.sellArmedNow(),
                     st.buyArmed(), st.sellArmed(), st.buyLocked(), st.cooldown(), st.reserveQty(),
-                    pos, costBasis, invested, saleProceeds, realized, fixedQty * cl - fixedInvested));
+                    pos, costBasis, invested, saleProceeds, realized, fixedQty * cl - fixedInvested, active));
         }
         return new Result(rows, st);
     }

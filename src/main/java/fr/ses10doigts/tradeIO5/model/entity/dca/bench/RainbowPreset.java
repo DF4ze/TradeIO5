@@ -35,7 +35,7 @@ import java.time.Instant;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class RainbowPreset {
+public class RainbowPreset implements ExpertPreset {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

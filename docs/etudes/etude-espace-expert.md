@@ -24,19 +24,20 @@ Plan d'implémentation : [`../prompts/prompt-roadmap-espace-expert.md`](../promp
 - Onglet Affectation : même graphique avec phases UP/DOWN et preset Rainbow actif sur chaque phase.
 
 **Simulation**
-- Hors régime : position gelée (ni achat, ni vente, aucun capital ajouté), reprise telle quelle à la phase suivante du régime.
+- Hors régime (barre inactive) : aucun NOUVEL armement, achat de zone, DCA fixe ni capital ajouté ; l'automate To the moon, les sorties moon et les trailing stops (achat et vente) déjà armés continuent de vivre, pour garder le réalisme (un stop armé avant la sortie du régime peut se déclencher hors régime). Le DCA fixe de comparaison n'investit que sur les barres actives. Plage par défaut : 24 derniers mois ; ATH et automate moon calculés sur tout l'historique.
 - Bouton « Simuler » (pas de recalcul à chaque frappe), brouillon distinct du preset enregistré.
 - Un preset Rainbow se simule sur un Trend choisi (preset Trend + signal UP/DOWN) ; par défaut le Trend affecté.
 - Un preset Rainbow UP ne simule que les phases UP : en phase DOWN, rien n'est affiché ni compté. Les résultats concernent ce seul preset.
-- Si les données de l'actif n'ont jamais été chargées, la simulation les récupère : fetch via le pipeline existant (cache DB, fallback autre provider), avec garde-fous (un chargement à la fois par actif/source, limites de débit par utilisateur, progression affichée) pour ne pas déclencher de ban.
-- Éligibilité dynamique : l'historique requis se déduit du preset (fenêtres et périodes d'indicateurs : SMA, ATR, fenêtres Trend, ATH…). Simulation refusée avec message explicite tant que les points disponibles sont insuffisants. Aucun indicateur n'est calculé avec moins de données que sa période.
+- Si les données de l'actif n'ont jamais été chargées, la simulation les récupère : fetch via le pipeline existant (cache DB, fallback autre provider signalé), avec garde-fous (un chargement à la fois par actif/source, une simulation active par utilisateur, limites de débit, progression) pour ne pas déclencher de ban.
+- Résultats : calcul à la demande conservé en mémoire côté serveur (30 min, un par utilisateur / type / actif, relancé en remplacement). Le front marque un résultat périmé dès qu'un réglage change et relance.
+- Éligibilité dynamique : points D1 requis = max(chaud Rainbow SMA/ATR + 1, chaud Trend, fenêtre d'analyse × 30 j), jugés par provider (bougies en cache + profondeur D1 du provider ; `maxHorizonDays` ne vaut que pour l'H1). Simulation refusée avec message explicite tant que les points disponibles sont insuffisants. Aucun indicateur n'est calculé avec moins de données que sa période.
 
 **Nouvel actif**
 - Icônes embarquées dans l'application (monogramme en secours) ; nom en cache DB.
 - Un actif exploré mais jamais affecté reste en base (statut « simulable ») ; nettoyage reporté (cf. TODO).
 
 **Actif et provider**
-- Preset rattaché à l'**actif** ; l'enregistrement mémorise aussi le **provider** des tests. Il sert à recharger le provider pour de nouvelles simulations et à faire le lien lors du binding.
+- Preset rattaché à l'**actif** ; il porte aussi un **provider de référence** (`referenceProvider`, optionnel, doit porter l'actif). Il sert à recharger le provider pour de nouvelles simulations et à faire le lien lors du binding.
 - L'onglet Affectation signale tout écart entre le provider du preset et celui des liens réels de l'utilisateur.
 - Le sélecteur de provider d'un actif permet de visualiser et simuler sur ses candles (PAXG diffère notablement selon le provider).
 - Duplication d'un preset depuis un autre actif possible.
@@ -44,7 +45,7 @@ Plan d'implémentation : [`../prompts/prompt-roadmap-espace-expert.md`](../promp
 
 ## Constat sur l'existant
 
-- Le modèle Trend / Rainbow / Affectation est en place (lot 1, section suivante). Reste à construire : API `/api/expert/*`, droits USER / ADMIN, écrans, simulation.
+- Le modèle Trend / Rainbow / Affectation est en place (lot 1, section suivante). L'API `/api/expert/*` (presets, Affectations, droits USER / ADMIN) est en place (lot 2). Le moteur de simulation et son API sont en place (lot 3). Reste à construire : écrans.
 - Actifs BTC / ETH / PAXG : seeds d'`AssetInitializer` et commentaires d'entités. `Asset` = symbole, nom, décimales (pas d'icône).
 - Découverte d'actifs possible : `InstrumentCatalog` tient en base la liste des paires spot par exchange (un appel public par exchange : Kraken, OKX, Bitvavo, Gate.eu, One Trading, Revolut X) avec `tickSz` / `lotSz` / `minSz`. Binance n'y figure pas ; les sources de données de marché (`MarketDataSource`) et les exchanges ne sont pas les mêmes ensembles.
 - `AssetProvider.maxHorizonDays` borne l'historique de certains providers (ex. Kraken) : l'éligibilité doit se juger par source.
@@ -55,15 +56,17 @@ Plan d'implémentation : [`../prompts/prompt-roadmap-espace-expert.md`](../promp
 - **`RainbowPreset`** : `RainbowAtrConfig` + fenêtre d'analyse, actif, origine, propriétaire, révision. **Neutre** : c'est l'Affectation qui l'installe sur UP ou sur DOWN (le même preset peut occuper les deux emplacements). Deux presets de base par actif (`RAINBOW_BULL`, `RAINBOW_BEAR`).
 - **`AssetAffectation`** (user, actif) : un `TrendPreset`, un `RainbowPreset` UP, un `RainbowPreset` DOWN, `enabled`. Complète = exploitable. Le binding la référence (via user + actif). L'état moteur (`RainbowLiveEngineState`), les runs et l'historique `RainbowLivePresetEvent` lui sont rattachés ; changer ses presets (`assign`) purge les états moteur, qui se ré-amorcent à la passe suivante.
 - 9 presets système de base (3 par actif), créés au démarrage et jamais modifiés ; les anciens presets utilisateur sont migrés vers des Affectations au démarrage (cf. [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md)).
-- Provider de référence des presets : non porté par le modèle actuel (à décider avec l'écran).
+- **Provider de référence** : porté par chaque preset (`referenceProvider`, nullable) ; copié à la duplication seulement si l'actif cible le porte.
 
-## API (esquisse)
+## API
 
+**En place (lot 2, contrat : [`../api/rest-endpoints.md`](../api/rest-endpoints.md))**
 - `GET /api/expert/assets` : catalogue (statut découvert / simulable / exploitable, providers, éligibilité).
 - `/api/expert/trend-presets` et `/api/expert/rainbow-presets` : liste filtrée par actif, création, modification (droits), `POST /{id}/duplicate`, suppression.
-- `GET|PUT /api/expert/affectations/{actif}`.
-- `POST /api/expert/simulations` (type Trend | Rainbow, preset ou brouillon, actif, provider, Trend de référence, période) : tâche asynchrone si des données sont à charger (`202` + identifiant) ; `GET /api/expert/simulations/{id}` : progression puis résultat (candles, régimes, bandes, évènements, métriques, éligibilité).
-- Cœur de simulation existant : `RainbowAtrReplay.run(ds, sets, setOfBar, …)` avec `RainbowSetSelector.select(régimes, rangeMapping)`. Simulation d'un preset sur son seul régime : il faut un indice « barre inactive » (position gelée) que le rejeu n'a pas aujourd'hui.
+- `GET|PUT /api/expert/affectations/{actif}` (l'écart de provider est renvoyé en information).
+
+**Simulations (lot 3, contrat : [`../api/rest-endpoints.md`](../api/rest-endpoints.md))**
+- `POST /api/expert/simulations` (202 + identifiant), `GET /{id}` (progression puis résultat), `DELETE /{id}`. Types : `TREND` (Trend seul), `RAINBOW` (un preset Rainbow sur le seul régime choisi d'un Trend), `AFFECTATION` (Trend + Rainbow UP / DOWN, comme le live). Cœur : `RainbowAtrReplay` avec `RainbowSetSelector`-équivalent par régime ; barre inactive = `RainbowAtrReplay.inactive(k)`.
 
 ## Fenêtre de résultats : lignes du pine
 
@@ -92,7 +95,7 @@ Le pine rejoue sur la **plage visible** (état vide au début de la plage). Un r
 
 - Base du graphique v1 : le rejeu Java existant (`tools/rainbow-replay/replay-template.html`, généré par `RainbowAtrReplayMain`, Lightweight Charts). Il affiche déjà : prix + bornes ATR/zones/ATH, marqueurs achat/vente/Bull-Bear/To the moon/stop moon, courbes PnL, exposition actif/stable/total, taille de position (bag) et réserve moon, détail par jour, tableau des jeux.
 - Reprise en v1 : tout ce qui précède, taille du bag incluse. Le moteur reste côté Java (aucun recalcul en JS).
-- Différence avec le rejeu : une seule simulation par requête (pas les 7 modes), servie par l'API.
+- Différence avec le rejeu : une seule simulation par requête (pas les 7 modes), servie par l'API ; les colonnes sont les mêmes (`RainbowReplayColumns.COLS`).
 - Plage : fixe et définie par l'utilisateur (sélecteur début/fin), comme le pine ; ATH et machine moon calculés sur tout l'historique, démarrage à froid en début de plage.
 
 ## Chantier à part : découverte et création des actifs
