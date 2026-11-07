@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.ConfigDto;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.TrendConfigDto;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveTrendConfig;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrParamSet;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrPresets;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowSetSelector.RangeMapping;
@@ -13,7 +12,7 @@ import fr.ses10doigts.tradeIO5.service.tree.trend.TrendMixCalculator;
 import java.util.List;
 
 /**
- * Réglages d'un preset {@code TREND_MIX} : défauts du code, (dé)sérialisation de l'entité, normalisation (parties
+ * Réglages Trend + jeux Rainbow : défauts du code, (dé)sérialisation JSON, normalisation (parties
  * absentes ⇒ défauts) et validation. Fonctions pures, sans état.
  */
 public final class RainbowLiveTrendConfigs {
@@ -35,20 +34,6 @@ public final class RainbowLiveTrendConfigs {
         List<RainbowAtrParamSet> bb = RainbowAtrPresets.bearBull(asset);
         return new Resolved(TrendMixCalculator.Params.defaults(), RangeMapping.KEEP_PREVIOUS,
                 bb.get(RainbowAtrPresets.BEAR), bb.get(RainbowAtrPresets.BULL));
-    }
-
-    /** Ligne absente ⇒ défauts du code. */
-    public static Resolved resolve(RainbowLiveTrendConfig row, String asset) {
-        if (row == null) {
-            return defaults(asset);
-        }
-        Resolved d = defaults(asset);
-        TrendMixCalculator.Params p = new TrendMixCalculator.Params(row.getShortWindow(), row.getMediumWindow(),
-                row.getLongWindow(), row.getSlopeScale(), row.getEnterThreshold(), row.getExitThreshold(),
-                row.getConfirmDays(), row.getSmaPeriod(), row.getAtrPeriod(), row.getAtrMultiplier(),
-                row.isWickDown(), row.isWickUp());
-        return new Resolved(p, RangeMapping.valueOf(row.getRangeMapping()),
-                readSet(row.getBearJson(), d.bear().name()), readSet(row.getBullJson(), d.bull().name()));
     }
 
     public static String toJson(TrendConfigDto dto) {
@@ -86,25 +71,6 @@ public final class RainbowLiveTrendConfigs {
         return r;
     }
 
-    public static void apply(RainbowLiveTrendConfig row, Resolved r) {
-        TrendMixCalculator.Params p = r.trend();
-        row.setShortWindow(p.shortWindow());
-        row.setMediumWindow(p.mediumWindow());
-        row.setLongWindow(p.longWindow());
-        row.setSlopeScale(p.slopeScale());
-        row.setEnterThreshold(p.enter());
-        row.setExitThreshold(p.exit());
-        row.setConfirmDays(p.confirm());
-        row.setSmaPeriod(p.smaPeriod());
-        row.setAtrPeriod(p.atrPeriod());
-        row.setAtrMultiplier(p.atrMultiplier());
-        row.setWickDown(p.wickDown());
-        row.setWickUp(p.wickUp());
-        row.setRangeMapping(r.range().name());
-        row.setBearJson(writeSet(r.bear()));
-        row.setBullJson(writeSet(r.bull()));
-    }
-
     public static void validate(Resolved r) {
         TrendMixCalculator.Params p = r.trend();
         if (p.shortWindow() < 2 || p.mediumWindow() < 2 || p.longWindow() < 2) {
@@ -138,22 +104,5 @@ public final class RainbowLiveTrendConfigs {
         return c == null ? fallback : new RainbowAtrParamSet(name,
                 c.tuning() == null ? fallback.tuning() : c.tuning(),
                 c.globals() == null ? fallback.globals() : c.globals());
-    }
-
-    private static String writeSet(RainbowAtrParamSet s) {
-        try {
-            return JSON.writeValueAsString(new ConfigDto(s.tuning(), s.globals()));
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static RainbowAtrParamSet readSet(String json, String name) {
-        try {
-            ConfigDto c = JSON.readValue(json, ConfigDto.class);
-            return new RainbowAtrParamSet(name, c.tuning(), c.globals());
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Jeu Rainbow illisible en base : " + e.getMessage(), e);
-        }
     }
 }

@@ -9,7 +9,7 @@ import fr.ses10doigts.tradeIO5.model.dto.market.OrderBookSnapshot.OrderBookLevel
 import fr.ses10doigts.tradeIO5.model.entity.currency.AssetGroup;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
 import fr.ses10doigts.tradeIO5.model.enumerate.WalletSource;
@@ -26,8 +26,7 @@ import fr.ses10doigts.tradeIO5.service.connector.fee.TradingFeeProvider;
 import fr.ses10doigts.tradeIO5.service.connector.orderbook.OrderBookClient;
 import fr.ses10doigts.tradeIO5.service.currency.AssetGroupService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.CreateRequest;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetAffectationService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingCheck;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingCheckResult;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingCheckStatus;
@@ -68,7 +67,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Endpoint {@code GET /bindings/{id}/path-quote} : services de binding réels sur H2, exchange/catalogue mockés. */
 @DataJpaTest
-@Import({RainbowLivePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver.class,
+@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver.class,
         fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService.class, RainbowLiveBindingService.class,
         RainbowLiveBindingPathQuoteTest.TestConfig.class})
 @DisplayName("GET /bindings/{id}/path-quote : devis du chemin, propriétaire seulement")
@@ -89,7 +88,7 @@ class RainbowLiveBindingPathQuoteTest {
         }
     }
 
-    @Autowired private RainbowLivePresetService presetService;
+    @Autowired private fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures fixtures;
     @Autowired private RainbowLiveBindingService bindingService;
     @Autowired private WalletRepository walletRepository;
     @Autowired private UserRepository userRepository;
@@ -121,8 +120,8 @@ class RainbowLiveBindingPathQuoteTest {
         Wallet wallet = walletRepository.save(Wallet.builder().name("OKX").source(WalletSource.EXCHANGE)
                 .webProviderCode(WebProviderCode.OKX).webProvider(okx).credential(credential).user(alice).enabled(true).build());
         RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor("PAXG");
-        RainbowLivePreset preset = presetService.create(alice, new CreateRequest("PAXG", "live", true, 6, c.toTuning(), c.toGlobals()));
-        aliceBindingId = bindingService.create(alice, new RainbowLiveBindingService.CreateRequest("PAXG", preset.getId(),
+        fixtures.affectation(alice, "PAXG", "live", c.toTuning(), c.toGlobals());
+        aliceBindingId = bindingService.create(alice, new RainbowLiveBindingService.CreateRequest("PAXG",
                 wallet.getId(), null, null)).binding().getId();
 
         when(reader.getProviderCode()).thenReturn(WebProviderCode.OKX);

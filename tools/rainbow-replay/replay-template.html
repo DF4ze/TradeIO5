@@ -81,7 +81,7 @@
 const DATA = /*__DATA__*/null;
 const ZONES = ['EXTRÊME BAS','X2','X1','X0,5','PAS D\'ACHAT','EXTRÊME HAUT'];
 const TRENDS = ['—','UP','DOWN','RANGE'];
-if (!DATA) { document.body.innerHTML = '<p style="padding:24px;font:14px sans-serif;color:#d7dde5">Gabarit sans données : ouvrir <code>target/rainbow-replay/replay.html</code> (généré par <code>RainbowAtrReplayMain</code>), pas ce fichier.</p>'; throw new Error('gabarit sans données'); }
+if (!DATA) { document.body.innerHTML = '<p style="padding:24px;font:14px sans-serif;color:#d7dde5">Gabarit sans données : ouvrir <code>tools/rainbow-replay/data/replay.html</code> (généré par <code>RainbowAtrReplayMain</code>), pas ce fichier.</p>'; throw new Error('gabarit sans données'); }
 const state = { asset: Object.keys(DATA.assets)[0], mode: 0 };
 const $ = id => document.getElementById(id);
 const f = (x, d=2) => x == null || isNaN(x) ? '—' : Number(x).toLocaleString('fr-FR', {minimumFractionDigits:d, maximumFractionDigits:d});

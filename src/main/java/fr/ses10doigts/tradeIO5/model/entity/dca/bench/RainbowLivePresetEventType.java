@@ -1,15 +1,15 @@
 package fr.ses10doigts.tradeIO5.model.entity.dca.bench;
 
-/** Nature d'un événement de l'historique des switchs de preset du bench. */
+/** Nature d'un événement de l'historique des changements d'Affectation du bench. */
 public enum RainbowLivePresetEventType {
-    /** Preset activé par l'utilisateur. */
+    /** Affectation activée par l'utilisateur. */
     ENABLE,
-    /** Preset désactivé par l'utilisateur. */
+    /** Affectation désactivée par l'utilisateur. */
     DISABLE,
-    /** Duplication d'un preset qui suit une stratégie : la copie perd les mises à jour de System. */
+    /** Ancienne duplication d'un preset qui suivait une stratégie (lignes historiques uniquement, plus écrit). */
     DETACH,
-    /** Bascule du preset live d'un actif (modification du binding). */
+    /** Définition ou changement des presets d'une Affectation (le moteur est réinitialisé). */
     LIVE_SWITCH,
-    /** Première passe d'un preset qui suit une stratégie dont la révision a changé. */
+    /** Ancienne révision de stratégie suivie (lignes historiques uniquement, plus écrit). */
     STRATEGY_CHANGED
 }

@@ -6,7 +6,7 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBindingRun;
 import fr.ses10doigts.tradeIO5.model.entity.execution.PlanStatus;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
@@ -41,9 +41,9 @@ class OrderPlanServiceIsolationTest {
     private static final LocalDate DAY = LocalDate.of(2026, 10, 9);
 
     private RainbowLiveBinding binding(User user) {
-        RainbowLivePreset preset = RainbowLivePreset.builder().id(user.getId()).user(user).assetSymbol("BTC").build();
+        AssetAffectation preset = AssetAffectation.builder().id(user.getId()).user(user).assetSymbol("BTC").build();
         Wallet wallet = Wallet.builder().id(user.getId()).webProviderCode(WebProviderCode.OKX).build();
-        return RainbowLiveBinding.builder().id(user.getId()).user(user).assetSymbol("BTC").preset(preset).wallet(wallet)
+        return RainbowLiveBinding.builder().id(user.getId()).user(user).assetSymbol("BTC").affectation(preset).wallet(wallet)
                 .executionEnabled(true).build();
     }
 

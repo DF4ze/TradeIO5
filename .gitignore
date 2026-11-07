@@ -58,3 +58,6 @@ tools/calibration/*_view*.html
 
 # Backups données historiques (tradeio.backup.dir)
 /backup/
+
+# Rejeu Rainbow : sorties générées (entrées d1_*.csv versionnées)
+tools/rainbow-replay/data/replay*

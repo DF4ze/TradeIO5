@@ -1,12 +1,12 @@
 # Inventaire GUI — actions utilisateur et informations affichées
 
-Vérifié le : 2026-10-20 (sources : [`../api/rest-endpoints.md`](../api/rest-endpoints.md), [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md), [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md), [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md), [`../architecture/09-trend.md`](../architecture/09-trend.md), [`../etudes/etude-architecture-interface.md`](../etudes/etude-architecture-interface.md)).
+Vérifié le : 2026-11-06 (sources : [`../api/rest-endpoints.md`](../api/rest-endpoints.md), [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md), [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md), [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md), [`../architecture/09-trend.md`](../architecture/09-trend.md), [`../etudes/etude-architecture-interface.md`](../etudes/etude-architecture-interface.md)).
 
 But : liste unique de **ce sur quoi l'utilisateur peut agir** et de **ce que le back remonte à l'affichage**, pour travailler les maquettes sans rouvrir les autres docs. Les docs sources font foi ; en cas de doute, y retourner. Toute évolution des endpoints, DTO ou réglages doit être répercutée ici (et un élément implémenté passe de « à implémenter » à disponible).
 
 Légende : **[OK]** disponible côté back (API) · **[GUI]** déjà un écran dans `/user` · **[Prévu]** décrit dans l'étude d'interface, écran non construit (back disponible) · **[À implémenter]** absent du back (aucun endpoint ni modèle) : à construire pour que la maquette soit réalisable. Récapitulatif : §6.
 
-Vocabulaire : « actif » (utilisateur) = **lien/binding** (technique : actif × wallet) ; « preset » = jeu de paramètres d'une stratégie ; « stratégie Actif » = preset système géré par l'admin. Actifs gérés : **BTC, ETH, PAXG**. Jour = jour UTC ; une passe quotidienne à 23:55 UTC (signal), plan à 23:58.
+Vocabulaire : « actif » (utilisateur) = **lien/binding** (technique : actif × wallet) ; « preset » = jeu de paramètres (Trend ou Rainbow) ; « Affectation » = par actif, un preset Trend + un Rainbow UP + un Rainbow DOWN. Actifs gérés : **BTC, ETH, PAXG**. Jour = jour UTC ; une passe quotidienne à 23:55 UTC (signal), plan à 23:58.
 
 ---
 
@@ -20,7 +20,6 @@ Tout est scopé à l'utilisateur connecté (JWT cookie) ; ressource d'un autre u
 |---|---|---|
 | Connexion / déconnexion / inscription | `POST /api/auth/signinForm`, `GET /api/auth/signoutForm`, `POST /api/auth/signupForm` | formulaires uniquement ; rôles USER / MODERATOR / ADMIN ; connexion d'un compte archivé ⇒ restauré |
 | Curseur de risque (0–10) | `GET/PUT /api/user/risk-cursor` | continu ; **non branché** à la modulation Rainbow |
-| Mode d'affichage | `GET/PUT /api/rainbow-live/ui-mode` | `AUTO\|SIMPLE\|ADVANCED\|EXPERT`, défaut `EXPERT` ; seul Expert fonctionnel aujourd'hui [GUI] |
 | Saisir sa clé d'échange de lecture (soldes) | `POST /api/credentials/read` | `{provider OKX\|KRAKEN, apiKey, secretKey, passphrase (OKX), enabled?}` ; chiffrée, réponse sans secret ; crée ou rattache le wallet ; 409 sans clé maître serveur ; droit requis : lecture seule |
 | Saisir sa clé d'échange TRADE | `POST /api/credentials/trade` | `{provider OKX\|KRAKEN, apiKey, secretKey, passphrase (OKX), enabled?}` ; réponse sans secret ; 409 sans clé maître serveur ; droits requis : créer/annuler des ordres, jamais retrait, restriction IP |
 | Clés de lecture (maquette Réglages « clés lecture seule ») | — | **[À implémenter]** côté utilisateur |
@@ -31,7 +30,7 @@ Tout est scopé à l'utilisateur connecté (JWT cookie) ; ressource d'un autre u
 | Action | Endpoint | Paramètres / effet |
 |---|---|---|
 | Choisir le wallet | `GET /api/rainbow-live/wallets` | `[{id, name, exchange}]` |
-| Lier ses actifs | `POST /api/rainbow-live/onboarding/link` `{walletId}` | un lien **inactif** par actif sur le preset système ; résultat par actif : `LINKED \| ALREADY_LINKED \| NOT_LINKED` + statut/raison ; rejouable |
+| Lier ses actifs | `POST /api/rainbow-live/onboarding/link` `{walletId}` | un lien **inactif** par actif sur l'Affectation de l'actif ; résultat par actif : `LINKED \| ALREADY_LINKED \| NOT_LINKED` + statut/raison ; rejouable |
 | Étaler le cash sur N jours/mois | `GET /api/rainbow-live/onboarding/proposals?walletId=&days=` | `days` ∈ bornes admin (7–365, défaut `autonomyDays` = 90) ; lecture seule |
 | Appliquer les montants proposés | `PUT /bindings/{id}` `{baseAmount}` | déclenchement **manuel** (rien ne se lie tout seul) |
 
@@ -43,9 +42,8 @@ Unique par (user, actif, wallet). `GET /api/rainbow-live/bindings`, `POST` (cré
 
 | Réglage | Champ | Contraintes / effet |
 |---|---|---|
-| Preset alimentant le lien | `presetId` | doit être du même actif et du user ; changer = « bascule » (événement `LIVE_SWITCH`) ; propositions : `GET /bindings/candidates?walletId=&asset=` → `[{id, name, mode, origin SYSTEM\|CUSTOM, alreadyLinkedBindingId?}]` |
 | Wallet | `walletId` | du user ; clé unique (actif, wallet) ⇒ 409 si déjà lié |
-| Montant de base du lien | `baseAmount` (> 0, fini) ; `resetBaseAmount=true` | vide = montant du preset ; ne met à l'échelle que les **achats** ; modifier le montant remet le **carry à zéro** (le dire à l'utilisateur) |
+| Montant de base du lien | `baseAmount` (> 0, fini) ; `resetBaseAmount=true` | vide = montant du preset Rainbow joué ; ne met à l'échelle que les **achats** ; modifier le montant remet le **carry à zéro** (le dire à l'utilisateur) |
 | Achat minimum | `PUT /{id}` `minBuyUsd` (`resetMinBuy` pour retirer) | sous ce montant l'achat est reporté en carry |
 | Part de la position offerte | `bagPercent` 0–100 (défaut 100) | dynamique : % de la position réelle que la stratégie peut vendre |
 | Priorité de passage du cash | `priority` | défaut = rang d'actif (BTC 0, ETH 1, PAXG 2) ; ordre de consommation du cash commun |
@@ -53,34 +51,18 @@ Unique par (user, actif, wallet). `GET /api/rainbow-live/bindings`, `POST` (cré
 | Confirmer le 1ᵉʳ ordre réel | `POST /{id}/confirm-first-live` | possible dès que l'exécution du lien est activée (sinon 409) ; enchaînée par l'écran avec l'activation |
 | Vérifier la disponibilité | `GET /{id}/check` | appelle l'exchange (lecture seule), persiste le statut |
 | Comparer les routes d'achat | `GET /{id}/path-quote?amount=` | lecture seule, `amount` > 0 USD |
-| Supprimer le lien | `DELETE /{id}` | 204, le preset reste |
+| Supprimer le lien | `DELETE /{id}` | 204, l'Affectation reste |
 
-Après création/modification, la réponse porte `{binding, check}` : un check KO n'empêche pas l'enregistrement. Un preset lié ne peut pas être supprimé (400).
+Après création/modification, la réponse porte `{binding, check}` : un check KO n'empêche pas l'enregistrement.
 
-### 1.4 Presets
+### 1.4 Affectations
 
-`GET /api/rainbow-live/presets[?asset=]` (crée au passage les presets système manquants), `POST`, `GET/PUT/DELETE /presets/{id}`, `PATCH /presets/{id}/enabled`.
+`GET /api/rainbow-live/affectations[?asset=]` (crée au passage les Affectations manquantes, inactives, sur les presets système de base), `GET /affectations/{id}`, `PATCH /affectations/{id}/enabled`.
 
 | Action | Détail |
 |---|---|
-| Activer / désactiver | seul un preset **actif** est joué par la passe (bascule obligatoire par l'utilisateur) ; seule action permise sur un preset système |
-| Créer | mode `FIXED` (un jeu de paramètres) ou `TREND_MIX` (jeu Bull/Bear choisi chaque jour) ; nom libre sauf préfixe réservé « [Système] » (400) ; unique (user, actif, nom) sinon 409 ; « Remplir avec le défaut de l'actif » ← `GET /defaults` |
-| Éditer | nom, `enabled`, `analysisWindowMonths` (≥ 1), paramètres ; actif non modifiable ; effet **au run suivant**, historique conservé |
-| Dupliquer | `POST` + `duplicatedFromId` ; dupliquer un preset système = **détachement** (preset propre, événement `DETACH`, avertissement avant) |
-| Supprimer | supprime ses runs ; refusé si lié (400) ou preset système (409) ; modale de confirmation (config + historique) |
-| Presets système (« suit la stratégie ») | non éditables, non supprimables ; config lue à chaque passe dans la stratégie Actif (révision `N`) |
-| Stratégies Actif | `GET /strategies` lecture seule côté utilisateur (édition = admin) |
-
-Paramètres éditables (formulaire [GUI] en accordéon, noms exacts = records `RainbowAtrTuning` / `RainbowAtrGlobals` du code, valeurs par défaut par actif via `GET /defaults.configs`) :
-- **Bornes ATR** : périodes SMA et ATR, multiplicateurs de bandes (down2, down1, up 1/2/3).
-- **Mécanisme achat/vente** : mode de réentrée (`reentryModes` fournis par le serveur : trailing stop %, délai fixe…), délais, fractions.
-- **Cooldown & verrous** : cooldown, vente pendant cooldown, cooldown après vente, blocage d'achat.
-- **Modulation ATH** : références ATH achat/vente (jours), facteurs min/max achat et vente.
-- **To the moon** : réserve %, ratchet, trailing, stop.
-- **Multiplicateurs & montant** : `multX2`, `multX1`, `multX0_5`, `multTriggered`, `baseAmount`.
-- **Trend Mix seulement** : `trend{shortWindow, mediumWindow, longWindow, slopeScale, enter, exit, confirm, smaPeriod, atrPeriod, atrMultiplier, wickDown, wickUp}`, `rangeMapping` (`KEEP_PREVIOUS \| TO_BEAR \| TO_BULL`), puis tableau paramètre × (Bear, Bull) (ligne ambre si les deux jeux diffèrent).
-
-Validations clés : fenêtres ≥ 2, `0 ≤ exit ≤ enter`, `confirm ≥ 1`, `baseAmount > 0`, tuning valide.
+| Activer / désactiver | seule une Affectation **active** est jouée par la passe (bascule obligatoire par l'utilisateur) |
+| Presets installés | Trend, Rainbow UP, Rainbow DOWN affichés avec leur origine (système / propre) ; leur édition relève de l'Espace Expert |
 
 ### 1.5 Modulation (curseurs)
 
@@ -101,7 +83,7 @@ Aucune action dédiée : l'utilisateur **augmente sa mise** (`baseAmount` du lie
 
 ### 1.7 Ce que l'utilisateur ne peut PAS faire
 
-Lancer une passe ou un plan, lever le kill switch, armer le 1ᵉʳ ordre réel, envoyer/annuler un ordre, éditer une stratégie Actif, régler `asset_provider`, modifier les bornes de modulation, retirer/transférer des fonds (jamais).
+Lancer une passe ou un plan, lever le kill switch, armer le 1ᵉʳ ordre réel, envoyer/annuler un ordre, régler `asset_provider`, modifier les bornes de modulation, retirer/transférer des fonds (jamais).
 
 ---
 
@@ -113,18 +95,18 @@ Principe : l'affichage ne lit que la **base** (aucun appel exchange), sauf `chec
 
 `{mode OFF|DRY_RUN|LIVE, liveExecution (LIVE déverrouillé), killSwitch}`. Affichage seul. Bandeau « Simulation / exécution réelle verrouillée » tant que `liveExecution` est faux ; état d'alerte global.
 
-### 2.2 Presets — `PresetDto`
+### 2.2 Affectations — `AffectationDto`
 
-`id, assetSymbol, name, enabled, analysisWindowMonths, createdAt, updatedAt, mode (FIXED|TREND_MIX), tuning, globals, trendConfig?, followsStrategy, strategyRevision?, runCount, firstRunDay?, lastRun{day, close, zone, actionType, actionAmountUsdc, actionQuantity, activeSet?, trendRegime?}`.
-Badges : « Stratégie · rév. N » / « Détaché » ; LIVE si lié à ≥ 1 lien ; colonne « Jeu · Trend » (jeu actif + régime UP/DOWN/RANGE du dernier run). Libellés de zones et énums via `GET /defaults` (`zones[{code,name,label}]`, `reentryModes`, `rangeMappings`, `uiModes`, `systemPrefix`).
+`id, assetSymbol, name, enabled, complete, analysisWindowMonths, createdAt, updatedAt, trendPreset{id, name, origin}, rainbowUp{…}, rainbowDown{…}, tuning, globals, trendConfig?, runCount, firstRunDay?, lastRun{day, close, zone, actionType, actionAmountUsdc, actionQuantity, activeSet?, trendRegime?}`.
+Badges : LIVE si liée à ≥ 1 lien ; colonne « Jeu · Trend » (preset Rainbow actif + régime UP/DOWN/RANGE du dernier run). Libellés de zones et énums via `GET /defaults` (`zones[{code,name,label}]`, `reentryModes`, `rangeMappings`).
 
-Historique des switchs : `GET /preset-events[?asset=]` → `{type ENABLE|DISABLE|DETACH|LIVE_SWITCH|STRATEGY_CHANGED, presetBefore/After (id, nom), strategyRevision?, occurredAt, reason?}`.
+Historique : `GET /preset-events[?asset=]` → `{type ENABLE|DISABLE|LIVE_SWITCH, presetBefore/After (id, nom), occurredAt, reason?}`.
 
 Données du signal calculées en base mais **non exposées** par l'API (bloc `RainbowLivePassBlock`) : SMA, ATR, 5 bornes, distance ATH, facteurs achat/vente, armements/verrous/cooldown, réserve moon. Nécessaires pour tracer les **bandes Rainbow** du graphique : **[À implémenter]** (endpoint d'historique des runs).
 
 ### 2.3 Liens — `BindingDto`
 
-`id, assetSymbol, presetId, presetName, walletId, walletName, exchange, bagPercent, priority, baseAmount?, tradability?, quoteMember?, routeKey?, minBuyUsd?, executionEnabled, executionMode, firstLiveArmed, firstLiveConfirmed`.
+`id, assetSymbol, affectationId, affectationName, walletId, walletName, exchange, bagPercent, priority, baseAmount?, tradability?, quoteMember?, routeKey?, minBuyUsd?, executionEnabled, executionMode, firstLiveArmed, firstLiveConfirmed`.
 `tradability` = dernier `BindingCheck` : `OK, TRADABLE_VIA_INTERMEDIARY, NOT_TRADABLE_WITHOUT_FIAT, WALLET_DISABLED, CREDENTIAL_INVALID, PROVIDER_UNSUPPORTED, BALANCE_UNAVAILABLE, INSTRUMENT_UNAVAILABLE` (+ `message`, `ok`, `executable`, `blocked`). `TRADABLE_VIA_INTERMEDIARY` = route à deux jambes (ex. USDC → BTC → PAXG) : bandeau d'information.
 État du 1ᵉʳ ordre réel : à confirmer (exécution activée) → validé.
 
@@ -190,7 +172,7 @@ Tous requis pour qu'un ordre réel parte : mode `LIVE` déverrouillé (serveur) 
 
 ---
 
-## 4. Admin (pages séparées, `/admin`, `/info`) — pour mémoire
+## 4. Admin (page séparée, `/admin`) — pour mémoire
 
 Actions : kill switch (lever/engager), passe live manuelle, plan (génération, réinitialisation), armement du 1ᵉʳ ordre, exécution/réconciliation (kill switch réengagé automatiquement), saisie/activation des clés TRADE d'un user, testeur d'ordre (validation sans envoi, envoi réel derrière switch rouge + saisie `ENVOYER`, route à deux jambes), édition des stratégies Actif (`PUT /api/admin/rainbow-live/strategies/{id}`), paramètres globaux de modulation (`GET/PUT /api/admin/rainbow-modulation` : `regulationMarginPct, sellBoostMax, biasMax, powerMin, powerMax, minBandWidthPts, modulationProductMax, autonomyDays`, bornes absolues affichées), backfill ETF flow, veille média, cycle décisionnel/snapshot/archivage.
 Infos : bandeau permanent (`/api/admin/execution/state` : mode, LIVE déverrouillé, clé maître, kill switch + qui/quand, plafonds, ports d'ordres), plans et audit de tous les users, credentials (sans secret, `apiKeyHint`), bindings de tous les users, catalogue d'instruments (200 max), journal `admin_action_log` (acteur, action, cible, charge, résultat, date ; ≤ 100 par page).
@@ -222,14 +204,6 @@ Infos : bandeau permanent (`/api/admin/execution/state` : mode, LIVE déverrouil
 | Réglages : mode, bande/puissance/biais | §1.1, §1.5 | [OK] |
 | Réglages : clés lecture, plafonds utilisateur, alertes | — | **[À implémenter]** |
 | Modes Simple / Avancé / Expert | préférence `displayMode` | [OK] — contenu : [`../architecture/11-front-app.md`](../architecture/11-front-app.md) |
-
-### Répartition cible par mode (étude, à valider)
-
-| Mode | Contenu |
-|---|---|
-| Simple | décisions, PnL, montant de base, mode d'exécution |
-| Avancé | + bande d'exposition, puissance, biais, plafonds, part de la position offerte |
-| Expert | + paramètres de la stratégie, presets, modulation détaillée (seul mode fonctionnel) |
 
 ### Composants communs
 

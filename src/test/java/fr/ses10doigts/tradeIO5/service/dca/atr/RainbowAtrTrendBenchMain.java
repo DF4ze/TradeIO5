@@ -128,7 +128,7 @@ public final class RainbowAtrTrendBenchMain {
     }
 
     public static void main(String[] args) throws IOException {
-        Path dir = Path.of(args.length > 0 ? args[0] : "target/rainbow-replay");
+        Path dir = Path.of(args.length > 0 ? args[0] : "tools/rainbow-replay/data");
         LocalDate start = LocalDate.parse(args.length > 1 ? args[1] : "2024-06-10");
         LocalDate end = args.length > 2 ? LocalDate.parse(args[2]) : null;
 

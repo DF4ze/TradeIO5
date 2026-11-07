@@ -54,12 +54,6 @@ public class AdminBindingController {
         return bindingService.wallets(target(userId)).stream().map(WalletOptionDto::of).toList();
     }
 
-    @GetMapping("/users/{userId}/candidates")
-    public List<RainbowLiveBindingService.Candidate> candidates(@PathVariable Long userId, @RequestParam Long walletId,
-                                                                @RequestParam String asset) {
-        return bindingService.candidates(target(userId), walletId, asset);
-    }
-
     @PostMapping("/users/{userId}")
     public ResponseEntity<CheckedBindingDto> create(@PathVariable Long userId, @RequestBody CreateRequest request) {
         User user = target(userId);

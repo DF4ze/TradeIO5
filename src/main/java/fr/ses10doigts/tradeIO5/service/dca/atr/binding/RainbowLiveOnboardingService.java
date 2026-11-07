@@ -7,15 +7,13 @@ import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.PortfolioReading;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RealPortfolioSource;
-import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingService.Candidate;
-import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingService.PresetOrigin;
 import fr.ses10doigts.tradeIO5.service.modulation.ModulationDefaults;
 import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlService;
 import lombok.RequiredArgsConstructor;
@@ -50,7 +48,7 @@ public class RainbowLiveOnboardingService {
     public enum LinkOutcome { LINKED, ALREADY_LINKED, NOT_LINKED }
 
     /** Résultat par actif : lien créé ou existant, ou raison de la non-liaison. */
-    public record LinkResult(String assetSymbol, LinkOutcome outcome, Long bindingId, String presetName, String status,
+    public record LinkResult(String assetSymbol, LinkOutcome outcome, Long bindingId, String affectationName, String status,
                              String message) {
     }
 
@@ -68,7 +66,7 @@ public class RainbowLiveOnboardingService {
     private final BindingCheck bindingCheck;
     private final BindingPathQuoteService pathQuoteService;
     private final RealPortfolioSource portfolioSource;
-    private final RainbowLivePresetConfigResolver configResolver;
+    private final AffectationConfigResolver configResolver;
     private final RainbowModulationControlService modulationControl;
 
     @Transactional
@@ -88,20 +86,15 @@ public class RainbowLiveOnboardingService {
         var existing = bindingRepository.findByUserAndAssetSymbolAndWallet_Id(user, asset, wallet.getId()).filter(b -> !b.isArchived());
         if (existing.isPresent()) {
             RainbowLiveBinding b = existing.get();
-            return new LinkResult(asset, LinkOutcome.ALREADY_LINKED, b.getId(), b.getPreset().getName(), null, null);
+            return new LinkResult(asset, LinkOutcome.ALREADY_LINKED, b.getId(), b.getAffectation().label(), null, null);
         }
         BindingCheckResult check = bindingCheck.check(wallet, asset);
         if (!check.isOk()) {
             return new LinkResult(asset, LinkOutcome.NOT_LINKED, null, null, check.status().name(), check.message());
         }
-        Candidate preset = bindingService.candidates(user, wallet.getId(), asset).stream()
-                .filter(c -> c.origin() == PresetOrigin.SYSTEM).findFirst().orElse(null);
-        if (preset == null) {
-            return new LinkResult(asset, LinkOutcome.NOT_LINKED, null, null, null, "Aucun preset système pour " + asset);
-        }
         RainbowLiveBinding binding = bindingService.create(user, new RainbowLiveBindingService.CreateRequest(asset,
-                preset.id(), wallet.getId(), null, null)).binding();
-        return new LinkResult(asset, LinkOutcome.LINKED, binding.getId(), preset.name(), check.status().name(), null);
+                wallet.getId(), null, null)).binding();
+        return new LinkResult(asset, LinkOutcome.LINKED, binding.getId(), binding.getAffectation().label(), check.status().name(), null);
     }
 
     /** Proposition sur l'autonomie par défaut de l'admin ({@code autonomyDays}). */
@@ -136,7 +129,7 @@ public class RainbowLiveOnboardingService {
     }
 
     private Proposal proposal(User user, RainbowLiveBinding binding, double cashShare, int days) {
-        RainbowLivePreset preset = binding.getPreset();
+        AssetAffectation preset = binding.getAffectation();
         RainbowAtrConfig config = configResolver.config(preset);
         double mean = averageMultiplier(config);
         Double presetBase = config.getBaseAmount();

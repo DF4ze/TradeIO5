@@ -35,7 +35,7 @@
     edit.addEventListener('click', () => run(null, () => startEdit(b)));
     return el('tr', null,
       el('td', { text: b.id }), el('td', { text: b.username }), el('td', { text: b.assetSymbol }),
-      el('td', { text: b.exchange || core.DASH }), el('td', { text: b.walletName }), el('td', { text: b.presetName }),
+      el('td', { text: b.exchange || core.DASH }), el('td', { text: b.walletName }), el('td', { text: b.affectationName }),
       el('td', { text: b.bagPercent }), el('td', { text: b.priority }),
       el('td', { text: b.executionEnabled ? 'activée' : 'éteinte' }), el('td', { text: b.tradability || core.DASH }),
       el('td', { text: firstLive(b) }),
@@ -116,7 +116,7 @@
     byId('adm-bind-asset').value = b.assetSymbol;
     byId('adm-bind-asset').disabled = true;
     byId('adm-bind-wallet').value = b.walletId;
-    await renderPresets(b.presetId);
+    await renderPresets(b.affectationId);
     byId('adm-bind-bag').value = b.bagPercent;
     byId('adm-bind-prio').value = b.priority;
     byId('adm-bind-enabled').checked = b.executionEnabled;
@@ -126,13 +126,13 @@
     event.preventDefault();
     const status = byId('adm-bind-status');
     status.textContent = '';
-    const presetId = Number(byId('adm-bind-preset').value);
+    const affectationId = Number(byId('adm-bind-preset').value);
     const walletId = Number(byId('adm-bind-wallet').value);
     const bag = byId('adm-bind-bag').value;
     const prio = byId('adm-bind-prio').value;
     const wantEnabled = byId('adm-bind-enabled').checked;
     await run(byId('adm-bind-submit'), async () => {
-      const body = { presetId, walletId, bagPercent: bag === '' ? null : Number(bag), priority: prio === '' ? null : Number(prio) };
+      const body = { affectationId, walletId, bagPercent: bag === '' ? null : Number(bag), priority: prio === '' ? null : Number(prio) };
       const uid = local.editing ? local.editing.userId : targetUser();
       const saved = local.editing
         ? await api('PUT', forUser(uid) + '/' + local.editing.id, body)

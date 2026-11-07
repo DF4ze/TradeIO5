@@ -1,5 +1,5 @@
 /*
- * Page "Presets — Rainbow DCA ATR" (userPage, fragment fragments/rainbowLive.html).
+ * Page "Affectations — Rainbow DCA ATR" (userPage, fragment fragments/rainbowLive.html).
  * Contrat : API REST /api/rainbow-live (cf. docs/api/rest-endpoints.md). Tous les chiffres viennent du serveur :
  * ce fichier ne fait que de l'affichage. Entrées utilisateur/serveur insérées via textContent (jamais en HTML).
  */
@@ -14,8 +14,7 @@
   const DASH = '—';
 
   const state = {
-    defaults: null, zones: new Map(), asset: null, presets: [], selectedId: null,
-    formMode: null, formKind: 'FIXED', formPreset: null, formSource: null, uiMode: 'EXPERT', deleteTarget: null,
+    defaults: null, zones: new Map(), asset: null, affectations: [], selectedId: null,
     retry: null,
     live: new Map(), liveCheck: null, routes: null, plan: null, exec: null, events: null
   };
@@ -127,33 +126,32 @@
     $('rl-asset-label').textContent = asset;
     state.liveCheck = null;
     state.routes = null;
-    return Promise.all([loadLive(), loadPresets()]);
+    return Promise.all([loadLive(), loadAffectations()]);
   }
 
-  async function loadPresets() {
+  async function loadAffectations() {
     try {
-      state.presets = await api('GET', '/presets?asset=' + encodeURIComponent(state.asset));
+      state.affectations = await api('GET', '/affectations?asset=' + encodeURIComponent(state.asset));
       hideAlert();
-      renderPresets();
+      renderAffectations();
     } catch (e) {
-      showAlert('Chargement des presets impossible : ' + e.message, loadPresets);
+      showAlert('Chargement des Affectations impossible : ' + e.message, loadAffectations);
     }
   }
 
-  function renderPresets() {
+  function renderAffectations() {
     const body = $('rl-presets-body');
-    const empty = state.presets.length === 0;
+    const empty = state.affectations.length === 0;
     $('rl-presets-table').classList.toggle('d-none', empty);
     $('rl-presets-empty').classList.toggle('d-none', !empty);
-    body.replaceChildren(...state.presets.map((p) => presetRow(p)));
+    body.replaceChildren(...state.affectations.map((a) => affectationRow(a)));
     renderLive();
   }
 
-  const isTrend = (p) => p.mode === 'TREND_MIX';
   /** Liens (bindings) actifs d'un actif ; plusieurs si l'actif est suivi sur plusieurs providers. */
   const livesOf = (asset) => state.live.get(asset) || [];
-  const presetLinks = (p) => livesOf(p.assetSymbol).filter((l) => l.presetId === p.id);
-  const isLivePreset = (p) => presetLinks(p).length > 0;
+  const affectationLinks = (a) => livesOf(a.assetSymbol).filter((l) => l.affectationId === a.id);
+  const isLiveAffectation = (a) => affectationLinks(a).length > 0;
 
   /** « Bear · DOWN » (badge de régime coloré) ; tiret si non applicable. */
   function setTrendCell(set, regime) {
@@ -162,44 +160,36 @@
       regime ? el('span', { class: 'badge rl-tag-' + regime.toLowerCase(), text: regime }) : null);
   }
 
-  function presetRow(p) {
-    const last = p.lastRun;
-    const toggle = el('input', { type: 'checkbox', class: 'form-check-input', role: 'switch',
-      title: 'Activer / désactiver ce preset' });
-    toggle.checked = p.enabled;
-    toggle.addEventListener('change', () => toggleEnabled(p, toggle));
-    return el('tr', { class: p.id === state.selectedId ? 'table-active' : '' },
-      el('td', null, el('span', { text: p.name }), isLivePreset(p) ? el('span', { class: 'badge rl-badge-live ms-1', text: 'LIVE',
-        title: 'Preset live : lié à ' + presetLinks(p).map((l) => l.walletName + ' (' + (l.exchange || DASH) + ')').join(', ') }) : null),
-      el('td', null, el('span', { class: 'badge ' + (isTrend(p) ? 'bg-primary' : 'bg-secondary'), text: isTrend(p) ? 'Trend Mix' : 'Fixe' }),
-        p.followsStrategy ? el('span', { class: 'badge bg-dark ms-1', text: 'Stratégie · rév. ' + p.strategyRevision,
-          title: 'Suit la stratégie System (révision ' + p.strategyRevision + ') : seule son activation est modifiable ; '
-            + 'dupliquer pour te détacher' }) : el('span', { class: 'badge bg-light text-dark ms-1', text: 'Détaché',
-          title: 'Preset propre à ton compte : ne reçoit pas les mises à jour de System' })),
+  const presetRef = (r) => (r ? r.name + (r.origin === 'SYSTEM' ? ' (système)' : '') : DASH);
+
+  function affectationRow(a) {
+    const last = a.lastRun;
+    const toggle = el('input', { type: 'checkbox', class: 'form-check-input', role: 'switch', disabled: !a.complete,
+      title: a.complete ? 'Activer / désactiver cette Affectation' : 'Affectation incomplète : presets manquants' });
+    toggle.checked = a.enabled;
+    toggle.addEventListener('change', () => toggleEnabled(a, toggle));
+    return el('tr', { class: a.id === state.selectedId ? 'table-active' : '' },
+      el('td', null, el('span', { text: a.assetSymbol }), isLiveAffectation(a) ? el('span', { class: 'badge rl-badge-live ms-1', text: 'LIVE',
+        title: 'Lié à ' + affectationLinks(a).map((l) => l.walletName + ' (' + (l.exchange || DASH) + ')').join(', ') }) : null),
+      el('td', null, el('div', { class: 'small' }, 'Trend : ' + presetRef(a.trendPreset)),
+        el('div', { class: 'small' }, 'Up : ' + presetRef(a.rainbowUp)), el('div', { class: 'small' }, 'Down : ' + presetRef(a.rainbowDown))),
       el('td', null, el('div', { class: 'form-check form-switch' }, toggle)),
-      el('td', { text: p.analysisWindowMonths }),
-      el('td', { text: p.runCount }),
-      el('td', { text: p.firstRunDay || DASH }),
+      el('td', { text: a.analysisWindowMonths }),
+      el('td', { text: a.runCount }),
+      el('td', { text: a.firstRunDay || DASH }),
       el('td', null, setTrendCell(last && last.activeSet, last && last.trendRegime)),
       el('td', { text: last ? last.day + ' · ' + zoneLabel(last.zone) + ' · '
-        + actionText(last.actionType, last.actionAmountUsdc, last.actionQuantity) : DASH }),
-      el('td', { class: 'text-nowrap' },
-        el('div', { class: 'btn-group btn-group-sm' },
-          el('button', { type: 'button', class: 'btn btn-outline-secondary', text: 'Éditer', disabled: p.followsStrategy,
-            title: p.followsStrategy ? 'Suit la stratégie System : non modifiable (dupliquer pour te détacher)' : null, onclick: () => openForm('edit', p) }),
-          el('button', { type: 'button', class: 'btn btn-outline-secondary', text: 'Dupliquer', onclick: () => openForm('duplicate', p) }),
-          el('button', { type: 'button', class: 'btn btn-outline-danger', text: 'Supprimer', disabled: p.followsStrategy,
-            title: p.followsStrategy ? 'Suit la stratégie System : non supprimable' : null, onclick: () => openDelete(p) }))));
+        + actionText(last.actionType, last.actionAmountUsdc, last.actionQuantity) : DASH }));
   }
 
-  /** Bascule rapide actif/inactif (seule modification permise sur un preset qui suit une stratégie Actif). */
-  async function toggleEnabled(p, input) {
+  /** Bascule rapide actif/inactif de l'Affectation (jouée ou non à chaque passe quotidienne). */
+  async function toggleEnabled(a, input) {
     const wanted = input.checked;
     input.disabled = true;
     try {
-      await api('PATCH', '/presets/' + p.id + '/enabled', { enabled: wanted });
+      await api('PATCH', '/affectations/' + a.id + '/enabled', { enabled: wanted });
       hideAlert();
-      await loadPresets();
+      await loadAffectations();
     } catch (e) {
       input.checked = !wanted;
       input.disabled = false;
@@ -207,332 +197,7 @@
     }
   }
 
-  /* ------------------------------------------------------------------ formulaire (accordéon) */
-
-  /** Schéma unique du formulaire : tous les paramètres du preset (noms = champs JSON de l'API). */
-  const FORM_GROUPS = [
-    { id: 'general', title: 'Général', fields: [
-      { scope: 'preset', key: 'name', label: 'Nom', type: 'text' },
-      { scope: 'preset', key: 'enabled', label: 'Preset actif (joué à chaque passe)', type: 'bool' },
-      { scope: 'preset', key: 'analysisWindowMonths', label: "Fenêtre d'analyse (mois)", type: 'int' }] },
-    { id: 'bounds', title: 'Bornes ATR', fields: [
-      { scope: 'tuning', key: 'smaPeriod', label: 'Période SMA', type: 'int' },
-      { scope: 'tuning', key: 'atrPeriod', label: 'Période ATR', type: 'int' },
-      { scope: 'tuning', key: 'atrMultDown2', label: 'Mult. ATR borne extrême bas (down2)', type: 'number' },
-      { scope: 'tuning', key: 'atrMultDown1', label: 'Mult. ATR borne basse (down1)', type: 'number' },
-      { scope: 'tuning', key: 'atrMultUp1', label: 'Mult. ATR borne haute 1 (up1)', type: 'number' },
-      { scope: 'tuning', key: 'atrMultUp2', label: 'Mult. ATR borne haute 2 (up2)', type: 'number' },
-      { scope: 'tuning', key: 'atrMultUp3', label: 'Mult. ATR borne extrême haut (up3)', type: 'number' }] },
-    { id: 'mechanism', title: 'Mécanisme achat/vente', fields: [
-      { scope: 'tuning', key: 'buyReentryMode', label: "Sortie de l'armement achat", type: 'enum' },
-      { scope: 'tuning', key: 'sellReentryMode', label: "Sortie de l'armement vente", type: 'enum' },
-      { scope: 'tuning', key: 'trailingStopBuyPct', label: 'Trailing stop achat (%)', type: 'number' },
-      { scope: 'tuning', key: 'trailingStopSellPct', label: 'Trailing stop vente (%)', type: 'number' },
-      { scope: 'tuning', key: 'fixedDelayDays', label: 'Délai fixe (jours)', type: 'int' },
-      { scope: 'tuning', key: 'sellFraction', label: 'Fraction vendue (0–1)', type: 'number' }] },
-    { id: 'cooldown', title: 'Cooldown & verrous', fields: [
-      { scope: 'tuning', key: 'cooldownDays', label: 'Cooldown après vente (jours)', type: 'int' },
-      { scope: 'tuning', key: 'allowSellDuringCooldown', label: 'Armement de vente autorisé pendant le cooldown', type: 'bool' },
-      { scope: 'tuning', key: 'cooldownAfterSellOn', label: 'Poser un cooldown après une vente', type: 'bool' },
-      { scope: 'tuning', key: 'blockBuyAfterSellUntilDown2', label: 'Bloquer les achats après vente jusqu’à un nouveau passage sous down2', type: 'bool' }] },
-    { id: 'ath', title: 'Modulation ATH', fields: [
-      { scope: 'globals', key: 'athOn', label: 'Modulation ATH active', type: 'bool' },
-      { scope: 'globals', key: 'athRefDdBuyPct', label: 'Drawdown de référence achat (%)', type: 'number' },
-      { scope: 'globals', key: 'athRefDdSellPct', label: 'Drawdown de référence vente (%)', type: 'number' },
-      { scope: 'globals', key: 'athBuyMin', label: 'Facteur achat min', type: 'number' },
-      { scope: 'globals', key: 'athBuyMax', label: 'Facteur achat max', type: 'number' },
-      { scope: 'globals', key: 'athSellMax', label: 'Facteur vente max', type: 'number' },
-      { scope: 'globals', key: 'athSellMin', label: 'Facteur vente min', type: 'number' }] },
-    { id: 'moon', title: 'To the moon', fields: [
-      { scope: 'globals', key: 'moonOn', label: 'Mode To the moon actif', type: 'bool' },
-      { scope: 'globals', key: 'moonReservePct', label: 'Réserve conservée (%)', type: 'number' },
-      { scope: 'globals', key: 'moonReserveRatchet', label: 'Réserve en cliquet (ratchet)', type: 'bool' },
-      { scope: 'globals', key: 'moonTrailingStopPct', label: 'Trailing stop moon (%)', type: 'number' },
-      { scope: 'globals', key: 'moonStopSellPct', label: 'Vente au stop moon (%)', type: 'number' }] },
-    { id: 'multipliers', title: 'Multiplicateurs & montant', fields: [
-      { scope: 'globals', key: 'multX2', label: 'Multiplicateur zone ×2', type: 'number' },
-      { scope: 'globals', key: 'multX1', label: 'Multiplicateur zone ×1', type: 'number' },
-      { scope: 'globals', key: 'multX0_5', label: 'Multiplicateur zone ×0,5', type: 'number' },
-      { scope: 'globals', key: 'multTriggered', label: 'Multiplicateur achat déclenché', type: 'number' },
-      { scope: 'globals', key: 'baseAmount', label: 'Montant de base par achat (USDC)', type: 'number' }] }
-  ];
-  /** Groupes propres au Trend Mix (scope 'trend' = Params du Trend Mix, 'top' = racine de trendConfig). */
-  const TREND_GROUP = { id: 'trend', title: 'Trend Mix (régression + SMA/ATR)', fields: [
-    { scope: 'trend', key: 'shortWindow', label: 'Régression courte (j)', type: 'int' },
-    { scope: 'trend', key: 'mediumWindow', label: 'Régression moyenne (j)', type: 'int' },
-    { scope: 'trend', key: 'longWindow', label: 'Régression longue (j)', type: 'int' },
-    { scope: 'trend', key: 'slopeScale', label: 'Échelle de pente', type: 'number' },
-    { scope: 'trend', key: 'enter', label: 'Seuil ENTER (entrée en tendance)', type: 'number' },
-    { scope: 'trend', key: 'exit', label: 'Seuil EXIT (sortie de tendance)', type: 'number' },
-    { scope: 'trend', key: 'confirm', label: 'Confirmation (jours)', type: 'int' },
-    { scope: 'trend', key: 'smaPeriod', label: 'Période SMA', type: 'int' },
-    { scope: 'trend', key: 'atrPeriod', label: 'Période ATR', type: 'int' },
-    { scope: 'trend', key: 'atrMultiplier', label: 'Mult. ATR autour de la SMA', type: 'number' },
-    { scope: 'trend', key: 'wickDown', label: 'Mèche basse prise en compte', type: 'bool' },
-    { scope: 'trend', key: 'wickUp', label: 'Mèche haute prise en compte', type: 'bool' },
-    { scope: 'top', key: 'rangeMapping', label: 'Régime RANGE ⇒ jeu', type: 'range' }] };
-  const SET_GROUPS = FORM_GROUPS.slice(1); // bornes, mécanisme, cooldown, ATH, moon, multiplicateurs
-  const inputId = (f) => 'rl-f-' + f.scope.replace(':', '-') + '-' + f.key;
-  const RANGE_LABELS = { KEEP_PREVIOUS: 'Garder le jeu précédent', TO_BEAR: 'Bear', TO_BULL: 'Bull' };
-
-  /** Groupes du formulaire selon le type : FIXED = schéma historique ; TREND_MIX = général + Trend + tableau Bear|Bull. */
-  const groupsFor = (kind) => (kind === 'TREND_MIX' ? [FORM_GROUPS[0], TREND_GROUP] : FORM_GROUPS);
-  const setFields = (set) => SET_GROUPS.flatMap((g) => g.fields.map((f) => Object.assign({}, f, { scope: set + ':' + f.scope })));
-  const allFields = (kind) => groupsFor(kind).flatMap((g) => g.fields)
-    .concat(kind === 'TREND_MIX' ? setFields('bear').concat(setFields('bull')) : []);
-
-  function buildForm(kind) {
-    const acc = $('rl-form-accordion');
-    const assetField = el('div', { class: 'col-12 col-md-6 col-xl-4' },
-      el('label', { class: 'form-label small', for: 'rl-f-asset', text: 'Actif' }),
-      el('input', { id: 'rl-f-asset', type: 'text', class: 'form-control form-control-sm', disabled: true }));
-    const item = (g, i, body) => el('div', { class: 'accordion-item' },
-      el('h2', { class: 'accordion-header' },
-        el('button', { type: 'button', class: 'accordion-button' + (i === 0 ? '' : ' collapsed'),
-          'data-bs-toggle': 'collapse', 'data-bs-target': '#rl-acc-' + g.id, text: g.title })),
-      el('div', { id: 'rl-acc-' + g.id, class: 'accordion-collapse collapse' + (i === 0 ? ' show' : '') },
-        el('div', { class: 'accordion-body' }, body)));
-    const items = groupsFor(kind).map((g, i) => {
-      const fields = g.fields.map(fieldNode);
-      if (i === 0) { fields.unshift(assetField); }
-      return item(g, i, el('div', { class: 'row g-3' }, fields));
-    });
-    if (kind === 'TREND_MIX') {
-      SET_GROUPS.forEach((g, i) => items.push(item(
-        { id: 'set-' + g.id, title: 'Jeux Bear | Bull — ' + g.title }, 1 + i, setsTable(g))));
-    }
-    acc.replaceChildren(...items);
-  }
-
-  /** Tableau paramètre × (Bear, Bull) ; ligne en ambre quand les deux jeux diffèrent. */
-  function setsTable(g) {
-    const rows = g.fields.map((f) => {
-      const fb = Object.assign({}, f, { scope: 'bear:' + f.scope });
-      const fu = Object.assign({}, f, { scope: 'bull:' + f.scope });
-      const tr = el('tr', null, el('td', { text: f.label }),
-        el('td', null, control(fb, inputId(fb))), el('td', null, control(fu, inputId(fu))));
-      const refresh = () => tr.classList.toggle('rl-diff', readControl(fb) !== readControl(fu));
-      tr.addEventListener('input', refresh); tr.addEventListener('change', refresh);
-      tr.refreshDiff = refresh;
-      return tr;
-    });
-    return el('table', { class: 'table table-sm align-middle rl-sets-table mb-0' },
-      el('thead', null, el('tr', null, el('th', { text: 'Paramètre' }),
-        el('th', null, el('span', { class: 'badge rl-tag-down', text: 'Bear' })),
-        el('th', null, el('span', { class: 'badge rl-tag-up', text: 'Bull' })))),
-      el('tbody', null, rows));
-  }
-
-  function readControl(f) {
-    const input = $(inputId(f));
-    return f.type === 'bool' ? String(input.checked) : input.value;
-  }
-
-  /** Contrôle de saisie seul (sans libellé). */
-  function control(f, id) {
-    if (f.type === 'bool') { return el('input', { id, type: 'checkbox', class: 'form-check-input' }); }
-    if (f.type === 'enum') {
-      return el('select', { id, class: 'form-select form-select-sm' },
-        (state.defaults.reentryModes || []).map((m) => el('option', { value: m, text: m })));
-    }
-    if (f.type === 'range') {
-      return el('select', { id, class: 'form-select form-select-sm' },
-        (state.defaults.rangeMappings || []).map((m) => el('option', { value: m, text: RANGE_LABELS[m] || m })));
-    }
-    if (f.type === 'text') { return el('input', { id, type: 'text', class: 'form-control form-control-sm', maxlength: 100 }); }
-    return el('input', { id, type: 'number', step: f.type === 'int' ? '1' : 'any', class: 'form-control form-control-sm' });
-  }
-
-  function fieldNode(f) {
-    const id = inputId(f);
-    const input = control(f, id);
-    if (f.type === 'bool') {
-      return el('div', { class: 'col-12 col-md-6 col-xl-4' },
-        el('div', { class: 'form-check form-switch mt-4' }, input,
-          el('label', { class: 'form-check-label small', for: id, text: f.label })));
-    }
-    return el('div', { class: 'col-12 col-md-6 col-xl-4' },
-      el('label', { class: 'form-label small', for: id, text: f.label }), input,
-      el('div', { class: 'invalid-feedback', text: f.type === 'text' ? 'Valeur requise.' : 'Nombre valide requis.' }));
-  }
-
-  /** Lecture/écriture dans {preset, tuning, globals, trend, top, bear:{tuning,globals}, bull:{...}} via le scope « a:b ». */
-  function scopeObj(data, scope, create) {
-    let o = data;
-    for (const part of scope.split(':')) {
-      if (o[part] == null) { if (!create) { return {}; } o[part] = {}; }
-      o = o[part];
-    }
-    return o;
-  }
-
-  /** Remplit le formulaire (kind courant) depuis {preset, tuning, globals, trend, top, bear, bull}. */
-  function fillForm(data) {
-    for (const f of allFields(state.formKind)) {
-      const input = $(inputId(f));
-      const v = scopeObj(data, f.scope, false)[f.key];
-      if (f.type === 'bool') { input.checked = !!v; } else { input.value = v == null ? '' : v; }
-      input.classList.remove('is-invalid');
-    }
-    document.querySelectorAll('#rl-form-accordion tr').forEach((tr) => { if (tr.refreshDiff) { tr.refreshDiff(); } });
-  }
-
-  function formData(p) {
-    const d = { preset: { name: p.name, enabled: p.enabled, analysisWindowMonths: p.analysisWindowMonths }, tuning: p.tuning, globals: p.globals };
-    return isTrend(p) ? Object.assign(d, trendData(p.trendConfig)) : d;
-  }
-
-  const trendData = (tc) => ({ trend: tc.trend, top: { rangeMapping: tc.rangeMapping }, bear: tc.bear, bull: tc.bull });
-
-  /** mode : 'create' | 'edit' | 'duplicate' (création pré-remplie avec la config d'un preset). */
-  function openForm(mode, p, kind) {
-    state.formMode = mode === 'edit' ? 'edit' : 'create';
-    state.formPreset = p || null;
-    state.formSource = mode === 'duplicate' ? p : null;
-    state.formKind = p ? (isTrend(p) ? 'TREND_MIX' : 'FIXED') : (kind || 'FIXED');
-    buildForm(state.formKind);
-    const asset = p ? p.assetSymbol : state.asset;
-    const label = state.formKind === 'TREND_MIX' ? 'Trend Mix' : 'preset fixe';
-    $('rl-form-title').textContent = mode === 'edit' ? 'Éditer « ' + p.name + ' »'
-      : (mode === 'duplicate' ? 'Dupliquer « ' + p.name + ' »' : 'Nouveau ' + label + ' — ' + asset);
-    $('rl-form-banner').classList.toggle('d-none', mode !== 'edit');
-    $('rl-form-detach-warning').classList.toggle('d-none', !(mode === 'duplicate' && p.followsStrategy));
-    $('rl-form-error').classList.add('d-none');
-    $('rl-f-asset').value = asset;
-    if (p) {
-      const d = formData(p);
-      if (mode === 'duplicate') {
-        const prefix = state.defaults.systemPrefix;
-        d.preset.name = (p.followsStrategy && p.name.startsWith(prefix) ? p.name.slice(prefix.length) : p.name) + ' (copie)';
-      }
-      fillForm(d);
-    } else {
-      const cfg = state.defaults.configs[asset];
-      const base = { preset: { name: state.formKind === 'TREND_MIX' ? 'Trend Mix' : '',
-        enabled: true, analysisWindowMonths: state.defaults.analysisWindowMonths }, tuning: cfg.tuning, globals: cfg.globals };
-      fillForm(state.formKind === 'TREND_MIX'
-        ? Object.assign(base, trendData(state.defaults.trendDefaults[asset])) : base);
-    }
-    bootstrap.Modal.getOrCreateInstance($('rl-form-modal')).show();
-  }
-
-  /** Remplace tuning + globals par le défaut de l'actif (nom, actif, fenêtre et capital inchangés). */
-  function fillWithAssetDefault() {
-    const asset = $('rl-f-asset').value;
-    const cfg = state.defaults.configs[asset];
-    if (!cfg) { return; }
-    const keep = {};
-    for (const f of FORM_GROUPS[0].fields) {
-      const input = $(inputId(f));
-      keep[f.key] = f.type === 'bool' ? input.checked : input.value;
-    }
-    const data = { preset: keep, tuning: cfg.tuning, globals: cfg.globals };
-    fillForm(state.formKind === 'TREND_MIX'
-      ? Object.assign(data, trendData(state.defaults.trendDefaults[asset])) : data);
-  }
-
-  /** Lit et valide le formulaire ; marque les champs invalides, ouvre le groupe fautif. */
-  function collectForm() {
-    const out = { preset: {}, tuning: {}, globals: {}, trend: {}, top: {}, bear: {}, bull: {} };
-    let firstBad = null;
-    const groupOf = new Map();
-    groupsFor(state.formKind).forEach((g) => g.fields.forEach((f) => groupOf.set(f, g.id)));
-    SET_GROUPS.forEach((g) => g.fields.forEach((f0) => ['bear', 'bull'].forEach((set) =>
-      groupOf.set(set + ':' + f0.scope + ':' + f0.key, 'set-' + g.id))));
-    for (const f of allFields(state.formKind)) {
-      if (f.createOnly && state.formMode === 'edit') { continue; }
-      const input = $(inputId(f));
-      let v;
-      let ok = true;
-      if (f.type === 'bool') { v = input.checked; }
-      else if (f.type === 'enum' || f.type === 'range') { v = input.value; ok = !!v; }
-      else if (f.type === 'text') { v = input.value.trim(); ok = v.length > 0; }
-      else {
-        v = input.value.trim() === '' ? NaN : Number(input.value);
-        ok = Number.isFinite(v) && (f.type !== 'int' || Number.isInteger(v));
-      }
-      input.classList.toggle('is-invalid', !ok);
-      if (!ok && !firstBad) {
-        firstBad = { input, group: groupOf.get(f) || groupOf.get(f.scope + ':' + f.key) };
-      }
-      scopeObj(out, f.scope, true)[f.key] = v;
-    }
-    if (firstBad) {
-      if (firstBad.group) {
-        bootstrap.Collapse.getOrCreateInstance($('rl-acc-' + firstBad.group), { toggle: false }).show();
-      }
-      firstBad.input.focus();
-      return null;
-    }
-    return out;
-  }
-
-  async function submitForm() {
-    const errBox = $('rl-form-error');
-    errBox.classList.add('d-none');
-    const d = collectForm();
-    if (!d) {
-      errBox.textContent = 'Certains champs sont invalides ou vides.';
-      errBox.classList.remove('d-none');
-      return;
-    }
-    const btn = $('rl-form-submit');
-    btn.disabled = true;
-    try {
-      let saved;
-      const trend = state.formKind === 'TREND_MIX';
-      const specific = trend
-        ? { trendConfig: { trend: d.trend, rangeMapping: d.top.rangeMapping, bear: d.bear, bull: d.bull } }
-        : { tuning: d.tuning, globals: d.globals };
-      if (state.formMode === 'edit') {
-        saved = await api('PUT', '/presets/' + state.formPreset.id, Object.assign({ name: d.preset.name,
-          enabled: d.preset.enabled, analysisWindowMonths: d.preset.analysisWindowMonths }, specific));
-      } else {
-        saved = await api('POST', '/presets', Object.assign({ assetSymbol: $('rl-f-asset').value, name: d.preset.name,
-          enabled: d.preset.enabled, analysisWindowMonths: d.preset.analysisWindowMonths,
-          mode: state.formKind,
-          duplicatedFromId: state.formSource ? state.formSource.id : null }, specific));
-      }
-      bootstrap.Modal.getOrCreateInstance($('rl-form-modal')).hide();
-      hideAlert();
-      await loadPresets();
-    } catch (e) {
-      errBox.textContent = e.message;
-      errBox.classList.remove('d-none');
-    } finally {
-      btn.disabled = false;
-    }
-  }
-
-  /* ------------------------------------------------------------------ suppression */
-
-  function openDelete(p) {
-    state.deleteTarget = p;
-    $('rl-delete-name').textContent = p.name;
-    $('rl-delete-error').classList.add('d-none');
-    bootstrap.Modal.getOrCreateInstance($('rl-delete-modal')).show();
-  }
-
-  async function confirmDelete() {
-    const p = state.deleteTarget;
-    if (!p) { return; }
-    const btn = $('rl-delete-confirm');
-    btn.disabled = true;
-    try {
-      await api('DELETE', '/presets/' + p.id);
-      bootstrap.Modal.getOrCreateInstance($('rl-delete-modal')).hide();
-      hideAlert();
-      await loadPresets();
-    } catch (e) {
-      const box = $('rl-delete-error');
-      box.textContent = e.message;
-      box.classList.remove('d-none');
-    } finally {
-      btn.disabled = false;
-    }
-  }
-
-  /* ------------------------------------------------------------------ wallet réel (preset live) */
+  /* ------------------------------------------------------------------ wallet réel (Affectation live) */
 
   const LIVE_STATUS = {
     OK: ['bg-success', 'Lecture OK'],
@@ -878,7 +543,7 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
         const t = LINK_TEXT[r.outcome];
         return el('li', null, el('span', { class: 'fw-semibold', text: r.assetSymbol + ' : ' }),
           el('span', { class: t[0], text: t[1] }),
-          r.presetName ? el('span', { class: 'text-muted', text: ' — ' + r.presetName }) : null,
+          r.affectationName ? el('span', { class: 'text-muted', text: ' — ' + r.affectationName }) : null,
           r.message ? el('span', { text: ' — ' + r.message }) : null);
       }));
       onbMessage('Liens à vérifier puis activer un par un dans le panneau de chaque actif.', 'text-muted');
@@ -1055,15 +720,6 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
 
   /** Un bloc par lien (actif, wallet/provider) : snapshot, preset lié, plan et exécution de ce lien. */
   function liveSection(l) {
-    const select = el('select', { class: 'form-select form-select-sm', id: 'rl-live-preset-' + l.bindingId, 'aria-label': 'Preset live' });
-    state.presets.filter((p) => p.assetSymbol === l.assetSymbol).forEach((p) => {
-      const o = el('option', { value: String(p.id), text: p.name });
-      o.selected = p.id === l.presetId;
-      select.append(o);
-    });
-    if (!select.options.length) {
-      const o = el('option', { value: String(l.presetId), text: l.presetName }); o.selected = true; select.append(o);
-    }
     const bag = el('input', { type: 'number', class: 'form-control form-control-sm', id: 'rl-live-bag-' + l.bindingId, min: '0', max: '100',
       step: 'any', 'aria-label': 'bagPercent' });
     bag.value = String(l.bagPercent);
@@ -1076,10 +732,11 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
           : 'Aucun ordre n\'est passé (exécution réelle verrouillée).' })),
       liveSnapshotView(l),
       el('div', { class: 'row g-2 align-items-end mt-2' },
-        el('div', { class: 'col-12 col-md-5' }, el('label', { class: 'form-label small mb-0', for: 'rl-live-preset-' + l.bindingId, text: 'Preset live' }), select),
+        el('div', { class: 'col-12 col-md-5' }, el('div', { class: 'form-label small mb-0', text: 'Affectation live' }),
+          el('div', { class: 'small', text: l.affectationName })),
         el('div', { class: 'col-6 col-md-2' }, el('label', { class: 'form-label small mb-0', for: 'rl-live-bag-' + l.bindingId, text: 'bagPercent (0–100)' }), bag),
         el('div', { class: 'col-auto' },
-          el('button', { type: 'button', class: 'btn btn-sm btn-primary', text: 'Enregistrer', onclick: () => saveLive(l, select, bag) }),
+          el('button', { type: 'button', class: 'btn btn-sm btn-primary', text: 'Enregistrer', onclick: () => saveLive(l, bag) }),
           el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary ms-1', text: 'Vérifier la disponibilité',
             title: 'Relit les soldes en lecture seule chez l\'exchange', onclick: () => checkLive(l) }),
           el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary ms-1', text: 'Comparer les routes',
@@ -1091,8 +748,8 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
       executionView(l));
   }
 
-  /** Bascule du preset live et/ou bagPercent via PUT /bindings/{id} ; pris en compte à la passe suivante. */
-  async function saveLive(l, select, bag) {
+  /** bagPercent du lien via PUT /bindings/{id} ; pris en compte à la passe suivante. */
+  async function saveLive(l, bag) {
     const msg = $('rl-live-msg-' + l.bindingId);
     const bagPercent = Number(bag.value);
     if (bag.value === '' || !Number.isFinite(bagPercent) || bagPercent < 0 || bagPercent > 100) {
@@ -1100,10 +757,10 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
       return;
     }
     try {
-      const res = await api('PUT', '/bindings/' + l.bindingId, { presetId: Number(select.value), bagPercent });
+      const res = await api('PUT', '/bindings/' + l.bindingId, { bagPercent });
       state.liveCheck = Object.assign({ bindingId: l.bindingId }, res.check);
       await loadLive();
-      await loadPresets();
+      await loadAffectations();
     } catch (e) {
       msg.textContent = 'Enregistrement impossible : ' + e.message;
     }
@@ -1118,40 +775,10 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
     }
   }
 
-  /* ------------------------------------------------------------------ mode d'affichage (par utilisateur) */
-
-  const UI_MODES = [['AUTO', 'Auto'], ['SIMPLE', 'Simple'], ['ADVANCED', 'Avancé'], ['EXPERT', 'Expert']];
-  const UI_MODE_READY = new Set(['EXPERT']);
-
-  function renderUiMode() {
-    $('rl-ui-mode').replaceChildren(...UI_MODES.map(([code, label]) => el('button', {
-      type: 'button', class: 'btn ' + (code === state.uiMode ? 'btn-secondary' : 'btn-outline-secondary'),
-      disabled: !UI_MODE_READY.has(code), text: label,
-      title: UI_MODE_READY.has(code) ? 'Tous les paramètres' : 'Bientôt disponible',
-      onclick: () => setUiMode(code) })));
-  }
-
-  async function setUiMode(code) {
-    try {
-      state.uiMode = (await api('PUT', '/ui-mode', { mode: code })).mode;
-      renderUiMode();
-    } catch (e) { showAlert('Changement de mode impossible : ' + e.message, null); }
-  }
-
-  async function loadUiMode() {
-    try { state.uiMode = (await api('GET', '/ui-mode')).mode; } catch (e) { state.uiMode = 'EXPERT'; }
-    renderUiMode();
-  }
-
   /* ------------------------------------------------------------------ initialisation */
 
   function bindEvents() {
     $('rl-alert-retry').addEventListener('click', () => { if (state.retry) { state.retry(); } });
-    $('rl-new-preset').addEventListener('click', () => openForm('create', null, 'FIXED'));
-    $('rl-new-trend').addEventListener('click', () => openForm('create', null, 'TREND_MIX'));
-    $('rl-form-submit').addEventListener('click', submitForm);
-    $('rl-form-fill-default').addEventListener('click', fillWithAssetDefault);
-    $('rl-delete-confirm').addEventListener('click', confirmDelete);
   }
 
   async function init() {
@@ -1169,7 +796,6 @@ INSUFFICIENT_FUNDS_AFTER_FEES: 'solde insuffisant après frais',
     hideAlert();
     state.defaults.zones.forEach((z) => state.zones.set(z.code, z.label));
     buildTabs();
-    loadUiMode();
     selectAsset(state.defaults.assets[0]);
   }
 

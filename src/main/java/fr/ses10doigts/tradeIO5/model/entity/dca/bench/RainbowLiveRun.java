@@ -23,13 +23,13 @@ import org.hibernate.annotations.OnDeleteAction;
 import java.time.LocalDate;
 
 /**
- * Run quotidien d'un preset : une ligne par (preset, jour UTC) portant le signal de la passe 23:55 UTC (bougie D1 du jour
+ * Run quotidien d'une Affectation : une ligne par (Affectation, jour UTC) portant le signal de la passe 23:55 UTC (bougie D1 du jour
  * encore ouverte) + snapshot de la config effective. Le run du jour suivant en rafraîchit les indicateurs avec la vraie
- * clôture ; l'action décidée à 23:55 reste figée. Supprimé avec son preset.
+ * clôture ; l'action décidée à 23:55 reste figée. Supprimé avec son Affectation.
  */
 @Entity
 @Table(name = "rainbow_live_run",
-        uniqueConstraints = @UniqueConstraint(name = "uk_rainbow_live_run_preset_day", columnNames = {"preset_id", "run_day"}))
+        uniqueConstraints = @UniqueConstraint(name = "uk_rainbow_live_run_affectation_day", columnNames = {"affectation_id", "run_day"}))
 @Data
 @Builder
 @NoArgsConstructor
@@ -40,10 +40,10 @@ public class RainbowLiveRun {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(optional = false)
+    @ManyToOne
     @OnDelete(action = OnDeleteAction.CASCADE)
-    @JoinColumn(name = "preset_id", nullable = false)
-    private RainbowLivePreset preset;
+    @JoinColumn(name = "affectation_id")
+    private AssetAffectation affectation;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "user_id", nullable = false)

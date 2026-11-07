@@ -6,7 +6,7 @@ import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
 import fr.ses10doigts.tradeIO5.model.enumerate.TradeSide;
 import fr.ses10doigts.tradeIO5.model.enumerate.WalletSource;
@@ -21,10 +21,9 @@ import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService.ModulationSettings;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.PortfolioReading;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.CreateRequest;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetAffectationService;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import fr.ses10doigts.tradeIO5.service.portfolio.PortfolioQueryService;
@@ -57,7 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Patrimoine, performance par actif et achats/ventes d'un lien : lecture base seule, isolation entre utilisateurs. */
 @DataJpaTest
-@Import({RainbowLivePresetService.class, RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class,
+@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, AffectationConfigResolver.class, RainbowLivePresetEventService.class,
         PortfolioQueryService.class, PortfolioSnapshotService.class, PortfolioControllerTest.ClockConfig.class})
 @DisplayName("PortfolioController : patrimoine, PnL, achats/ventes")
 class PortfolioControllerTest {
@@ -76,7 +75,7 @@ class PortfolioControllerTest {
 
     @Autowired private PortfolioQueryService queryService;
     @Autowired private PortfolioSnapshotService snapshotService;
-    @Autowired private RainbowLivePresetService presetService;
+    @Autowired private fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures fixtures;
     @Autowired private RainbowLiveBindingRepository bindingRepository;
     @Autowired private TransactionRepository transactionRepository;
     @Autowired private WalletRepository walletRepository;
@@ -99,8 +98,8 @@ class PortfolioControllerTest {
         wallet = walletRepository.save(Wallet.builder().name("OKX").source(WalletSource.EXCHANGE)
                 .webProviderCode(WebProviderCode.OKX).webProvider(okx).user(alice).build());
         RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor("BTC");
-        RainbowLivePreset preset = presetService.create(alice, new CreateRequest("BTC", "live", true, 6, c.toTuning(), c.toGlobals()));
-        binding = bindingRepository.save(RainbowLiveBinding.builder().user(alice).assetSymbol("BTC").preset(preset)
+        AssetAffectation preset = fixtures.affectation(alice, "BTC", "live", c.toTuning(), c.toGlobals());
+        binding = bindingRepository.save(RainbowLiveBinding.builder().user(alice).assetSymbol("BTC").affectation(preset)
                 .wallet(wallet).bagPercent(100).priority(0).build());
         when(facade.getConnectedUser()).thenReturn(alice);
         mvc = MockMvcBuilders.standaloneSetup(new PortfolioController(queryService, mock(fr.ses10doigts.tradeIO5.service.portfolio.HomeOverviewService.class),

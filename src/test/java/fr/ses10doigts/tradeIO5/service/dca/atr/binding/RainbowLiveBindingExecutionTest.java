@@ -4,8 +4,7 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.repository.WalletRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetAffectationService;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,8 +38,8 @@ class RainbowLiveBindingExecutionTest {
         RainbowLiveBindingRepository repo = mock(RainbowLiveBindingRepository.class);
         when(repo.findById(5L)).thenReturn(Optional.of(binding));
         when(repo.save(any())).thenAnswer(i -> i.getArgument(0));
-        service = new RainbowLiveBindingService(repo, mock(RainbowLivePresetService.class), mock(WalletRepository.class),
-                mock(BindingCheck.class), mock(RainbowLivePresetEventService.class), new FixedDomainClock(NOW));
+        service = new RainbowLiveBindingService(repo, mock(AssetAffectationService.class), mock(WalletRepository.class),
+                mock(BindingCheck.class), new FixedDomainClock(NOW));
     }
 
     @Test

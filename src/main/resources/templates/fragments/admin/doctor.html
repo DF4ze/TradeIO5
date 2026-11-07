@@ -1,4 +1,21 @@
 <div th:fragment="doctor" class="tab-pane fade" id="adm-pane-doctor" role="tabpanel">
+<style>
+	#adm-pane-doctor .dr-alarm { border: 1px solid var(--bs-border-color, #dee2e6); border-left: 5px solid #6c757d; border-radius: .4rem; padding: .55rem .75rem; margin-bottom: .5rem; display: flex; gap: .75rem; align-items: flex-start; flex-wrap: wrap; }
+	#adm-pane-doctor .dr-alarm.sev-CRIT { border-left-color: #dc3545; }
+	#adm-pane-doctor .dr-alarm.sev-WARN { border-left-color: #ffc107; }
+	#adm-pane-doctor .dr-alarm.st-ACKED { opacity: .7; }
+	#adm-pane-doctor .dr-alarm.st-RESOLVED { opacity: .5; }
+	#adm-pane-doctor .dr-main { flex: 1 1 22rem; min-width: 0; }
+	#adm-pane-doctor .dr-title { font-weight: 600; word-break: break-word; }
+	#adm-pane-doctor .dr-msg { margin: .15rem 0; word-break: break-word; }
+	#adm-pane-doctor .dr-meta { font-size: .78rem; color: var(--bs-secondary-color, #6c757d); }
+	#adm-pane-doctor .dr-actions { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+	#adm-pane-doctor .dr-actions .btn { padding: .1rem .5rem; font-size: .8rem; }
+	#adm-pane-doctor .dr-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .4rem; }
+	#adm-pane-doctor .dr-check { border: 1px solid var(--bs-border-color, #dee2e6); border-radius: .35rem; padding: .35rem .55rem; font-size: .85rem; }
+	#adm-pane-doctor .dr-check .dr-msg { font-size: .8rem; margin: .1rem 0 0; }
+	#adm-pane-doctor .dr-fam { font-size: .72rem; letter-spacing: .05em; margin: .6rem 0 .25rem; }
+</style>
 	<div class="d-flex align-items-center gap-2 mb-2">
 		<h5 class="mb-0">Diagnostic</h5>
 		<span class="badge text-bg-secondary" id="adm-doctor-worst">—</span>
@@ -12,14 +29,7 @@
 		<input class="form-check-input" type="checkbox" id="adm-doctor-showresolved">
 		<label class="form-check-label small" for="adm-doctor-showresolved">Afficher les alarmes résolues</label>
 	</div>
-	<div class="table-responsive mb-3">
-		<table class="table table-sm align-middle">
-			<thead>
-				<tr><th>Gravité</th><th>État</th><th>Contrôle</th><th>Sujet</th><th>Message</th><th>Vue (UTC)</th><th>Occ.</th><th>Actions</th></tr>
-			</thead>
-			<tbody id="adm-doctor-alarms"></tbody>
-		</table>
-	</div>
+	<div id="adm-doctor-alarms" class="mb-3"></div>
 
 	<h6>Contrôles</h6>
 	<div id="adm-doctor-checks" class="mb-3"></div>

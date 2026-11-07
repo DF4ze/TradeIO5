@@ -23,11 +23,10 @@ public final class RainbowLiveDtos {
      * {@code reentryModes} = valeurs de l'enum {@code ReentryMode} ; {@code zones} = codes/noms/libellés des zones du
      * moteur (le front ne duplique aucune de ces constantes).
      */
-    public record DefaultsDto(List<String> assets, String cashCurrency, String defaultName, int analysisWindowMonths,
+    public record DefaultsDto(List<String> assets, String cashCurrency, int analysisWindowMonths,
                               double baseAmount, Map<String, ConfigDto> configs,
                               List<String> reentryModes, List<ZoneDto> zones,
-                              Map<String, TrendConfigDto> trendDefaults, List<String> rangeMappings,
-                              List<String> uiModes, String systemPrefix) {
+                              Map<String, TrendConfigDto> trendDefaults, List<String> rangeMappings) {
     }
 
     public record ZoneDto(int code, String name, String label) {
@@ -40,18 +39,8 @@ public final class RainbowLiveDtos {
     public record TrendConfigDto(TrendMixCalculator.Params trend, String rangeMapping, ConfigDto bear, ConfigDto bull) {
     }
 
-    /** Stratégie Actif (lecture seule côté user) ; {@code trendConfig} nul pour une stratégie FIXED. */
-    public record StrategyDto(Long id, String assetSymbol, String name, String mode, int revision, Instant updatedAt,
-                              int analysisWindowMonths, ConfigDto config,
-                              TrendConfigDto trendConfig) {
-    }
-
-    /** Activation / désactivation d'un preset. */
+    /** Activation / désactivation d'une Affectation. */
     public record EnabledDto(boolean enabled) {
-    }
-
-    /** Mode d'affichage de la page, par utilisateur. */
-    public record UiModeDto(String mode) {
     }
 
     /** Dernier signal enregistré d'un preset (run le plus récent). */
@@ -60,14 +49,19 @@ public final class RainbowLiveDtos {
                              String activeSet, String trendRegime) {
     }
 
-    public record PresetDto(Long id, String assetSymbol, String name, boolean enabled, int analysisWindowMonths,
-                            Instant createdAt, Instant updatedAt,
-                            RainbowAtrTuning tuning, RainbowAtrGlobals globals,
-                            long runCount, LocalDate firstRunDay, LastRunDto lastRun, String mode, TrendConfigDto trendConfig,
-                            boolean followsStrategy, Integer strategyRevision) {
+    /** Affectation (utilisateur, actif) : presets installés, fenêtre, config de référence (preset DOWN) et activité du moteur. */
+    public record AffectationDto(Long id, String assetSymbol, String name, boolean enabled, boolean complete,
+                                 int analysisWindowMonths, Instant createdAt, Instant updatedAt,
+                                 PresetRefDto trendPreset, PresetRefDto rainbowUp, PresetRefDto rainbowDown,
+                                 RainbowAtrTuning tuning, RainbowAtrGlobals globals, long runCount, LocalDate firstRunDay,
+                                 LastRunDto lastRun, TrendConfigDto trendConfig) {
     }
 
-    /** Événement de l'historique des switchs de preset. */
+    /** Référence d'un preset installé dans l'Affectation. */
+    public record PresetRefDto(Long id, String name, String origin) {
+    }
+
+    /** Événement de l'historique des changements d'Affectation. */
     public record PresetEventDto(Long id, String assetSymbol, String type, Long presetBeforeId, String presetBeforeName,
                                  Long presetAfterId, String presetAfterName, Integer strategyRevision, Instant occurredAt,
                                  String reason) {

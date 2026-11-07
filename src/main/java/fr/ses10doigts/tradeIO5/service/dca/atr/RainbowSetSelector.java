@@ -40,7 +40,7 @@ public final class RainbowSetSelector {
         return out;
     }
 
-    /** Un seul jeu pour toutes les bougies (mode « preset fixe », comparaison propre au pine). */
+    /** Un seul jeu pour toutes les bougies (replays et comparaisons). */
     public static int[] fixed(int length, int setIndex) {
         int[] out = new int[length];
         java.util.Arrays.fill(out, setIndex);

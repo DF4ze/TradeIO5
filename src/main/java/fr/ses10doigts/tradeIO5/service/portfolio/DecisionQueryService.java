@@ -35,17 +35,17 @@ public class DecisionQueryService {
                 .filter(r -> r.getLive() != null)
                 .filter(r -> assetSymbol == null || assetSymbol.equalsIgnoreCase(r.getBinding().getAssetSymbol()))
                 .filter(r -> walletId == null || (r.getBinding().getWallet() != null && walletId.equals(r.getBinding().getWallet().getId())))
-                .map(r -> toDto(r, states.computeIfAbsent(r.getBinding().getPreset().getId() + "@" + r.getDay(), k -> state(r))))
+                .map(r -> toDto(r, states.computeIfAbsent(r.getBinding().getAffectation().getId() + "@" + r.getDay(), k -> state(r))))
                 .toList();
     }
 
     /** État de la machine du preset du lien à la fin du jour (un preset peut servir plusieurs liens : calculé une fois par jour). */
     private StrategyStateDto state(RainbowLiveBindingRun r) {
-        RainbowLiveRun signal = signalRepository.findByPresetAndDay(r.getBinding().getPreset(), r.getDay()).orElse(null);
+        RainbowLiveRun signal = signalRepository.findByAffectationAndDay(r.getBinding().getAffectation(), r.getDay()).orElse(null);
         if (signal == null) {
             return null;
         }
-        RainbowLiveEngineState engine = engineStateRepository.findByPresetAndDay(r.getBinding().getPreset(), r.getDay()).orElse(null);
+        RainbowLiveEngineState engine = engineStateRepository.findByAffectationAndDay(r.getBinding().getAffectation(), r.getDay()).orElse(null);
         return StrategyStateDescriber.describe(signal.getSignal(), engine, signal.getConfig());
     }
 

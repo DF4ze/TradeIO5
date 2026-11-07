@@ -8,7 +8,7 @@ import fr.ses10doigts.tradeIO5.service.preferences.UserPreferencesService.Prefer
 
 /**
  * Attributs communs de la coquille de la charte (thème, mode d'affichage, identité, navigation) posés sur toute page qui l'utilise :
- * pages {@code /app/**}, {@code /admin} et {@code /info}. Thème toujours sombre ; préférences absentes ⇒ mode simple.
+ * pages {@code /app/**} et {@code /admin}. Thème toujours sombre ; préférences absentes ⇒ mode simple.
  */
 final class AppShell {
 

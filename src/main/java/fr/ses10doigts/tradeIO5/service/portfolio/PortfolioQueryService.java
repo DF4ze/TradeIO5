@@ -15,7 +15,7 @@ import fr.ses10doigts.tradeIO5.repository.TransactionRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
 import fr.ses10doigts.tradeIO5.repository.portfolio.PortfolioSnapshotRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingNotFoundException;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveOnboardingService;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
@@ -45,7 +45,7 @@ public class PortfolioQueryService {
     private final PortfolioSnapshotRepository snapshotRepository;
     private final TransactionRepository transactionRepository;
     private final RainbowLiveBindingRepository bindingRepository;
-    private final RainbowLivePresetConfigResolver configResolver;
+    private final AffectationConfigResolver configResolver;
     private final DomainClock clock;
 
     @Transactional(readOnly = true)
@@ -177,7 +177,7 @@ public class PortfolioQueryService {
             if (walletId != null && !b.getWallet().getId().equals(walletId)) {
                 continue;
             }
-            var config = configResolver.config(b.getPreset());
+            var config = configResolver.config(b.getAffectation());
             double base = b.getBaseAmount() != null ? b.getBaseAmount() : config.getBaseAmount();
             dailySpend += base * RainbowLiveOnboardingService.averageMultiplier(config);
         }

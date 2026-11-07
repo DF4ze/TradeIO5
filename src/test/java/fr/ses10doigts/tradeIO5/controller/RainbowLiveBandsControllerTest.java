@@ -6,7 +6,7 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun;
 import fr.ses10doigts.tradeIO5.model.enumerate.WalletSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
@@ -17,10 +17,9 @@ import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.CreateRequest;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetAffectationService;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.RainbowBandsDto;
@@ -49,7 +48,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @DataJpaTest
-@Import({RainbowLivePresetService.class, RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class,
+@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, AffectationConfigResolver.class, RainbowLivePresetEventService.class,
         RainbowBandsQueryService.class, RainbowLiveBandsControllerTest.ClockConfig.class})
 @DisplayName("RainbowLiveBandsController : bandes figées lues dans les runs")
 class RainbowLiveBandsControllerTest {
@@ -64,7 +63,7 @@ class RainbowLiveBandsControllerTest {
 
     @Autowired private RainbowBandsQueryService service;
     @MockBean private RainbowBandsSimulator simulator;
-    @Autowired private RainbowLivePresetService presetService;
+    @Autowired private fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures fixtures;
     @Autowired private RainbowLiveBindingRepository bindingRepository;
     @Autowired private RainbowLiveRunRepository runRepository;
     @Autowired private WalletRepository walletRepository;
@@ -83,8 +82,8 @@ class RainbowLiveBandsControllerTest {
         Wallet wallet = walletRepository.save(Wallet.builder().name("OKX").source(WalletSource.EXCHANGE)
                 .webProviderCode(WebProviderCode.OKX).user(alice).build());
         RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor("BTC");
-        RainbowLivePreset preset = presetService.create(alice, new CreateRequest("BTC", "live", true, 6, c.toTuning(), c.toGlobals()));
-        binding = bindingRepository.save(RainbowLiveBinding.builder().user(alice).assetSymbol("BTC").preset(preset)
+        AssetAffectation preset = fixtures.affectation(alice, "BTC", "live", c.toTuning(), c.toGlobals());
+        binding = bindingRepository.save(RainbowLiveBinding.builder().user(alice).assetSymbol("BTC").affectation(preset)
                 .wallet(wallet).bagPercent(100).priority(0).build());
         run(preset, LocalDate.of(2026, 7, 1), 100.0, null);
         run(preset, LocalDate.of(2026, 10, 19), 200.0, RainbowLiveAction.BUY);
@@ -95,8 +94,8 @@ class RainbowLiveBandsControllerTest {
                 .build();
     }
 
-    private void run(RainbowLivePreset preset, LocalDate day, double close, RainbowLiveAction action) {
-        runRepository.save(RainbowLiveRun.builder().preset(preset).user(alice).assetSymbol("BTC").day(day).signal(RainbowLivePassBlock.builder()
+    private void run(AssetAffectation preset, LocalDate day, double close, RainbowLiveAction action) {
+        runRepository.save(RainbowLiveRun.builder().affectation(preset).user(alice).assetSymbol("BTC").day(day).signal(RainbowLivePassBlock.builder()
                 .close(close).sma(close - 1).atr(2.0).boundDown2(close - 5).boundDown1(close - 3).boundUp1(close + 3)
                 .boundUp2(close + 5).boundUp3(close + 8).zone(2).actionType(action).build()).build());
     }

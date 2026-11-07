@@ -24,7 +24,7 @@ public class AdminBindingQueryService {
     static AdminBindingDto toDto(RainbowLiveBinding b) {
         return new AdminBindingDto(b.getId(), b.getUser().getId(), b.getUser().getUsername(), b.getAssetSymbol(),
                 b.getWallet().getWebProviderCode() == null ? null : b.getWallet().getWebProviderCode().name(),
-                b.getWallet().getId(), b.getWallet().getName(), b.getPreset().getId(), b.getPreset().getName(),
+                b.getWallet().getId(), b.getWallet().getName(), b.getAffectation().getId(), b.getAffectation().label(),
                 b.getBagPercent(), b.getPriority(), b.isExecutionEnabled(),
                 b.getTradability() == null ? null : b.getTradability().name(), b.getFirstLiveApprovedAt() != null,
                 b.getFirstLiveConfirmedAt() != null);

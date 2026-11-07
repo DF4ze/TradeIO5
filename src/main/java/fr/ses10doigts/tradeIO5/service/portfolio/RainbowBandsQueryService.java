@@ -42,13 +42,13 @@ public class RainbowBandsQueryService {
         LocalDate from = period.from(clock.now().atOffset(ZoneOffset.UTC).toLocalDate());
         if (simulated) {
             LocalDate to = clock.now().atOffset(ZoneOffset.UTC).toLocalDate();
-            return new RainbowBandsDto(binding.getId(), binding.getAssetSymbol(), binding.getPreset().getName(), true,
+            return new RainbowBandsDto(binding.getId(), binding.getAssetSymbol(), binding.getAffectation().label(), true,
                     simulator.simulate(binding, from, to));
         }
-        List<RainbowBandsDto.Point> points = runRepository.findByPresetOrderByDayAsc(binding.getPreset()).stream()
+        List<RainbowBandsDto.Point> points = runRepository.findByAffectationOrderByDayAsc(binding.getAffectation()).stream()
                 .filter(r -> !r.getDay().isBefore(from) && r.getSignal() != null)
                 .map(r -> point(r.getDay(), r.getSignal())).toList();
-        return new RainbowBandsDto(binding.getId(), binding.getAssetSymbol(), binding.getPreset().getName(), false, points);
+        return new RainbowBandsDto(binding.getId(), binding.getAssetSymbol(), binding.getAffectation().label(), false, points);
     }
 
     /** BUY / SELL du moteur ce jour-là ; NONE, BLOCKED (achat refusé faute de cash, rien d'acheté) ou absent ⇒ null. */

@@ -810,7 +810,7 @@ public class OrderExecutor {
     }
 
     private BigDecimal baseAmount(RainbowLiveBinding binding, LocalDate day) {
-        return runs.findByPresetAndDay(binding.getPreset(), day).map(run -> run.getConfig()).map(RainbowAtrConfig::getBaseAmount)
+        return runs.findByAffectationAndDay(binding.getAffectation(), day).map(run -> run.getConfig()).map(RainbowAtrConfig::getBaseAmount)
                 .map(BigDecimal::valueOf).orElse(BigDecimal.ZERO);
     }
 

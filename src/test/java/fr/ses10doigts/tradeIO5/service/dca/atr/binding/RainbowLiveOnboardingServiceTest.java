@@ -8,15 +8,13 @@ import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
 import fr.ses10doigts.tradeIO5.model.entity.modulation.RainbowModulationControl;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.PortfolioReading;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RealPortfolioSource;
-import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingService.Candidate;
-import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingService.PresetOrigin;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveOnboardingService.LinkOutcome;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveOnboardingService.LinkResult;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveOnboardingService.Proposal;
@@ -54,7 +52,7 @@ class RainbowLiveOnboardingServiceTest {
     private final BindingCheck bindingCheck = mock(BindingCheck.class);
     private final BindingPathQuoteService quoteService = mock(BindingPathQuoteService.class);
     private final RealPortfolioSource portfolio = mock(RealPortfolioSource.class);
-    private final RainbowLivePresetConfigResolver resolver = mock(RainbowLivePresetConfigResolver.class);
+    private final AffectationConfigResolver resolver = mock(AffectationConfigResolver.class);
     private final RainbowModulationControlService control = mock(RainbowModulationControlService.class);
     private final RainbowLiveOnboardingService service = new RainbowLiveOnboardingService(bindingService, repository,
             bindingCheck, quoteService, portfolio, resolver, control);
@@ -68,13 +66,9 @@ class RainbowLiveOnboardingServiceTest {
         when(control.current()).thenReturn(RainbowModulationControl.defaults(Instant.EPOCH, "test"));
     }
 
-    private static Candidate system(String asset) {
-        return new Candidate(asset.hashCode() + 0L, "Système " + asset, "FIXED", PresetOrigin.SYSTEM, null);
-    }
-
     private RainbowLiveBinding binding(long id, String asset, Double linkBase) {
-        RainbowLivePreset preset = RainbowLivePreset.builder().id(id).name("p" + id).assetSymbol(asset).build();
-        return RainbowLiveBinding.builder().id(id).user(user).assetSymbol(asset).preset(preset).wallet(wallet)
+        AssetAffectation preset = AssetAffectation.builder().id(id).assetSymbol(asset).build();
+        return RainbowLiveBinding.builder().id(id).user(user).assetSymbol(asset).affectation(preset).wallet(wallet)
                 .baseAmount(linkBase).build();
     }
 
@@ -83,7 +77,7 @@ class RainbowLiveOnboardingServiceTest {
     }
 
     @Test
-    @DisplayName("link : actif tradable => lien créé sur le preset système ; bloqué => non lié avec la raison ; existant => inchangé")
+    @DisplayName("link : actif tradable => lien créé sur l'Affectation de l'actif ; bloqué => non lié avec la raison ; existant => inchangé")
     void linkOutcomes() {
         RainbowLiveBinding existing = binding(11L, "BTC", null);
         when(repository.findByUserAndAssetSymbolAndWallet_Id(any(), any(), anyLong())).thenReturn(Optional.empty());
@@ -91,7 +85,6 @@ class RainbowLiveOnboardingServiceTest {
         when(bindingCheck.check(wallet, "ETH")).thenReturn(new BindingCheckResult(BindingCheckStatus.OK, "ok"));
         when(bindingCheck.check(wallet, "PAXG")).thenReturn(
                 new BindingCheckResult(BindingCheckStatus.NOT_TRADABLE_WITHOUT_FIAT, "PAXG non tradable sans fiat"));
-        when(bindingService.candidates(user, WALLET_ID, "ETH")).thenReturn(List.of(system("ETH")));
         RainbowLiveBinding created = binding(12L, "ETH", null);
         when(bindingService.create(eq(user), any())).thenReturn(new RainbowLiveBindingService.Checked(created,
                 new BindingCheckResult(BindingCheckStatus.OK, "ok")));
@@ -107,15 +100,10 @@ class RainbowLiveOnboardingServiceTest {
     }
 
     @Test
-    @DisplayName("link : aucun preset système => non lié ; wallet étranger => 404")
-    void linkWithoutSystemPresetAndForeignWallet() {
-        when(repository.findByUserAndAssetSymbolAndWallet_Id(any(), any(), anyLong())).thenReturn(Optional.empty());
-        when(bindingCheck.check(any(Wallet.class), any())).thenReturn(new BindingCheckResult(BindingCheckStatus.OK, "ok"));
-        when(bindingService.candidates(eq(user), anyLong(), any())).thenReturn(
-                List.of(new Candidate(1L, "perso", "FIXED", PresetOrigin.CUSTOM, null)));
-        assertTrue(service.link(user, WALLET_ID).stream().allMatch(r -> r.outcome() == LinkOutcome.NOT_LINKED));
-        verify(bindingService, never()).create(any(), any());
+    @DisplayName("link : wallet étranger => 404")
+    void linkForeignWallet() {
         assertThrows(RainbowLiveBindingNotFoundException.class, () -> service.link(user, 99L));
+        verify(bindingService, never()).create(any(), any());
     }
 
     @Test

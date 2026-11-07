@@ -6,7 +6,7 @@ import fr.ses10doigts.tradeIO5.model.entity.admin.AdminActionOutcome;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveEngineState;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveEngineStateRepository;
 import fr.ses10doigts.tradeIO5.service.admin.AdminActionLogService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.AthReference;
@@ -34,15 +34,15 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Passe quotidienne d'un preset {@code TREND_MIX} : Trend Mix → jeu Bull/Bear de l'actif → UN pas de la machine
+ * Passe quotidienne d'un affectation {@code TREND_MIX} : Trend Mix → jeu Bull/Bear de l'actif → UN pas de la machine
  * Rainbow ({@link RainbowAtrStrategy#step}) à partir de l'état persisté de la veille, ATH de l'actif lu en base,
  * dimensionnement par le {@link ReferenceSizer} sur la position VIRTUELLE du moteur. Aucun ordre, aucun appel exchange.
  * <ul>
- *   <li><b>Trend</b> : recalculée sur le dataset D1 chargé (régression + SMA/ATR, réglages persistés du preset,
- *   {@link RainbowLiveTrendConfigs}), jeu actif = {@link RainbowSetSelector} (RANGE selon le mapping du preset ;
+ *   <li><b>Trend</b> : recalculée sur le dataset D1 chargé (régression + SMA/ATR, réglages persistés du affectation,
+ *   {@link RainbowLiveTrendConfigs}), jeu actif = {@link RainbowSetSelector} (RANGE selon le mapping du affectation ;
  *   Bear au départ) ;</li>
  *   <li><b>État</b> : dernière ligne {@link RainbowLiveEngineState} antérieure au jour ; absente (1re passe d'un
- *   preset) ⇒ amorçage par un rejeu de {@code analysisWindowMonths} mois jusqu'à la veille, état enregistré ;</li>
+ *   affectation) ⇒ amorçage par un rejeu de {@code analysisWindowMonths} mois jusqu'à la veille, état enregistré ;</li>
  *   <li><b>Position virtuelle</b> : quantité suivie par le moteur lui-même ({@link RainbowLiveEngineState#getPositionQty()}),
  *   base de la réserve moon et des ventes, comme le rejeu pine ; indépendante de tout wallet ;</li>
  *   <li><b>Écritures</b> (état du jour, position virtuelle, ATH du jour) : via {@link Outcome#commit()}, appelé par
@@ -62,8 +62,7 @@ public class RainbowTrendLiveService {
 
     private final RainbowLiveEngineStateRepository stateRepository;
     private final RainbowAthService athService;
-    private final RainbowLivePresetConfigResolver configResolver;
-    private final RainbowLivePresetEventService eventService;
+    private final AffectationConfigResolver configResolver;
     private final AdminActionLogService journal;
 
     /**
@@ -78,10 +77,10 @@ public class RainbowTrendLiveService {
         }
     }
 
-    public Outcome run(LocalDate day, RainbowLivePreset preset, List<MarketData> candles, RainbowAtrDataset ds, int dayIdx) {
-        String asset = preset.getAssetSymbol();
-        RainbowLiveTrendConfigs.Resolved cfg = configResolver.trendConfig(preset);
-        String configHash = configResolver.effectiveHash(preset);
+    public Outcome run(LocalDate day, AssetAffectation affectation, List<MarketData> candles, RainbowAtrDataset ds, int dayIdx) {
+        String asset = affectation.getAssetSymbol();
+        RainbowLiveTrendConfigs.Resolved cfg = configResolver.trendConfig(affectation);
+        String configHash = configResolver.effectiveHash(affectation);
         RainbowAtrParamSet[] sets = cfg.sets();
 
         TrendMixCalculator.Params tp = cfg.trend();
@@ -90,7 +89,7 @@ public class RainbowTrendLiveService {
         int[] setOfBar = RainbowSetSelector.select(regime, cfg.range());
         RainbowAtrParamSet set = sets[setOfBar[dayIdx]];
 
-        Start start = loadOrBootstrap(preset, day, ds, dayIdx, sets, setOfBar, configHash);
+        Start start = loadOrBootstrap(affectation, day, ds, dayIdx, sets, setOfBar, configHash);
         RainbowAtrState state = start.state();
         double position = start.position();
         AthReference ath = athService.athBefore(asset, day);
@@ -124,16 +123,16 @@ public class RainbowTrendLiveService {
         double nextPosition = Math.max(0.0, position - order.sellQuantity().doubleValue()
                 + order.buyAmount().doubleValue() / close);
         Runnable commit = () -> {
-            RainbowLiveEngineState row = stateRepository.findByPresetAndDay(preset, day)
-                    .orElseGet(() -> RainbowLiveEngineState.of(preset, day, next));
+            RainbowLiveEngineState row = stateRepository.findByAffectationAndDay(affectation, day)
+                    .orElseGet(() -> RainbowLiveEngineState.of(affectation, day, next));
             row.apply(next);
             row.setPositionQty(nextPosition);
             row.setConfigHash(configHash);
             stateRepository.save(row);
             athService.record(asset, day, high, candleTime);
         };
-        log.info("Bench Rainbow (Trend Mix) : preset={} actif={} jour={} trend={} jeu={} action={}",
-                preset.getId(), asset, day, dayRegime, set.name(), block.getActionType());
+        log.info("Bench Rainbow (Trend Mix) : affectation={} actif={} jour={} trend={} jeu={} action={}",
+                affectation.getId(), asset, day, dayRegime, set.name(), block.getActionType());
         return new Outcome(block, demand, commit);
     }
 
@@ -149,83 +148,80 @@ public class RainbowTrendLiveService {
      * fenêtre avec la config courante, enregistré pour la veille. Un trou est tracé (WARN + journal admin) : sans ce
      * ré-amorçage, un événement manqué (ex. levée du verrou d'achat) ne serait jamais vu.
      */
-    private Start loadOrBootstrap(RainbowLivePreset preset, LocalDate day, RainbowAtrDataset ds, int dayIdx,
+    private Start loadOrBootstrap(AssetAffectation affectation, LocalDate day, RainbowAtrDataset ds, int dayIdx,
                                   RainbowAtrParamSet[] sets, int[] setOfBar, String configHash) {
-        Optional<RainbowLiveEngineState> previous = stateRepository.findFirstByPresetAndDayBeforeOrderByDayDesc(preset, day);
+        Optional<RainbowLiveEngineState> previous = stateRepository.findFirstByAffectationAndDayBeforeOrderByDayDesc(affectation, day);
         boolean sameConfig = previous.isPresent() && Objects.equals(configHash, previous.get().getConfigHash());
         LocalDate expectedLast = dayIdx > 0 ? dayOf(ds.time(dayIdx - 1)) : day.minusDays(1);
         boolean gap = sameConfig && previous.get().getDay().isBefore(expectedLast);
         if (sameConfig && !gap) {
             return new Start(previous.get().toState(), previous.get().getPositionQty());
         }
-        Start start = bootstrap(preset, day, ds, dayIdx, sets, setOfBar, configHash);
-        if (previous.isPresent() && !sameConfig && preset.isFollowingStrategy()) {
-            eventService.recordStrategyChange(preset, preset.getAssetStrategy().getRevision());
-        }
+        Start start = bootstrap(affectation, day, ds, dayIdx, sets, setOfBar, configHash);
         if (gap) {
-            traceGap(preset, previous.get().getDay(), expectedLast, RainbowLiveDefaultPresets.RESYNC_ACTOR, "trou de passes");
+            traceGap(affectation, previous.get().getDay(), expectedLast, RainbowLiveDefaultPresets.RESYNC_ACTOR, "trou de passes");
         }
-        log.info("Bench Rainbow (Trend Mix) : preset={} état {} par rejeu de {} jour(s) jusqu'à la veille de {}",
-                preset.getId(), previous.isEmpty() ? "amorcé" : gap ? "resynchronisé (trou de passes)" : "ré-amorcé (config changée)",
-                Math.max(0, dayIdx - startIndex(preset, day, ds, dayIdx)), day);
+        log.info("Bench Rainbow (Trend Mix) : affectation={} état {} par rejeu de {} jour(s) jusqu'à la veille de {}",
+                affectation.getId(), previous.isEmpty() ? "amorcé" : gap ? "resynchronisé (trou de passes)" : "ré-amorcé (config changée)",
+                Math.max(0, dayIdx - startIndex(affectation, day, ds, dayIdx)), day);
         return start;
     }
 
     /**
-     * Resynchronisation de l'état d'un preset jusqu'à la bougie {@code lastIdx} (incluse), SANS run, SANS ordre : seul
+     * Resynchronisation de l'état d'un affectation jusqu'à la bougie {@code lastIdx} (incluse), SANS run, SANS ordre : seul
      * l'état moteur (verrou, cooldown, armements, position virtuelle) avance. Sans {@code force}, ne fait rien si l'état est
      * déjà à jour (config effective identique et dernier jour d'état ≥ jour de {@code lastIdx}).
      *
      * @param ds dataset borné à {@code lastIdx} (la bougie du jour encore ouverte n'en fait pas partie)
      * @return {@code true} si l'état a été recalculé
      */
-    public boolean resync(RainbowLivePreset preset, List<MarketData> candles, RainbowAtrDataset ds, int lastIdx,
+    public boolean resync(AssetAffectation affectation, List<MarketData> candles, RainbowAtrDataset ds, int lastIdx,
                           boolean force, String actor, String reason) {
         LocalDate lastDay = dayOf(ds.time(lastIdx));
-        String configHash = configResolver.effectiveHash(preset);
-        Optional<RainbowLiveEngineState> latest = stateRepository.findFirstByPresetAndDayBeforeOrderByDayDesc(preset, lastDay.plusDays(1));
+        String configHash = configResolver.effectiveHash(affectation);
+        Optional<RainbowLiveEngineState> latest = stateRepository.findFirstByAffectationAndDayBeforeOrderByDayDesc(affectation, lastDay.plusDays(1));
         boolean upToDate = latest.isPresent() && Objects.equals(configHash, latest.get().getConfigHash())
                 && !latest.get().getDay().isBefore(lastDay);
         if (upToDate && !force) {
             return false;
         }
-        RainbowLiveTrendConfigs.Resolved cfg = configResolver.trendConfig(preset);
+        RainbowLiveTrendConfigs.Resolved cfg = configResolver.trendConfig(affectation);
         TrendMixCalculator.Params tp = cfg.trend();
         TrendRegime[] regime = TrendMixCalculator.compute(candles, ds.sma(tp.smaPeriod()), ds.atr(tp.atrPeriod()), tp).regime();
         int[] setOfBar = RainbowSetSelector.select(regime, cfg.range());
         // toute la chaîne est périmée (la passe suivante rejoue la veille depuis l'état d'avant : il doit être sain ou absent)
-        stateRepository.deleteByPreset(preset);
+        stateRepository.deleteByAffectation(affectation);
         stateRepository.flush();
-        bootstrap(preset, lastDay.plusDays(1), ds, lastIdx + 1, cfg.sets(), setOfBar, configHash);
+        bootstrap(affectation, lastDay.plusDays(1), ds, lastIdx + 1, cfg.sets(), setOfBar, configHash);
         LocalDate previousDay = latest.map(RainbowLiveEngineState::getDay).orElse(null);
-        traceGap(preset, previousDay, lastDay, actor, reason);
-        log.warn("Bench Rainbow (Trend Mix) : preset={} état resynchronisé jusqu'au {} ({}, dernier état connu : {})",
-                preset.getId(), lastDay, reason, previousDay);
+        traceGap(affectation, previousDay, lastDay, actor, reason);
+        log.warn("Bench Rainbow (Trend Mix) : affectation={} état resynchronisé jusqu'au {} ({}, dernier état connu : {})",
+                affectation.getId(), lastDay, reason, previousDay);
         return true;
     }
 
-    private void traceGap(RainbowLivePreset preset, LocalDate lastStateDay, LocalDate resyncedTo, String actor, String reason) {
-        log.warn("Bench Rainbow (Trend Mix) : preset={} actif={} {} : dernier état {} -> resynchronisé jusqu'au {}",
-                preset.getId(), preset.getAssetSymbol(), reason, lastStateDay, resyncedTo);
-        journal.record(actor, AdminAction.RUN, RainbowLiveDefaultPresets.RESYNC_TARGET_PREFIX + preset.getId(),
-                AdminActionLogService.payload("asset", preset.getAssetSymbol(), "reason", reason,
+    private void traceGap(AssetAffectation affectation, LocalDate lastStateDay, LocalDate resyncedTo, String actor, String reason) {
+        log.warn("Bench Rainbow (Trend Mix) : affectation={} actif={} {} : dernier état {} -> resynchronisé jusqu'au {}",
+                affectation.getId(), affectation.getAssetSymbol(), reason, lastStateDay, resyncedTo);
+        journal.record(actor, AdminAction.RUN, RainbowLiveDefaultPresets.RESYNC_TARGET_PREFIX + affectation.getId(),
+                AdminActionLogService.payload("asset", affectation.getAssetSymbol(), "reason", reason,
                         "lastStateDay", lastStateDay == null ? null : lastStateDay.toString(), "resyncedTo", resyncedTo.toString()),
                 AdminActionOutcome.OK);
     }
 
-    private int startIndex(RainbowLivePreset preset, LocalDate day, RainbowAtrDataset ds, int dayIdx) {
-        return Math.min(firstIndexOnOrAfter(ds, day.minusMonths(configResolver.analysisWindowMonths(preset))), dayIdx);
+    private int startIndex(AssetAffectation affectation, LocalDate day, RainbowAtrDataset ds, int dayIdx) {
+        return Math.min(firstIndexOnOrAfter(ds, day.minusMonths(configResolver.analysisWindowMonths(affectation))), dayIdx);
     }
 
     /** Amorçage par rejeu de la fenêtre jusqu'à la bougie précédant {@code dayIdx} ; état enregistré pour ce jour. */
-    private Start bootstrap(RainbowLivePreset preset, LocalDate day, RainbowAtrDataset ds, int dayIdx,
+    private Start bootstrap(AssetAffectation affectation, LocalDate day, RainbowAtrDataset ds, int dayIdx,
                             RainbowAtrParamSet[] sets, int[] setOfBar, String configHash) {
-        int startIdx = startIndex(preset, day, ds, dayIdx);
+        int startIdx = startIndex(affectation, day, ds, dayIdx);
         RainbowAtrReplay.Result boot = RainbowAtrReplay.runFull(ds, sets, setOfBar, startIdx, dayIdx - 1);
         if (dayIdx > 0) {
             LocalDate stateDay = dayOf(ds.time(dayIdx - 1));
-            RainbowLiveEngineState row = stateRepository.findByPresetAndDay(preset, stateDay)
-                    .orElseGet(() -> RainbowLiveEngineState.of(preset, stateDay, boot.finalState()));
+            RainbowLiveEngineState row = stateRepository.findByAffectationAndDay(affectation, stateDay)
+                    .orElseGet(() -> RainbowLiveEngineState.of(affectation, stateDay, boot.finalState()));
             row.apply(boot.finalState());
             row.setPositionQty(boot.finalPosition());
             row.setConfigHash(configHash);

@@ -35,10 +35,13 @@
     });
     const box = byId('adm-doctor-checks');
     if (!families.size) { box.replaceChildren(core.empty('Aucun résultat (première passe en attente).')); return; }
-    box.replaceChildren(...[...families.entries()].map(([fam, rows]) => el('div', { class: 'mb-2' },
-      el('div', { class: 'small fw-bold text-uppercase text-muted', text: fam }),
-      core.table(['', 'Contrôle', 'Sujet', 'Impact', 'Message'], rows.map((r) =>
-        [sev(r.status), r.label, r.subject, r.impact, r.message || ''])))));
+    box.replaceChildren(...[...families.entries()].map(([fam, rows]) => el('div', null,
+      el('div', { class: 'dr-fam fw-bold text-uppercase text-muted', text: fam }),
+      el('div', { class: 'dr-checks' }, rows.map((r) => el('div', { class: 'dr-check' },
+        el('div', { class: 'd-flex align-items-center gap-2' }, sev(r.status),
+          el('span', { class: 'fw-semibold', text: r.label }),
+          r.subject && r.subject !== '-' ? el('span', { class: 'text-muted small', text: r.subject }) : null),
+        r.message ? el('div', { class: 'dr-msg text-muted', text: r.message }) : null))))));
   }
 
   async function act(button, path, body) {
@@ -46,10 +49,10 @@
   }
 
   function alarmActions(a) {
-    if (a.state === 'RESOLVED') { return core.DASH; }
-    const wrap = el('div', { class: 'd-flex flex-wrap gap-1' });
+    if (a.state === 'RESOLVED') { return null; }
+    const wrap = el('div', { class: 'dr-actions' });
     if (a.state === 'ACTIVE') {
-      const ack = el('button', { type: 'button', class: 'btn btn-sm btn-outline-primary', text: 'Acquitter' });
+      const ack = el('button', { type: 'button', class: 'btn btn-outline-primary', text: 'Acquitter' });
       ack.addEventListener('click', () => {
         const comment = window.prompt('Commentaire (facultatif)', '');
         if (comment === null) { return; }
@@ -57,28 +60,36 @@
       });
       wrap.append(ack);
     }
+    wrap.append(el('span', { class: 'text-muted small ms-1', text: 'Reporter' }));
     SNOOZE_HOURS.forEach((h) => {
-      const b = el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', text: 'Reporter ' + (h < 24 ? h + ' h' : (h / 24) + ' j') });
+      const b = el('button', { type: 'button', class: 'btn btn-outline-secondary', text: h < 24 ? h + ' h' : (h / 24) + ' j' });
       b.addEventListener('click', () => act(b, '/api/admin/doctor/alarms/' + a.id + '/snooze', { hours: h, comment: '' }));
       wrap.append(b);
     });
     return wrap;
   }
 
-  function alarmRow(a) {
-    const state = a.state + (a.state === 'ACKED' && a.ackedBy ? ' (' + a.ackedBy + (a.snoozeUntil ? ' → ' + core.fmtDate(a.snoozeUntil) : '') + ')' : '');
-    return el('tr', null,
-      el('td', null, sev(a.severity)), el('td', { class: 'small', text: state }), el('td', { text: a.checkId }),
-      el('td', { text: a.subject }), el('td', { class: 'small', text: a.message || '' }),
-      el('td', { class: 'small', text: core.fmtDate(a.firstSeen) + ' → ' + core.fmtDate(a.lastSeen) }),
-      el('td', { text: a.occurrences }), el('td', null, alarmActions(a)));
+  function alarmCard(a) {
+    const range = core.fmtDate(a.firstSeen) + ' → ' + core.fmtDate(a.lastSeen) + ' UTC';
+    let state = a.state === 'ACKED' ? 'Acquittée' : (a.state === 'RESOLVED' ? 'Résolue' : 'Active');
+    if (a.state === 'ACKED') {
+      state += (a.ackedBy ? ' par ' + a.ackedBy : '') + (a.snoozeUntil ? ' · reportée jusqu\'au ' + core.fmtDate(a.snoozeUntil) : '');
+    }
+    return el('div', { class: 'dr-alarm sev-' + a.severity + ' st-' + a.state },
+      el('div', { class: 'dr-main' },
+        el('div', { class: 'd-flex align-items-center gap-2 flex-wrap' }, sev(a.severity),
+          el('span', { class: 'dr-title', text: a.checkId + ' · ' + a.subject }),
+          el('span', { class: 'badge text-bg-light border', text: state })),
+        el('div', { class: 'dr-msg', text: a.message || '' }),
+        el('div', { class: 'dr-meta', text: range + ' · ' + a.occurrences + ' occurrence(s)' + (a.ackComment ? ' · « ' + a.ackComment + ' »' : '') })),
+      alarmActions(a));
   }
 
   async function loadAlarms() {
     const all = byId('adm-doctor-showresolved').checked;
     const list = await api('GET', '/api/admin/doctor/alarms' + (all ? '?state=ALL' : ''));
-    byId('adm-doctor-alarms').replaceChildren(...(list.length ? list.map(alarmRow)
-      : [el('tr', null, el('td', { colspan: 8 }, core.empty('Aucune alarme.')))]));
+    byId('adm-doctor-alarms').replaceChildren(...(list.length ? list.map(alarmCard)
+      : [core.empty('Aucune alarme ouverte.')]));
   }
 
   async function loadJobs() {

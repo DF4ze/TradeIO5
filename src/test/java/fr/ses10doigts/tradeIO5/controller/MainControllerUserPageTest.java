@@ -64,9 +64,8 @@ class MainControllerUserPageTest {
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
 
         assertTrue(html.contains("id=\"rainbow-live\""), "conteneur de la section");
-        assertTrue(html.contains("Presets — Rainbow DCA ATR"), "titre FR de la section");
-        assertTrue(html.contains("id=\"rl-asset-tabs\"") && html.contains("id=\"rl-presets-body\""), "tableau des presets");
-        assertTrue(html.contains("id=\"rl-form-modal\"") && html.contains("id=\"rl-delete-modal\""), "modales");
+        assertTrue(html.contains("Affectations — Rainbow DCA ATR"), "titre FR de la section");
+        assertTrue(html.contains("id=\"rl-asset-tabs\"") && html.contains("id=\"rl-presets-body\""), "tableau des Affectations");
         assertTrue(html.contains("assets/js/rainbow-live.js"), "script de la page");
         assertTrue(html.contains("Welcome in User's Page"), "contenu existant conservé");
         assertTrue(html.contains("Se déconnecter"), "navbar existante conservée");

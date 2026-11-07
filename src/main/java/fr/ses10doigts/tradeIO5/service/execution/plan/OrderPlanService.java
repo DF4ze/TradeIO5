@@ -264,7 +264,7 @@ public class OrderPlanService {
 
     /** Base amount du preset du binding au jour du plan (nul si le run du preset est absent). */
     private BigDecimal baseAmountOf(RainbowLiveBinding binding, LocalDate day) {
-        return presetRunRepository.findByPresetAndDay(binding.getPreset(), day).map(run -> run.getConfig())
+        return presetRunRepository.findByAffectationAndDay(binding.getAffectation(), day).map(run -> run.getConfig())
                 .map(RainbowAtrConfig::getBaseAmount).map(BigDecimal::valueOf).orElse(null);
     }
 

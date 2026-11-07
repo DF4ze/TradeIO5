@@ -24,7 +24,7 @@ import java.util.Objects;
 /**
  * Paramètres Rainbow DCA ATR en colonnes typées (1 par paramètre) : mapping 1:1 avec
  * {@link RainbowAtrTuning} (17) + {@link RainbowAtrGlobals} (12 + 4 multiplicateurs + base).
- * Réutilisé par {@link RainbowLivePreset} (config courante) et {@link RainbowLiveRun} (snapshot).
+ * Réutilisé par {@link RainbowPreset} (config) et {@link RainbowLiveRun} (snapshot).
  */
 @Embeddable
 @Data

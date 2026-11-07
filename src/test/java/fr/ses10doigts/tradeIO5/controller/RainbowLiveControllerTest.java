@@ -5,18 +5,15 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
-import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLivePresetRepository;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
+import fr.ses10doigts.tradeIO5.repository.dca.bench.AssetAffectationRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrTuning;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowAssetStrategyService;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.CreateRequest;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.UpdateRequest;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetAffectationService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveQueryService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveRunService;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
@@ -58,10 +55,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@link IAuthenticationFacade}.
  */
 @DataJpaTest
-@Import({RainbowLivePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService.class, RainbowAssetStrategyService.class, RainbowLiveRunService.class,
+@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService.class, RainbowLiveRunService.class,
         RainbowLiveQueryService.class,
         RainbowLiveControllerTest.ClockConfig.class})
-@DisplayName("RainbowLiveController : API REST des presets Rainbow")
+@DisplayName("RainbowLiveController : API REST des Affectations")
 class RainbowLiveControllerTest {
 
     private static final LocalDate DAY1 = LocalDate.of(2026, 10, 1);
@@ -76,11 +73,12 @@ class RainbowLiveControllerTest {
         }
     }
 
-    @Autowired private RainbowLivePresetService presetService;
-    @Autowired private RainbowAssetStrategyService strategyService;
+    @Autowired private fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures fixtures;
+    @Autowired private AssetAffectationService affectationService;
+    @Autowired private fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService basePresetService;
     @Autowired private RainbowLiveRunService runService;
     @Autowired private RainbowLiveQueryService queryService;
-    @Autowired private RainbowLivePresetRepository presetRepository;
+    @Autowired private AssetAffectationRepository affectationRepository;
     @Autowired private RainbowLiveRunRepository runRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private EntityManager em;
@@ -94,10 +92,11 @@ class RainbowLiveControllerTest {
 
     @BeforeEach
     void setUp() {
+        basePresetService.ensureBasePresets();
         alice = userRepository.save(User.builder().username("alice").email("alice@example.com").password("x").build());
         bob = userRepository.save(User.builder().username("bob").email("bob@example.com").password("x").build());
         as(alice);
-        mvc = MockMvcBuilders.standaloneSetup(new RainbowLiveController(presetService, queryService, facade))
+        mvc = MockMvcBuilders.standaloneSetup(new RainbowLiveController(affectationService, queryService, facade))
                 .setControllerAdvice(new RainbowLiveControllerAdvice())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(om)).build();
     }
@@ -106,13 +105,9 @@ class RainbowLiveControllerTest {
         when(facade.getConnectedUser()).thenReturn(u);
     }
 
-    private static CreateRequest createRequest(String asset, String name) {
-        RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor(asset);
-        return new CreateRequest(asset, name, true, 6, c.toTuning(), c.toGlobals());
-    }
-
-    private RainbowLivePreset btcPreset(User u, String name) {
-        return presetService.create(u, createRequest("BTC", name));
+    private AssetAffectation btc(User u) {
+        RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor("BTC");
+        return fixtures.affectation(u, "BTC", "Bench", c.toTuning(), c.toGlobals());
     }
 
     private ResultActions postJson(String url, Object body) throws Exception {
@@ -128,7 +123,7 @@ class RainbowLiveControllerTest {
                 .actionType(type).actionAmountUsdc(amount).actionQuantity(qty).actionPrice(close).build();
     }
 
-    private void play(RainbowLivePreset p, LocalDate day, RainbowLivePassBlock b) {
+    private void play(AssetAffectation p, LocalDate day, RainbowLivePassBlock b) {
         runService.upsert(p, day, b);
     }
 
@@ -153,77 +148,55 @@ class RainbowLiveControllerTest {
                 .andExpect(jsonPath("$.zones[0].code").value(0))
                 .andExpect(jsonPath("$.zones[0].name").value("EXTREME_BAS"))
                 .andExpect(jsonPath("$.zones[5].name").value("EXTREME_HAUT"))
-                .andExpect(jsonPath("$.zones[2].label").value("Zone ×1"))
-                .andExpect(jsonPath("$.systemPrefix").value("[Système] "));
+                .andExpect(jsonPath("$.zones[2].label").value("Zone ×1"));
     }
 
     @Test
-    @DisplayName("GET /presets : un preset par stratégie, qui la suit (3, inactifs, préfixés) ; filtre ?asset ; actif invalide ⇒ 400")
-    void listCopiesSystemPresetsAndFilters() throws Exception {
-        strategyService.ensureStrategies();
-        mvc.perform(get("/api/rainbow-live/presets"))
+    @DisplayName("GET /affectations : une Affectation par actif sur les presets de base (3, inactives) ; filtre ?asset ; actif invalide ⇒ 400")
+    void listCreatesBaseAffectationsAndFilters() throws Exception {
+        mvc.perform(get("/api/rainbow-live/affectations"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(3))
                 .andExpect(jsonPath("$[0].assetSymbol").value("BTC"))
-                .andExpect(jsonPath("$[0].name").value("[Système] Trend Mix"))
-                .andExpect(jsonPath("$[0].followsStrategy").value(true))
-                .andExpect(jsonPath("$[0].strategyRevision").value(1))
+                .andExpect(jsonPath("$[0].complete").value(true))
                 .andExpect(jsonPath("$[0].enabled").value(false))
-                .andExpect(jsonPath("$[0].mode").value("TREND_MIX"))
+                .andExpect(jsonPath("$[0].trendPreset.origin").value("SYSTEM"))
+                .andExpect(jsonPath("$[0].rainbowUp.origin").value("SYSTEM"))
+                .andExpect(jsonPath("$[0].rainbowDown.origin").value("SYSTEM"))
                 .andExpect(jsonPath("$[0].runCount").value(0))
                 .andExpect(jsonPath("$[0].lastRun").doesNotExist());
 
-        mvc.perform(get("/api/rainbow-live/presets")).andExpect(jsonPath("$.length()").value(3));
-        mvc.perform(get("/api/rainbow-live/presets").param("asset", "ETH"))
+        mvc.perform(get("/api/rainbow-live/affectations").param("asset", "ETH"))
                 .andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].assetSymbol").value("ETH"));
-        mvc.perform(get("/api/rainbow-live/presets").param("asset", "SOL")).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/rainbow-live/affectations").param("asset", "SOL")).andExpect(status().isBadRequest());
     }
 
     @Test
-    @DisplayName("Preset qui suit une stratégie : PUT et DELETE ⇒ 409, PATCH /enabled autorisé ; nom préfixé refusé à la création")
-    void systemPresetIsLocked() throws Exception {
-        strategyService.ensureStrategies();
-        mvc.perform(get("/api/rainbow-live/presets")).andExpect(status().isOk());
-        Long id = presetRepository.findByUserAndAssetSymbolAndName(alice, "BTC", "[Système] Trend Mix").orElseThrow().getId();
-        RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor("BTC");
+    @DisplayName("PATCH /affectations/{id}/enabled : active puis désactive ; aucun endpoint de création / suppression")
+    void toggleEnabled() throws Exception {
+        mvc.perform(get("/api/rainbow-live/affectations")).andExpect(status().isOk());
+        Long id = affectationRepository.findByUserAndAssetSymbol(alice, "BTC").orElseThrow().getId();
 
-        putJson("/api/rainbow-live/presets/" + id, new UpdateRequest("x", true, 6, c.toTuning(), c.toGlobals()))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error").exists());
-        mvc.perform(delete("/api/rainbow-live/presets/" + id)).andExpect(status().isConflict());
-
-        mvc.perform(patch("/api/rainbow-live/presets/" + id + "/enabled").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(patch("/api/rainbow-live/affectations/" + id + "/enabled").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"enabled\":true}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.enabled").value(true))
-                .andExpect(jsonPath("$.name").value("[Système] Trend Mix"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.enabled").value(true));
+        mvc.perform(patch("/api/rainbow-live/affectations/" + id + "/enabled").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"enabled\":false}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.enabled").value(false));
 
-        postJson("/api/rainbow-live/presets", createRequest("BTC", "[Système] perso")).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/rainbow-live/affectations")).andExpect(status().is4xxClientError());
+        mvc.perform(delete("/api/rainbow-live/affectations/" + id)).andExpect(status().is4xxClientError());
     }
 
     @Test
-    @DisplayName("GET /strategies : 3 stratégies en lecture seule (aucun endpoint d'écriture côté user)")
-    void strategiesReadOnly() throws Exception {
-        strategyService.ensureStrategies();
-        mvc.perform(get("/api/rainbow-live/strategies"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(3))
-                .andExpect(jsonPath("$[0].assetSymbol").value("BTC"))
-                .andExpect(jsonPath("$[0].name").value("Trend Mix"))
-                .andExpect(jsonPath("$[0].mode").value("TREND_MIX"))
-                .andExpect(jsonPath("$[0].revision").value(1))
-                .andExpect(jsonPath("$[0].trendConfig.trend.shortWindow").exists());
-        mvc.perform(post("/api/rainbow-live/strategies")).andExpect(status().is4xxClientError());
-        mvc.perform(delete("/api/rainbow-live/strategies/1")).andExpect(status().is4xxClientError());
-    }
-
-    @Test
-    @DisplayName("GET /presets : nb de runs, 1er run et dernier run résumé")
+    @DisplayName("GET /affectations : nb de runs, 1er run et dernier run résumé")
     void listEnriched() throws Exception {
-        RainbowLivePreset p = btcPreset(alice, "Bench");
+        AssetAffectation p = btc(alice);
         play(p, DAY1, block(RainbowLiveAction.BUY, 100.0, 0.001, 100_000));
         play(p, DAY2, block(RainbowLiveAction.NONE, null, null, 110_000));
         em.flush();
 
-        mvc.perform(get("/api/rainbow-live/presets").param("asset", "BTC"))
+        mvc.perform(get("/api/rainbow-live/affectations").param("asset", "BTC"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].runCount").value(2))
                 .andExpect(jsonPath("$[0].firstRunDay").value("2026-10-01"))
@@ -232,87 +205,18 @@ class RainbowLiveControllerTest {
                 .andExpect(jsonPath("$[0].lastRun.close").value(110_000.0));
     }
 
-    // ---------------------------------------------------------------- CRUD
-
     @Test
-    @DisplayName("CRUD complet : POST 201, GET détail, PUT (actif inchangé), DELETE 204 puis 404")
-    void crud() throws Exception {
-        postJson("/api/rainbow-live/presets", createRequest("ETH", "Mon ETH"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.assetSymbol").value("ETH"))
-                .andExpect(jsonPath("$.name").value("Mon ETH"))
-                .andExpect(jsonPath("$.tuning.smaPeriod").value(36))
-                .andExpect(jsonPath("$.globals.baseAmount").value(1.0));
-        Long id = presetRepository.findByUserAndAssetSymbolAndName(alice, "ETH", "Mon ETH").orElseThrow().getId();
-
-        mvc.perform(get("/api/rainbow-live/presets/" + id))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id));
-
-        RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor("ETH");
-        putJson("/api/rainbow-live/presets/" + id, new UpdateRequest("Renommé", false, 12,
-                c.toTuning().toBuilder().set("smaPeriod", 20).build(), c.toGlobals()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Renommé"))
-                .andExpect(jsonPath("$.enabled").value(false))
-                .andExpect(jsonPath("$.analysisWindowMonths").value(12))
-                .andExpect(jsonPath("$.tuning.smaPeriod").value(20))
-                .andExpect(jsonPath("$.assetSymbol").value("ETH"));
-
-        mvc.perform(delete("/api/rainbow-live/presets/" + id)).andExpect(status().isNoContent());
-        mvc.perform(get("/api/rainbow-live/presets/" + id)).andExpect(status().isNotFound());
-    }
-
-    @Test
-    @DisplayName("Preset d'un autre user ou inexistant ⇒ 404 sur tous les endpoints (pas de fuite d'existence)")
+    @DisplayName("Affectation d'un autre user ou inexistante ⇒ 404 (pas de fuite d'existence)")
     void notOwnedOrMissing() throws Exception {
-        RainbowLivePreset alicePreset = btcPreset(alice, "Bench");
+        AssetAffectation aliceAffectation = btc(alice);
         as(bob);
-        RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor("BTC");
-        UpdateRequest upd = new UpdateRequest("x", true, 6, c.toTuning(), c.toGlobals());
 
-        for (Long id : new Long[]{alicePreset.getId(), 987654L}) {
-            String base = "/api/rainbow-live/presets/" + id;
+        for (Long id : new Long[]{aliceAffectation.getId(), 987654L}) {
+            String base = "/api/rainbow-live/affectations/" + id;
             mvc.perform(get(base)).andExpect(status().isNotFound());
-            putJson(base, upd).andExpect(status().isNotFound());
-            mvc.perform(delete(base)).andExpect(status().isNotFound());
+            mvc.perform(patch(base + "/enabled").contentType(MediaType.APPLICATION_JSON).content("{\"enabled\":true}"))
+                    .andExpect(status().isNotFound());
         }
-        assertTrue(presetRepository.findById(alicePreset.getId()).isPresent(), "le preset d'alice est intact");
-    }
-
-    @Test
-    @DisplayName("Payload invalide ⇒ 400 (tuning invalide, actif interdit, fenêtre 0, JSON illisible) ; nom en double ⇒ 409")
-    void validation() throws Exception {
-        RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor("BTC");
-        RainbowAtrTuning badTuning = c.toTuning().toBuilder().set("atrMultUp1", 9.0).build(); // up1 > up2
-        postJson("/api/rainbow-live/presets", new CreateRequest("BTC", "a", true, 6, badTuning, c.toGlobals()))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
-        postJson("/api/rainbow-live/presets", new CreateRequest("SOL", "a", true, 6, c.toTuning(), c.toGlobals()))
-                .andExpect(status().isBadRequest());
-        postJson("/api/rainbow-live/presets", new CreateRequest("BTC", "a", true, 0, c.toTuning(), c.toGlobals()))
-                .andExpect(status().isBadRequest());
-        mvc.perform(post("/api/rainbow-live/presets").contentType(MediaType.APPLICATION_JSON).content("{pas du json"))
-                .andExpect(status().isBadRequest());
-        assertTrue(presetService.list(alice).isEmpty(), "aucun preset créé par les payloads invalides");
-
-        postJson("/api/rainbow-live/presets", createRequest("BTC", "doublon")).andExpect(status().isCreated());
-        postJson("/api/rainbow-live/presets", createRequest("BTC", "doublon")).andExpect(status().isConflict());
-
-        Long id = presetRepository.findByUserAndAssetSymbolAndName(alice, "BTC", "doublon").orElseThrow().getId();
-        putJson("/api/rainbow-live/presets/" + id, new UpdateRequest("x", true, 0, c.toTuning(), c.toGlobals()))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    @DisplayName("DELETE ⇒ runs disparus")
-    void deleteRemovesRuns() throws Exception {
-        RainbowLivePreset p = btcPreset(alice, "Bench");
-        play(p, DAY1, block(RainbowLiveAction.BUY, 100.0, 0.001, 100_000));
-        em.flush();
-        assertEquals(1, runRepository.count());
-
-        mvc.perform(delete("/api/rainbow-live/presets/" + p.getId())).andExpect(status().isNoContent());
-        em.clear();
-
-        assertEquals(0, runRepository.count());
+        assertTrue(affectationRepository.findById(aliceAffectation.getId()).orElseThrow().isEnabled(), "Affectation d'alice intacte");
     }
 }

@@ -28,9 +28,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * Lien (utilisateur, actif) -> preset « live » + wallet réel (lecture seule). L'unicité (user, actif) garantit un seul
- * preset live par actif ; changer de preset live = modifier ce lien (l'ancien preset reste disponible, son
- * historique est conservé). Donnée utilisateur : créée par l'API, jamais par un initializer.
+ * Lien (utilisateur, actif, wallet) -> Affectation de l'actif + wallet réel (lecture seule). Changer de presets = modifier
+ * l'Affectation (le lien suit). Donnée utilisateur : créée par l'API, jamais par un initializer.
  */
 @Entity
 @Table(name = "rainbow_live_binding",
@@ -54,10 +53,10 @@ public class RainbowLiveBinding {
     @Column(name = "asset_symbol", nullable = false, length = 16)
     private String assetSymbol;
 
-    /** Le preset live de l'actif. */
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "preset_id", nullable = false)
-    private RainbowLivePreset preset;
+    /** Affectation (utilisateur, actif) jouée en live pour ce lien. */
+    @ManyToOne
+    @JoinColumn(name = "affectation_id")
+    private AssetAffectation affectation;
 
     /** Wallet réel lu (exchange + credential). */
     @ToString.Exclude

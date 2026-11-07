@@ -31,7 +31,7 @@ import java.util.function.Function;
  * l'historique : l'ATH et l'automate moon l'exigent). Sorties dans {@code <dir>} : un CSV jour par jour par
  * (actif, mode) et {@code replay.html} (page autonome : données et lightweight-charts embarqués).
  * Usage : {@code RainbowAtrReplayMain <dir> [début=2024-06-10] [fin=dernière bougie]}, à lancer depuis la racine
- * du repo (gabarit {@code src/test/resources/rainbow-replay/replay-template.html}).
+ * du repo (gabarit {@code tools/rainbow-replay/replay-template.html}).
  * <p>
  * Modes : preset fixe Bear / Bull (comparaison propre au pine) ; Trend avec RANGE = garder le jeu précédent /
  * → Bear / → Bull ; Trend Mix (équivalent Java de {@code tools/pine/rainbow_trend_dca_v1.pine}, RANGE : garder).
@@ -100,7 +100,7 @@ public final class RainbowAtrReplayMain {
     }
 
     public static void main(String[] args) throws IOException {
-        Path dir = Path.of(args.length > 0 ? args[0] : "target/rainbow-replay");
+        Path dir = Path.of(args.length > 0 ? args[0] : "tools/rainbow-replay/data");
         LocalDate start = LocalDate.parse(args.length > 1 ? args[1] : "2024-06-10");
         LocalDate end = args.length > 2 ? LocalDate.parse(args[2]) : null;
 
@@ -151,12 +151,12 @@ public final class RainbowAtrReplayMain {
         }
         json.append("}}");
 
-        String template = Files.readString(Path.of("src/test/resources/rainbow-replay/replay-template.html"));
+        String template = Files.readString(Path.of("tools/rainbow-replay/replay-template.html"));
         if (!template.contains("/*__DATA__*/")) {
             throw new IllegalStateException("gabarit sans marqueur /*__DATA__*/");
         }
         // lightweight-charts (Apache-2.0) embarqué : la page n'a besoin d'aucun accès réseau
-        String lib = Files.readString(Path.of("src/test/resources/rainbow-replay/lightweight-charts.standalone.production.js"));
+        String lib = Files.readString(Path.of("tools/rainbow-replay/lightweight-charts.standalone.production.js"));
         Files.writeString(dir.resolve("replay.html"),
                 template.replace("/*__LWC__*/", lib).replace("/*__DATA__*/null", json.toString()));
         System.out.println("OK -> " + dir.resolve("replay.html"));

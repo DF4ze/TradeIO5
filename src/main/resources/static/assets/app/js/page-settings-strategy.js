@@ -112,9 +112,9 @@
     let widget;
     const refresh = () => widget.reload();
     const load = async () => {
-      const [bindings, presets] = await Promise.all([TIO.get(BIND), TIO.safe(TIO.get('/api/rainbow-live/presets'), [])]);
+      const [bindings, presets] = await Promise.all([TIO.get(BIND), TIO.safe(TIO.get('/api/rainbow-live/affectations'), [])]);
       const presetBase = Object.fromEntries(presets.map((p) => [p.id, p.globals && p.globals.baseAmount]));
-      return bindings.map((b) => ({ b, presetBase: presetBase[b.presetId] }));
+      return bindings.map((b) => ({ b, presetBase: presetBase[b.affectationId] }));
     };
     const render = (items) => {
       if (!items.length) return ui.empty('Aucun actif géré', 'Reliez un actif à un exchange pour régler son mode et ses limites.', h('a', { class: 'btn btn--primary', href: TIO.href('/app/onboarding') }, 'Démarrer'));

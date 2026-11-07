@@ -21,14 +21,14 @@ import org.hibernate.annotations.OnDeleteAction;
 import java.time.LocalDate;
 
 /**
- * État de la machine Rainbow ({@link RainbowAtrState}) d'un preset {@code TREND_MIX} à la FIN du jour {@code day}
- * (après la passe 23:55). Une ligne par (preset, jour) : la passe du lendemain repart de la dernière ligne
- * antérieure à son jour. Supprimé avec son preset.
+ * État de la machine Rainbow ({@link RainbowAtrState}) d'une Affectation à la FIN du jour {@code day}
+ * (après la passe 23:55). Une ligne par (Affectation, jour) : la passe du lendemain repart de la dernière ligne
+ * antérieure à son jour. Supprimé avec son Affectation.
  * Les NaN du moteur (« sans objet ») sont stockés {@code null}.
  */
 @Entity
 @Table(name = "rainbow_live_engine_state",
-        uniqueConstraints = @UniqueConstraint(name = "uk_rainbow_live_engine_state_preset_day", columnNames = {"preset_id", "state_day"}))
+        uniqueConstraints = @UniqueConstraint(name = "uk_rainbow_live_engine_state_affectation_day", columnNames = {"affectation_id", "state_day"}))
 @Data
 @Builder
 @NoArgsConstructor
@@ -39,10 +39,10 @@ public class RainbowLiveEngineState {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(optional = false)
+    @ManyToOne
     @OnDelete(action = OnDeleteAction.CASCADE)
-    @JoinColumn(name = "preset_id", nullable = false)
-    private RainbowLivePreset preset;
+    @JoinColumn(name = "affectation_id")
+    private AssetAffectation affectation;
 
     @Column(name = "state_day", nullable = false)
     private LocalDate day;
@@ -62,7 +62,7 @@ public class RainbowLiveEngineState {
     /** Position VIRTUELLE du moteur (quantité), base de la réserve moon et des ventes ; indépendante de tout wallet. */
     private double positionQty;
 
-    /** Hash de la config effective (jeux Bear/Bull + réglages Trend + fenêtre) avec laquelle l'état a été calculé. */
+    /** Hash de la config effective (presets Rainbow UP/DOWN + réglages Trend + fenêtre) avec laquelle l'état a été calculé. */
     @Column(length = 64)
     private String configHash;
 
@@ -86,8 +86,8 @@ public class RainbowLiveEngineState {
         moonPeak = nullable(s.moon().peak());
     }
 
-    public static RainbowLiveEngineState of(RainbowLivePreset preset, LocalDate day, RainbowAtrState s) {
-        RainbowLiveEngineState e = RainbowLiveEngineState.builder().preset(preset).day(day).build();
+    public static RainbowLiveEngineState of(AssetAffectation affectation, LocalDate day, RainbowAtrState s) {
+        RainbowLiveEngineState e = RainbowLiveEngineState.builder().affectation(affectation).day(day).build();
         e.apply(s);
         return e;
     }

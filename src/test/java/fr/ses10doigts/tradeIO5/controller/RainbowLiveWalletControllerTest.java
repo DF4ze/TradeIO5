@@ -9,7 +9,7 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBindingRun;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
 import fr.ses10doigts.tradeIO5.model.enumerate.WalletSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.repository.WalletRepository;
@@ -19,8 +19,7 @@ import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.CreateRequest;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetAffectationService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveWalletQueryService;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
@@ -56,7 +55,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * sans binding / sans snapshot), isolation entre users, absence de secret, aucune dépendance exchange.
  */
 @DataJpaTest
-@Import({RainbowLivePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService.class, RainbowLiveWalletQueryService.class, RainbowLiveWalletControllerTest.ClockConfig.class})
+@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService.class, RainbowLiveWalletQueryService.class, RainbowLiveWalletControllerTest.ClockConfig.class})
 @DisplayName("RainbowLiveWalletController : wallet réel affiché depuis le snapshot")
 class RainbowLiveWalletControllerTest {
 
@@ -71,7 +70,7 @@ class RainbowLiveWalletControllerTest {
         }
     }
 
-    @Autowired private RainbowLivePresetService presetService;
+    @Autowired private fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures fixtures;
     @Autowired private RainbowLiveWalletQueryService queryService;
     @Autowired private RainbowLiveBindingRepository bindingRepository;
     @Autowired private RainbowLiveBindingRunRepository runRepository;
@@ -98,15 +97,15 @@ class RainbowLiveWalletControllerTest {
         when(facade.getConnectedUser()).thenReturn(u);
     }
 
-    private RainbowLivePreset preset(User user, String asset, String name) {
+    private AssetAffectation preset(User user, String asset, String name) {
         RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor(asset);
-        return presetService.create(user, new CreateRequest(asset, name, true, 6, c.toTuning(), c.toGlobals()));
+        return fixtures.affectation(user, asset, name, c.toTuning(), c.toGlobals());
     }
 
-    private RainbowLiveBinding bind(User user, String asset, RainbowLivePreset preset, double bag, int priority) {
+    private RainbowLiveBinding bind(User user, String asset, AssetAffectation preset, double bag, int priority) {
         Wallet w = walletRepository.save(Wallet.builder().name("OKX " + user.getUsername() + " " + asset).source(WalletSource.EXCHANGE)
                 .webProviderCode(WebProviderCode.OKX).user(user).build());
-        return bindingRepository.save(RainbowLiveBinding.builder().user(user).assetSymbol(asset).preset(preset)
+        return bindingRepository.save(RainbowLiveBinding.builder().user(user).assetSymbol(asset).affectation(preset)
                 .wallet(w).bagPercent(bag).priority(priority).build());
     }
 
@@ -119,22 +118,22 @@ class RainbowLiveWalletControllerTest {
     }
 
     /** Run du lien (unique) du preset. */
-    private void run(User user, RainbowLivePreset preset, LocalDate day, RainbowLiveLiveBlock block) {
-        runRepository.save(RainbowLiveBindingRun.builder().binding(bindingRepository.findAllByPreset(preset).getFirst())
+    private void run(User user, AssetAffectation preset, LocalDate day, RainbowLiveLiveBlock block) {
+        runRepository.save(RainbowLiveBindingRun.builder().binding(bindingRepository.findAllByAffectation(preset).getFirst())
                 .day(day).live(block).build());
     }
 
     @Test
     @DisplayName("OK : wallet, statut, fetchedAt, cash, position, bag, cash réservé et action recommandée")
     void ok() throws Exception {
-        RainbowLivePreset p = preset(alice, "BTC", "live");
+        AssetAffectation p = preset(alice, "BTC", "live");
         bind(alice, "BTC", p, 60.0, 0);
         run(alice, p, LocalDate.of(2026, 10, 9),
                 live(PortfolioStatus.OK, LiveBlockReason.NONE, RainbowLiveAction.BUY, 100.0, 0.001));
         mvc.perform(get(URL)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].assetSymbol").value("BTC"))
-                .andExpect(jsonPath("$[0].presetName").value("live"))
+                .andExpect(jsonPath("$[0].affectationName").value(org.hamcrest.Matchers.startsWith("live")))
                 .andExpect(jsonPath("$[0].exchange").value("OKX"))
                 .andExpect(jsonPath("$[0].bagPercent").value(60.0))
                 .andExpect(jsonPath("$[0].snapshot.status").value("OK"))
@@ -153,7 +152,7 @@ class RainbowLiveWalletControllerTest {
     @Test
     @DisplayName("BLOCKED : action BLOCKED + INSUFFICIENT_CASH restitués ")
     void blocked() throws Exception {
-        RainbowLivePreset p = preset(alice, "ETH", "live");
+        AssetAffectation p = preset(alice, "ETH", "live");
         bind(alice, "ETH", p, 100.0, 1);
         run(alice, p, LocalDate.of(2026, 10, 9),
                 live(PortfolioStatus.OK, LiveBlockReason.INSUFFICIENT_CASH, RainbowLiveAction.BLOCKED, null, null));
@@ -166,7 +165,7 @@ class RainbowLiveWalletControllerTest {
     @Test
     @DisplayName("UNAVAILABLE : statut restitué, action NONE")
     void unavailable() throws Exception {
-        RainbowLivePreset btc = preset(alice, "BTC", "live");
+        AssetAffectation btc = preset(alice, "BTC", "live");
         bind(alice, "BTC", btc, 100.0, 0);
         run(alice, btc, LocalDate.of(2026, 10, 9),
                 live(PortfolioStatus.UNAVAILABLE, LiveBlockReason.UNAVAILABLE, RainbowLiveAction.NONE, null, null));
@@ -178,7 +177,7 @@ class RainbowLiveWalletControllerTest {
     @Test
     @DisplayName("Dernier run retenu ; run sans snapshot live => snapshot nul")
     void latestRunSelection() throws Exception {
-        RainbowLivePreset p = preset(alice, "BTC", "live");
+        AssetAffectation p = preset(alice, "BTC", "live");
         bind(alice, "BTC", p, 100.0, 0);
         run(alice, p, LocalDate.of(2026, 10, 8),
                 live(PortfolioStatus.UNAVAILABLE, LiveBlockReason.UNAVAILABLE, RainbowLiveAction.NONE, null, null));
@@ -189,7 +188,7 @@ class RainbowLiveWalletControllerTest {
                 .andExpect(jsonPath("$[0].snapshot.day[1]").value(10))
                 .andExpect(jsonPath("$[0].snapshot.status").value("OK"));
 
-        RainbowLivePreset fresh = preset(alice, "PAXG", "fresh");
+        AssetAffectation fresh = preset(alice, "PAXG", "fresh");
         bind(alice, "PAXG", fresh, 100.0, 2);
         run(alice, fresh, LocalDate.of(2026, 10, 9), RainbowLiveLiveBlock.builder().build());
         mvc.perform(get(URL)).andExpect(jsonPath("$[1].assetSymbol").value("PAXG"))
@@ -206,16 +205,16 @@ class RainbowLiveWalletControllerTest {
     @Test
     @DisplayName("Isolation : un user ne voit que ses bindings et snapshots")
     void isolation() throws Exception {
-        RainbowLivePreset ap = preset(alice, "BTC", "live");
+        AssetAffectation ap = preset(alice, "BTC", "live");
         bind(alice, "BTC", ap, 100.0, 0);
         run(alice, ap, LocalDate.of(2026, 10, 9),
                 live(PortfolioStatus.OK, LiveBlockReason.NONE, RainbowLiveAction.NONE, null, null));
         as(bob);
         mvc.perform(get(URL)).andExpect(jsonPath("$.length()").value(0));
-        RainbowLivePreset bp = preset(bob, "BTC", "live-bob");
+        AssetAffectation bp = preset(bob, "BTC", "live-bob");
         bind(bob, "BTC", bp, 10.0, 0);
         mvc.perform(get(URL)).andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].presetName").value("live-bob"))
+                .andExpect(jsonPath("$[0].affectationName").value(org.hamcrest.Matchers.startsWith("live-bob")))
                 .andExpect(jsonPath("$[0].bagPercent").value(10.0))
                 .andExpect(jsonPath("$[0].snapshot").doesNotExist());
     }
@@ -223,7 +222,7 @@ class RainbowLiveWalletControllerTest {
     @Test
     @DisplayName("Aucun secret ni credential dans la réponse")
     void noSecretInResponse() throws Exception {
-        RainbowLivePreset p = preset(alice, "BTC", "live");
+        AssetAffectation p = preset(alice, "BTC", "live");
         bind(alice, "BTC", p, 100.0, 0);
         run(alice, p, LocalDate.of(2026, 10, 9),
                 live(PortfolioStatus.OK, LiveBlockReason.NONE, RainbowLiveAction.NONE, null, null));

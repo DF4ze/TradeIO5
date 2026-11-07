@@ -12,7 +12,7 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBindingRun;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePassBlock;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
 import fr.ses10doigts.tradeIO5.model.enumerate.WalletSource;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.TimeFrame;
@@ -68,7 +68,7 @@ import static org.mockito.Mockito.when;
  * {@code base} (50 USDC) par jour ; série finale en hausse => SELL.
  */
 @DataJpaTest
-@Import({RainbowLivePresetConfigResolver.class, RainbowLivePresetEventService.class, RainbowLivePresetService.class, RainbowAssetStrategyService.class, RainbowLiveRunService.class,
+@Import({AffectationConfigResolver.class, RainbowLivePresetEventService.class, AssetAffectationService.class, ExpertFixtures.class, ExpertBasePresetService.class, RainbowLiveRunService.class,
         RainbowLiveExecutionService.class, RainbowLiveBindingRunService.class, RainbowTrendLiveService.class, fr.ses10doigts.tradeIO5.service.admin.AdminActionLogService.class, RainbowAthService.class, fr.ses10doigts.tradeIO5.service.portfolio.PortfolioSnapshotService.class,
         RainbowLiveRealCashTest.ClockConfig.class, UserTradingSettingsService.class, RainbowModulationControlService.class})
 @DisplayName("Bench Rainbow : preset live sur vrai cash (ledger, blocage, indisponibilité, rejeu, jour suivant)")
@@ -101,7 +101,7 @@ class RainbowLiveRealCashTest {
     @MockBean private fr.ses10doigts.tradeIO5.service.calibration.BinanceDailyCandleFetcher binanceDailyCandleFetcher;
     @MockBean private RealPortfolioSource realSource;
     @Autowired private RainbowLiveExecutionService service;
-    @Autowired private RainbowLivePresetService presetService;
+    @Autowired private ExpertFixtures fixtures;
     @Autowired private RainbowLiveRunRepository runRepository;
     @Autowired private RainbowLiveBindingRepository bindingRepository;
     @Autowired private RainbowLiveBindingRunRepository bindingRunRepository;
@@ -188,36 +188,36 @@ class RainbowLiveRealCashTest {
         return a;
     }
 
-    private RainbowLivePreset preset(String asset, RainbowAtrTuning t) {
-        return presetService.create(alice, new RainbowLivePresetService.CreateRequest(asset, "t", true, 6, t, globals()));
+    private AssetAffectation preset(String asset, RainbowAtrTuning t) {
+        return fixtures.affectation(alice, asset, "t", t, globals());
     }
 
     /** Un preset par actif (aucun preset par défaut ajouté par la passe). */
-    private Map<String, RainbowLivePreset> presetsAllAssets() {
-        Map<String, RainbowLivePreset> out = new HashMap<>();
+    private Map<String, AssetAffectation> presetsAllAssets() {
+        Map<String, AssetAffectation> out = new HashMap<>();
         RainbowLiveDefaultPresets.ASSETS.forEach(a -> out.put(a, preset(a, FLAT)));
         return out;
     }
 
-    private RainbowLiveBinding bind(RainbowLivePreset p, int priority, double bagPercent) {
+    private RainbowLiveBinding bind(AssetAffectation p, int priority, double bagPercent) {
         return bind(p, priority, bagPercent, wallet);
     }
 
     /** Lien (binding) du preset sur {@code w} : persisté (FK du run de lien) et déclaré au port simulé. */
-    private RainbowLiveBinding bind(RainbowLivePreset p, int priority, double bagPercent, Wallet w) {
+    private RainbowLiveBinding bind(AssetAffectation p, int priority, double bagPercent, Wallet w) {
         return bind(p, priority, bagPercent, w, null);
     }
 
-    private RainbowLiveBinding bind(RainbowLivePreset p, int priority, double bagPercent, Wallet w, MarketDataSource source) {
+    private RainbowLiveBinding bind(AssetAffectation p, int priority, double bagPercent, Wallet w, MarketDataSource source) {
         RainbowLiveBinding binding = bindingRepository.save(RainbowLiveBinding.builder().user(alice)
-                .assetSymbol(p.getAssetSymbol()).preset(p).wallet(w).bagPercent(bagPercent).priority(priority).build());
+                .assetSymbol(p.getAssetSymbol()).affectation(p).wallet(w).bagPercent(bagPercent).priority(priority).build());
         slots.add(new LiveSlot(binding.getId(), p.getId(), p.getAssetSymbol(), w.getId(), priority, bagPercent, source));
         return binding;
     }
 
     /** Signal du preset (non plafonné), partagé par tous ses liens. */
-    private RainbowLivePassBlock signal(RainbowLivePreset p) {
-        return runRepository.findByPresetAndDay(p, LAST_DAY).orElseThrow().getSignal();
+    private RainbowLivePassBlock signal(AssetAffectation p) {
+        return runRepository.findByAffectationAndDay(p, LAST_DAY).orElseThrow().getSignal();
     }
 
     /** Snapshot live du lien. */
@@ -230,9 +230,9 @@ class RainbowLiveRealCashTest {
     }
 
     @Test
-    @DisplayName("Signal par lien : chaque lien lit les candles de SA source ; le preset suit la source du lien prioritaire")
+    @DisplayName("Machine d'état unique : l'Affectation suit la source du lien prioritaire ; l'autre lien reçoit son signal, marqué substitué")
     void signalPerLinkOnLinkSource() {
-        RainbowLivePreset btc = presetsAllAssets().get("BTC");
+        AssetAffectation btc = presetsAllAssets().get("BTC");
         Wallet okxWallet = newWallet("okx-2");
         RainbowLiveBinding kraken = bind(btc, 0, 50, wallet, MarketDataSource.KRAKEN);
         RainbowLiveBinding okx = bind(btc, 1, 50, okxWallet, MarketDataSource.OKX);
@@ -243,19 +243,18 @@ class RainbowLiveRealCashTest {
 
         verify(datasetEngine, times(1)).getDailyDatasetForAsset(eq("BTC"),
                 eq(RainbowLiveDefaultPresets.D1_LOOKBACK_CANDLES), eq(ASOF_2355), eq(MarketDataSource.KRAKEN));
-        verify(datasetEngine, times(1)).getDailyDatasetForAsset(eq("BTC"),
-                eq(RainbowLiveDefaultPresets.D1_LOOKBACK_CANDLES), eq(ASOF_2355), eq(MarketDataSource.OKX));
+        verify(datasetEngine, never()).getDailyDatasetForAsset(eq("BTC"), anyInt(), any(Instant.class), eq(MarketDataSource.OKX));
         verify(datasetEngine, never()).getDailyDatasetForAsset(eq("BTC"), anyInt(), any(Instant.class), isNull());
         assertEquals(MarketDataSource.KRAKEN, live2355(kraken).getCandleSource());
         assertEquals(false, live2355(kraken).getCandleSourceSubstituted());
-        assertEquals(MarketDataSource.OKX, live2355(okx).getCandleSource());
-        assertEquals(false, live2355(okx).getCandleSourceSubstituted());
+        assertEquals(MarketDataSource.KRAKEN, live2355(okx).getCandleSource());
+        assertEquals(true, live2355(okx).getCandleSourceSubstituted());
     }
 
     @Test
     @DisplayName("Source du lien indisponible : fallback bruyant, snapshot du lien marqué substitué")
     void substitutedSourceIsFlaggedOnSnapshot() {
-        RainbowLivePreset btc = presetsAllAssets().get("BTC");
+        AssetAffectation btc = presetsAllAssets().get("BTC");
         RainbowLiveBinding link = bind(btc, 0, 100, wallet, MarketDataSource.KRAKEN);
         reading = reading(PortfolioStatus.OK, 1000.0, Map.of());
         substitutedSources.add(MarketDataSource.KRAKEN);
@@ -270,7 +269,7 @@ class RainbowLiveRealCashTest {
     @Test
     @DisplayName("Lien sans exchange de marché : défauts asset_provider (source null), jamais marqué substitué")
     void linkWithoutExchangeUsesDefaults() {
-        RainbowLivePreset btc = presetsAllAssets().get("BTC");
+        AssetAffectation btc = presetsAllAssets().get("BTC");
         RainbowLiveBinding link = bind(btc, 0, 100);
         reading = reading(PortfolioStatus.OK, 1000.0, Map.of());
 
@@ -283,7 +282,7 @@ class RainbowLiveRealCashTest {
     @Test
     @DisplayName("Achat <= cash : BUY live réservé, snapshot complet")
     void buyWithinCash() {
-        RainbowLivePreset btc = presetsAllAssets().get("BTC");
+        AssetAffectation btc = presetsAllAssets().get("BTC");
         RainbowLiveBinding link = bind(btc, 0, 100);
         reading = reading(PortfolioStatus.OK, 1000.0, Map.of("BTC", 0.4));
 
@@ -307,7 +306,7 @@ class RainbowLiveRealCashTest {
     @Test
     @DisplayName("Achat > cash : BLOCKED + INSUFFICIENT_CASH (tout-ou-rien), montant voulu conservé")
     void buyBeyondCashIsBlocked() {
-        RainbowLivePreset btc = presetsAllAssets().get("BTC");
+        AssetAffectation btc = presetsAllAssets().get("BTC");
         RainbowLiveBinding link = bind(btc, 0, 100);
         reading = reading(PortfolioStatus.OK, 10.0, Map.of());
 
@@ -323,7 +322,7 @@ class RainbowLiveRealCashTest {
     @Test
     @DisplayName("Cash commun : les liens passent par priority croissante, chaque achat réserve, le suivant voit le reste")
     void ledgerFollowsPriority() {
-        Map<String, RainbowLivePreset> p = presetsAllAssets();
+        Map<String, AssetAffectation> p = presetsAllAssets();
         RainbowLiveBinding btcLink = bind(p.get("BTC"), 2, 100);
         RainbowLiveBinding ethLink = bind(p.get("ETH"), 1, 100);
         RainbowLiveBinding paxgLink = bind(p.get("PAXG"), 3, 100);
@@ -346,7 +345,7 @@ class RainbowLiveRealCashTest {
     @Test
     @DisplayName("Portefeuille indisponible : aucune action live (UNAVAILABLE), le signal est conservé")
     void unavailableMeansNoAction() {
-        RainbowLivePreset btc = presetsAllAssets().get("BTC");
+        AssetAffectation btc = presetsAllAssets().get("BTC");
         RainbowLiveBinding link = bind(btc, 0, 100);
         reading = reading(PortfolioStatus.UNAVAILABLE, 0, Map.of());
 
@@ -364,13 +363,13 @@ class RainbowLiveRealCashTest {
     @Test
     @DisplayName("Presets sans lien : aucun run de lien, signal calculé quand même")
     void nonLivePresetsUntouched() {
-        Map<String, RainbowLivePreset> p = presetsAllAssets();
+        Map<String, AssetAffectation> p = presetsAllAssets();
         bind(p.get("BTC"), 0, 100);
 
         service.runPass(ASOF_2355);
 
         assertEquals(1, bindingRunRepository.count(), "un seul run de lien : celui de BTC");
-        assertTrue(bindingRepository.findAllByPreset(p.get("ETH")).isEmpty());
+        assertTrue(bindingRepository.findAllByAffectation(p.get("ETH")).isEmpty());
         assertEquals(RainbowLiveAction.BUY, signal(p.get("ETH")).getActionType());
     }
 
@@ -378,7 +377,7 @@ class RainbowLiveRealCashTest {
     @DisplayName("bagPercent 100 / 50 / 0 : vente plafonnée à bag x position réelle (signal non plafonné)")
     void bagPercentCapsSell() {
         double[] closes = concat(flat(N - 2, 100), 150, 150);
-        RainbowLivePreset btc = preset("BTC", SELLT);
+        AssetAffectation btc = preset("BTC", SELLT);
         serve("BTC", closes);
         reading = reading(PortfolioStatus.OK, 0, Map.of("BTC", 0.002));
         RainbowLiveBinding link = bind(btc, 0, 100);
@@ -417,7 +416,7 @@ class RainbowLiveRealCashTest {
     @Test
     @DisplayName("Rejeu 23:55 : snapshot et action live d'origine conservés même si le portefeuille a changé")
     void replayKeepsOriginalLiveAction() {
-        RainbowLivePreset btc = presetsAllAssets().get("BTC");
+        AssetAffectation btc = presetsAllAssets().get("BTC");
         RainbowLiveBinding link = bind(btc, 0, 100);
         service.runPass(ASOF_2355);
         assertEquals(RainbowLiveAction.BUY, live2355(link).getActionType());
@@ -435,7 +434,7 @@ class RainbowLiveRealCashTest {
     @Test
     @DisplayName("Patrimoine : un instantané par wallet et jour, lecture de la passe réutilisée, rejeu sans doublon")
     void passRecordsOneSnapshotPerWalletDay() {
-        RainbowLivePreset btc = presetsAllAssets().get("BTC");
+        AssetAffectation btc = presetsAllAssets().get("BTC");
         bind(btc, 0, 100);
         reading = reading(PortfolioStatus.OK, 1000.0, Map.of("BTC", 2.0));
 
@@ -452,7 +451,7 @@ class RainbowLiveRealCashTest {
     @Test
     @DisplayName("Jour suivant : nouveau snapshot lu (portefeuille relu), celui de la veille reste inchangé")
     void nextDayReadsFreshSnapshot() {
-        RainbowLivePreset btc = presetsAllAssets().get("BTC");
+        AssetAffectation btc = presetsAllAssets().get("BTC");
         RainbowLiveBinding link = bind(btc, 0, 100);
         service.runPass(ASOF_2355);
         reading = reading(PortfolioStatus.OK, 5.0, Map.of());   // le réel a bougé depuis
@@ -474,7 +473,7 @@ class RainbowLiveRealCashTest {
     @DisplayName("Même preset sur deux wallets : deux snapshots indépendants, signal identique, tailles différentes")
     void samePresetTwoLinksIndependentSnapshots() {
         double[] closes = concat(flat(N - 2, 100), 150, 150);
-        RainbowLivePreset btc = preset("BTC", SELLT);
+        AssetAffectation btc = preset("BTC", SELLT);
         serve("BTC", closes);
         Wallet kraken = newWallet("Kraken");
         RainbowLiveBinding okxLink = bind(btc, 0, 100, wallet);
@@ -495,13 +494,13 @@ class RainbowLiveRealCashTest {
         assertEquals(0.001, kr.getTradableQty(), 1e-12);
         assertEquals(Math.min(engineQty, 0.002), okx.getActionQuantity(), 1e-12);
         assertEquals(Math.min(engineQty, 0.001), kr.getActionQuantity(), 1e-12);
-        assertEquals(1, runRepository.countByPreset(btc), "un seul signal pour le preset");
+        assertEquals(1, runRepository.countByAffectation(btc), "un seul signal pour le preset");
     }
 
     @Test
     @DisplayName("Un wallet en panne n'altère pas l'autre lien ; cash commun par wallet respecté entre actifs d'un même wallet")
     void outageIsolatedAndCashPerWallet() {
-        Map<String, RainbowLivePreset> p = presetsAllAssets();
+        Map<String, AssetAffectation> p = presetsAllAssets();
         Wallet kraken = newWallet("Kraken");
         RainbowLiveBinding btcOkx = bind(p.get("BTC"), 0, 100, wallet);
         RainbowLiveBinding btcKraken = bind(p.get("BTC"), 1, 100, kraken);
@@ -523,7 +522,7 @@ class RainbowLiveRealCashTest {
     @Test
     @DisplayName("Supprimer un lien supprime ses runs, jamais ceux du preset")
     void deletingLinkKeepsPresetRuns() {
-        RainbowLivePreset btc = presetsAllAssets().get("BTC");
+        AssetAffectation btc = presetsAllAssets().get("BTC");
         RainbowLiveBinding link = bind(btc, 0, 100);
         service.runPass(ASOF_2355);
         assertEquals(1, bindingRunRepository.count());

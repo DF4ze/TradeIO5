@@ -6,14 +6,14 @@ Vérifié le : 2026-10-11 (code + décisions de Clem). Objectif n°1 du projet :
 
 | Brique | État |
 |---|---|
-| Moteur Rainbow ATR (pine v4 = source de vérité, port Java) | fait — découpé en couches L1 bornes / L2 `step` pur + `RainbowAtrState` / L3 `AthReference` / L4 `Sizer` (référence seulement) ; état et ATH persistés pour les presets `TREND_MIX` (`RainbowLiveEngineState`, `RainbowAthReference`) — [`04-market-data.md`](../architecture/04-market-data.md) |
-| Paramétrage par actif et par trend (Bull / Bear) | fait pour BTC, ETH, PAXG : presets `<ACTIF> Perso Bear/Bull` du pine v4 repris en Java ; stratégies Actif (une Trend Mix par actif, pilotées par System, suivies par les presets des users, inactifs au départ) aux réglages par défaut. Réglages PAXG ajustés à la main par Clem |
+| Moteur Rainbow ATR (pine v4 = source de vérité, port Java) | fait — découpé en couches L1 bornes / L2 `step` pur + `RainbowAtrState` / L3 `AthReference` / L4 `Sizer` (référence seulement) ; état et ATH persistés par Affectation / actif (`RainbowLiveEngineState`, `RainbowAthReference`) — [`04-market-data.md`](../architecture/04-market-data.md) |
+| Paramétrage par actif et par trend (Bull / Bear) | fait pour BTC, ETH, PAXG : presets système de base (« Trend de base », « <ACTIF> Bull », « <ACTIF> Bear », jeux du pine v4 repris en Java), installés par défaut dans l'Affectation de chaque utilisateur (inactive au départ). Réglages PAXG ajustés à la main par Clem |
 | Trend simple (`TrendAnalyzer`, UP/DOWN/RANGE) | fait — [`09-trend.md`](../architecture/09-trend.md) |
 | Client d'ordres Kraken | code et tests faits (`KrakenSpotOrderClient`, testeur d'ordre `validate`) ; **jamais utilisé en réel** : ni `validate` ni ordre réel passés sur Kraken, hypothèses sur l'API à confirmer au 1ᵉʳ essai. PAXG reste `NOT_TRADABLE_WITHOUT_FIAT` (aucune paire stable) |
 | Branchement Trend → jeu de paramètres | fait : Trend Mix (`TrendMixCalculator` = méga-pine `rainbow_trend_dca_v1.pine`, vérifié par Clem Java vs pine) choisit Bull/Bear à chaque bougie (`RainbowSetSelector`) ; état de la machine et ATH persistés ; branché au dry-run quotidien (presets `TREND_MIX`, [`08`](../architecture/08-rainbow-live.md)), pas à une exécution réelle |
 | Run Rainbow quotidien 23:55 UTC (signal des presets actifs, page web ; sans simulation de wallet ni performance) | fait, tourne chaque jour sur le VPS — [`08`](../architecture/08-rainbow-live.md) |
 | Candles du signal par lien (D1 natif 720 j, source = exchange du wallet) | fait en code, tests ciblés verts, **pas encore déployé ni exécuté en réel** (colonnes `candle_source*` ajoutées par `ddl-auto=update` au 1ᵉʳ démarrage). Reste : affichage page, ATH Trend Mix sur la source du lien, bascule Binance au-delà de 720 j — §8bis, [étude](../etudes/etude-source-candles-provider-du-lien.md) |
-| Recréation d'une base (Flyway + initializers) | fait : `V1__init.sql` généré (non activé), défauts créés par les initializers, stratégies Actif pilotées par System (presets qui les suivent) — [`operations/flyway.md`](../operations/flyway.md). données historiques (`candle`, `etf_flow_snapshot`) sauvegardées chaque semaine et rechargées au démarrage. **Ouvert** : sauvegarde récurrente de la branche décisionnelle (branche en pause) |
+| Recréation d'une base (Flyway + initializers) | fait : `V1__init.sql` généré (non activé), défauts créés par les initializers (presets système de base) — [`operations/flyway.md`](../operations/flyway.md). données historiques (`candle`, `etf_flow_snapshot`) sauvegardées chaque semaine et rechargées au démarrage. **Ouvert** : sauvegarde récurrente de la branche décisionnelle (branche en pause) |
 | Bande d'exposition, puissance, biais, onboarding | design validé, non fait — [spec V1 §2, §4–§7](../etudes/spec-rainbow-v1-trend-global-exposition-risque-macro.md) |
 | Risque macro (`riskCursor`) | non fait — spec V1 §3 |
 | Wallet réel (lecture seule) branché au preset live | fait : connecteurs, bindings, moteur sur vrai cash, page ; lecture OKX et Kraken vérifiée en réel (Home affiche PAXG Kraken) ; reste la bascule preset / `bagPercent` et les cas BLOCKED / UNAVAILABLE en conditions réelles, cf. §5 ; `WalletSnapshot` (branche décisionnelle) non branché — [`decision-to-order-gap.md`](decision-to-order-gap.md) |
@@ -83,12 +83,12 @@ Aujourd'hui seuls OKX et Kraken (lecture + ordres) et Binance (lecture, données
 
 Constat du 2026-10-05 : trop de ventes, le bag ne gonfle pas. Réglage manuel par Clem (pas de chantier de code).
 
-## 6b. Stratégies Actif : gestion System et Stratégie Wallet (reste à faire)
+## 6b. Presets système et Stratégie Wallet (reste à faire)
 
-Fait : la config par défaut est pilotée par System via la stratégie Actif (cf. [`architecture/08`](../architecture/08-rainbow-live.md)). Reste :
-- **Création de stratégies** : aujourd'hui seul l'Initializer en crée (une Trend Mix par actif). Prévoir un endpoint System de création (nouvel actif / nouvelle stratégie) et une **page de gestion admin** dédiée (édition des jeux Bear/Bull et Trend, vue des révisions).
+Fait : presets système de base et Affectations (cf. [`architecture/08`](../architecture/08-rainbow-live.md)). Reste :
+- **Gestion admin des presets système** : aujourd'hui créés une seule fois par l'Initializer ; prévoir leur édition et leur révision côté System, et l'Espace Expert pour les presets des utilisateurs ([`../etudes/etude-espace-expert.md`](../etudes/etude-espace-expert.md)).
 - **Stratégie Wallet** : niveau portefeuille avec vue globale des actifs (capital commun, priorités, exposition) — aujourd'hui portés par les bindings (`priority`, `bagPercent`) et le `CashLedger`.
-- **Page** : afficher l'historique des switchs (`GET /preset-events`) ; l'API existe, pas d'écran.
+- **Page** : afficher l'historique des changements d'Affectation (`GET /preset-events`) ; l'API existe, pas d'écran.
 
 ## 7. Interface utilisateur : modes et alertes (intentions, pas de code)
 
@@ -101,13 +101,13 @@ Fait : la config par défaut est pilotée par System via la stratégie Actif (cf
 - Extensible aux « Bench online » ; à terme, un système qui juge les benchs des utilisateurs, surtout ceux à PnL négatif.
 - Contexte chiffré : [`etudes/etude-trading-stablecoin-frais-btc-eth-paxg.md`](../etudes/etude-trading-stablecoin-frais-btc-eth-paxg.md).
 - **Token de l'exchange** (OKB chez OKX, KRAKEN chez Kraken…) : détenir ce token donne souvent une remise sur les frais. Le Fee Test le signale à l'utilisateur (palier actuel, économie potentielle). Option plus tard : achat automatique d'une petite quantité du token pour couvrir/réduire les frais — nécessite l'exécution réelle, donc hors lecture seule. Les remises et seuils sont à vérifier par exchange.
-- **Liens stratégie / provider / actif : points ouverts.** Nom définitif remplaçant « binding » ; clé du lien (provider, actif) vs (wallet, actif) ; `Strategy` comme entité distincte (aujourd'hui `RainbowLivePreset.mode`) ; état moteur indépendant par lien (aujourd'hui partagé par preset). Cf. [`../etudes/etude-liens-strategie-provider-actif.md`](../etudes/etude-liens-strategie-provider-actif.md) §6.
+- **Liens stratégie / provider / actif : points ouverts.** Nom définitif remplaçant « binding » ; clé du lien (provider, actif) vs (wallet, actif) ; `Strategy` comme entité distincte ; état moteur indépendant par lien (aujourd'hui partagé par Affectation). Cf. [`../etudes/etude-liens-strategie-provider-actif.md`](../etudes/etude-liens-strategie-provider-actif.md) §6.
 
 ## 8bis. Source des candles du Rainbow : limites assumées
 
 Signal par lien sur l'exchange du wallet, D1 natif sur 720 j ([`../architecture/04-market-data.md`](../architecture/04-market-data.md#chemin-d1-natif-rainbow-getdailydatasetforasset), [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md)). Limites connues :
 - **720 j d'historique** : suffit pour l'ATH de BTC, ETH, PAXG. Un actif sans ATH depuis 720 j est considéré mort. Si un actif exige plus de 720 j, il faudra agir ; piste prévue : quand plus que ce qu'un exchange sert est demandé, basculer les bougies manquantes sur Binance (meilleur historique). Piège : cotations différentes (`PAXGUSDT` vs `PAXGUSD`), un ATH tombant dans la partie Binance contaminerait le signal de l'autre exchange ; recalage des prix au raccord à étudier.
-- **Trend Mix** : machine d'état unique par preset, signal partagé entre ses liens (WARN + lien marqué substitué si les sources diffèrent). L'ATH de référence du Trend Mix (`rainbow_ath_reference`, par actif) reste amorcé sur l'historique complet Binance, pas sur la source du lien.
+- **Trend Mix** : machine d'état unique par Affectation, signal partagé entre ses liens (WARN + lien marqué substitué si les sources diffèrent). L'ATH de référence du Trend Mix (`rainbow_ath_reference`, par actif) reste amorcé sur l'historique complet Binance, pas sur la source du lien.
 - **Page web** : `candleSource` / `candleSourceSubstituted` sont persistés sur le snapshot du lien mais pas encore affichés.
 
 ## 9. Jonglage entre actifs (idée future, non faite)

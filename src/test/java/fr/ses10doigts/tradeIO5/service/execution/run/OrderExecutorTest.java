@@ -7,7 +7,7 @@ import fr.ses10doigts.tradeIO5.model.dto.execution.InstrumentInfo;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
@@ -138,7 +138,7 @@ class OrderExecutorTest {
                 .credential(ApiCredential.builder().enabled(true).build()).webProviderCode(WebProviderCode.OKX).webProvider(okx).build();
         walletsById.put(walletId, wallet);
         bindingsByAsset.put(symbol + "@" + walletId, RainbowLiveBinding.builder().user(user).assetSymbol(symbol)
-                .preset(RainbowLivePreset.builder().id(1L).build()).wallet(wallet).tradability(BindingCheckStatus.OK)
+                .affectation(AssetAffectation.builder().id(1L).build()).wallet(wallet).tradability(BindingCheckStatus.OK)
                 .executionEnabled(true).firstLiveApprovedAt(NOW).firstLiveConfirmedAt(NOW).build());
     }
 
@@ -147,7 +147,7 @@ class OrderExecutorTest {
         when(bindings.findByUserAndAssetSymbolAndWallet_Id(any(), any(), any())).thenAnswer(i -> Optional.ofNullable(bindingsByAsset.get(i.getArgument(1) + "@" + i.getArgument(2))));
         when(bindings.findByUserOrderByPriorityAscAssetSymbolAsc(any())).thenAnswer(i -> new ArrayList<>(bindingsByAsset.values()));
         RainbowLiveRunRepository runs = mock(RainbowLiveRunRepository.class);
-        when(runs.findByPresetAndDay(any(), any())).thenAnswer(i -> Optional.of(RainbowLiveRun.builder()
+        when(runs.findByAffectationAndDay(any(), any())).thenAnswer(i -> Optional.of(RainbowLiveRun.builder()
                 .config(RainbowAtrConfig.builder().baseAmount(baseAmount.doubleValue()).build()).build()));
         InstrumentCatalog catalog = mock(InstrumentCatalog.class);
         when(catalog.liveInstruments(any())).thenReturn(List.of(btcUsdc, ethUsdc, paxgBtc));

@@ -16,7 +16,7 @@ public final class RainbowLiveBindingDtos {
         }
     }
 
-    public record BindingDto(Long id, String assetSymbol, Long presetId, String presetName, Long walletId,
+    public record BindingDto(Long id, String assetSymbol, Long affectationId, String affectationName, Long walletId,
                              String walletName, String exchange, double bagPercent, int priority, Double baseAmount,
                              String tradability, String quoteMember, String routeKey, String preferredRoute,
                              String feeTestRoute, java.math.BigDecimal feeTestPct, String feeTestLevel,
@@ -24,7 +24,7 @@ public final class RainbowLiveBindingDtos {
                              boolean executionEnabled, boolean firstLiveArmed, boolean firstLiveConfirmed,
                              String executionMode, Double minBuyUsd) {
         public static BindingDto of(RainbowLiveBinding b) {
-            return new BindingDto(b.getId(), b.getAssetSymbol(), b.getPreset().getId(), b.getPreset().getName(),
+            return new BindingDto(b.getId(), b.getAssetSymbol(), b.getAffectation().getId(), b.getAffectation().label(),
                     b.getWallet().getId(), b.getWallet().getName(),
                     b.getWallet().getWebProviderCode() == null ? null : b.getWallet().getWebProviderCode().name(),
                     b.getBagPercent(), b.getPriority(), b.getBaseAmount(),

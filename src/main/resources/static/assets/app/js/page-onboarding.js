@@ -215,10 +215,7 @@
       const v = Number(amount.value);
       create.disabled = true;
       try {
-        const presets = await TIO.get('/api/rainbow-live/presets' + TIO.qs({ asset: st.asset }));
-        const preset = presets.find((p) => p.enabled) || presets[0];
-        if (!preset) throw new Error('Aucune stratégie disponible pour ' + st.asset + ' : contactez l\'administrateur.');
-        const r = await TIO.post('/api/rainbow-live/bindings', { assetSymbol: st.asset, presetId: preset.id, walletId: Number(st.walletId), baseAmount: v,
+        const r = await TIO.post('/api/rainbow-live/bindings', { assetSymbol: st.asset, walletId: Number(st.walletId), baseAmount: v,
           preferredRoute: st.route && st.route !== st.defaultRoute ? st.route : undefined });
         const check = r && r.check;
         TIO.mount(result, h('div', { class: 'banner' }, h('strong', null, st.asset + ' est suivi. '), 'Vous recevrez une décision chaque jour ; ',

@@ -60,7 +60,7 @@ public class RealPortfolioSource implements RainbowPortfolioSource {
     @Override
     public List<LiveSlot> liveSlots(User user) {
         return bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(user).stream()
-                .map(b -> new LiveSlot(b.getId(), b.getPreset().getId(), b.getAssetSymbol(), b.getWallet().getId(),
+                .map(b -> new LiveSlot(b.getId(), b.getAffectation().getId(), b.getAssetSymbol(), b.getWallet().getId(),
                         b.getPriority(), b.getBagPercent(), LiveCandleSource.of(b.getWallet())))
                 .toList();
     }

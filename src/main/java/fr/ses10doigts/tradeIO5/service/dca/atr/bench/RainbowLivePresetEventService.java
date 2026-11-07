@@ -1,19 +1,21 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
-import java.util.List;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePresetEvent;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePresetEventType;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLivePresetEventRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-/** Historisation des switchs de preset (écriture et lecture), horodatée par {@link DomainClock}. */
+import java.util.List;
+
+/**
+ * Historisation des changements d'Affectation (activation, bascule de presets), horodatée par {@link DomainClock}. Les
+ * Affectations sont référencées par id et libellé, sans FK : l'historique survit aux changements de presets.
+ */
 @Service
 @RequiredArgsConstructor
 public class RainbowLivePresetEventService {
@@ -21,34 +23,28 @@ public class RainbowLivePresetEventService {
     private final RainbowLivePresetEventRepository repository;
     private final DomainClock clock;
 
-    /** Enregistre un événement ; {@code before}/{@code after} peuvent être null. */
+    /** Enregistre un événement ; {@code beforeLabel} nul pour une première définition. */
     @Transactional
-    public RainbowLivePresetEvent record(User user, String assetSymbol, RainbowLivePresetEventType type,
-                                         RainbowLivePreset before, RainbowLivePreset after,
-                                         Integer strategyRevision, String reason) {
+    public RainbowLivePresetEvent record(User user, String assetSymbol, RainbowLivePresetEventType type, String beforeLabel,
+                                         AssetAffectation after, String reason) {
         return repository.save(RainbowLivePresetEvent.builder()
                 .user(user)
                 .assetSymbol(assetSymbol)
                 .type(type)
-                .presetBeforeId(before == null ? null : before.getId())
-                .presetBeforeName(before == null ? null : before.getName())
-                .presetAfterId(after == null ? null : after.getId())
-                .presetAfterName(after == null ? null : after.getName())
-                .strategyRevision(strategyRevision)
+                .presetBeforeId(beforeLabel == null ? null : after.getId())
+                .presetBeforeName(beforeLabel)
+                .presetAfterId(after.getId())
+                .presetAfterName(after.label())
                 .occurredAt(clock.now())
                 .reason(reason)
                 .build());
     }
 
-    /** Écrit {@code STRATEGY_CHANGED} une seule fois par (preset, révision). */
+    /** Variante pour un événement qui ne change pas les presets (activation / désactivation). */
     @Transactional
-    public void recordStrategyChange(RainbowLivePreset preset, int revision) {
-        if (repository.existsByPresetAfterIdAndTypeAndStrategyRevision(
-                preset.getId(), RainbowLivePresetEventType.STRATEGY_CHANGED, revision)) {
-            return;
-        }
-        record(preset.getUser(), preset.getAssetSymbol(), RainbowLivePresetEventType.STRATEGY_CHANGED, preset, preset,
-                revision, "Révision " + revision + " de la stratégie « " + preset.getAssetStrategy().getName() + " »");
+    public RainbowLivePresetEvent record(User user, String assetSymbol, RainbowLivePresetEventType type,
+                                         AssetAffectation before, AssetAffectation after, String reason) {
+        return record(user, assetSymbol, type, before == null ? null : before.label(), after, reason);
     }
 
     @Transactional(readOnly = true)

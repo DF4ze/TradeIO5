@@ -4,7 +4,7 @@ import fr.ses10doigts.tradeIO5.model.entity.currency.AssetGroup;
 import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
 import fr.ses10doigts.tradeIO5.model.entity.execution.TransitStock;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
@@ -45,7 +45,7 @@ class RealPortfolioSourceTest {
     private final ReadOnlyBalanceReader reader = mock(ReadOnlyBalanceReader.class);
     private final User user = User.builder().id(1L).username("u").build();
     private final ApiCredential credential = new ApiCredential();
-    private RainbowLivePreset preset;
+    private AssetAffectation preset;
     private RainbowLiveBinding binding;
     private final AssetGroupService groups = mock(AssetGroupService.class);
     private final TransitStockRepository transit = mock(TransitStockRepository.class);
@@ -53,9 +53,9 @@ class RealPortfolioSourceTest {
 
     @BeforeEach
     void setUp() {
-        preset = RainbowLivePreset.builder().id(5L).user(user).assetSymbol("BTC").build();
+        preset = AssetAffectation.builder().id(5L).user(user).assetSymbol("BTC").build();
         Wallet wallet = Wallet.builder().id(9L).webProviderCode(WebProviderCode.OKX).credential(credential).build();
-        RainbowLiveBinding binding = RainbowLiveBinding.builder().id(3L).user(user).assetSymbol("BTC").preset(preset)
+        RainbowLiveBinding binding = RainbowLiveBinding.builder().id(3L).user(user).assetSymbol("BTC").affectation(preset)
                 .wallet(wallet).bagPercent(100).priority(0).build();
         this.binding = binding;
         when(bindingCheck.check(binding)).thenReturn(new BindingCheckResult(BindingCheckStatus.OK, "OK"));

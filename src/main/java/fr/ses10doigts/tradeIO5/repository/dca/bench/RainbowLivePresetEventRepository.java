@@ -13,7 +13,4 @@ public interface RainbowLivePresetEventRepository extends JpaRepository<RainbowL
     List<RainbowLivePresetEvent> findByUserOrderByOccurredAtDescIdDesc(User user);
 
     List<RainbowLivePresetEvent> findByUserAndAssetSymbolOrderByOccurredAtDescIdDesc(User user, String assetSymbol);
-
-    boolean existsByPresetAfterIdAndTypeAndStrategyRevision(Long presetAfterId, RainbowLivePresetEventType type,
-                                                            Integer strategyRevision);
 }

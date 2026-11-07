@@ -18,10 +18,6 @@ public final class RainbowLiveDefaultPresets {
 
     /** Actifs autorisés (symboles nus d'Asset). */
     public static final List<String> ASSETS = List.of("BTC", "ETH", "PAXG");
-    public static final String DEFAULT_NAME = "Bench global";
-    public static final String TREND_MIX_NAME = "Trend Mix";
-    /** Préfixe réservé du nom des presets qui suivent une stratégie Actif ; refusé sur un preset créé par l'utilisateur. */
-    public static final String SYSTEM_PREFIX = "[Système] ";
     public static final int DEFAULT_ANALYSIS_WINDOW_MONTHS = 6;
 
     /**

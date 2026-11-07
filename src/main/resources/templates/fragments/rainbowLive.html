@@ -1,10 +1,10 @@
-<!-- Presets Rainbow DCA ATR : conteneur de la page (rendu et logique dans assets/js/rainbow-live.js) -->
+<!-- Affectations Rainbow DCA ATR : conteneur de la page (rendu et logique dans assets/js/rainbow-live.js) -->
 <section id="rainbow-live" class="rainbow-live" th:fragment="rainbowLive">
   <div class="container">
     <div class="section-title">
-      <h2>Presets — Rainbow DCA ATR</h2>
-      <p>Le signal de chaque preset actif est calculé chaque jour à 23:55 UTC sur la bougie D1 du jour (provisoire), puis affiné le lendemain
-         (indicateurs, ATH, état) sans changer l'action décidée. Une modification de preset est prise en compte au prochain run.</p>
+      <h2>Affectations — Rainbow DCA ATR</h2>
+      <p>Le signal de chaque Affectation active (un preset Trend + deux presets Rainbow Up / Down par actif) est calculé chaque jour à 23:55 UTC sur la bougie D1 du jour (provisoire), puis affiné le lendemain
+         (indicateurs, ATH, état) sans changer l'action décidée. Un changement de presets réinitialise le moteur de l'actif.</p>
     </div>
 
     <div id="rl-alert" class="alert alert-danger d-none" role="alert">
@@ -36,7 +36,7 @@
             <label class="form-label small mb-0" for="rl-onb-wallet">Wallet</label>
             <select class="form-select form-select-sm" id="rl-onb-wallet"></select>
           </div>
-          <button type="button" class="btn btn-primary btn-sm" id="rl-onb-link" title="Crée un lien inactif par actif tradable (BTC, ETH, PAXG) sur le preset système">Lier mes actifs</button>
+          <button type="button" class="btn btn-primary btn-sm" id="rl-onb-link" title="Crée un lien inactif par actif tradable (BTC, ETH, PAXG) sur l'Affectation de chaque actif">Lier mes actifs</button>
           <div>
             <label class="form-label small mb-0" for="rl-onb-duration">Étaler le cash sur</label>
             <div class="input-group input-group-sm">
@@ -91,81 +91,22 @@
     </div>
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 my-3">
-      <h5 class="mb-0">Presets de l'actif <span id="rl-asset-label" class="fw-bold"></span></h5>
-      <div class="d-flex flex-wrap align-items-center gap-2">
-        <span class="small text-muted">Mode</span>
-        <div class="btn-group btn-group-sm" role="group" id="rl-ui-mode" aria-label="Mode d'affichage"></div>
-        <button type="button" class="btn btn-primary btn-sm" id="rl-new-trend"
-                title="Jeux Bear/Bull choisis chaque jour par le Trend Mix">Nouveau Trend Mix</button>
-        <button type="button" class="btn btn-outline-primary btn-sm" id="rl-new-preset"
-                title="Un seul jeu de paramètres fixe">Nouveau preset fixe</button>
-      </div>
+      <h5 class="mb-0">Affectation de l'actif <span id="rl-asset-label" class="fw-bold"></span></h5>
     </div>
 
     <div class="table-responsive">
       <table class="table table-sm table-hover align-middle" id="rl-presets-table">
         <thead>
           <tr>
-            <th>Nom</th><th>Type</th><th title="Bascule rapide : le preset est joué (ou non) à chaque passe quotidienne">Actif</th>
+            <th>Actif</th><th>Presets</th><th title="Bascule rapide : l'Affectation est jouée (ou non) à chaque passe quotidienne">Active</th>
             <th>Fenêtre (mois)</th>
-            <th>Runs</th><th>1er run</th><th title="Jeu actif et régime de Trend du dernier run (Trend Mix)">Jeu · Trend</th><th>Dernier run</th><th></th>
+            <th>Runs</th><th>1er run</th><th title="Jeu actif et régime de Trend du dernier run">Jeu · Trend</th><th>Dernier run</th>
           </tr>
         </thead>
         <tbody id="rl-presets-body"></tbody>
       </table>
     </div>
-    <div id="rl-presets-empty" class="text-muted fst-italic d-none">Aucun preset sur cet actif. Utilisez « Nouveau preset » pour en créer un.</div>
+    <div id="rl-presets-empty" class="text-muted fst-italic d-none">Aucune Affectation sur cet actif.</div>
   </div>
 
-  <!-- Modale formulaire (création / édition) -->
-  <div class="modal fade" id="rl-form-modal" tabindex="-1" aria-labelledby="rl-form-title" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="rl-form-title"></h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-        </div>
-        <div class="modal-body">
-          <div id="rl-form-banner" class="alert alert-info py-2 d-none">
-            Les modifications sont prises en compte au prochain run ; l'historique n'est pas recalculé. L'actif n'est pas modifiable.
-          </div>
-          <div id="rl-form-detach-warning" class="alert alert-warning py-2 d-none">
-            En te détachant de la stratégie System, tu ne recevras plus ses mises à jour : cette copie est propre à ton compte et ne bougera que si tu la modifies.
-          </div>
-          <div id="rl-form-error" class="alert alert-danger py-2 d-none" role="alert"></div>
-          <div class="mb-2">
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="rl-form-fill-default">Remplir avec le défaut de l'actif</button>
-          </div>
-          <form id="rl-form" novalidate onsubmit="return false;">
-            <div class="accordion" id="rl-form-accordion"></div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-          <button type="button" class="btn btn-primary" id="rl-form-submit">Enregistrer</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modale de suppression -->
-  <div class="modal fade" id="rl-delete-modal" tabindex="-1" aria-labelledby="rl-delete-title" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="rl-delete-title">Supprimer le preset</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-        </div>
-        <div class="modal-body">
-          <p>Supprimer le preset « <strong id="rl-delete-name"></strong> » ?</p>
-          <p class="mb-0 text-danger">La configuration et l'historique des runs sont supprimés. Cette action est irréversible.</p>
-          <div id="rl-delete-error" class="alert alert-danger py-2 mt-2 d-none" role="alert"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-          <button type="button" class="btn btn-danger" id="rl-delete-confirm">Supprimer définitivement</button>
-        </div>
-      </div>
-    </div>
-  </div>
 </section>

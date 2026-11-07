@@ -95,17 +95,6 @@ public class MainController {
 		return "adminPage";
     }
 
-    /** Procédure d'un achat réel de test depuis l'interface (texte statique, aucun appel exchange). */
-    @GetMapping("/info")
-    @PreAuthorize("hasRole('ADMIN')")
-    public String infoAccess(Model model) {
-		model.addAttribute("name", authenticationFacade.getAuthentication().getName());
-		model.addAttribute("loggued", true);
-		shell(model, "info", "Info");
-
-		return "infoPage";
-    }
-
     /** Attributs de la coquille de la charte (thème, mode, identité) ; préférences illisibles ⇒ valeurs par défaut. */
     private void shell(Model model, String page, String title) {
 		fr.ses10doigts.tradeIO5.service.preferences.UserPreferencesService.Preferences prefs = null;

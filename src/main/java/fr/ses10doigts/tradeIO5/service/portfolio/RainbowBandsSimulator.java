@@ -3,7 +3,7 @@ package fr.ses10doigts.tradeIO5.service.portfolio;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.dto.portfolio.RainbowBandsDto;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrBand;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrDataset;
@@ -14,7 +14,7 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrTuning;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowSetSelector;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.LiveCandleSource;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveTrendConfigs;
 import fr.ses10doigts.tradeIO5.service.market.dataset.DailyDataset;
 import fr.ses10doigts.tradeIO5.service.market.dataset.MarketDatasetEngine;
@@ -42,11 +42,11 @@ import java.util.List;
 public class RainbowBandsSimulator {
 
     private final MarketDatasetEngine datasetEngine;
-    private final RainbowLivePresetConfigResolver configResolver;
+    private final AffectationConfigResolver configResolver;
 
     /** Points du jour {@code from} à {@code to} inclus ; vide si la série D1 est absente ou trop courte. */
     public List<RainbowBandsDto.Point> simulate(RainbowLiveBinding binding, LocalDate from, LocalDate to) {
-        RainbowLivePreset preset = binding.getPreset();
+        AssetAffectation affectation = binding.getAffectation();
         MarketDataSource source = LiveCandleSource.of(binding.getWallet());
         Instant asOf = to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
         DailyDataset daily = datasetEngine.getDailyDatasetForAsset(binding.getAssetSymbol(),
@@ -60,12 +60,12 @@ public class RainbowBandsSimulator {
             return List.of();
         }
         RainbowAtrDataset ds = RainbowAtrDataset.fromMarketData(candles);
-        return preset.isTrendMix() ? trendMix(preset, candles, ds, from) : single(preset, candles, ds, from);
+        return trendMix(affectation, candles, ds, from);
     }
 
-    private List<RainbowBandsDto.Point> trendMix(RainbowLivePreset preset, List<MarketData> candles, RainbowAtrDataset ds,
+    private List<RainbowBandsDto.Point> trendMix(AssetAffectation affectation, List<MarketData> candles, RainbowAtrDataset ds,
                                                  LocalDate from) {
-        RainbowLiveTrendConfigs.Resolved cfg = configResolver.trendConfig(preset);
+        RainbowLiveTrendConfigs.Resolved cfg = configResolver.trendConfig(affectation);
         TrendMixCalculator.Params tp = cfg.trend();
         TrendRegime[] regime = TrendMixCalculator.compute(candles, ds.sma(tp.smaPeriod()), ds.atr(tp.atrPeriod()), tp).regime();
         int[] setOfBar = RainbowSetSelector.select(regime, cfg.range());
@@ -78,21 +78,6 @@ public class RainbowBandsSimulator {
             }
             RainbowAtrParamSet set = sets[setOfBar[i]];
             out.add(point(ds, i, set.tuning(), set.name(), regime[i] == null ? null : regime[i].name(), actions.get(i)));
-        }
-        return out;
-    }
-
-    private List<RainbowBandsDto.Point> single(RainbowLivePreset preset, List<MarketData> candles, RainbowAtrDataset ds,
-                                               LocalDate from) {
-        var config = configResolver.config(preset);
-        RainbowAtrTuning tuning = config.toTuning();
-        RainbowAtrParamSet[] sets = {new RainbowAtrParamSet("fixed", tuning, config.toGlobals())};
-        Map<Integer, String> actions = actions(ds, sets, new int[ds.size()], firstIndex(candles, from));
-        List<RainbowBandsDto.Point> out = new ArrayList<>();
-        for (int i = 0; i < ds.size(); i++) {
-            if (!dayOf(candles.get(i)).isBefore(from)) {
-                out.add(point(ds, i, tuning, null, null, actions.get(i)));
-            }
         }
         return out;
     }

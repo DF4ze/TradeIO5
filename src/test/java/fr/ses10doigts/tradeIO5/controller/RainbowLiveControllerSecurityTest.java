@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.controller;
 
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetAffectationService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveQueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,7 +37,7 @@ class RainbowLiveControllerSecurityTest {
     static class Config {
         @Bean
         RainbowLiveController controller() {
-            return new RainbowLiveController(mock(RainbowLivePresetService.class), mock(RainbowLiveQueryService.class),
+            return new RainbowLiveController(mock(AssetAffectationService.class), mock(RainbowLiveQueryService.class),
                     mock(IAuthenticationFacade.class));
         }
     }
@@ -61,8 +61,8 @@ class RainbowLiveControllerSecurityTest {
     @DisplayName("Sans contexte de sécurité : refus (non authentifié)")
     void noAuthentication() {
         assertThrows(AuthenticationCredentialsNotFoundException.class, () -> controller.defaults());
-        assertThrows(AuthenticationCredentialsNotFoundException.class, () -> controller.presets(null));
-        assertThrows(AuthenticationCredentialsNotFoundException.class, () -> controller.delete(1L));
+        assertThrows(AuthenticationCredentialsNotFoundException.class, () -> controller.affectations(null));
+        assertThrows(AuthenticationCredentialsNotFoundException.class, () -> controller.affectation(1L));
     }
 
     @Test

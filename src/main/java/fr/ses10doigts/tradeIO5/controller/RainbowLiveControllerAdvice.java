@@ -4,12 +4,10 @@ import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceUnavailableExcep
 import fr.ses10doigts.tradeIO5.service.connector.balance.CredentialRejectedException;
 import fr.ses10doigts.tradeIO5.service.connector.instrument.InstrumentLookupException;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.PathQuoteUnavailableException;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConflictException;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingConflictException;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingNotFoundException;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingStateException;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetFollowsStrategyException;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetNotFoundException;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetAffectationNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -23,20 +21,9 @@ public class RainbowLiveControllerAdvice {
     public record ErrorResponse(String error) {
     }
 
-    @ExceptionHandler(RainbowLivePresetNotFoundException.class)
-    public ResponseEntity<ErrorResponse> notFound(RainbowLivePresetNotFoundException e) {
+    @ExceptionHandler(AssetAffectationNotFoundException.class)
+    public ResponseEntity<ErrorResponse> notFound(AssetAffectationNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));
-    }
-
-    @ExceptionHandler(RainbowLivePresetConflictException.class)
-    public ResponseEntity<ErrorResponse> conflict(RainbowLivePresetConflictException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
-    }
-
-    /** 409 (pas 403 : le front redirige vers /login sur 401/403). */
-    @ExceptionHandler(RainbowLivePresetFollowsStrategyException.class)
-    public ResponseEntity<ErrorResponse> locked(RainbowLivePresetFollowsStrategyException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
     }
 
     @ExceptionHandler(RainbowLiveBindingNotFoundException.class)

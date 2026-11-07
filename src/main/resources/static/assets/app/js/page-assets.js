@@ -13,7 +13,7 @@
       TIO.safe(TIO.get('/api/rainbow-live/live-wallet'), []),
       TIO.safe(TIO.get('/api/portfolio/asset-performance'), []),
       TIO.safe(TIO.get('/api/portfolio/holdings'), null),
-      TIO.safe(TIO.get('/api/rainbow-live/presets'), []),
+      TIO.safe(TIO.get('/api/rainbow-live/affectations'), []),
       TIO.safe(TIO.get('/api/rainbow-live/decisions' + TIO.qs({ from: iso(-30), to: iso(0) })), [])]);
     // état de la stratégie par lien : celui de la décision la plus récente
     const stateBy = {};
@@ -33,7 +33,7 @@
       const line = lines[b.assetSymbol];
       const part = line && (line.parts || []).find((x) => x.walletId === b.walletId);
       const pos = part ? { quantity: part.quantity, value: part.value } : (line && !(line.parts || []).length ? { quantity: line.quantity, value: line.value } : null);
-      return { b, live: liveBy[b.assetSymbol] || null, state: TIO.stateText(stateBy[b.id]), perf: perfOf(perfBy[b.assetSymbol], b.walletId), pos, presetBase: presetBase[b.presetId], shared: count[b.assetSymbol] > 1 };
+      return { b, live: liveBy[b.assetSymbol] || null, state: TIO.stateText(stateBy[b.id]), perf: perfOf(perfBy[b.assetSymbol], b.walletId), pos, presetBase: presetBase[b.affectationId], shared: count[b.assetSymbol] > 1 };
     });
     // groupes par provider, du plus gros au plus petit
     const groups = new Map();

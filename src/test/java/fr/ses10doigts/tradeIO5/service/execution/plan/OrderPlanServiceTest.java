@@ -10,7 +10,7 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowAtrConfig;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveLiveBlock;
-import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLivePreset;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBindingRun;
 import fr.ses10doigts.tradeIO5.model.entity.execution.AssetPlanOutcome;
 import fr.ses10doigts.tradeIO5.model.entity.execution.PlanStatus;
@@ -29,8 +29,7 @@ import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetService.CreateRequest;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetAffectationService;
 import fr.ses10doigts.tradeIO5.service.execution.ExecutionSettings;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,7 +71,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * user sans effet sur les autres, mode OFF, et lecture REST (propriétaire seulement, DTO sans entité).
  */
 @DataJpaTest
-@Import({RainbowLivePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetConfigResolver.class,
+@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver.class,
         fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService.class, OrderPlanQueryService.class,
         OrderPlanServiceTest.ClockConfig.class})
 @DisplayName("OrderPlanService : persistance idempotente du plan d'ordres dry-run")
@@ -90,7 +89,7 @@ class OrderPlanServiceTest {
         }
     }
 
-    @Autowired private RainbowLivePresetService presetService;
+    @Autowired private fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures fixtures;
     @Autowired private OrderPlanQueryService queryService;
     @Autowired private RainbowLiveBindingRepository bindingRepository;
     @Autowired private RainbowLiveBindingRunRepository runRepository;
@@ -143,7 +142,7 @@ class OrderPlanServiceTest {
 
     private static fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository runsWithBase(double base) {
         var runs = mock(fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository.class);
-        when(runs.findByPresetAndDay(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(Optional.of(
+        when(runs.findByAffectationAndDay(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(Optional.of(
                 fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun.builder()
                         .config(RainbowAtrConfig.builder().baseAmount(base).build()).build()));
         return runs;
@@ -202,10 +201,10 @@ class OrderPlanServiceTest {
 
     private void seed(User user, String asset, double amount, boolean enabled) {
         RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor(asset);
-        RainbowLivePreset preset = presetService.create(user, new CreateRequest(asset, "live", true, 6, c.toTuning(), c.toGlobals()));
+        AssetAffectation preset = fixtures.affectation(user, asset, "live", c.toTuning(), c.toGlobals());
         Wallet w = walletRepository.save(Wallet.builder().name("OKX " + user.getUsername()).source(WalletSource.EXCHANGE)
                 .webProviderCode(WebProviderCode.OKX).user(user).build());
-        RainbowLiveBinding binding = bindingRepository.save(RainbowLiveBinding.builder().user(user).assetSymbol(asset).preset(preset).wallet(w).bagPercent(100)
+        RainbowLiveBinding binding = bindingRepository.save(RainbowLiveBinding.builder().user(user).assetSymbol(asset).affectation(preset).wallet(w).bagPercent(100)
                 .priority(0).executionEnabled(enabled).build());
         RainbowLiveLiveBlock block = RainbowLiveLiveBlock.builder().status(PortfolioStatus.OK).walletId(w.getId())
                 .cashDetail("{\"USDC\":500.0,\"USDT\":0.0}").actionType(RainbowLiveAction.BUY)
@@ -248,7 +247,7 @@ class OrderPlanServiceTest {
         Wallet kraken = walletRepository.save(Wallet.builder().name("Kraken").source(WalletSource.EXCHANGE)
                 .webProviderCode(WebProviderCode.KRAKEN).user(alice).build());
         RainbowLiveBinding second = bindingRepository.save(RainbowLiveBinding.builder().user(alice).assetSymbol("BTC")
-                .preset(first.getPreset()).wallet(kraken).bagPercent(100).priority(1).executionEnabled(true).build());
+                .affectation(first.getAffectation()).wallet(kraken).bagPercent(100).priority(1).executionEnabled(true).build());
         runRepository.save(RainbowLiveBindingRun.builder().binding(second).day(DAY).live(RainbowLiveLiveBlock.builder()
                 .status(PortfolioStatus.OK).walletId(kraken.getId()).cashDetail("{\"USDC\":300.0}")
                 .actionType(RainbowLiveAction.BUY).actionAmountUsdc(40.0).actionQuantity(0.0005).build()).build());

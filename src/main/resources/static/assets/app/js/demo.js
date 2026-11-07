@@ -45,7 +45,7 @@
         realizedPnl: rz, realizedPct: r2((a.price / a.avg - 1) * 100), totalPnl: r2(lat + rz), fees: r2(a.qty * a.price * 0.002), volume: r2(a.qty * a.price * 1.6), bought: r2(a.invested), sells: 2, incomplete: false, parts: [] };
     });
   }
-  const binding = ([symbol, a]) => ({ id: a.id, assetSymbol: symbol, presetId: 10 + a.id, presetName: 'Trend Mix ' + symbol, walletId: a.wallet, walletName: 'Wallet ' + a.ex,
+  const binding = ([symbol, a]) => ({ id: a.id, assetSymbol: symbol, affectationId: 10 + a.id, affectationName: 'Trend Mix ' + symbol, walletId: a.wallet, walletName: 'Wallet ' + a.ex,
     exchange: a.ex, bagPercent: 100, priority: a.id, baseAmount: a.base, tradability: symbol === 'PAXG' ? 'TRADABLE_VIA_INTERMEDIARY' : 'OK', quoteMember: 'USDC', routeKey: symbol + '-USDC', preferredRoute: null,
     feeTestRoute: symbol === 'PAXG' ? 'USDC>BTC>PAXG' : 'USDC>' + symbol, feeTestPct: symbol === 'PAXG' ? 0.62 : 0.13, feeTestLevel: symbol === 'PAXG' ? 'WARNING' : 'GREEN', feeTestAmount: a.base, feeTestAt: new Date(Date.now() - 86400000).toISOString(),
     executionEnabled: symbol !== 'PAXG', firstLiveArmed: symbol !== 'PAXG', firstLiveConfirmed: symbol === 'BTC', executionMode: symbol === 'PAXG' ? 'SIMULATION' : 'ACTIVE', minBuyUsd: null });
@@ -119,7 +119,7 @@
       pts.push({ day: iso(-i), close: r2(close), sma: r2(sma), atr: r2(atr), boundDown2: r2(sma - 2 * atr), boundDown1: r2(sma - atr), boundUp1: r2(sma + atr), boundUp2: r2(sma + 2 * atr), boundUp3: r2(sma + 3 * atr),
         zone, activeSet: 'BULL', trendRegime: 'BULL', action: i % 23 === 5 ? 'BUY' : i % 41 === 7 ? 'SELL' : null });
     }
-    return { bindingId: a.id, assetSymbol: symbol, presetName: 'Trend Mix ' + symbol, simulated: !!simulated, points: pts };
+    return { bindingId: a.id, assetSymbol: symbol, affectationName: 'Trend Mix ' + symbol, simulated: !!simulated, points: pts };
   }
   function transactions(id) {
     const entry = byId(id);
@@ -138,7 +138,7 @@
     return entries.map(([symbol, a]) => {
       const mod = modulationJournal(a, 0);
       const blocked = a.action === 'BLOCKED';
-      return { assetSymbol: symbol, bindingId: a.id, presetId: 10 + a.id, presetName: 'Trend Mix ' + symbol, walletId: a.wallet, walletName: 'Wallet ' + a.ex, exchange: a.ex, bagPercent: 100, priority: a.id,
+      return { assetSymbol: symbol, bindingId: a.id, affectationId: 10 + a.id, affectationName: 'Trend Mix ' + symbol, walletId: a.wallet, walletName: 'Wallet ' + a.ex, exchange: a.ex, bagPercent: 100, priority: a.id,
         tradability: symbol === 'PAXG' ? 'TRADABLE_VIA_INTERMEDIARY' : 'OK', tradabilityMessage: null, executionEnabled: symbol !== 'PAXG', firstLiveArmed: symbol !== 'PAXG', firstLiveConfirmed: symbol === 'BTC', executionMode: symbol === 'PAXG' ? 'SIMULATION' : 'ACTIVE', routeKey: symbol + '-USDC', transit: [],
         snapshot: { day: iso(0), status: 'OK', fetchedAt: new Date().toISOString(), cashUsd: 4180, cashByMember: { USDC: 4180 }, positionQty: a.qty, tradableQty: a.qty, cashReserved: 0,
           blockReason: blocked ? 'INSUFFICIENT_CASH' : 'NONE', liveActionType: a.action, liveActionAmountUsdc: a.action === 'BUY' ? a.amount : null, liveActionQuantity: a.action === 'BUY' ? r2(a.amount / a.price * 1e6) / 1e6 : null,
@@ -222,8 +222,8 @@
       if ((m = p.match(/^\/api\/rainbow-live\/bindings\/(\d+)\/bands$/))) return bands(m[1], q.get('period') || '90d', q.get('simulated') === 'true');
       if ((m = p.match(/^\/api\/rainbow-live\/bindings\/(\d+)\/transactions$/))) return transactions(m[1]);
       if ((m = p.match(/^\/api\/rainbow-live\/bindings\/(\d+)\/check$/))) return { status: 'OK', message: 'Prêt', ok: true, executable: true, blocked: false, quoteMember: 'USDC', routeKey: 'X-USDC' };
-      if (p === '/api/rainbow-live/defaults') return { assets: ['BTC', 'ETH', 'PAXG'], cashCurrency: 'USDC', defaultName: 'Trend Mix', baseAmount: 10 };
-      if (p === '/api/rainbow-live/presets') return [{ id: 11, assetSymbol: q.get('asset') || 'BTC', name: 'Trend Mix', enabled: true }];
+      if (p === '/api/rainbow-live/defaults') return { assets: ['BTC', 'ETH', 'PAXG'], cashCurrency: 'USDC', baseAmount: 10 };
+      if (p === '/api/rainbow-live/affectations') return [{ id: 11, assetSymbol: q.get('asset') || 'BTC', name: 'Trend de base', enabled: true, complete: true }];
       if (p === '/api/user/preferences') return prefs;
       if (p === '/api/user/modulation-settings') return modulation;
       if (p === '/api/user/modulation-settings/history') return [
@@ -233,7 +233,6 @@
           before: { exposureMin: 0, exposureMax: 100, power: 1, bias: 0, regulationMarginPct: 25 }, after: { exposureMin: 30, exposureMax: 70, power: 1, bias: 0, regulationMarginPct: 25 } }];
       if (p === '/api/user/alerts') return [
         { type: 'BUY_BLOCKED', severity: 'WARNING', assetSymbol: 'PAXG', bindingId: 3, message: 'Achat PAXG bloqué : cash insuffisant sur Wallet KRAKEN.', day: iso(0) }];
-      if (p === '/api/rainbow-live/ui-mode') return { mode: 'SIMPLE' };
     }
     if (method === 'PUT') {
       if (p === '/api/user/preferences') { prefs = Object.assign({}, prefs, body, { caps: Object.assign({}, prefs.caps, { maxOrderUsd: body.maxOrderUsd ?? null, maxDayUsd: body.maxDayUsd ?? null }), alertsDisabled: body.alertsDisabled || [] }); return prefs; }

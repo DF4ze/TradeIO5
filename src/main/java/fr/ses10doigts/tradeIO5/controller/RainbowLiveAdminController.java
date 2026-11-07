@@ -5,8 +5,6 @@ import fr.ses10doigts.tradeIO5.service.doctor.DoctorDefaults;
 import fr.ses10doigts.tradeIO5.service.doctor.JobOutcome;
 import fr.ses10doigts.tradeIO5.service.doctor.JobRunRecorder;
 
-import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveDtos.StrategyDto;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowAssetStrategyService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveExecutionService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveQueryService;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
@@ -32,7 +30,7 @@ import java.util.Map;
  * Déclenchement manuel d'une passe du bench grandeur nature Rainbow (même patron que
  * {@link DecisionOrchestratorAdminController}). Réservé ROLE_ADMIN.
  * {@code POST /api/admin/rainbow-live/run[?day=YYYY-MM-DD]} : {@code day} (UTC) force le jour traité.
- * {@code POST /api/admin/rainbow-live/resync[?presetId=]} : resynchronisation forcée de l'état moteur Trend Mix.
+ * {@code POST /api/admin/rainbow-live/resync[?affectationId=]} : resynchronisation forcée de l'état moteur Trend Mix.
  */
 @Slf4j
 @RestController
@@ -43,7 +41,6 @@ public class RainbowLiveAdminController {
 
     private final RainbowLiveExecutionService executionService;
     private final DomainClock clock;
-    private final RainbowAssetStrategyService strategyService;
     private final IAuthenticationFacade authenticationFacade;
     private final JobRunRecorder recorder;
 
@@ -56,25 +53,15 @@ public class RainbowLiveAdminController {
     }
 
     /**
-     * Resynchronisation FORCÉE de l'état moteur des presets Trend Mix actifs (ou du seul {@code presetId}) jusqu'à la veille :
+     * Resynchronisation FORCÉE de l'état moteur des presets Trend Mix actifs (ou du seul {@code affectationId}) jusqu'à la veille :
      * rejeu de la fenêtre sur les clôtures, sans run ni ordre (cf. {@link RainbowLiveExecutionService#resync}). Tracée au
      * journal admin (action RUN).
      */
     @PostMapping("/resync")
-    public ResponseEntity<RainbowLiveExecutionService.ResyncSummary> resync(@RequestParam(required = false) Long presetId) {
+    public ResponseEntity<RainbowLiveExecutionService.ResyncSummary> resync(@RequestParam(required = false) Long affectationId) {
         String actor = authenticationFacade.getConnectedUser().getUsername();
-        log.info("RainbowLiveAdminController : resynchronisation forcée presetId={} par {}", presetId, actor);
-        return ResponseEntity.ok(executionService.resync(clock.now(), presetId, true, actor, "resynchronisation forcée (admin)"));
-    }
-
-    /**
-     * Modification d'une stratégie Actif par System : fenêtre + réglages Trend (jeux Bear/Bull inclus), validations
-     * identiques à celles des presets. {@code revision} + 1 ; effet à la prochaine passe chez les users qui la suivent.
-     */
-    @PutMapping("/strategies/{id}")
-    public StrategyDto updateStrategy(@PathVariable Long id, @RequestBody RainbowAssetStrategyService.UpdateRequest request) {
-        log.info("RainbowLiveAdminController : modification de la stratégie id={}", id);
-        return RainbowLiveQueryService.toStrategyDto(strategyService.update(id, request));
+        log.info("RainbowLiveAdminController : resynchronisation forcée affectationId={} par {}", affectationId, actor);
+        return ResponseEntity.ok(executionService.resync(clock.now(), affectationId, true, actor, "resynchronisation forcée (admin)"));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
