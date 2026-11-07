@@ -31,8 +31,8 @@ public class ExpertSimulationController {
     private final ExpertSimulationService service;
 
     @PostMapping
-    public ResponseEntity<SimulationCreatedDto> submit(@RequestBody SimulationRequest request) {
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(service.submit(guard.require(), request));
+    public ResponseEntity<SimulationCreatedDto> startSimulation(@RequestBody SimulationRequest request) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(service.startSimulation(guard.require(), request));
     }
 
     @GetMapping("/{id}")

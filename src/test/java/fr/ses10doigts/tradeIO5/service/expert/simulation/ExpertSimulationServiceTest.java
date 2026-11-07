@@ -95,7 +95,7 @@ class ExpertSimulationServiceTest {
     @Test
     void lifecycleReachesDoneWithResultAndTtl() throws Exception {
         servesCandles(700, false);
-        SimulationCreatedDto created = service.submit(alice, request("AFFECTATION", "BTC"));
+        SimulationCreatedDto created = service.startSimulation(alice, request("AFFECTATION", "BTC"));
         assertEquals("QUEUED", created.state());
         SimulationDto done = await(alice, created.id());
         assertEquals("DONE", done.state());
@@ -109,7 +109,7 @@ class ExpertSimulationServiceTest {
     @Test
     void insufficientHistoryFailsWithRequiredAndAvailable() throws Exception {
         servesCandles(REQUIRED - 1, false);
-        SimulationDto dto = await(alice, service.submit(alice, request("AFFECTATION", "BTC")).id());
+        SimulationDto dto = await(alice, service.startSimulation(alice, request("AFFECTATION", "BTC")).id());
         assertEquals("FAILED", dto.state());
         assertEquals("ELIGIBILITY_INSUFFICIENT", dto.error().code());
         assertTrue(dto.error().details().toString().contains("requiredPoints=" + REQUIRED));
@@ -120,14 +120,14 @@ class ExpertSimulationServiceTest {
     void exactlyRequiredPointsIsAccepted() throws Exception {
         // la bougie du jour est écartée : REQUIRED bougies fermées suffisent, la plage 24 mois est bornée par l'historique
         servesCandles(REQUIRED, false);
-        SimulationDto dto = await(alice, service.submit(alice, request("TREND", "BTC")).id());
+        SimulationDto dto = await(alice, service.startSimulation(alice, request("TREND", "BTC")).id());
         assertEquals("DONE", dto.state(), String.valueOf(dto.error()));
     }
 
     @Test
     void substitutedProviderIsSignaledInMetaAndWarnings() throws Exception {
         servesCandles(700, true);
-        SimulationDto dto = await(alice, service.submit(alice, request("TREND", "BTC")).id());
+        SimulationDto dto = await(alice, service.startSimulation(alice, request("TREND", "BTC")).id());
         assertTrue(dto.result().meta().substituted());
         assertTrue(dto.result().meta().warnings().stream().anyMatch(w -> w.contains("fallback")));
     }
@@ -139,11 +139,11 @@ class ExpertSimulationServiceTest {
             release.await();
             return null;
         });
-        service.submit(alice, request("TREND", "BTC"));
-        ExpertApiException e = assertThrows(ExpertApiException.class, () -> service.submit(alice, request("TREND", "ETH")));
+        service.startSimulation(alice, request("TREND", "BTC"));
+        ExpertApiException e = assertThrows(ExpertApiException.class, () -> service.startSimulation(alice, request("TREND", "ETH")));
         assertEquals(ExpertApiException.Code.SIMULATION_ALREADY_RUNNING, e.getCode());
         // un autre utilisateur n'est pas concerné
-        service.submit(bob, request("TREND", "BTC"));
+        service.startSimulation(bob, request("TREND", "BTC"));
         release.countDown();
     }
 
@@ -154,13 +154,13 @@ class ExpertSimulationServiceTest {
                 mockAssets(), mockEligibility());
         try {
             for (int i = 0; i < 2; i++) {
-                String id = limited.submit(alice, request("TREND", "BTC")).id();
+                String id = limited.startSimulation(alice, request("TREND", "BTC")).id();
                 waitUntil(() -> limited.get(alice, id).state().equals("DONE"));
             }
-            ExpertApiException e = assertThrows(ExpertApiException.class, () -> limited.submit(alice, request("TREND", "BTC")));
+            ExpertApiException e = assertThrows(ExpertApiException.class, () -> limited.startSimulation(alice, request("TREND", "BTC")));
             assertEquals(ExpertApiException.Code.SIMULATION_RATE_LIMITED, e.getCode());
             now.set(now.get().plusSeconds(61));
-            limited.submit(alice, request("TREND", "BTC"));
+            limited.startSimulation(alice, request("TREND", "BTC"));
         } finally {
             limited.shutdown();
         }
@@ -169,9 +169,9 @@ class ExpertSimulationServiceTest {
     @Test
     void relaunchReplacesSameTypeAndAsset() throws Exception {
         servesCandles(700, false);
-        String first = service.submit(alice, request("TREND", "BTC")).id();
+        String first = service.startSimulation(alice, request("TREND", "BTC")).id();
         await(alice, first);
-        String second = service.submit(alice, request("TREND", "BTC")).id();
+        String second = service.startSimulation(alice, request("TREND", "BTC")).id();
         assertThrows(ExpertApiException.class, () -> service.get(alice, first));
         assertEquals("TREND", service.get(alice, second).type());
     }
@@ -179,7 +179,7 @@ class ExpertSimulationServiceTest {
     @Test
     void simulationsAreVisibleToTheirOwnerOnly() throws Exception {
         servesCandles(700, false);
-        String id = service.submit(alice, request("TREND", "BTC")).id();
+        String id = service.startSimulation(alice, request("TREND", "BTC")).id();
         await(alice, id);
         ExpertApiException e = assertThrows(ExpertApiException.class, () -> service.get(bob, id));
         assertEquals(ExpertApiException.Code.SIMULATION_NOT_FOUND, e.getCode());
@@ -194,13 +194,13 @@ class ExpertSimulationServiceTest {
         ExpertSimulationService capped = newService(new ExpertSimulationSettings(2, 4, 50, Duration.ofSeconds(60), Duration.ofMinutes(30), 2),
                 mockAssets(), mockEligibility());
         try {
-            String a = capped.submit(alice, request("TREND", "BTC")).id();
+            String a = capped.startSimulation(alice, request("TREND", "BTC")).id();
             waitUntil(() -> capped.get(alice, a).state().equals("DONE"));
             now.set(now.get().plusSeconds(1));
-            String b = capped.submit(alice, request("TREND", "ETH")).id();
+            String b = capped.startSimulation(alice, request("TREND", "ETH")).id();
             waitUntil(() -> capped.get(alice, b).state().equals("DONE"));
             now.set(now.get().plusSeconds(1));
-            String c = capped.submit(alice, request("TREND", "SOL")).id();
+            String c = capped.startSimulation(alice, request("TREND", "SOL")).id();
             waitUntil(() -> capped.get(alice, c).state().equals("DONE"));
             assertThrows(ExpertApiException.class, () -> capped.get(alice, a));
             assertFalse(capped.get(alice, c).state().isEmpty());

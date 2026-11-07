@@ -87,7 +87,7 @@ public class ExpertSimulationService {
     // ---------------------------------------------------------------- API
 
     /** Valide et met en file ; renvoie l'identifiant (le calcul se poursuit en tâche de fond). */
-    public SimulationCreatedDto submit(ExpertContext ctx, SimulationRequest request) {
+    public SimulationCreatedDto startSimulation(ExpertContext ctx, SimulationRequest request) {
         SimulationType type = parseType(request.type());
         String asset = assets.requireAsset(request.assetSymbol());
         MarketDataSource requested = parseSource(request.provider());
