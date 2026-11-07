@@ -1,14 +1,12 @@
 # Front — écarts restants
 
-Vérifié le : 2026-10-21.
+Vérifié le : 2026-11-07.
 
 | Écart | État |
 |---|---|
 | Écran **Données** (`asset_provider`, `candleSource`) | bloqué : aucun endpoint ; `AssetInitializer` écrase les valeurs au démarrage (à résoudre avant) |
 | Page **Santé** (état des sources, jobs) | aucun back |
-| Page **Stratégies** | reste dans `/user` (espace Expert) |
 | Admin en pages séparées | non fait : `/admin` garde ses 7 onglets, habillés charte |
-| Parité `/user` | `/user` conservé (presets, stratégies) ; pas retiré tant que Stratégies n'est pas migrée |
 | Dépôts / retraits (crypto) | non suivis : une vente supérieure aux achats connus est plafonnée (`incomplete`) ; à gérer via un registre de transferts (dépôt = coût d'entrée à renseigner ou prix du jour, retrait = sortie au PRU sans gain, transfert entre wallets du même utilisateur = PRU reporté). Le PnL par actif n'est pas affecté par les dépôts/retraits de stables ; la courbe de patrimoine l'est (« hors dépôts/retraits ») |
 
 ## TODO (idées validées, non faites)

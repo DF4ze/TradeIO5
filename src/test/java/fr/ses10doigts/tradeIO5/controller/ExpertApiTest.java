@@ -399,6 +399,31 @@ class ExpertApiTest {
     }
 
     @Test
+    @DisplayName("Impact d'un preset SYSTEM : ADMIN seul, comptes sans identité ; usedBy porte enabled")
+    void systemPresetImpact() throws Exception {
+        long base = systemTrendId("BTC");
+        AssetAffectation a = withState(alice);
+        withState(bob);
+        a.setEnabled(true);
+        affectationRepository.save(a);
+        em.flush();
+        as(alice, false, DisplayMode.EXPERT);
+        mvc.perform(get("/api/expert/trend-presets/" + base + "/impact")).andExpect(status().isForbidden());
+        for (JsonNode p : getJson("/api/expert/trend-presets?asset=BTC")) {
+            if (p.get("id").asLong() == base) {
+                assertTrue(p.at("/usedBy/0/enabled").asBoolean());
+            }
+        }
+        as(root, true, DisplayMode.EXPERT);
+        JsonNode impact = getJson("/api/expert/trend-presets/" + base + "/impact");
+        assertEquals(2, impact.get("affectations").asInt());
+        assertEquals(1, impact.get("activeEngines").asInt());
+        assertEquals(2, impact.size(), "comptes seulement, aucune identité");
+        long bull = systemRainbowId("BTC", "RAINBOW_BULL");
+        assertEquals(2, getJson("/api/expert/rainbow-presets/" + bull + "/impact").get("affectations").asInt());
+    }
+
+    @Test
     @DisplayName("ADMIN modifie un preset SYSTEM : propagé à toutes les Affectations qui l'utilisent, états purgés, événement par utilisateur, audit PRESET avec le décompte")
     void adminUpdatesSystem() throws Exception {
         long base = systemTrendId("BTC");

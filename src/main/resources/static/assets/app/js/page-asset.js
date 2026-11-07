@@ -123,7 +123,7 @@
 
     g.requestAnimationFrame(() => { state.chart = TIO.assetChart(chartBox); refreshBands(); });
     return [headCard, chartCard, summaryCard, grid,
-      TIO.modeAtLeast('expert') ? h('p', { class: 'note span-all' }, 'Stratégie et presets de cet actif : ', h('a', { href: '/user' }, 'espace Expert')) : null];
+      TIO.modeAtLeast('expert') ? h('p', { class: 'note span-all' }, 'Stratégie et presets de cet actif : ', h('a', { href: '/app/expert' }, 'espace Expert')) : null];
   }
 
   TIO.start(function (root) {

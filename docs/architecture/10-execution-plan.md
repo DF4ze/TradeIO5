@@ -66,7 +66,7 @@ Pas de persistance, pas d'écriture, aucune dépendance à un port d'ordre ; lec
 ## Lecture utilisateur et page
 
 - `GET /api/rainbow-live/execution-plans[?from=&to=]` (défaut 30 jours) et `/latest` (204 si aucun) : `RainbowLiveExecutionPlanController` → `OrderPlanQueryService` (base uniquement), propriétaire seulement, DTO dédiés (`OrderPlanDtos`), révisions remplacées non exposées. Cf. [`../api/rest-endpoints.md`](../api/rest-endpoints.md).
-- Panneau live (`rainbow-live.js`, `textContent` uniquement) : bloc « Plan d'exécution (dry-run) » + mention « non envoyé » : statut, jour (23:55 UTC), validité / « expiré », étapes de l'actif sélectionné, coût et badge Fee Test (vert / orange / rouge), raison de blocage. Le panneau d'exécution réelle (kill switch, interrupteur, 1er ordre, audit) est décrit dans [`10-execution-reelle.md`](10-execution-reelle.md) § Page.
+- Affichage : frise de décision de la fiche actif (`/app/assets/{symbole}`) et Journal (`/app/journal`) : statut, jour (23:55 UTC), validité / « expiré », étapes, coût et badge Fee Test (vert / orange / rouge), raison de blocage. Exécution réelle : [`10-execution-reelle.md`](10-execution-reelle.md).
 
 ## Garde-fous (tests)
 

@@ -8,7 +8,7 @@
 
   function displayCard(state, rebuild) {
     const link = h('p', { class: 'note' });
-    TIO.mount(link, state.prefs.displayMode === 'EXPERT' ? ['Espace Expert : stratégies, presets et modulation détaillée sur ', h('a', { href: '/user' }, 'la page Expert'), '.'] : '');
+    TIO.mount(link, state.prefs.displayMode === 'EXPERT' ? ['Espace Expert : stratégies, presets et modulation détaillée sur ', h('a', { href: '/app/expert' }, 'la page Expert'), '.'] : '');
     return ui.card('Mode d\'affichage',
       ui.segmented(MODES, state.prefs.displayMode, async (v) => {
         try { state.prefs = await ui.savePrefs(state.prefs, { displayMode: v }); document.body.dataset.mode = v.toLowerCase(); TIO.toast('Mode ' + MODES.find((m) => m.value === v).label + ' enregistré'); rebuild(); } catch (e) { fail(e); }

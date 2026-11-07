@@ -25,8 +25,12 @@ public final class ExpertDtos {
                            ExpertSimulationDtos.EligibilityDto eligibility) {
     }
 
-    /** Emplacement d'un preset dans une Affectation. */
-    public record UsageDto(Long affectationId, String assetSymbol, String role) {
+    /** Emplacement d'un preset dans une Affectation ; {@code enabled} = moteur de l'Affectation allumé (engagé). */
+    public record UsageDto(Long affectationId, String assetSymbol, String role, boolean enabled) {
+    }
+
+    /** Impact d'une modification d'un preset SYSTEM : comptes seulement (aucune identité), tous utilisateurs confondus. */
+    public record ImpactDto(int affectations, int activeEngines) {
     }
 
     /** En-tête commun d'un preset Trend / Rainbow. {@code usedBy} = Affectations de l'utilisateur courant qui l'installent. */

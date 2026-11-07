@@ -45,7 +45,7 @@ Plan d'implémentation : [`../prompts/prompt-roadmap-espace-expert.md`](../promp
 
 ## Constat sur l'existant
 
-- Le modèle Trend / Rainbow / Affectation est en place (lot 1, section suivante). L'API `/api/expert/*` (presets, Affectations, droits USER / ADMIN) est en place (lot 2). Le moteur de simulation et son API sont en place (lot 3). Reste à construire : écrans.
+- Le modèle Trend / Rainbow / Affectation est en place (lot 1, section suivante). L'API `/api/expert/*` (presets, Affectations, droits USER / ADMIN) est en place (lot 2). Le moteur de simulation et son API sont en place (lot 3). Les écrans (`/app/expert/{trend,rainbow,affectation}`) sont en place (lot 4), ainsi que `GET …/{id}/impact` (ADMIN) pour l'impact d'une modification de preset SYSTEM. Choix : zones inactives en gris clair, événements trailing stop / To the moon / stop moon visibles ; panneaux prix + poche + PnL ouverts, exposition repliée, options mémorisées par type d'écran.
 - Actifs BTC / ETH / PAXG : seeds d'`AssetInitializer` et commentaires d'entités. `Asset` = symbole, nom, décimales (pas d'icône).
 - Découverte d'actifs possible : `InstrumentCatalog` tient en base la liste des paires spot par exchange (un appel public par exchange : Kraken, OKX, Bitvavo, Gate.eu, One Trading, Revolut X) avec `tickSz` / `lotSz` / `minSz`. Binance n'y figure pas ; les sources de données de marché (`MarketDataSource`) et les exchanges ne sont pas les mêmes ensembles.
 - `AssetProvider.maxHorizonDays` borne l'historique de certains providers (ex. Kraken) : l'éligibilité doit se juger par source.

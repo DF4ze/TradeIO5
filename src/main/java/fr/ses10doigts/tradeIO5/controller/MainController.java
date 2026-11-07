@@ -73,18 +73,6 @@ public class MainController {
     }
 
 
-    @GetMapping("/user")
-    @PreAuthorize("hasRole('USER') or hasRole('MODERATOR') or hasRole('ADMIN')")
-    public String userAccess(Model model) {
-		model.addAttribute("name", authenticationFacade.getAuthentication().getName());
-		model.addAttribute("loggued", true);
-
-		model.addAttribute("page", "user");
-
-		return "userPage";
-    }
-
-
     @GetMapping("/admin")
     @PreAuthorize("hasRole('ADMIN')")
     public String adminAccess(Model model) {

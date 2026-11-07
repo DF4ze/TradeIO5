@@ -2,6 +2,7 @@ package fr.ses10doigts.tradeIO5.controller;
 
 import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertDtos.CreatePresetRequest;
 import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertDtos.DuplicatePresetRequest;
+import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertDtos.ImpactDto;
 import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertDtos.PresetHeaderDto;
 import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertDtos.RainbowPresetDto;
 import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertDtos.RainbowPresetRequest;
@@ -41,6 +42,12 @@ public class ExpertRainbowPresetController {
     @GetMapping("/{id}")
     public RainbowPresetDto get(@PathVariable Long id) {
         return service.detail(guard.require(), id);
+    }
+
+    /** Impact d'une modification d'un preset SYSTEM (ADMIN) : comptes d'Affectations, sans identité. */
+    @GetMapping("/{id}/impact")
+    public ImpactDto impact(@PathVariable Long id) {
+        return service.impact(guard.require(), id);
     }
 
     @PostMapping

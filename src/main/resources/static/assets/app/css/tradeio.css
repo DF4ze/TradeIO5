@@ -485,3 +485,31 @@ details.fold > .fold-body { padding: 0 0 6px 48px; }
 
 .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-left: 6px; border-radius: 8px; color: var(--muted); border: 1px solid var(--line); text-decoration: none; }
 .icon-btn:hover, .icon-btn:focus-visible { color: var(--accent-text); border-color: var(--accent); }
+
+/* ---------- Espace Expert (/app/expert/*) ---------- */
+.xtabs { display: inline-flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); align-self: flex-start; }
+.xtab { padding: 6px 16px; border-radius: 999px; color: var(--muted); font-size: 13px; font-weight: 700; text-decoration: none; }
+.xtab[aria-current="page"] { background: var(--brand); color: var(--on-accent); }
+.xmobile { display: none; }
+@media (max-width: 700px) { .xmobile { display: block; } }
+.xgrid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.xgroup { border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.xgroup > legend { padding: 0 8px; font-size: 12px; font-weight: 800; color: var(--accent-text); }
+.xfield--bool { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
+.xfield--bool input { width: 20px; height: 20px; }
+.xfield--bool .hint, .xfield--bool .err { flex-basis: 100%; }
+.xrange input[type="date"] { height: 34px; padding: 0 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+.xchart { display: flex; flex-direction: column; gap: 8px; }
+.xc-bar { gap: 14px; }
+.xc-legend { gap: 12px; }
+.xc-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; }
+.xc-panels { display: flex; flex-direction: column; gap: 8px; }
+.xc-panel[hidden], .xc-bar label[hidden] { display: none; }
+.xc-title { margin-bottom: 2px; }
+.xc-body { width: 100%; }
+.xc-detail { margin-top: 6px; }
+.xmodal { position: fixed; inset: 0; z-index: 60; background: rgba(8, 9, 16, .68); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.xmodal-box { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: var(--pad); max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--shadow); }
+.xmodal-box h2 { margin: 0; font-size: 17px; }
+.xmodal-foot { justify-content: flex-end; }
+@media (max-width: 700px) { .xc-body { min-width: 0; } .xgroup { padding: 10px; } }

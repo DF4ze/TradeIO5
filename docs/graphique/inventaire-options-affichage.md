@@ -4,7 +4,7 @@ Vérifié le : 2026-11-06 (sources : [`../api/rest-endpoints.md`](../api/rest-en
 
 But : liste unique de **ce sur quoi l'utilisateur peut agir** et de **ce que le back remonte à l'affichage**, pour travailler les maquettes sans rouvrir les autres docs. Les docs sources font foi ; en cas de doute, y retourner. Toute évolution des endpoints, DTO ou réglages doit être répercutée ici (et un élément implémenté passe de « à implémenter » à disponible).
 
-Légende : **[OK]** disponible côté back (API) · **[GUI]** déjà un écran dans `/user` · **[Prévu]** décrit dans l'étude d'interface, écran non construit (back disponible) · **[À implémenter]** absent du back (aucun endpoint ni modèle) : à construire pour que la maquette soit réalisable. Récapitulatif : §6.
+Légende : **[OK]** disponible côté back (API) · **[GUI]** déjà un écran dans `/app` · **[Prévu]** décrit dans l'étude d'interface, écran non construit (back disponible) · **[À implémenter]** absent du back (aucun endpoint ni modèle) : à construire pour que la maquette soit réalisable. Récapitulatif : §6.
 
 Vocabulaire : « actif » (utilisateur) = **lien/binding** (technique : actif × wallet) ; « preset » = jeu de paramètres (Trend ou Rainbow) ; « Affectation » = par actif, un preset Trend + un Rainbow UP + un Rainbow DOWN. Actifs gérés : **BTC, ETH, PAXG**. Jour = jour UTC ; une passe quotidienne à 23:55 UTC (signal), plan à 23:58.
 
@@ -219,7 +219,7 @@ Pastille de statut unique (OK / ATTENTION / BLOQUÉ / INCONNU, pointillé si don
 - Modes Simple / Avancé : répartition du §5.
 - Historisation : les instantanés démarrent au premier jour de passe après déploiement, sans reconstruction rétroactive ; avant, l'affichage est « — ».
 - Répartition affichée = répartition **réelle** (aucune dépendance à l'étude de répartition cible).
-- Hors périmètre : alertes e-mail/notification, i18n (français seul), PWA. `/user` est retiré à parité fonctionnelle.
+- Hors périmètre : alertes e-mail/notification, i18n (français seul), PWA. L'édition des presets et de l'Affectation est dans l'Espace Expert (`/app/expert`).
 - **Profits** : *réalisé* (gains des ventes, net de frais, contre le prix moyen d'achat — PRU, calculé par wallet × actif en rejouant les trades), *latent* (quantité détenue × (cours − PRU)), *total* = réalisé cumulé + latent. Accueil : carte « Profits » (réalisé sur la période choisie, latent, total depuis le début). Actifs gérés / fiche d'un lien : latent, réalisé, total du provider du lien. Carte « Frais » : frais cumulés, en % du capital investi, du volume échangé et des gains bruts (total + frais), répartis par provider et par actif. La courbe de patrimoine garde sa variation de valeur « hors dépôts/retraits » (libellée « variation du patrimoine »).
 - Mode démo : jeu de données fictif séparé ; ne touche ni au kill switch ni à l'exécution (en prod le kill switch est engagé).
 

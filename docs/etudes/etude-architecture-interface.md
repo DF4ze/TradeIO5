@@ -59,7 +59,7 @@ Contenu : prix, bandes du Rainbow (zone d'achat, zone de vente, moyenne), **acha
 |---|---|---|
 | Simple | décisions, PnL, montant de base, mode d'exécution | à construire |
 | Avancé | + bande d'exposition, puissance, biais, plafonds, part de la position offerte | à construire |
-| Expert | + paramètres de la stratégie, presets, modulation détaillée | seul mode fonctionnel aujourd'hui (page `/user`) |
+| Expert | + paramètres de la stratégie, presets, modulation détaillée | écrans `/app/expert/{trend,rainbow,affectation}` |
 
 ## 6. Composants communs
 

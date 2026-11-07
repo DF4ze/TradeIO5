@@ -9,6 +9,8 @@ public class ExpertApiException extends RuntimeException {
 
     public enum Code {
         EXPERT_MODE_REQUIRED(HttpStatus.FORBIDDEN),
+        /** Consultation réservée à l'administrateur (impact d'un preset SYSTEM). */
+        ADMIN_REQUIRED(HttpStatus.FORBIDDEN),
         /** Preset SYSTEM modifié par un non-admin : l'écran invite à le dupliquer. */
         PRESET_SYSTEM_READ_ONLY(HttpStatus.FORBIDDEN),
         PRESET_SYSTEM_UNDELETABLE(HttpStatus.FORBIDDEN),

@@ -1,6 +1,6 @@
 # Exécution réelle des ordres (back-end, page utilisateur, page Admin)
 
-Vérifié le : 2026-10-12 (`rainbow-live.js`, `service/execution/{exchange,run,credential}/**`, `service/execution/ExecutionControlService`, `service/connector/apiclient/KrakenSignedRequests`, `model/entity/execution/**`, `controller/ExecutionAdminController`, `service/admin/**`, `templates/fragments/admin/*`, `static/assets/js/admin/*`, `service/scheduler/ExecutionJob`).
+Vérifié le : 2026-11-07 (`service/execution/{exchange,run,credential}/**`, `service/execution/ExecutionControlService`, `service/connector/apiclient/KrakenSignedRequests`, `model/entity/execution/**`, `controller/ExecutionAdminController`, `service/admin/**`, `templates/fragments/admin/*`, `static/assets/js/admin/*`, `service/scheduler/ExecutionJob`).
 
 **`LIVE` est verrouillé par défaut** (kill switch engagé, `live-unlocked=false`, `executionEnabled=false`). Validé en réel : un achat limit IOC `BTC-USDC` de 0,0001 BTC (≈ 8 USDC) est passé, réconcilié à l'unité avec l'historique OKX (une seule `Transaction`, audit complet, relance idempotente `sent:0`). Le code est aussi testé sur un exchange simulé (`FakeSpotExchange`, `src/test`) et des serveurs HTTP locaux pour les clients OKX et Kraken. Le client Kraken n'a **jamais** passé d'ordre réel (ni `validate` réel) à ce jour. Constats réels : section « Constats exchange ». Plan d'ordres en amont : [`10-execution-plan.md`](10-execution-plan.md).
 
@@ -60,15 +60,9 @@ Vérifié le : 2026-10-12 (`rainbow-live.js`, `service/execution/{exchange,run,c
 - Fills ⇒ `Transaction` (`FillRecorder`, idempotent sur `<PROVIDER>:<tradeId>`, `feeCurrency`, `origin=TRADEIO`). Les trades passés à la main sont importés en lecture seule par `ExchangeTradeImportService` (`origin=MANUAL`, même identifiant externe, jamais de doublon avec un fill TradeIO). Quantité nette reçue = remplie − frais si prélevés dans l'actif reçu ; slippage réel = prix moyen vs mid du re-devis.
 - Audit : `rainbow_live_order_event`, **append-only** (aucun `update`/`delete` exposé, écriture en transaction indépendante), types `PLAN_STARTED, STEP_REQUOTED, STEP_SUBMITTING, STEP_ACK, STEP_RESULT, STEP_UNKNOWN, STEP_RECONCILED, STEP_SKIPPED, PARTIAL_REMAINDER, BLOCKED, ALERT, PLAN_RESULT`, charge utile JSON sans secret.
 
-## Page (lot C2, `rainbow-live.js`, `textContent` uniquement)
+## Écrans utilisateur
 
-Sous le plan de l'actif sélectionné (panneau live) :
-- statut de tradabilité (`TRADABLE_VIA_INTERMEDIARY` : bandeau d'information « deux jambes via USDC → BTC → PAXG, intermédiaire détenu entre les deux ») ; **stock en transit** du lien (devise, quantité, jambe à terminer) ; bouton « Comparer les routes » (`GET /bindings/{id}/path-quote?amount=`, lecture seule) : routes côte à côte avec coût, Fee Test, avertissements, route liée au lien marquée, route non choisie (ETH) signalée ;
-- plan : badge de statut (dont `EXECUTING/EXECUTED/PARTIAL/FAILED`), « ordres envoyés » ou « non envoyé », blocages (`executionBlockReason`) ; par étape : statut, quantité remplie, prix moyen, frais réels (+ devise), slippage réel ; badge Fee Test inchangé ;
-- bloc « Exécution réelle » : badges kill switch (engagé / levé, affichage seul) et mode (`GET /api/rainbow-live/execution-state`), interrupteur « Exécution activée » (`PUT /bindings/{id}/execution`), état du 1er ordre réel (bouton « Confirmer le 1er ordre réel » dès que l'exécution est activée / validé) ;
-- « Audit du plan » : liste paginée en lecture seule (`GET …/execution-plans/{id}/events`), aucune action ;
-- le bandeau dit « exécution réelle verrouillée » tant que `liveExecution` est faux.
-Tests de rendu : `MainControllerUserPageTest` ; audit : `OrderPlanServiceTest` (propriétaire seul, pagination bornée).
+Interrupteur « Exécution activée » du lien (`PUT /bindings/{id}/execution`), état du 1er ordre réel, badges kill switch / mode (`GET /api/rainbow-live/execution-state`), statut `TRADABLE_VIA_INTERMEDIARY` et stock en transit, comparaison des routes (`GET /bindings/{id}/path-quote?amount=`), audit du plan (`GET …/execution-plans/{id}/events`, lecture seule) : voir la fiche actif et le mode d'exécution de `/app` ([`11-front-app.md`](11-front-app.md)). Le bandeau dit « exécution réelle verrouillée » tant que `liveExecution` est faux.
 
 ## Page Admin (`/admin`, `textContent` uniquement)
 
