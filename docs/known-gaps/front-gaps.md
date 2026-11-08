@@ -1,6 +1,6 @@
 # Front — écarts restants
 
-Vérifié le : 2026-11-07.
+Vérifié le : 2026-11-08.
 
 | Écart | État |
 |---|---|
@@ -20,3 +20,4 @@ Vérifié le : 2026-11-07.
 | Réglages utilisateur : export | CSV des ordres et du PnL |
 | Réglages utilisateur : suppression du compte | + export RGPD |
 | Autres idées | pause par lien, fréquence de passe, stablecoin de passerelle préféré, devise d'affichage, fuseau horaire, mode discret, « revenir aux valeurs du profil » |
+| **Accès pour un ami : appli locale + tunnel SSH** | petite appli locale (PC de l'ami) qui se connecte au VPS avec un compte système **sans aucun droit** (seulement ouvrir une session SSH + port forwarding) ; elle ouvre un port local donnant accès à la page web TradeIO, et peut embarquer un navigateur qui s'ouvre au démarrage. Comptes créés à la main au début (accès réservé aux amis) |

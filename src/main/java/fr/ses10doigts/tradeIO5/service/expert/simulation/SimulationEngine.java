@@ -63,7 +63,10 @@ public final class SimulationEngine {
         int n = candles.size();
         RainbowAtrDataset ds = RainbowAtrDataset.fromMarketData(candles);
         TrendMixCalculator.Params tp = in.trend();
-        TrendRegime[] raw = TrendMixCalculator.compute(candles, ds.sma(tp.smaPeriod()), ds.atr(tp.atrPeriod()), tp).regime();
+        double[] sma = ds.sma(tp.smaPeriod());
+        double[] atr = ds.atr(tp.atrPeriod());
+        TrendMixCalculator.Result mix = TrendMixCalculator.compute(candles, sma, atr, tp);
+        TrendRegime[] raw = mix.regime();
         TrendRegime[] regime = SimulationRegimes.resolve(raw, in.rangeMapping());
 
         LocalDate firstDay = day(ds.time(0));
@@ -101,7 +104,7 @@ public final class SimulationEngine {
         List<ResultLineDto> lines = List.of();
         String rainbowLabel = null;
         if (in.type() == SimulationType.TREND) {
-            chart = trendChart(ds, regime, start, end);
+            chart = trendChart(ds, regime, mix, sma, atr, tp.atrMultiplier(), tp, start, end);
         } else {
             RainbowAtrParamSet[] sets;
             int[] setOfBar = new int[n];
@@ -137,13 +140,20 @@ public final class SimulationEngine {
 
     // ---------------------------------------------------------------- graphique
 
-    private static ChartDto trendChart(RainbowAtrDataset ds, TrendRegime[] regime, int start, int end) {
+    /**
+     * Graphique du Trend seul : bougies, SMA et bandes SMA ± k × ATR ({@code tSma}, {@code tUp}, {@code tDn}, null avant le
+     * warmup) et, par bougie, l'état de la régression ({@code tReg}) et de la SMA ({@code tSmaReg}) : 0 non défini (warmup),
+     * 1 UP, 2 DOWN, 3 RANGE (régression indécise, ou SMA sans bande encore franchie).
+     */
+    private static ChartDto trendChart(RainbowAtrDataset ds, TrendRegime[] regime, TrendMixCalculator.Result mix, double[] sma,
+                                       double[] atr, double k, TrendMixCalculator.Params tp, int start, int end) {
         List<String> d = new ArrayList<>();
         List<Integer> trend = new ArrayList<>();
         List<Integer> active = new ArrayList<>();
         Map<String, List<Number>> cols = new LinkedHashMap<>();
-        for (String k : new String[]{"o", "h", "l", "c"}) {
-            cols.put(k, new ArrayList<>());
+        for (String c : new String[]{"o", "h", "l", "c", "tSma", "tUp", "tDn", "tReg", "tSmaReg", "tRaw", "tScore", "tSub0", "tSub1", "tSub2",
+                "tOlsS0", "tOlsE0", "tOlsS1", "tOlsE1", "tOlsS2", "tOlsE2"}) {
+            cols.put(c, new ArrayList<>());
         }
         for (int i = start; i <= end; i++) {
             d.add(day(ds.time(i)).toString());
@@ -153,8 +163,25 @@ public final class SimulationEngine {
             cols.get("h").add(number(ds.high(i)));
             cols.get("l").add(number(ds.low(i)));
             cols.get("c").add(number(ds.close(i)));
+            boolean banded = Double.isFinite(sma[i]) && Double.isFinite(atr[i]);
+            cols.get("tSma").add(banded ? number(sma[i]) : null);
+            cols.get("tUp").add(banded ? number(sma[i] + k * atr[i]) : null);
+            cols.get("tDn").add(banded ? number(sma[i] - k * atr[i]) : null);
+            cols.get("tReg").add(stateCode(mix.regression()[i]));
+            cols.get("tSmaReg").add(stateCode(mix.sma()[i]));
+            cols.get("tRaw").add(stateCode(mix.rawRegression()[i]));
+            cols.get("tScore").add(number(mix.score()[i]));
+            int[] windows = {tp.shortWindow(), tp.mediumWindow(), tp.longWindow()};
+            for (int w = 0; w < 3; w++) {
+                cols.get("tSub" + w).add(number(mix.windowScores()[w][i]));
+                double[] ends = olsEnds(ds, i, windows[w]);
+                cols.get("tOlsS" + w).add(ends == null ? null : number(ends[0]));
+                cols.get("tOlsE" + w).add(ends == null ? null : number(ends[1]));
+            }
         }
-        return new ChartDto(d, trend, active, cols, null, List.of());
+        return new ChartDto(d, trend, active, cols, null, List.of(), Map.<String, Number>of("shortWindow", tp.shortWindow(), "mediumWindow", tp.mediumWindow(),
+                "longWindow", tp.longWindow(), "enter", tp.enter(), "exit", tp.exit(), "confirm", tp.confirm(),
+                "atrMultiplier", tp.atrMultiplier()));
     }
 
     private static ChartDto rainbowChart(List<DayRow> rows, TrendRegime[] regime, RainbowAtrParamSet[] sets) {
@@ -178,7 +205,7 @@ public final class SimulationEngine {
         for (RainbowAtrParamSet s : sets) {
             setDtos.add(new SetDto(s.name(), s.tuning(), s.globals()));
         }
-        return new ChartDto(d, trend, active, cols, wallet(rows), setDtos);
+        return new ChartDto(d, trend, active, cols, wallet(rows), setDtos, Map.of());
     }
 
     /** Wallet fermé, comme le gabarit : capital = max(investi − vendu) ; stable = capital − investi + vendu ; actif = position × clôture. */
@@ -237,6 +264,27 @@ public final class SimulationEngine {
     }
 
     // ---------------------------------------------------------------- utilitaires
+
+    /** Droite des moindres carrés des clôtures sur les {@code w} bougies finissant en {@code i} : {valeur au début, valeur à la fin}. */
+    private static double[] olsEnds(RainbowAtrDataset ds, int i, int w) {
+        if (i < w - 1 || w < 2) {
+            return null;
+        }
+        double sy = 0, sxy = 0;
+        for (int k = 0; k < w; k++) {
+            double y = ds.close(i - w + 1 + k);
+            sy += y;
+            sxy += k * y;
+        }
+        double sx = w * (w - 1) / 2.0, sxx = (w - 1.0) * w * (2.0 * w - 1) / 6.0;
+        double slope = (w * sxy - sx * sy) / (w * sxx - sx * sx);
+        double intercept = (sy - slope * sx) / w;
+        return new double[]{intercept, intercept + slope * (w - 1)};
+    }
+
+    private static int stateCode(TrendRegime r) {
+        return r == null ? 0 : r == TrendRegime.UP ? TREND_UP : r == TrendRegime.DOWN ? TREND_DOWN : 3;
+    }
 
     private static int trendCode(TrendRegime r) {
         return r == TrendRegime.UP ? TREND_UP : r == TrendRegime.DOWN ? TREND_DOWN : TREND_NONE;

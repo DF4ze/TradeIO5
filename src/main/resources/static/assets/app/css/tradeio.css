@@ -495,12 +495,23 @@ details.fold > .fold-body { padding: 0 0 6px 48px; }
 .xgrid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .xgroup { border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .xgroup > legend { padding: 0 8px; font-size: 12px; font-weight: 800; color: var(--accent-text); }
+.xgroup--fold > summary { cursor: pointer; font-size: 13px; font-weight: 800; color: var(--text); list-style: none; display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+.xgroup--fold > summary::-webkit-details-marker { display: none; }
+.xgroup--fold > summary::after { content: '▾'; margin-left: auto; color: var(--muted); transition: transform .15s; }
+.xgroup--fold:not([open]) > summary::after { transform: rotate(-90deg); }
+.xgroup--fold[open] > summary { margin-bottom: 4px; }
+.xgroup-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.xgroup--reg { border-left: 4px solid var(--accent); } .xgroup--reg .xgroup-dot { background: var(--accent); }
+.xgroup--sma { border-left: 4px solid var(--warn); } .xgroup--sma .xgroup-dot { background: var(--warn); }
 .xfield--bool { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
 .xfield--bool input { width: 20px; height: 20px; }
 .xfield--bool .hint, .xfield--bool .err { flex-basis: 100%; }
 .xrange input[type="date"] { height: 34px; padding: 0 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
 .xchart { display: flex; flex-direction: column; gap: 8px; }
-.xc-bar { gap: 14px; }
+.xc-bar { gap: 8px 22px; flex-wrap: wrap; align-items: flex-start; }
+.xc-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding-left: 10px; border-left: 2px solid var(--line); }
+.xc-group[hidden] { display: none; }
+.xc-gtitle { font-weight: 800; text-transform: none; min-width: 52px; }
 .xc-legend { gap: 12px; }
 .xc-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; }
 .xc-panels { display: flex; flex-direction: column; gap: 8px; }

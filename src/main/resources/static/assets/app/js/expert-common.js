@@ -85,7 +85,7 @@
 
   // ---------------------------------------------------------------- champs typés
   const T = (k, label, unit, help, type) => ({ path: ['trend', k], k, label, unit, help, type: type || 'int' });
-  X.TREND_FIELDS = [
+  X.TREND_REGRESSION_FIELDS = [
     T('shortWindow', 'Fenêtre courte', 'j', 'Horizon court du swing (pente et régression).'),
     T('mediumWindow', 'Fenêtre moyenne', 'j', 'Horizon intermédiaire du swing.'),
     T('longWindow', 'Fenêtre longue', 'j', 'Horizon long du swing.'),
@@ -93,14 +93,25 @@
     T('enter', "Seuil d'entrée", '', 'Score à franchir pour entrer dans un régime.', 'num'),
     T('exit', 'Seuil de sortie', '', 'Score sous lequel on quitte le régime.', 'num'),
     T('confirm', 'Jours de confirmation', 'j', 'Durée de confirmation avant de valider un changement.'),
+  ];
+  X.TREND_SMA_FIELDS = [
     T('smaPeriod', 'Période SMA', 'j', 'Moyenne mobile de référence du Trend.'),
     T('atrPeriod', 'Période ATR', 'j', "Volatilité utilisée pour le stop suiveur."),
     T('atrMultiplier', 'Multiplicateur ATR', '×', 'Distance du stop suiveur, en multiples d’ATR.', 'num'),
     T('wickDown', 'Mèches baissières', '', 'Les mèches basses comptent dans le stop.', 'bool'),
     T('wickUp', 'Mèches haussières', '', 'Les mèches hautes comptent dans le stop.', 'bool'),
+  ];
+  X.TREND_MIX_FIELDS = [
     { path: ['rangeMapping'], k: 'rangeMapping', label: 'Résolution des RANGE', unit: '', help: 'Régime retenu quand le Trend est indécis.', type: 'enum',
       options: [['KEEP_PREVIOUS', 'Garder le régime précédent'], ['TO_BEAR', 'RANGE → DOWN (Bear)'], ['TO_BULL', 'RANGE → UP (Bull)']] },
   ];
+  /** Groupes du formulaire Trend : régression et SMA séparés, chacun repliable ; `tone` colore le titre. */
+  X.TREND_GROUPS = [
+    ['Régression linéaire', X.TREND_REGRESSION_FIELDS, { fold: 'trend.reg', tone: 'reg' }],
+    ['SMA et bandes ATR', X.TREND_SMA_FIELDS, { fold: 'trend.sma', tone: 'sma' }],
+    ['Composition', X.TREND_MIX_FIELDS, { fold: 'trend.mix', tone: 'mix' }],
+  ];
+  X.TREND_FIELDS = X.TREND_GROUPS.flatMap((grp) => grp[1]);
   const REENTRY = [['TRAILING_STOP', 'Stop suiveur'], ['IMMEDIATE', 'Immédiat'], ['FIXED_DELAY', 'Délai fixe']];
   const R = (grp, k, label, unit, help, type, extra) => Object.assign({ path: [grp, k], k, label, unit, help, type: type || 'num', group: null }, extra || {});
   X.RAINBOW_GROUPS = [
@@ -165,6 +176,9 @@
     const o = opts || {};
     let values = clone(initial), readOnly = false;
     const inputs = [], errBoxes = new Map();
+    const foldKey = (k) => 'tio.expert.fold.' + k;
+    const isOpen = (k) => { try { return g.localStorage.getItem(foldKey(k)) !== '0'; } catch (e) { return true; } };
+    const remember = (k, open) => { try { g.localStorage.setItem(foldKey(k), open ? '1' : '0'); } catch (e) { /* ignoré */ } };
     const body = h('div', { class: 'stack' }), summary = h('div');
     const notify = () => { if (o.onChange) o.onChange(); };
 
@@ -191,6 +205,16 @@
       const label = h('label', { for: id }, f.label, f.unit ? h('span', { class: 'muted' }, ' (' + f.unit + ')') : null);
       return h('div', { class: 'field xfield' + (f.type === 'bool' ? ' xfield--bool' : '') }, label, input, f.help ? h('div', { class: 'hint' }, f.help) : null, err);
     }
+    /** Groupe de champs : fieldset simple, ou section repliable (<details>, état mémorisé) si `opts.fold`. */
+    function group([title, fields, gopts]) {
+      const grid = h('div', { class: 'xgrid' }, fields.map(control));
+      if (!gopts || !gopts.fold) return h('fieldset', { class: 'xgroup' }, title ? h('legend', null, title) : null, grid);
+      const det = h('details', { class: 'xgroup xgroup--fold xgroup--' + (gopts.tone || 'mix') }, h('summary', null, h('i', { class: 'xgroup-dot' }), title,
+        h('span', { class: 'muted small xgroup-count' }, ' · ' + fields.length + ' réglage' + (fields.length > 1 ? 's' : ''))), grid);
+      det.open = isOpen(gopts.fold);
+      det.addEventListener('toggle', () => remember(gopts.fold, det.open));
+      return det;
+    }
     function build() {
       inputs.length = 0; errBoxes.clear();
       const head = h('div', { class: 'xgrid' });
@@ -205,7 +229,7 @@
       inputs.push({ input: prov, meta: true });
       const provErr = h('div', { class: 'err', role: 'alert' }); errBoxes.set('referenceProvider', provErr);
       head.appendChild(h('div', { class: 'field xfield' }, h('label', null, 'Provider de référence'), prov, h('div', { class: 'hint' }, 'Source des bougies par défaut de ce preset.'), provErr));
-      TIO.mount(body, head, groups.map(([title, fields]) => h('fieldset', { class: 'xgroup' }, title ? h('legend', null, title) : null, h('div', { class: 'xgrid' }, fields.map(control)))), summary);
+      TIO.mount(body, head, groups.map(group), summary);
       applyReadOnly();
     }
     function applyReadOnly() { inputs.forEach(({ input }) => { input.disabled = readOnly; }); }

@@ -7,7 +7,7 @@
 
   const TREND_CFG = {
     kind: 'trend', tab: 'trend', simType: 'TREND', title: 'Trend',
-    groups: [['Réglages du Trend', X.TREND_FIELDS]],
+    groups: X.TREND_GROUPS,
     toValues: (d) => ({ name: d.header.name, referenceProvider: d.header.referenceProvider || null, trend: d.trend, rangeMapping: d.rangeMapping }),
     toBody: (v, rev) => ({ name: v.name, referenceProvider: v.referenceProvider || null, trend: v.trend, rangeMapping: v.rangeMapping, revision: rev }),
     draftOf: (v) => ({ trend: v.trend, rangeMapping: v.rangeMapping }),

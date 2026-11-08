@@ -1,6 +1,6 @@
 # Espace Expert — paramétrage Trend / Rainbow par actif
 
-Vérifié le : 2026-11-07 (`controller/Expert*`, `service/expert/**`, `model/dto/expert/*`, `controller/AppPageController`, `static/assets/app/js/expert-*.js`, `tools/rainbow-replay/`). Modèle des presets et règles de gestion : [`08-rainbow-live.md`](08-rainbow-live.md) ; contrat REST : [`../api/rest-endpoints.md`](../api/rest-endpoints.md) ; écrans : [`11-front-app.md`](11-front-app.md).
+Vérifié le : 2026-11-08 (`controller/Expert*`, `service/expert/**`, `model/dto/expert/*`, `controller/AppPageController`, `static/assets/app/js/expert-*.js`, `tools/rainbow-replay/`). Modèle des presets et règles de gestion : [`08-rainbow-live.md`](08-rainbow-live.md) ; contrat REST : [`../api/rest-endpoints.md`](../api/rest-endpoints.md) ; écrans : [`11-front-app.md`](11-front-app.md).
 
 Paramétrage uniquement : aucune notion de passe, plan, exécution. Un USER consulte, simule et duplique les presets SYSTEM ; il modifie librement les siens ; l'ADMIN seul modifie les SYSTEM.
 
@@ -39,10 +39,12 @@ Types : `TREND` (Trend seul), `RAINBOW` (un preset Rainbow sur le seul régime U
 
 **`ChartDto`** : une valeur par bougie rejouée — `d` (dates), `trend` (0 aucun, 1 UP, 2 DOWN), `active` (0/1), `cols` (colonnes de `RainbowReplayColumns.COLS`, mêmes noms que `replay-template.html` : o, h, l, c, bornes ATR, zones, ath, marqueurs achat / vente / Bull-Bear / moon, `pos` = taille du bag, `reserve`, `realized`, `potential`, `total`, `fixedGain`…), `wallet` (capital fermé : actif, stable, total ; nul pour TREND), `sets` (jeux rejoués).
 
+Pour une simulation `TREND`, `cols` contient en plus de `o,h,l,c` (noms distincts des colonnes Rainbow pour que le front distingue les deux types de graphique) : `tSma`, `tUp`, `tDn` (SMA et SMA ± k × ATR, `null` avant le warmup) ; `tReg` (régression après confirmation), `tRaw` (régression brute avant confirmation) et `tSmaReg` (SMA), codés 0 non défini, 1 UP, 2 DOWN, 3 RANGE ; `tScore` (score composite [-1, 1]) et `tSub0..2` (contribution des fenêtres courte / moyenne / longue = tanh(pente normalisée × échelle) × r², dont `tScore` est la moyenne) ; `tOlsS0..2` / `tOlsE0..2` (valeur de la droite des moindres carrés de chaque fenêtre à son début et à sa fin, pour la bougie considérée). `trendParams` (nul hors TREND) porte les fenêtres, `enter`, `exit`, `confirm`, `atrMultiplier` utilisés pour les seuils et les libellés.
+
 ## Outil de rejeu `tools/rainbow-replay/`
 
 `RainbowAtrReplayMain` (test-scope, **coûteux : ne pas relancer sans raison**) génère le graphique de référence à partir de `replay-template.html` (Lightweight Charts embarqué, CSV D1 dans `data/`). C'est la référence de parité de la simulation : le moteur reste en Java, le front n'en recalcule rien.
 
 ## Front (`static/assets/app/js/`)
 
-`expert-common.js` (`TIO.expert` : requêtes, formulaire généré, sélecteurs, plage, simulation + polling, fenêtre de résultats), `expert-preset-screen.js` (écran Trend / Rainbow), `expert-chart.js` (4 graphiques synchronisés : prix + bandes + marqueurs + phases, poche, PnL, exposition ; options mémorisées par type dans `localStorage`), `page-expert-{trend,rainbow,affectation}.js`. Bandeau « Vue incomplète sur téléphone » sous 700 px. Aucun appel en `?demo=1`.
+`expert-common.js` (`TIO.expert` : requêtes, formulaire généré, sélecteurs, plage, simulation + polling, fenêtre de résultats), `expert-preset-screen.js` (écran Trend / Rainbow), `expert-chart.js` (graphiques synchronisés : prix + bandes + marqueurs + phases, puis poche, PnL, exposition pour le Rainbow ; pour le Trend, SMA et bandes ATR sur le prix, panneau du score de régression (histogramme coloré par régime, seuils ENTER / EXIT, sous-scores optionnels), pistes de régime brut / appliqué / SMA, et droites OLS des 3 fenêtres au survol ; interrupteurs groupés par catégorie Prix / Trend / Rainbow ; options mémorisées par type dans `localStorage`), `page-expert-{trend,rainbow,affectation}.js`. Formulaire Trend en 3 sections repliables (Régression linéaire, SMA et bandes ATR, Composition ; état ouvert/fermé mémorisé dans `localStorage`). Bandeau « Vue incomplète sur téléphone » sous 700 px. Aucun appel en `?demo=1`.

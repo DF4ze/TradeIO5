@@ -7,7 +7,8 @@
   const LW = g.LightweightCharts;
   const ZONES = ['Extrême bas', 'X2', 'X1', 'X0,5', "Pas d'achat", 'Extrême haut'];
   const TRENDS = ['—', 'UP', 'DOWN'];
-  const DEFAULTS = { bands: true, markers: true, inactive: true, phases: true, panels: { bag: true, pnl: true, expo: false } };
+  const STATES = ['—', 'UP', 'DOWN', 'RANGE'];
+  const DEFAULTS = { bands: true, markers: true, inactive: true, phases: true, panels: { bag: true, pnl: true, expo: false, score: true, sub: false, raw: true, sma: true }, ols: true };
 
   const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   function rgba(hex, a) {
@@ -94,13 +95,35 @@
       panels[name] = { name, box, body, chart, series: {} };
       return panels[name];
     }
-    const price = panel('price', 'Cours', 360), bag = panel('bag', 'Taille du bag (position) et réserve moon', 150),
+    /** Piste de régime (comme les 2 barres du bas du pine) : une barre colorée par bougie, sans échelle lisible. */
+    function track(name, title) {
+      const p = panel(name, title, 22);
+      p.chart.applyOptions({ timeScale: { visible: false }, rightPriceScale: { borderVisible: false, minimumWidth: 64 }, localization: { priceFormatter: () => '' },
+        crosshair: { horzLine: { visible: false, labelVisible: false } } });
+      p.series.bar = p.chart.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false, priceFormat: { type: 'volume' },
+        autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 1 } }) });
+      return p;
+    }
+    const price = panel('price', 'Cours', 360), score = panel('score', 'Score de régression [−1 ; +1] (seuils ENTER / EXIT)', 130),
+      rawT = track('rawT', 'Régime de régression · brut (avant confirmation)'), regT = track('regT', 'Régime de régression · appliqué'),
+      smaT = track('smaT', 'Régime SMA (prix vs SMA ± k × ATR)'), bag = panel('bag', 'Taille du bag (position) et réserve moon', 150),
       pnl = panel('pnl', 'PnL (réalisé, potentiel, total, DCA fixe)', 170), expo = panel('expo', 'Exposition (actif / stable / total)', 160);
     const line = (p, color, w, style, title) => p.chart.addLineSeries({ color, lineWidth: w || 1, lineStyle: style || 0, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, title: title || '' });
     const S = price.series;
     S.candle = price.chart.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down, priceLineVisible: false });
     const bandSpec = [['sma', C.muted, 1, 0], ['down2', C.s3, 2, 0], ['down1', rgba(C.s3, 0.65), 1, 0], ['up1', rgba(C.s1, 0.7), 1, 0], ['up2', rgba(C.s0, 0.8), 1, 0], ['up3', C.s0, 2, 0], ['ath', C.warn, 1, 2]];
     bandSpec.forEach(([k, c, w, st]) => { S[k] = line(price, c, w, st); });
+    const WIN_COLORS = ['#2a78d6', '#eb6834', '#6250d6'];
+    score.chart.applyOptions({ rightPriceScale: { minimumWidth: 64 } });
+    score.series.hist = score.chart.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false, priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+      autoscaleInfoProvider: () => ({ priceRange: { minValue: -1, maxValue: 1 } }) });
+    score.series.sub = WIN_COLORS.map((c) => line(score, c, 1, 0));
+    let scoreLines = [];
+    // droites OLS des 3 fenêtres, tracées pour la bougie survolée
+    const ols = WIN_COLORS.map((c) => line(price, c, 2, 0));
+    // Trend seul : SMA et bandes SMA ± k × ATR
+    const trendBandSpec = [['tSma', C.muted, 2, 0], ['tUp', rgba(C.up, 0.8), 1, 0], ['tDn', rgba(C.down, 0.8), 1, 0]];
+    trendBandSpec.forEach(([k, c, w, st]) => { S[k] = line(price, c, w, st); });
     bag.series.pos = line(bag, C.accent, 2, 0, 'bag'); bag.series.reserve = line(bag, C.warn, 1, 2, 'réserve moon');
     pnl.series.realized = line(pnl, C.up, 2, 0, 'réalisé'); pnl.series.potential = line(pnl, C.sim, 2, 0, 'potentiel');
     pnl.series.total = line(pnl, C.text, 2, 0, 'total'); pnl.series.fixed = line(pnl, C.muted, 1, 2, 'DCA fixe');
@@ -121,25 +144,35 @@
       p.chart.subscribeCrosshairMove((ev) => {
         if (!ev.time) return;
         const i = byDay[typeof ev.time === 'string' ? ev.time : ''];
-        if (i !== undefined) showDay(i);
+        if (i !== undefined) { showDay(i); drawOls(i); }
       });
-      p.chart.subscribeClick((ev) => { if (ev.time && typeof ev.time === 'string' && byDay[ev.time] !== undefined) showDay(byDay[ev.time]); });
+      p.chart.subscribeClick((ev) => { if (ev.time && typeof ev.time === 'string' && byDay[ev.time] !== undefined) { showDay(byDay[ev.time]); drawOls(byDay[ev.time]); } });
     });
 
     // ---- options d'affichage (mémorisées) ----
-    function sw(label, get, set) {
+    function sw(label, get, set, need) {
       const s = TIO.ui.switchEl({ label, checked: get(), onChange: (on) => { set(on); saveOpts(kind, state); apply(); } });
-      return h('label', { class: 'row small' }, s.el, h('span', null, label));
+      return h('label', { class: 'row small', 'data-need': need || '' }, s.el, h('span', null, label));
     }
+    /** Interrupteurs groupés par catégorie ; un groupe disparaît si aucun de ses interrupteurs ne s'applique au graphique courant. */
     function buildToolbar() {
+      const grp = (title, ...items) => h('div', { class: 'xc-group' }, h('span', { class: 'xc-gtitle small muted' }, title), ...items);
       TIO.mount(toolbar,
-        sw('Bornes ATR / ATH', () => state.bands, (v) => { state.bands = v; }),
-        sw('Marqueurs', () => state.markers, (v) => { state.markers = v; }),
-        sw('Phases UP / DOWN', () => state.phases, (v) => { state.phases = v; }),
-        sw('Zones inactives grisées', () => state.inactive, (v) => { state.inactive = v; }),
-        sw('Bag', () => state.panels.bag, (v) => { state.panels.bag = v; }),
-        sw('PnL', () => state.panels.pnl, (v) => { state.panels.pnl = v; }),
-        sw('Exposition', () => state.panels.expo, (v) => { state.panels.expo = v; }));
+        grp('Prix',
+          sw('Bornes ATR / ATH · SMA et bandes', () => state.bands, (v) => { state.bands = v; }, 'band'),
+          sw('Marqueurs', () => state.markers, (v) => { state.markers = v; }),
+          sw('Phases UP / DOWN', () => state.phases, (v) => { state.phases = v; }),
+          sw('Zones inactives grisées', () => state.inactive, (v) => { state.inactive = v; })),
+        grp('Trend',
+          sw('Score de régression', () => state.panels.score, (v) => { state.panels.score = v; }, 'tb'),
+          sw('Sous-scores 14 / 30 / 60', () => state.panels.sub, (v) => { state.panels.sub = v; }, 'tb'),
+          sw('Brut vs appliqué', () => state.panels.raw, (v) => { state.panels.raw = v; }, 'tb'),
+          sw('Régime SMA', () => state.panels.sma, (v) => { state.panels.sma = v; }, 'tb'),
+          sw('Droites de régression au survol', () => state.ols, (v) => { state.ols = v; }, 'tb')),
+        grp('Rainbow',
+          sw('Bag', () => state.panels.bag, (v) => { state.panels.bag = v; }, 'rb'),
+          sw('PnL', () => state.panels.pnl, (v) => { state.panels.pnl = v; }, 'rb'),
+          sw('Exposition', () => state.panels.expo, (v) => { state.panels.expo = v; }, 'wallet')));
     }
     function dot(color, label) { return h('span', { class: 'row' }, h('i', { class: 'xc-dot', style: { background: color } }), label); }
     function buildLegend() {
@@ -147,6 +180,8 @@
       const items = [];
       if (rb) items.push(dot(C.muted, 'SMA'), dot(C.s3, 'DOWN2 / DOWN1'), dot(C.s1, 'UP1'), dot(C.s0, 'UP2 / UP3'), dot(C.warn, 'ATH'),
         dot(C.up, 'achat zone'), dot(C.sim, 'achat déclenché'), dot(C.down, 'vente'), dot(C.warn, 'To the moon'), dot(C.s1, 'stop moon'));
+      if (data && data.cols && data.cols.tSma) items.push(dot(C.muted, 'SMA'), dot(C.up, 'SMA + k × ATR'), dot(C.down, 'SMA − k × ATR'), dot(C.up, 'régime UP'), dot(C.down, 'régime DOWN'), dot(rgba(C.muted, 0.6), 'RANGE / indécis'),
+        ...(data.trendParams && data.trendParams.shortWindow ? [dot(WIN_COLORS[0], 'droite ' + data.trendParams.shortWindow + ' j'), dot(WIN_COLORS[1], 'droite ' + data.trendParams.mediumWindow + ' j'), dot(WIN_COLORS[2], 'droite ' + data.trendParams.longWindow + ' j')] : []));
       items.push(dot(rgba(C.up, 0.5), 'phase UP'), dot(rgba(C.down, 0.5), 'phase DOWN'), dot(rgba(C.muted, 0.6), 'inactif (hors régime)'));
       if (data && data.sets && data.sets.length > 1) data.sets.forEach((s, i) => items.push(h('span', null, (i ? 'Bull' : 'Bear') + ' : ' + s.name)));
       TIO.mount(legend, items);
@@ -173,25 +208,53 @@
 
     function apply() {
       if (!data) return;
-      const cols = data.cols, hasRb = !!cols.sma, hasWallet = !!data.wallet;
+      const cols = data.cols, hasRb = !!cols.sma, hasWallet = !!data.wallet, hasTb = !!cols.tSma;
       bandSpec.forEach(([k]) => S[k].applyOptions({ visible: state.bands && hasRb }));
+      trendBandSpec.forEach(([k]) => S[k].applyOptions({ visible: state.bands && hasTb }));
       S.candle.setMarkers(state.markers ? markers() : []);
       if (shade) { shade.opts.inactive = state.inactive; shade.opts.phases = state.phases; price.chart.timeScale().applyOptions({}); }
       bag.box.hidden = !(hasRb && state.panels.bag);
       pnl.box.hidden = !(hasRb && state.panels.pnl);
       expo.box.hidden = !(hasWallet && state.panels.expo);
-      toolbar.querySelectorAll('label').forEach((l, i) => { l.hidden = (!hasRb && (i === 0 || i === 4 || i === 5)) || (!hasWallet && i === 6); });
+      const P = state.panels;
+      score.box.hidden = !(hasTb && P.score);
+      rawT.box.hidden = !(hasTb && P.raw);
+      regT.box.hidden = !(hasTb && (P.score || P.raw));
+      smaT.box.hidden = !(hasTb && P.sma);
+      score.series.sub.forEach((q) => q.applyOptions({ visible: hasTb && P.sub }));
+      ols.forEach((q) => q.applyOptions({ visible: hasTb && state.ols }));
+      if (!hasTb || !state.ols) ols.forEach((q) => q.setData([]));
+      const has = { band: hasRb || hasTb, rb: hasRb, wallet: hasWallet, tb: hasTb };
+      toolbar.querySelectorAll('label[data-need]').forEach((l) => { const nd = l.dataset.need; l.hidden = !!nd && !has[nd]; });
+      toolbar.querySelectorAll('.xc-group').forEach((gr) => { gr.hidden = ![...gr.querySelectorAll('label')].some((l) => !l.hidden); });
       all.forEach((p) => { if (!p.box.hidden) p.chart.applyOptions({}); });
       // forcer le redessin des primitives
       const r = price.chart.timeScale().getVisibleLogicalRange();
       if (r) price.chart.timeScale().setVisibleLogicalRange(r);
     }
 
+    /** 3 droites OLS (fenêtres courte / moyenne / longue) de la bougie i, calculées côté serveur ; début ramené au 1er jour tracé si la fenêtre le déborde. */
+    function drawOls(i) {
+      if (!data || !data.cols.tSma || !state.ols) return;
+      const c = data.cols, tp = data.trendParams || {}, wins = [tp.shortWindow, tp.mediumWindow, tp.longWindow];
+      ols.forEach((q, k) => {
+        const a = c['tOlsS' + k][i], b = c['tOlsE' + k][i], w = wins[k];
+        if (a === null || b === null || !w || w < 2) { q.setData([]); return; }
+        const j = i - w + 1, slope = (b - a) / (w - 1);
+        q.setData([{ time: data.d[Math.max(0, j)], value: j < 0 ? a + slope * -j : a }, { time: data.d[i], value: b }]);
+      });
+    }
     function row(label, value) { return h('tr', null, h('td', { class: 'muted' }, label), h('td', { class: 'num' }, value)); }
     function showDay(i) {
       if (!data || i === undefined) return;
       const c = data.cols, d = data.d, cl = (k) => (c[k] ? c[k][i] : null);
       const rows = [row('Jour', F.dayLong(d[i])), row('Régime Trend', TRENDS[data.trend[i]] + (data.active[i] ? '' : ' · inactif')), row('Clôture', F.price(cl('c')))];
+      if (c.tSma) {
+        const fx = (v) => (v === null || v === undefined ? '—' : F.num(v, 2));
+        rows.push(row('Régression (appliqué / brut)', STATES[cl('tReg')] + ' / ' + STATES[cl('tRaw')]), row('Score de régression', fx(cl('tScore'))),
+          row('Sous-scores 14 / 30 / 60', fx(cl('tSub0')) + ' / ' + fx(cl('tSub1')) + ' / ' + fx(cl('tSub2'))), row('SMA (état)', STATES[cl('tSmaReg')]), row('SMA', F.num(cl('tSma'), 2)),
+          row('Bande basse / haute', F.num(cl('tDn'), 2) + ' / ' + F.num(cl('tUp'), 2)));
+      }
       if (c.sma) {
         const set = data.sets && data.sets[cl('set')];
         const sig = [];
@@ -226,6 +289,18 @@
         byDay = {}; data.d.forEach((t, i) => { byDay[t] = i; });
         S.candle.setData(data.d.map((t, i) => ({ time: t, open: c.o[i], high: c.h[i], low: c.l[i], close: c.c[i] })));
         bandSpec.forEach(([k]) => { if (c[k]) S[k].setData(series(c[k])); else S[k].setData([]); });
+        if (c.tSma) {
+          ['tSma', 'tUp', 'tDn'].forEach((k) => S[k].setData(series(c[k])));
+          const bars = (arr) => data.d.map((t, i) => ({ time: t, value: 1, color: arr[i] === 1 ? rgba(C.up, 0.85) : arr[i] === 2 ? rgba(C.down, 0.85) : arr[i] === 3 ? rgba(C.muted, 0.45) : 'rgba(0,0,0,0)' }));
+          regT.series.bar.setData(bars(c.tReg)); rawT.series.bar.setData(bars(c.tRaw)); smaT.series.bar.setData(bars(c.tSmaReg));
+          score.series.hist.setData(data.d.map((t, i) => (c.tScore[i] === null ? { time: t } : { time: t, value: c.tScore[i], color: c.tReg[i] === 1 ? rgba(C.up, 0.85) : c.tReg[i] === 2 ? rgba(C.down, 0.85) : rgba(C.muted, 0.55) })));
+          score.series.sub.forEach((q, k) => q.setData(series(c['tSub' + k])));
+          scoreLines.forEach((l) => score.series.hist.removePriceLine(l)); scoreLines = [];
+          const tp = data.trendParams || {};
+          [[tp.enter, 'ENTER', 2], [-tp.enter, '', 2], [tp.exit, 'EXIT', 1], [-tp.exit, '', 1]].forEach(([v, t, st]) => {
+            if (Number.isFinite(v)) scoreLines.push(score.series.hist.createPriceLine({ price: v, color: C.muted, lineWidth: 1, lineStyle: st, axisLabelVisible: true, title: t }));
+          });
+        } else { ['tSma', 'tUp', 'tDn'].forEach((k) => S[k].setData([])); regT.series.bar.setData([]); rawT.series.bar.setData([]); smaT.series.bar.setData([]); score.series.hist.setData([]); score.series.sub.forEach((q) => q.setData([])); }
         if (c.pos) {
           bag.series.pos.setData(series(c.pos)); bag.series.reserve.setData(series(c.reserve));
           pnl.series.realized.setData(series(c.realized)); pnl.series.potential.setData(series(c.potential)); pnl.series.total.setData(series(c.total)); pnl.series.fixed.setData(series(c.fixedGain));
@@ -240,6 +315,7 @@
         all.forEach((p) => p.chart.timeScale().fitContent());
         apply();
         showDay(data.d.length - 1);
+        drawOls(data.d.length - 1);
       },
       destroy() { all.forEach((p) => p.chart.remove()); },
     };

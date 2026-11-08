@@ -48,9 +48,32 @@ class SimulationEngineTest {
     void trendAloneHasNoWalletNorLines() {
         SimulationResultDto r = run(input(SimulationType.TREND, SimulationFixtures.synthetic(700, TODAY), null, null, null));
         assertTrue(r.lines().isEmpty());
-        assertEquals(List.of("o", "h", "l", "c"), List.copyOf(r.chart().cols().keySet()));
+        assertEquals(List.of("o", "h", "l", "c", "tSma", "tUp", "tDn", "tReg", "tSmaReg", "tRaw", "tScore", "tSub0", "tSub1", "tSub2",
+                "tOlsS0", "tOlsE0", "tOlsS1", "tOlsE1", "tOlsS2", "tOlsE2"), List.copyOf(r.chart().cols().keySet()));
         assertEquals(r.chart().d().size(), r.chart().trend().size());
         assertFalse(r.phases().isEmpty());
+    }
+
+    @Test
+    void trendChartExposesSmaBandsAndBothRegimeTracks() {
+        SimulationResultDto r = run(input(SimulationType.TREND, SimulationFixtures.synthetic(700, TODAY), null, null, null));
+        var cols = r.chart().cols();
+        int n = r.chart().d().size();
+        for (String k : List.of("tSma", "tUp", "tDn", "tReg", "tSmaReg")) {
+            assertEquals(n, cols.get(k).size(), k);
+        }
+        int last = n - 1;
+        double sma = cols.get("tSma").get(last).doubleValue();
+        assertTrue(cols.get("tUp").get(last).doubleValue() > sma);
+        assertTrue(cols.get("tDn").get(last).doubleValue() < sma);
+        assertTrue(cols.get("tReg").get(last).intValue() >= 1 && cols.get("tReg").get(last).intValue() <= 3);
+        assertTrue(cols.get("tSmaReg").get(last).intValue() >= 1 && cols.get("tSmaReg").get(last).intValue() <= 3);
+        double score = cols.get("tScore").get(last).doubleValue();
+        assertTrue(score >= -1 && score <= 1);
+        double mean = (cols.get("tSub0").get(last).doubleValue() + cols.get("tSub1").get(last).doubleValue() + cols.get("tSub2").get(last).doubleValue()) / 3;
+        assertEquals(score, mean, 1e-9);
+        assertEquals(0.30, r.chart().trendParams().get("enter").doubleValue(), 1e-9);
+        assertTrue(cols.get("tOlsE0").get(last).doubleValue() > 0);
     }
 
     @Test
