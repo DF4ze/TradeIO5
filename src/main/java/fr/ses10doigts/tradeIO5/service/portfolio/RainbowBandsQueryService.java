@@ -34,7 +34,7 @@ public class RainbowBandsQueryService {
     }
 
     /** {@code simulated=true} : bandes recalculées sur les bougies D1 (pointillé), à la place des bandes figées. */
-    @Transactional(readOnly = true)
+    @Transactional // pas readOnly : le dataset D1 alimente le cache DB des candles (insert) en mode simulé
     public RainbowBandsDto bands(User user, Long bindingId, PortfolioPeriod period, boolean simulated) {
         RainbowLiveBinding binding = bindingRepository.findById(bindingId)
                 .filter(b -> b.getUser().getId().equals(user.getId()))

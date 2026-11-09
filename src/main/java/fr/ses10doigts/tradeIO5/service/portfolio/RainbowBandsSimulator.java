@@ -34,7 +34,7 @@ import java.util.List;
 /**
  * Bandes Rainbow recalculées à la demande (pointillé « simulé » avant le premier run) : mêmes indicateurs, même jeu de
  * paramètres (Trend Mix : jeu Bull/Bear choisi par le régime du jour) que la passe, sur les bougies D1 du lien. Les achats/ventes
- * virtuels ({@code action}) sont rejoués par {@link RainbowAtrReplay} sur toute la période affichée. Aucune écriture,
+ * virtuels ({@code action}) sont rejoués par {@link RainbowAtrReplay} sur toute la période affichée. Aucune écriture métier (seul le cache DB des candles peut être alimenté),
  * aucun état moteur, aucun appel authentifié.
  */
 @Service
