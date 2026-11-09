@@ -91,7 +91,7 @@ public final class ExpertSimulationDtos {
      * marqueurs, pos = taille du bag, reserve, realized, potential, total, fixedGain…), {@code wallet} (nul pour TREND).
      */
     public record ChartDto(List<String> d, List<Integer> trend, List<Integer> active, Map<String, List<Number>> cols,
-                           WalletDto wallet, List<SetDto> sets) {
+                           WalletDto wallet, List<SetDto> sets, Map<String, Number> trendParams) {
     }
 
     /** Ligne de la fenêtre de résultats (tableau du pine) : {@code value} numérique ou {@code text}. */

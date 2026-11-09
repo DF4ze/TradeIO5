@@ -177,7 +177,7 @@
     let values = clone(initial), readOnly = false;
     const inputs = [], errBoxes = new Map();
     const foldKey = (k) => 'tio.expert.fold.' + k;
-    const isOpen = (k) => { try { return g.localStorage.getItem(foldKey(k)) !== '0'; } catch (e) { return true; } };
+    const isOpen = (k) => { try { return g.localStorage.getItem(foldKey(k)) === '1'; } catch (e) { return false; } };
     const remember = (k, open) => { try { g.localStorage.setItem(foldKey(k), open ? '1' : '0'); } catch (e) { /* ignoré */ } };
     const body = h('div', { class: 'stack' }), summary = h('div');
     const notify = () => { if (o.onChange) o.onChange(); };
@@ -364,21 +364,23 @@
     const cancel = h('button', { type: 'button', class: 'btn', hidden: true }, 'Annuler');
     const staleChip = h('span', { class: 'chip chip--warn', hidden: true }, 'Résultat périmé : entrées modifiées depuis la simulation');
     let chart = null, job = null, lastKey = null, hasResult = false;
+    const mirrors = [];
+    const syncMirrors = () => mirrors.forEach((b) => { b.disabled = btn.disabled; b.textContent = btn.textContent; });
     const bar = h('div', { class: 'row' }, btn, cancel, staleChip);
     function ensureChart() { if (!chart) chart = TIO.expertChart(chartBox, { kind: cfg.kind }); return chart; }
-    function setIdle() { btn.disabled = false; cancel.hidden = true; }
+    function setIdle() { btn.disabled = false; cancel.hidden = true; syncMirrors(); }
     function run() {
       const req = cfg.build();
       if (!req || job) return;
       TIO.mount(status);
-      btn.disabled = true; cancel.hidden = false;
+      btn.disabled = true; cancel.hidden = false; syncMirrors();
       const prog = h('div', { class: 'row small muted' });
       TIO.mount(status, prog);
       job = X.simulate(req.body, {
         onProgress: (t, pct) => TIO.mount(prog, t + ' ' + pct + ' %', ui.bar(pct)),
         onDone: (res) => {
           job = null; setIdle(); TIO.mount(status);
-          lastKey = req.key; hasResult = true; staleChip.hidden = true; btn.textContent = 'Simuler';
+          lastKey = req.key; hasResult = true; staleChip.hidden = true; btn.textContent = 'Simuler'; syncMirrors();
           TIO.mount(results, X.resultsWindow(res, cfg.type === 'TREND'));
           const c = ensureChart();
           if (c) c.update(res.chart);
@@ -397,7 +399,13 @@
       el: h('div', { class: 'stack' }, bar, status, chartBox, results),
       run,
       touch() { const req = cfg.build(); staleChip.hidden = !(hasResult && (!req || req.key !== lastKey)); },
-      setLabel(t) { btn.textContent = t; },
+      setLabel(t) { btn.textContent = t; syncMirrors(); },
+      /** Second bouton « Simuler » (ex. dans le panneau de réglages), synchronisé avec le principal. */
+      mirrorButton() {
+        const b = h('button', { type: 'button', class: 'btn btn--primary', onclick: run }, btn.textContent);
+        mirrors.push(b); syncMirrors();
+        return b;
+      },
       setEnabled(b) { btn.disabled = !b || !!job; },
     };
   };

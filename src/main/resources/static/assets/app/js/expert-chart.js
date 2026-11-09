@@ -63,6 +63,32 @@
     }
   }
 
+  /** Droites OLS de la bougie survolée, dessinées sur le canvas (aucun setData : pas de réentrance ni d'effet sur l'échelle de prix). */
+  class OlsPrimitive {
+    constructor(chart, series, getState) {
+      this.chart = chart; this.series = series; this.getState = getState; this.requestUpdate = null;
+      const self = this;
+      this.view = { zOrder: () => 'top', renderer: () => ({ draw: (target) => self.draw(target) }) };
+    }
+    attached(param) { this.requestUpdate = param.requestUpdate; }
+    detached() { this.requestUpdate = null; }
+    updateAllViews() {}
+    paneViews() { return [this.view]; }
+    draw(target) {
+      const st = this.getState();
+      if (!st || !st.lines.length) return;
+      const ts = this.chart.timeScale();
+      target.useMediaCoordinateSpace(({ context: ctx }) => {
+        ctx.lineWidth = 2; ctx.lineCap = 'round';
+        st.lines.forEach((l) => {
+          const x0 = ts.timeToCoordinate(l.t0), x1 = ts.timeToCoordinate(l.t1), y0 = this.series.priceToCoordinate(l.v0), y1 = this.series.priceToCoordinate(l.v1);
+          if (x0 === null || x1 === null || y0 === null || y1 === null) return;
+          ctx.strokeStyle = l.color; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        });
+      });
+    }
+  }
+
   /**
    * Monte le graphique dans `container`. opts : { kind } (clé de mémorisation des options d'affichage).
    * Retourne { update(chartDto), destroy() }.
@@ -77,11 +103,12 @@
     const legend = h('div', { class: 'row small muted xc-legend' });
     const panelsBox = h('div', { class: 'xc-panels' });
     const detail = h('div', { class: 'xc-detail' });
-    TIO.mount(container, toolbar, legend, panelsBox, detail);
+    const credit = h('div', { class: 'small muted xc-credit' }, 'Graphiques : ', h('a', { href: 'https://www.tradingview.com/', target: '_blank', rel: 'noopener' }, 'TradingView Lightweight Charts™'));
+    TIO.mount(container, toolbar, legend, panelsBox, detail, credit);
 
     const baseOptions = () => ({
       autoSize: true,
-      layout: { background: { type: 'solid', color: 'transparent' }, textColor: C.muted, fontFamily: 'Manrope, system-ui, sans-serif', fontSize: 11 },
+      layout: { attributionLogo: false, background: { type: 'solid', color: 'transparent' }, textColor: C.muted, fontFamily: 'Manrope, system-ui, sans-serif', fontSize: 11 },
       grid: { vertLines: { color: C.line }, horzLines: { color: C.line } },
       rightPriceScale: { borderColor: C.line, minimumWidth: 64 }, timeScale: { borderColor: C.line, timeVisible: false, rightOffset: 2 },
       crosshair: { mode: LW.CrosshairMode.Normal },
@@ -116,11 +143,10 @@
     const WIN_COLORS = ['#2a78d6', '#eb6834', '#6250d6'];
     score.chart.applyOptions({ rightPriceScale: { minimumWidth: 64 } });
     score.series.hist = score.chart.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false, priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
-      autoscaleInfoProvider: () => ({ priceRange: { minValue: -1, maxValue: 1 } }) });
+      autoscaleInfoProvider: () => ({ priceRange: { minValue: -scoreRange, maxValue: scoreRange } }) });
+    let scoreRange = 1;
     score.series.sub = WIN_COLORS.map((c) => line(score, c, 1, 0));
     let scoreLines = [];
-    // droites OLS des 3 fenêtres, tracées pour la bougie survolée
-    const ols = WIN_COLORS.map((c) => line(price, c, 2, 0));
     // Trend seul : SMA et bandes SMA ± k × ATR
     const trendBandSpec = [['tSma', C.muted, 2, 0], ['tUp', rgba(C.up, 0.8), 1, 0], ['tDn', rgba(C.down, 0.8), 1, 0]];
     trendBandSpec.forEach(([k, c, w, st]) => { S[k] = line(price, c, w, st); });
@@ -130,7 +156,9 @@
     expo.series.asset = line(expo, C.accent, 2, 0, 'en actif'); expo.series.stable = line(expo, C.up, 2, 0, 'en stable');
     expo.series.total = line(expo, C.text, 2, 0, 'total'); expo.series.capital = line(expo, C.muted, 1, 2, 'capital');
 
-    let data = null, shade = null, byDay = {};
+    let data = null, shade = null, byDay = {}, olsIdx = null, olsState = null;
+    const olsPrim = new OlsPrimitive(price.chart, S.candle, () => (data && data.cols.tSma && state.ols ? olsState : null));
+    S.candle.attachPrimitive(olsPrim);
     // ---- synchronisation des échelles de temps et du curseur ----
     const all = Object.values(panels);
     let syncing = false;
@@ -222,8 +250,7 @@
       regT.box.hidden = !(hasTb && (P.score || P.raw));
       smaT.box.hidden = !(hasTb && P.sma);
       score.series.sub.forEach((q) => q.applyOptions({ visible: hasTb && P.sub }));
-      ols.forEach((q) => q.applyOptions({ visible: hasTb && state.ols }));
-      if (!hasTb || !state.ols) ols.forEach((q) => q.setData([]));
+      drawOls(olsIdx);
       const has = { band: hasRb || hasTb, rb: hasRb, wallet: hasWallet, tb: hasTb };
       toolbar.querySelectorAll('label[data-need]').forEach((l) => { const nd = l.dataset.need; l.hidden = !!nd && !has[nd]; });
       toolbar.querySelectorAll('.xc-group').forEach((gr) => { gr.hidden = ![...gr.querySelectorAll('label')].some((l) => !l.hidden); });
@@ -235,14 +262,18 @@
 
     /** 3 droites OLS (fenêtres courte / moyenne / longue) de la bougie i, calculées côté serveur ; début ramené au 1er jour tracé si la fenêtre le déborde. */
     function drawOls(i) {
-      if (!data || !data.cols.tSma || !state.ols) return;
-      const c = data.cols, tp = data.trendParams || {}, wins = [tp.shortWindow, tp.mediumWindow, tp.longWindow];
-      ols.forEach((q, k) => {
-        const a = c['tOlsS' + k][i], b = c['tOlsE' + k][i], w = wins[k];
-        if (a === null || b === null || !w || w < 2) { q.setData([]); return; }
-        const j = i - w + 1, slope = (b - a) / (w - 1);
-        q.setData([{ time: data.d[Math.max(0, j)], value: j < 0 ? a + slope * -j : a }, { time: data.d[i], value: b }]);
-      });
+      olsIdx = i;
+      olsState = { lines: [] };
+      if (data && data.cols.tSma && state.ols && i !== null && i !== undefined) {
+        const c = data.cols, tp = data.trendParams || {}, wins = [tp.shortWindow, tp.mediumWindow, tp.longWindow];
+        wins.forEach((w, k) => {
+          const a = c['tOlsS' + k][i], b = c['tOlsE' + k][i];
+          if (a === null || b === null || !w || w < 2) return;
+          const j = i - w + 1, slope = (b - a) / (w - 1);
+          olsState.lines.push({ t0: data.d[Math.max(0, j)], t1: data.d[i], v0: j < 0 ? a + slope * -j : a, v1: b, color: WIN_COLORS[k] });
+        });
+      }
+      if (olsPrim.requestUpdate) olsPrim.requestUpdate();
     }
     function row(label, value) { return h('tr', null, h('td', { class: 'muted' }, label), h('td', { class: 'num' }, value)); }
     function showDay(i) {
@@ -298,8 +329,12 @@
           scoreLines.forEach((l) => score.series.hist.removePriceLine(l)); scoreLines = [];
           const tp = data.trendParams || {};
           [[tp.enter, 'ENTER', 2], [-tp.enter, '', 2], [tp.exit, 'EXIT', 1], [-tp.exit, '', 1]].forEach(([v, t, st]) => {
-            if (Number.isFinite(v)) scoreLines.push(score.series.hist.createPriceLine({ price: v, color: C.muted, lineWidth: 1, lineStyle: st, axisLabelVisible: true, title: t }));
+            if (Number.isFinite(v)) scoreLines.push(score.series.hist.createPriceLine({ price: v, color: C.muted, lineWidth: 1, lineStyle: st, axisLabelVisible: false, title: '' }));
           });
+          const maxAbs = c.tScore.reduce((m, v) => (v === null ? m : Math.max(m, Math.abs(v))), 0);
+          scoreRange = Math.min(1, Math.max(0.2, Math.ceil(Math.max((tp.enter || 0) * 1.4, maxAbs * 1.08) * 20) / 20));
+          const ttl = score.box.querySelector('.xc-title');
+          if (ttl) ttl.textContent = 'Score de régression · seuils ENTER ±' + F.num(tp.enter, 2) + ' (tirets), EXIT ±' + F.num(tp.exit, 2) + ' (pointillés)';
         } else { ['tSma', 'tUp', 'tDn'].forEach((k) => S[k].setData([])); regT.series.bar.setData([]); rawT.series.bar.setData([]); smaT.series.bar.setData([]); score.series.hist.setData([]); score.series.sub.forEach((q) => q.setData([])); }
         if (c.pos) {
           bag.series.pos.setData(series(c.pos)); bag.series.reserve.setData(series(c.reserve));

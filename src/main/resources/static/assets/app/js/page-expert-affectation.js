@@ -80,6 +80,7 @@
       } catch (e) { TIO.toast(X.errorText(e), true); }
     }
 
+    root.classList.add('tio-main--wide');
     TIO.mount(root, ui.pageHeader('Espace Expert', 'Affectation'), X.mobileNotice(), X.tabs('affectation'),
       h('div', { class: 'grid' }, ui.card('Sélection', selBox, ui.cardOpts({ span: true })), ui.card('Affectation', affBox, ui.cardOpts({ span: true })),
         ui.card('Simulation', rangeBox, sim.el, ui.cardOpts({ span: true }))));

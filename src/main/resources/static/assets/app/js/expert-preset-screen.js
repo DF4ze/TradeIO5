@@ -15,7 +15,7 @@
   };
   const RAINBOW_CFG = {
     kind: 'rainbow', tab: 'rainbow', simType: 'RAINBOW', title: 'Rainbow',
-    groups: X.RAINBOW_GROUPS,
+    groups: X.RAINBOW_GROUPS.map((grp, i) => [grp[0], grp[1], { fold: 'rainbow.' + i, tone: 'mix' }]),
     toValues: (d) => ({ name: d.header.name, referenceProvider: d.header.referenceProvider || null, analysisWindowMonths: d.analysisWindowMonths, tuning: d.tuning, globals: d.globals }),
     toBody: (v, rev) => ({ name: v.name, referenceProvider: v.referenceProvider || null, analysisWindowMonths: v.analysisWindowMonths, tuning: v.tuning, globals: v.globals, revision: rev }),
     draftOf: (v) => ({ analysisWindowMonths: v.analysisWindowMonths, tuning: v.tuning, globals: v.globals }),
@@ -51,6 +51,7 @@
       onDone: () => X.memory.set(cfg.simType, st.asset, st.header.id, { provider: st.provider, range: st.range, signal: st.signal }),
     });
 
+    const simBtn = sim.mirrorButton();
     function refresh() { renderActions(); sim.touch(); }
 
     // ---- chargement
@@ -111,6 +112,7 @@
       const hd = st.header, dirty = isDirty(), system = hd.origin === 'SYSTEM';
       const btn = (label, cls, fn, disabled) => h('button', { type: 'button', class: 'btn ' + cls, disabled: !!disabled, onclick: fn }, label);
       TIO.mount(box,
+        simBtn,
         hd.editable ? btn('Enregistrer', 'btn--primary', save, !dirty) : null,
         hd.editable ? btn('Annuler les modifications', '', discard, !dirty) : null,
         btn('Dupliquer', system && !hd.editable ? 'btn--primary' : '', duplicate),
@@ -123,7 +125,7 @@
       const note = system && !hd.editable ? h('div', { class: 'banner' }, 'Preset système : duplique-le pour le modifier. Tu peux le simuler tel quel.')
         : system ? h('div', { class: 'banner banner--warn' }, 'Preset système (administrateur) : toute modification se propage à toutes les Affectations qui l’utilisent.') : null;
       const usage = (hd.usedBy || []).length ? h('div', { class: 'small muted' }, 'Installé dans ton Affectation : ' + hd.usedBy.map((u) => u.role.replace('RAINBOW_', 'Rainbow ').replace('TREND', 'Trend') + (u.enabled ? ' (moteur actif)' : '')).join(', ')) : null;
-      TIO.mount(presetBox, note, usage, st.form.el, h('div', { class: 'row xactions' }));
+      TIO.mount(presetBox, h('div', { class: 'row xactions' }), note, usage, st.form.el);
       renderActions();
     }
     function renderAll() { renderSelectors(); renderPreset(); TIO.mount(rangeBox, X.rangeControl(st.range, () => sim.touch())); sim.touch(); }
@@ -189,12 +191,45 @@
       }
     }
 
-    // ---- assemblage
-    TIO.mount(root, ui.pageHeader('Espace Expert', cfg.title), X.mobileNotice(), X.tabs(cfg.tab),
-      h('div', { class: 'grid' },
-        ui.card('Sélection', selBox, ui.cardOpts({ span: true })),
-        ui.card('Preset ' + cfg.title, presetBox, ui.cardOpts({ span: true })),
-        ui.card('Simulation', rangeBox, sim.el, ui.cardOpts({ span: true }))));
+    // ---- assemblage : graphique à gauche, réglages du preset à droite (largeur réglable), empilés sur écran étroit
+    const SIDE_KEY = 'tio.expert.sidewidth', HIDE_KEY = 'tio.expert.sidehidden';
+    const store = { get(k) { try { return g.localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { g.localStorage.setItem(k, v); } catch (e) { /* ignoré */ } } };
+    root.classList.add('tio-main--wide');
+    const sideCard = ui.card('Preset ' + cfg.title, presetBox);
+    sideCard.classList.add('xwork-side');
+    const split = h('div', { class: 'xsplit', role: 'separator', 'aria-orientation': 'vertical', tabindex: '0', title: 'Glisser pour redimensionner (double-clic : taille par défaut)' }, h('i'));
+    const work = h('div', { class: 'xwork' });
+    const toggle = h('button', { type: 'button', class: 'btn xwide-only' });
+    function applySide() {
+      const hidden = store.get(HIDE_KEY) === '1', w = Number(store.get(SIDE_KEY));
+      work.classList.toggle('xwork--noside', hidden);
+      if (w > 0) work.style.setProperty('--xside', w + 'px'); else work.style.removeProperty('--xside');
+      toggle.textContent = hidden ? 'Afficher les réglages' : 'Masquer les réglages';
+    }
+    function setWidth(px) {
+      const total = work.getBoundingClientRect().width;
+      const w = Math.round(Math.min(Math.max(px, 300), Math.max(300, total * 0.7)));
+      store.set(SIDE_KEY, String(w)); applySide(); return w;
+    }
+    split.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); split.setPointerCapture(e.pointerId); split.classList.add('xsplit--drag');
+      const move = (ev) => setWidth(work.getBoundingClientRect().right - ev.clientX - 3);
+      const up = () => { split.classList.remove('xsplit--drag'); split.removeEventListener('pointermove', move); split.removeEventListener('pointerup', up); split.removeEventListener('pointercancel', up); };
+      split.addEventListener('pointermove', move); split.addEventListener('pointerup', up); split.addEventListener('pointercancel', up);
+    });
+    split.addEventListener('dblclick', () => { try { g.localStorage.removeItem(SIDE_KEY); } catch (e) { /* ignoré */ } applySide(); });
+    split.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      const cur = sideCard.getBoundingClientRect().width;
+      setWidth(cur + (e.key === 'ArrowLeft' ? 24 : -24));
+    });
+    toggle.addEventListener('click', () => { store.set(HIDE_KEY, store.get(HIDE_KEY) === '1' ? '0' : '1'); applySide(); });
+    const selCard = ui.card('Sélection', selBox), simCard = ui.card('Simulation', h('div', { class: 'row' }, rangeBox, toggle), sim.el);
+    selCard.classList.add('xwork-sel'); simCard.classList.add('xwork-sim');
+    TIO.mount(work, h('div', { class: 'xwork-left' }, selCard, simCard), sideCard, split);
+    applySide();
+    TIO.mount(root, ui.pageHeader('Espace Expert', cfg.title), X.mobileNotice(), X.tabs(cfg.tab), work);
     TIO.mount(presetBox, ui.loading(4));
     (async () => {
       try {

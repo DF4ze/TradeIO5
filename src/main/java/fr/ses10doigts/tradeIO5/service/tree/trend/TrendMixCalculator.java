@@ -48,8 +48,15 @@ public final class TrendMixCalculator {
         }
     }
 
-    /** Séries alignées sur les bougies ; {@code regime[i] == null} tant que {@code i < warmup - 1}. */
-    public record Result(TrendRegime[] regime, TrendRegime[] regression, TrendRegime[] sma, Source[] source) {
+    /**
+     * Séries alignées sur les bougies ; {@code regime[i] == null} tant que {@code i < warmup - 1}.
+     * {@code score} : score composite de la régression ([-1, 1], NaN avant la fenêtre longue) ; {@code windowScores[k]} :
+     * contribution de la fenêtre k (courte, moyenne, longue) = tanh(pente normalisée × échelle) × r², dont le score est la
+     * moyenne ; {@code rawRegression} : régime de l'hystérésis avant confirmation (RANGE / UP / DOWN), {@code regression}
+     * étant le régime après confirmation.
+     */
+    public record Result(TrendRegime[] regime, TrendRegime[] regression, TrendRegime[] sma, Source[] source,
+                         double[] score, double[][] windowScores, TrendRegime[] rawRegression) {
     }
 
     private TrendMixCalculator() {
@@ -65,11 +72,13 @@ public final class TrendMixCalculator {
         if (sma.length != n || atr.length != n) {
             throw new IllegalArgumentException("sma/atr doivent avoir la longueur des bougies");
         }
-        double[] score = regressionScores(candles, p);
+        double[][] scores = regressionScores(candles, p);
+        double[] score = scores[0];
 
         TrendRegime[] regime = new TrendRegime[n];
         TrendRegime[] regOut = new TrendRegime[n];
         TrendRegime[] smaOut = new TrendRegime[n];
+        TrendRegime[] rawOut = new TrendRegime[n];
         Source[] source = new Source[n];
 
         int raw = 0, applied = 0, diff = 0;       // machine régression (pine f_regime)
@@ -147,26 +156,36 @@ public final class TrendMixCalculator {
             if (i >= ready) {
                 regime[i] = of(outMix);
                 regOut[i] = of(fastReg);
+                rawOut[i] = of(raw);
                 smaOut[i] = of(maReg);
                 source[i] = mixSrc == 1 ? Source.REGRESSION : mixSrc == 2 ? Source.SMA : Source.NONE;
             }
         }
-        return new Result(regime, regOut, smaOut, source);
+        return new Result(regime, regOut, smaOut, source, score, new double[][]{scores[1], scores[2], scores[3]}, rawOut);
     }
 
-    /** Score de régression par bougie (NaN avant la fenêtre longue) ; poids égaux, borné à [-1, 1]. */
-    private static double[] regressionScores(List<MarketData> candles, Params p) {
+    /**
+     * Par bougie (NaN avant la fenêtre longue) : [0] score composite (poids égaux, borné à [-1, 1]), [1..3] contribution de
+     * chaque fenêtre (tanh(pente normalisée × échelle) × r²).
+     */
+    private static double[][] regressionScores(List<MarketData> candles, Params p) {
         LinearRegressionCalculator calc = new LinearRegressionCalculator();
         List<LinearRegressionSnapshot> a = calc.computeTimeline(candles, p.shortWindow());
         List<LinearRegressionSnapshot> b = calc.computeTimeline(candles, p.mediumWindow());
         List<LinearRegressionSnapshot> c = calc.computeTimeline(candles, p.longWindow());
-        double[] out = new double[candles.size()];
-        for (int i = 0; i < out.length; i++) {
+        double[][] out = new double[4][candles.size()];
+        for (int i = 0; i < candles.size(); i++) {
             if (a.get(i) == null || b.get(i) == null || c.get(i) == null) {
-                out[i] = Double.NaN;
+                for (double[] o : out) {
+                    o[i] = Double.NaN;
+                }
                 continue;
             }
-            out[i] = RegressiveTrendScoreCalculator.computeScore(
+            LinearRegressionSnapshot[] w = {a.get(i), b.get(i), c.get(i)};
+            for (int k = 0; k < 3; k++) {
+                out[k + 1][i] = Math.tanh(w[k].normalizedSlope() * p.slopeScale()) * w[k].r2();
+            }
+            out[0][i] = RegressiveTrendScoreCalculator.computeScore(
                     new RegressiveTrendScoreCalculator.WindowInput(a.get(i).normalizedSlope(), a.get(i).r2()),
                     new RegressiveTrendScoreCalculator.WindowInput(b.get(i).normalizedSlope(), b.get(i).r2()),
                     new RegressiveTrendScoreCalculator.WindowInput(c.get(i).normalizedSlope(), c.get(i).r2()),
