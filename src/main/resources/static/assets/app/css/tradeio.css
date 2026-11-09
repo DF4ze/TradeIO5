@@ -522,6 +522,9 @@ details.fold > .fold-body { padding: 0 0 6px 48px; }
   .xwork--noside .xsplit, .xwork--noside .xwork-side { display: none; }
   .xactions { position: sticky; top: 0; z-index: 2; background: var(--surface); padding: 6px 0; border-bottom: 1px solid var(--line); }
   .xwork-side { position: sticky; top: 12px; align-self: start; max-height: calc(100vh - 24px); overflow-y: auto; }
+  /* pas de padding haut sur le conteneur défilant : sinon la barre sticky (top: 0) se colle sous ce padding et les paramètres défilent visibles au-dessus */
+  .xwork-side { padding-top: 0; }
+  .xwork-side > :first-child { margin-top: var(--pad); }
   .xsplit { display: flex; grid-area: split; align-self: stretch; justify-content: center; cursor: col-resize; touch-action: none; border-radius: 6px; }
   .xsplit > i { width: 3px; border-radius: 3px; background: var(--line); align-self: center; height: 64px; transition: background .15s, height .15s; }
   .xsplit:hover > i, .xsplit:focus-visible > i, .xsplit--drag > i { background: var(--accent); height: 120px; }
@@ -538,6 +541,7 @@ details.fold > .fold-body { padding: 0 0 6px 48px; }
 .xc-panels { display: flex; flex-direction: column; gap: 8px; }
 .xc-panel[hidden], .xc-bar label[hidden] { display: none; }
 .xc-title { margin-bottom: 2px; }
+.xc-title--row { display: flex; align-items: center; gap: 6px; }
 .xc-credit { margin-top: 4px; text-align: right; }
 .xc-body { width: 100%; }
 .xc-detail { margin-top: 6px; }

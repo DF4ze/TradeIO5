@@ -33,10 +33,9 @@ import java.util.stream.Collectors;
 /**
  * Importe l'historique des remplissages spot des exchanges (lecture seule) dans {@link Transaction}, pour que les trades passés à
  * la main apparaissent à côté de ceux de TradeIO. Chaque trade est tagué {@link TradeOrigin#TRADEIO} si son ordre a été envoyé par
- * TradeIO (identifiant client {@code t5…} ou ordre connu du plan d'exécution), sinon {@link TradeOrigin#MANUAL}. Un trade de TradeIO
+ * TradeIO (identifiant client {@code t5…} ou ordre connu du plan d'exécution), sinon {@link TradeOrigin#DCA} si le lecteur l'a reconnu comme achat récurrent de l'exchange, sinon {@link TradeOrigin#MANUAL}. Un trade de TradeIO
  * remonte aussi sur l'exchange : il est reconnu, jamais compté deux fois (identifiant externe {@code <EXCHANGE>:<tradeId>}, comme
- * le {@code FillRecorder}). Premier passage d'un wallet depuis le démarrage : tout l'historique accessible ; ensuite les 7 derniers
- * jours. Espacé de 5 min par wallet sauf demande explicite ({@code force}). Un échec d'un wallet n'empêche pas les autres.
+ * le {@code FillRecorder}). Wallet sans aucun trade en base : tout l'historique accessible ; sinon, depuis 7 jours avant le dernier trade connu. Espacé de 5 min par wallet sauf demande explicite ({@code force}). Un échec d'un wallet n'empêche pas les autres.
  */
 @Slf4j
 @Service
@@ -90,7 +89,10 @@ public class ExchangeTradeImportService {
             }
             repairSymbols(wallet);
             try {
-                Instant since = fullyImported.contains(wallet.getId()) ? now.minus(RECENT_WINDOW) : null;
+                // après un redémarrage, ne pas repaginer tout l'historique (limite d'appels des exchanges) : on repart du dernier trade connu
+                Instant since = fullyImported.contains(wallet.getId()) ? now.minus(RECENT_WINDOW)
+                        : transactionRepository.findLastTimestampByWallet(wallet)
+                        .map(t -> t.toInstant(ZoneOffset.UTC).minus(RECENT_WINDOW)).orElse(null);
                 for (ImportedFill fill : reader.fetchFills(wallet.getCredential(), since)) {
                     TradeOrigin origin = originOf(fill, knownClOrdIds, knownOrdIds);
                     if (save(wallet, fill, origin)) {
@@ -129,13 +131,19 @@ public class ExchangeTradeImportService {
     static TradeOrigin originOf(ImportedFill fill, Set<String> knownClOrdIds, Set<String> knownOrdIds) {
         boolean ours = (fill.clOrdId() != null && (fill.clOrdId().startsWith(TRADEIO_CLORDID_PREFIX) || knownClOrdIds.contains(fill.clOrdId())))
                 || (fill.ordId() != null && knownOrdIds.contains(fill.ordId()));
-        return ours ? TradeOrigin.TRADEIO : TradeOrigin.MANUAL;
+        return ours ? TradeOrigin.TRADEIO : fill.recurring() ? TradeOrigin.DCA : TradeOrigin.MANUAL;
     }
 
     /** {@code false} si le trade existe déjà (enregistré par le FillRecorder, une synchro précédente ou l'ancien import). */
     private boolean save(Wallet wallet, ImportedFill fill, TradeOrigin origin) {
         String externalId = wallet.getWebProviderCode() + ":" + fill.tradeId();
         if (transactionRepository.existsByExternalTransactionId(externalId) || transactionRepository.existsByExternalTransactionId(fill.tradeId())) {
+            if (origin == TradeOrigin.DCA) {   // déjà importé comme manuel avant la détection de la récurrence : on requalifie
+                transactionRepository.findByExternalTransactionId(externalId).filter(t -> t.getOrigin() == TradeOrigin.MANUAL).ifPresent(t -> {
+                    t.setOrigin(TradeOrigin.DCA);
+                    transactionRepository.save(t);
+                });
+            }
             return false;
         }
         try {

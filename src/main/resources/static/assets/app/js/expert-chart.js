@@ -135,6 +135,17 @@
       rawT = track('rawT', 'Régime de régression · brut (avant confirmation)'), regT = track('regT', 'Régime de régression · appliqué'),
       smaT = track('smaT', 'Régime SMA (prix vs SMA ± k × ATR)'), bag = panel('bag', 'Taille du bag (position) et réserve moon', 150),
       pnl = panel('pnl', 'PnL (réalisé, potentiel, total, DCA fixe)', 170), expo = panel('expo', 'Exposition (actif / stable / total)', 160);
+    (function scoreInfo() {
+      const ttl = score.box.querySelector('.xc-title'), txt = h('span', { class: 'xc-ttext' }, ttl.textContent), inf = TIO.ui.info();
+      inf.set([
+        'Chaque barre = score de régression du jour : pente des clôtures sur 3 fenêtres (14 / 30 / 60 j), pondérée par la qualité de la droite (r²), moyennée. > 0 : le prix monte de façon cohérente, < 0 : il baisse, ≈ 0 : bruit / plat. Proche de ±1 : pente forte et propre.',
+        'ENTER (tirets) : le score doit franchir ce seuil pour passer en UP (vert) ou DOWN (rouge). EXIT (pointillés) : tant que le score ne repasse pas ce seuil, on reste dans la tendance ; en dessous, retour en RANGE (gris).',
+        'Deux seuils volontairement différents (hystérésis) : entrée exigeante, sortie tolérante, donc peu d’allers-retours quand le score oscille. Ensuite, le régime brut subit la confirmation (jours consécutifs) puis se combine à la SMA.',
+      ]);
+      inf.querySelector('.info-pop').style.cssText = 'left:auto;right:0';
+      ttl.classList.add('xc-title--row');
+      TIO.mount(ttl, [txt, inf]);
+    })();
     const line = (p, color, w, style, title) => p.chart.addLineSeries({ color, lineWidth: w || 1, lineStyle: style || 0, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, title: title || '' });
     const S = price.series;
     S.candle = price.chart.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderVisible: false, wickUpColor: C.up, wickDownColor: C.down, priceLineVisible: false });
@@ -334,7 +345,7 @@
           const maxAbs = c.tScore.reduce((m, v) => (v === null ? m : Math.max(m, Math.abs(v))), 0);
           scoreRange = Math.min(1, Math.max(0.2, Math.ceil(Math.max((tp.enter || 0) * 1.4, maxAbs * 1.08) * 20) / 20));
           const ttl = score.box.querySelector('.xc-title');
-          if (ttl) ttl.textContent = 'Score de régression · seuils ENTER ±' + F.num(tp.enter, 2) + ' (tirets), EXIT ±' + F.num(tp.exit, 2) + ' (pointillés)';
+          if (ttl) (ttl.querySelector('.xc-ttext') || ttl).textContent = 'Score de régression · seuils ENTER ±' + F.num(tp.enter, 2) + ' (tirets), EXIT ±' + F.num(tp.exit, 2) + ' (pointillés)';
         } else { ['tSma', 'tUp', 'tDn'].forEach((k) => S[k].setData([])); regT.series.bar.setData([]); rawT.series.bar.setData([]); smaT.series.bar.setData([]); score.series.hist.setData([]); score.series.sub.forEach((q) => q.setData([])); }
         if (c.pos) {
           bag.series.pos.setData(series(c.pos)); bag.series.reserve.setData(series(c.reserve));

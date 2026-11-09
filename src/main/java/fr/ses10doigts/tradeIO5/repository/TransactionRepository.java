@@ -16,6 +16,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
 	boolean existsByExternalTransactionId(String tradeId);
 
+	Optional<Transaction> findByExternalTransactionId(String externalTransactionId);
+
 	@Query("SELECT MAX(p.timestamp) FROM Transaction p WHERE p.user = :user AND p.webProvider = :webProvider")
 	Optional<LocalDateTime> findLastTransactionDateByUserAndWebProvider(User user, WebProvider webProvider);
 

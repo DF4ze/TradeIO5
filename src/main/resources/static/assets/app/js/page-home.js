@@ -173,7 +173,7 @@
   }
 
   function originChip(t) {
-    return t.origin === 'TRADEIO' ? ui.chip('TradeIO', 'accent') : ui.chip('Manuel', 'plain');
+    return t.origin === 'TRADEIO' ? ui.chip('TradeIO', 'accent') : t.origin === 'DCA' ? ui.chip('DCA', 'plain') : ui.chip('Manuel', 'plain');
   }
   const money = (n, quote) => (!quote || /^(USD|USDC|USDT)$/.test(quote) ? F.usd(Number(n)) : F.num(Number(n), 2) + ' ' + quote);
   // Importe d'abord les trades récents des exchanges (lecture seule, espacé de 5 min côté serveur), puis les lit.

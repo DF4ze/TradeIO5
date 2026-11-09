@@ -62,6 +62,7 @@ public class AffectationMigrationService {
     /** Renvoie le nombre d'Affectations créées. */
     @Transactional
     public int migrate() {
+        relinkOrphanBindings();
         List<LegacyRainbowPreset> legacy = legacyRepository.findAll();
         if (legacy.isEmpty()) {
             return 0;
@@ -86,6 +87,19 @@ public class AffectationMigrationService {
         }
         log.info("Migration Affectations : {} créée(s) pour {} preset(s) legacy", created, legacy.size());
         return created;
+    }
+
+    /**
+     * Rattache à l'Affectation (utilisateur, actif) les liens restés sans Affectation (cas d'une Affectation créée avant la migration :
+     * le preset legacy est alors ignoré et le lien n'était jamais rattaché). Sans Affectation correspondante, le lien reste orphelin.
+     */
+    private void relinkOrphanBindings() {
+        int n = jdbc.update("UPDATE rainbow_live_binding b SET b.affectation_id = (SELECT a.id FROM asset_affectation a "
+                + "WHERE a.user_id = b.user_id AND a.asset_symbol = b.asset_symbol) WHERE b.affectation_id IS NULL "
+                + "AND EXISTS (SELECT 1 FROM asset_affectation a2 WHERE a2.user_id = b.user_id AND a2.asset_symbol = b.asset_symbol)");
+        if (n > 0) {
+            log.info("Migration Affectations : {} lien(s) orphelin(s) rattaché(s) à l'Affectation de leur actif", n);
+        }
     }
 
     private LegacyRainbowPreset choose(List<LegacyRainbowPreset> group, Set<String> tables) {

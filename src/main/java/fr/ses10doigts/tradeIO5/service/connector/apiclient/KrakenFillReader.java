@@ -38,6 +38,12 @@ public class KrakenFillReader implements ExchangeFillReader {
 
     private static final int PAGE = 50;
     private static final int MAX_PAGES = 40;
+    /** Limite d'appels Kraken : ~2 points par page d'historique, le compteur redescend lentement ; pause entre pages et reprises sur « Rate limit exceeded ». */
+    private static final long PAGE_PAUSE_MS = 3_000;
+    private static final long RATE_LIMIT_WAIT_MS = 8_000;
+    private static final int RATE_LIMIT_RETRIES = 4;
+    /** Fenêtre minimale du Ledger en import incrémental (les achats DCA y sont peu nombreux). */
+    private static final java.time.Duration LEDGER_MIN_WINDOW = java.time.Duration.ofDays(90);
     /** Du plus long au plus court : {@code XBTUSDC -> USDC}, {@code XXBTZUSD -> ZUSD}. */
     private static final List<String> QUOTES = List.of("USDC", "USDT", "ZUSD", "USD", "ZEUR", "EUR", "ZGBP", "GBP", "XXBT", "XBT", "XETH", "ETH");
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -63,7 +69,8 @@ public class KrakenFillReader implements ExchangeFillReader {
             }
         });
         try {
-            out.addAll(fetchLedgerFills(credential, since));
+            Instant ledgerSince = since == null ? null : java.util.Collections.min(List.of(since, clock.now().minus(LEDGER_MIN_WINDOW)));
+            out.addAll(fetchLedgerFills(credential, ledgerSince));
         } catch (CredentialRejectedException e) {
             log.warn("Kraken : Ledgers refusé ({}) : achats faits via l'interface non importés — ajouter la permission « Query ledger entries » à la clé de lecture", e.getMessage());
         }
@@ -73,10 +80,11 @@ public class KrakenFillReader implements ExchangeFillReader {
     /** Achats/ventes « Buy Crypto » / DCA / Convert : écritures {@code spend} + {@code receive} regroupées par {@code refid}. */
     private List<ImportedFill> fetchLedgerFills(ApiCredential credential, Instant since) {
         List<LedgerEntry> entries = new ArrayList<>();
-        for (String type : List.of("spend", "receive")) {
-            fetchPaged(credential, "Ledgers", Map.of("type", type), since, "ledger", (id, n) -> {
+        // le filtre type=spend renvoie déjà les deux écritures (spend + receive) de chaque opération : un seul appel suffit
+        {
+            fetchPaged(credential, "Ledgers", Map.of("type", "spend"), since, "ledger", (id, n) -> {
                 try {
-                    entries.add(new LedgerEntry(n.path("refid").asText(id), n.path("type").asText(type), n.path("asset").asText(""),
+                    entries.add(new LedgerEntry(n.path("refid").asText(id), n.path("type").asText("spend"), n.path("asset").asText(""),
                             new BigDecimal(n.path("amount").asText("0")), new BigDecimal(n.path("fee").asText("0")),
                             Instant.ofEpochMilli((long) (n.path("time").asDouble() * 1000))));
                 } catch (NumberFormatException e) {
@@ -84,7 +92,10 @@ public class KrakenFillReader implements ExchangeFillReader {
                 }
             });
         }
-        return toFills(entries);
+        List<ImportedFill> fills = toFills(entries);
+        log.info("Kraken Ledgers : {} écriture(s) spend/receive lues, {} achat(s)/vente(s) appariés (autres ignorés : crypto/crypto ou orphelins)",
+                entries.size(), fills.size());
+        return fills;
     }
 
     /** Écriture du Ledger Kraken ({@code amount} signé, {@code fee} positif, dans la devise {@code asset}). */
@@ -126,7 +137,38 @@ public class KrakenFillReader implements ExchangeFillReader {
             out.add(new ImportedFill("ledger-" + s.getKey(), null, null, buy ? recvSym.get() : spentSym.get(), buy ? spentSym.get() : recvSym.get(),
                     buy ? TradeSide.BUY : TradeSide.SELL, px, baseQty, feeQuote, buy ? spentSym.get() : recvSym.get(), receive.ts()));
         }
-        return out;
+        return markRecurring(out);
+    }
+
+    /** Écart toléré sur l'heure du jour entre deux exécutions d'un même achat récurrent. */
+    private static final long RECURRING_TOLERANCE_SECONDS = 120;
+    private static final long DAY_SECONDS = 86_400;
+
+    /**
+     * Marque « récurrent » (DCA de l'exchange) un trade du Ledger quand un autre trade de même paire, même sens et même montant de
+     * cotation a eu lieu à la même heure du jour (± 2 min) un autre jour : le DCA automatique de Kraken s'exécute à heure fixe, une
+     * conversion manuelle non. Package-private (tests).
+     */
+    static List<ImportedFill> markRecurring(List<ImportedFill> fills) {
+        Map<String, List<ImportedFill>> groups = new LinkedHashMap<>();
+        for (ImportedFill f : fills) {
+            String key = f.base() + "/" + f.quote() + "/" + f.side() + "/" + f.px().multiply(f.sz()).setScale(2, java.math.RoundingMode.HALF_UP);
+            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(f);
+        }
+        java.util.Set<String> recurring = new java.util.HashSet<>();
+        for (List<ImportedFill> group : groups.values()) {
+            for (ImportedFill a : group) {
+                for (ImportedFill b : group) {
+                    long delta = Math.abs(a.ts().getEpochSecond() - b.ts().getEpochSecond());
+                    long offset = Math.min(delta % DAY_SECONDS, DAY_SECONDS - delta % DAY_SECONDS);
+                    if (delta >= DAY_SECONDS / 2 && offset <= RECURRING_TOLERANCE_SECONDS) {
+                        recurring.add(a.tradeId());
+                        break;
+                    }
+                }
+            }
+        }
+        return fills.stream().map(f -> recurring.contains(f.tradeId()) ? f.asRecurring() : f).toList();
     }
 
     /** Parcourt un endpoint paginé de Kraken ({@code ofs}, pages de 50) et passe chaque entrée de {@code result.<key>} à {@code sink}. */
@@ -139,15 +181,23 @@ public class KrakenFillReader implements ExchangeFillReader {
             if (since != null) {
                 params.put("start", String.valueOf(since.getEpochSecond()));
             }
-            JsonNode response;
-            try {
-                response = MAPPER.readTree(KrakenSignedRequests.privatePost(clock, credential, method, params));
-            } catch (BalanceUnavailableException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new BalanceUnavailableException("Kraken : réponse " + method + " illisible", e);
+            JsonNode response = null;
+            JsonNode errors = null;
+            for (int attempt = 0; attempt <= RATE_LIMIT_RETRIES; attempt++) {
+                try {
+                    response = MAPPER.readTree(KrakenSignedRequests.privatePost(clock, credential, method, params));
+                } catch (BalanceUnavailableException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw new BalanceUnavailableException("Kraken : réponse " + method + " illisible", e);
+                }
+                errors = response.path("error");
+                if (attempt < RATE_LIMIT_RETRIES && errors.toString().contains("Rate limit exceeded")) {
+                    pause(RATE_LIMIT_WAIT_MS);   // compteur Kraken (2 points/appel d'historique, décroissance lente) : on attend qu'il redescende
+                    continue;
+                }
+                break;
             }
-            JsonNode errors = response.path("error");
             if (errors.isArray() && !errors.isEmpty()) {
                 String message = "Kraken : erreur API " + errors;
                 throw errors.toString().matches(".*(Invalid key|Invalid signature|Permission denied).*")
@@ -164,6 +214,16 @@ public class KrakenFillReader implements ExchangeFillReader {
             if (seen == 0 || offset >= count) {
                 break;
             }
+            pause(PAGE_PAUSE_MS);
+        }
+    }
+
+    private static void pause(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BalanceUnavailableException("Kraken : import interrompu", e);
         }
     }
 

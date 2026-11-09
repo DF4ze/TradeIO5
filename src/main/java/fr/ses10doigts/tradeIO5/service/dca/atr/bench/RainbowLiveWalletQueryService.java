@@ -54,7 +54,8 @@ public class RainbowLiveWalletQueryService {
 
     private static LiveAssetDto toDto(RainbowLiveBinding b, RainbowLiveBindingRun latest, List<TransitDto> transit) {
         var wallet = b.getWallet();
-        return new LiveAssetDto(b.getAssetSymbol(), b.getId(), b.getAffectation().getId(), b.getAffectation().label(),
+        return new LiveAssetDto(b.getAssetSymbol(), b.getId(), b.getAffectation() == null ? null : b.getAffectation().getId(),
+                b.getAffectation() == null ? b.getAssetSymbol() : b.getAffectation().label(),
                 wallet.getId(), wallet.getName(),
                 wallet.getWebProviderCode() == null ? null : wallet.getWebProviderCode().name(),
                 b.getBagPercent(), b.getPriority(),

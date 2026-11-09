@@ -45,4 +45,23 @@ class KrakenFillReaderLedgerTest {
         assertEquals("PAXG", fills.getFirst().base());
         assertEquals("USDC", fills.getFirst().quote());
     }
+
+    private static LedgerEntry at(String ref, String type, String asset, String amount, String fee, String iso) {
+        return new LedgerEntry(ref, type, asset, new BigDecimal(amount), new BigDecimal(fee), Instant.parse(iso));
+    }
+
+    @Test
+    void achatQuotidienAHeureFixeEstMarqueRecurrent() {
+        List<ImportedFill> fills = KrakenFillReader.toFills(List.of(
+                at("D1", "spend", "USDC", "-9.9", "0.1", "2026-11-06T13:19:01Z"), at("D1", "receive", "PAXG", "0.00242807", "0", "2026-11-06T13:19:01Z"),
+                at("D2", "spend", "USDC", "-9.9", "0.1", "2026-11-07T13:19:01Z"), at("D2", "receive", "PAXG", "0.00241455", "0", "2026-11-07T13:19:01Z"),
+                at("M1", "spend", "USDC", "-9.9", "0.1", "2026-11-08T16:02:30Z"), at("M1", "receive", "PAXG", "0.0024", "0", "2026-11-08T16:02:30Z"),
+                at("M2", "spend", "USDC", "-50", "0.5", "2026-11-08T17:00:00Z"), at("M2", "receive", "PAXG", "0.0125", "0", "2026-11-08T17:00:00Z")));
+        java.util.Map<String, Boolean> rec = new java.util.HashMap<>();
+        fills.forEach(f -> rec.put(f.tradeId(), f.recurring()));
+        assertTrue(rec.get("ledger-D1"));
+        assertTrue(rec.get("ledger-D2"));
+        assertFalse(rec.get("ledger-M1"));   // même montant mais autre heure : manuel
+        assertFalse(rec.get("ledger-M2"));
+    }
 }
