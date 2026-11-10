@@ -47,6 +47,16 @@ public class RainbowPresetService extends AbstractExpertPresetService<RainbowPre
     }
 
     @Transactional
+    public RainbowPresetDto saveAsSystemPreset(ExpertContext ctx, Long id, RainbowPresetRequest request) {
+        return dto(ctx, saveAsSystem(ctx, id, request.name(), request.referenceProvider(),
+                () -> support.getValidator().rainbow(request.analysisWindowMonths(), request.tuning(), request.globals()),
+                p -> {
+                    p.setAnalysisWindowMonths(request.analysisWindowMonths());
+                    p.setConfig(RainbowAtrConfig.of(request.tuning(), request.globals()));
+                }));
+    }
+
+    @Transactional
     public RainbowPresetDto updatePreset(ExpertContext ctx, Long id, RainbowPresetRequest request) {
         return dto(ctx, update(ctx, id, request.revision(), request.name(), request.referenceProvider(),
                 () -> support.getValidator().rainbow(request.analysisWindowMonths(), request.tuning(), request.globals()),
@@ -92,8 +102,8 @@ public class RainbowPresetService extends AbstractExpertPresetService<RainbowPre
     }
 
     @Override
-    protected RainbowPreset copyOf(RainbowPreset source, String asset, String name, User owner, String provider, Instant now) {
-        return RainbowPreset.builder().assetSymbol(asset).referenceProvider(provider).name(name).origin(PresetOrigin.USER)
+    protected RainbowPreset copyOf(RainbowPreset source, String asset, String name, PresetOrigin origin, User owner, String provider, Instant now) {
+        return RainbowPreset.builder().assetSymbol(asset).referenceProvider(provider).name(name).origin(origin)
                 .owner(owner).revision(1).analysisWindowMonths(source.getAnalysisWindowMonths())
                 .config(RainbowAtrConfig.of(source.getConfig().toTuning(), source.getConfig().toGlobals())).createdAt(now).updatedAt(now).build();
     }

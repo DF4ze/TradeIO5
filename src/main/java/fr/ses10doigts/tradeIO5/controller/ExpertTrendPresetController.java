@@ -61,6 +61,12 @@ public class ExpertTrendPresetController {
         return service.updatePreset(guard.require(), id, request);
     }
 
+    @PostMapping("/{id}/save-as-system")
+    @ResponseStatus(HttpStatus.CREATED)
+    public TrendPresetDto saveAsSystem(@PathVariable Long id, @RequestBody TrendPresetRequest request) {
+        return service.saveAsSystemPreset(guard.require(), id, request);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {

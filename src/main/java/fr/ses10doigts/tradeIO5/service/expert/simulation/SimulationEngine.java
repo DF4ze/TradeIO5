@@ -208,7 +208,7 @@ public final class SimulationEngine {
         return new ChartDto(d, trend, active, cols, wallet(rows), setDtos, Map.of());
     }
 
-    /** Wallet fermé, comme le gabarit : capital = max(investi − vendu) ; stable = capital − investi + vendu ; actif = position × clôture. */
+    /** Wallet fermé, comme le gabarit : capital = max(investi − vendu) ; stable = capital − investi + vendu ; actif = position × prix de valorisation (gelé hors régime). */
     private static WalletDto wallet(List<DayRow> rows) {
         double capital = 0;
         for (DayRow r : rows) {
@@ -218,7 +218,7 @@ public final class SimulationEngine {
         List<Number> stable = new ArrayList<>(rows.size());
         List<Number> total = new ArrayList<>(rows.size());
         for (DayRow r : rows) {
-            double a = r.position() * r.close();
+            double a = r.position() * r.valuationPrice();
             double s = capital - r.invested() + r.saleProceeds();
             asset.add(number(a));
             stable.add(number(s));

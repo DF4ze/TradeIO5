@@ -47,12 +47,12 @@ public record RainbowAtrResult(
             }
             moonEntries += r.moonEntry() ? 1 : 0;
             if (r.active()) {
-                fixedQty += baseAmount / r.close();
+                fixedQty += baseAmount / r.valuationPrice();
                 fixedInvested += baseAmount;
             }
         }
-        return new RainbowAtrResult(last.invested(), last.saleProceeds(), last.position() * last.close(), last.realizedGain(),
-                last.costBasis(), last.position(), last.reserveQty(), fixedQty, fixedInvested, last.close(),
+        return new RainbowAtrResult(last.invested(), last.saleProceeds(), last.position() * last.valuationPrice(), last.realizedGain(),
+                last.costBasis(), last.position(), last.reserveQty(), fixedQty, fixedInvested, last.valuationPrice(),
                 zoneBuys, triggeredBuys, sells, moonEntries, moonStops, rows.size(),
                 last.band().zone(), last.band().sma(), last.band().atr(), last.moonMode(), last.buyArmed(), last.sellArmed(),
                 last.buyLocked(), last.cooldown(), last.buyAthFactor(), last.sellAthFactor(), last.athDistance(), List.of());

@@ -54,6 +54,7 @@ public final class RainbowReplayColumns {
         c.put("cooldown", DayRow::cooldown);
         c.put("reserve", DayRow::reserveQty);
         c.put("pos", DayRow::position);
+        c.put("bagValue", r -> r.position() * r.valuationPrice());
         c.put("cost", DayRow::costBasis);
         c.put("invested", DayRow::invested);
         c.put("proceeds", DayRow::saleProceeds);
@@ -61,6 +62,7 @@ public final class RainbowReplayColumns {
         c.put("potential", DayRow::potentialGain);
         c.put("total", DayRow::totalGain);
         c.put("fixedGain", DayRow::fixedGain);
+        c.put("fixedInvested", DayRow::fixedInvested);
         COLS = Collections.unmodifiableMap(c);
     }
 

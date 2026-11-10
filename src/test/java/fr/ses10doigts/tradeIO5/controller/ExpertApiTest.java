@@ -300,6 +300,24 @@ class ExpertApiTest {
         mvc.perform(delete("/api/expert/trend-presets/" + base)).andExpect(status().isForbidden());
     }
 
+    @Test
+    @DisplayName("save-as-system : USER 403 ; ADMIN crée un nouveau SYSTEM, l'original est inchangé, nom déjà pris refusé")
+    void saveAsSystem() throws Exception {
+        long bull = systemRainbowId("BTC", "RAINBOW_BULL");
+        ObjectNode body = rainbowUpdate(bull);
+        body.put("name", "Bull alt");
+        postJson("/api/expert/rainbow-presets/" + bull + "/save-as-system", body).andExpect(status().isForbidden());
+        as(root, true, DisplayMode.EXPERT);
+        String before = getJson("/api/expert/rainbow-presets/" + bull).at("/header/name").asText();
+        int revision = getJson("/api/expert/rainbow-presets/" + bull).at("/header/revision").asInt();
+        JsonNode created = json(postJson("/api/expert/rainbow-presets/" + bull + "/save-as-system", body).andExpect(status().isCreated()));
+        assertEquals("SYSTEM", created.at("/header/origin").asText());
+        assertEquals("Bull alt", created.at("/header/name").asText());
+        assertEquals(before, getJson("/api/expert/rainbow-presets/" + bull).at("/header/name").asText());
+        assertEquals(revision, getJson("/api/expert/rainbow-presets/" + bull).at("/header/revision").asInt());
+        postJson("/api/expert/rainbow-presets/" + bull + "/save-as-system", body).andExpect(status().isBadRequest());
+    }
+
     // ---------------------------------------------------------------- duplication / création
 
     @Test

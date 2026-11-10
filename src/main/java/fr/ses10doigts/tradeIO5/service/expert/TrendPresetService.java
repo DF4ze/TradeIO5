@@ -45,6 +45,16 @@ public class TrendPresetService extends AbstractExpertPresetService<TrendPreset>
     }
 
     @Transactional
+    public TrendPresetDto saveAsSystemPreset(ExpertContext ctx, Long id, TrendPresetRequest request) {
+        return dto(ctx, saveAsSystem(ctx, id, request.name(), request.referenceProvider(),
+                () -> support.getValidator().trend(request.trend(), request.rangeMapping()),
+                p -> {
+                    p.applyParams(request.trend());
+                    p.setRangeMapping(request.rangeMapping());
+                }));
+    }
+
+    @Transactional
     public TrendPresetDto updatePreset(ExpertContext ctx, Long id, TrendPresetRequest request) {
         return dto(ctx, update(ctx, id, request.revision(), request.name(), request.referenceProvider(),
                 () -> support.getValidator().trend(request.trend(), request.rangeMapping()),
@@ -82,8 +92,8 @@ public class TrendPresetService extends AbstractExpertPresetService<TrendPreset>
     }
 
     @Override
-    protected TrendPreset copyOf(TrendPreset source, String asset, String name, User owner, String provider, Instant now) {
-        TrendPreset copy = TrendPreset.builder().assetSymbol(asset).referenceProvider(provider).name(name).origin(PresetOrigin.USER)
+    protected TrendPreset copyOf(TrendPreset source, String asset, String name, PresetOrigin origin, User owner, String provider, Instant now) {
+        TrendPreset copy = TrendPreset.builder().assetSymbol(asset).referenceProvider(provider).name(name).origin(origin)
                 .owner(owner).revision(1).rangeMapping(source.getRangeMapping()).createdAt(now).updatedAt(now).build();
         copy.applyParams(source.toParams());
         return copy;

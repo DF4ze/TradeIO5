@@ -28,8 +28,17 @@ public final class RainbowMoon {
      */
     public static Step advance(State s, boolean moonOn, double trailingStopPct, double close, double high,
                                double athPrevious) {
+        return advance(s, moonOn, trailingStopPct, close, high, athPrevious, true);
+    }
+
+    /**
+     * @param allowEntry {@code false} sur une bougie INACTIVE (hors régime testé) : pas de nouvelle entrée moon ; une entrée
+     *                   déjà faite continue de vivre (sortie par stop).
+     */
+    public static Step advance(State s, boolean moonOn, double trailingStopPct, double close, double high,
+                               double athPrevious, boolean allowEntry) {
         boolean newAthClose = !Double.isNaN(athPrevious) && close > athPrevious;
-        if (moonOn && !s.active() && newAthClose) {
+        if (moonOn && allowEntry && !s.active() && newAthClose) {
             return new Step(new State(true, high), true, false);
         }
         if (s.active()) {

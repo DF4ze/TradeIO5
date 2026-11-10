@@ -28,11 +28,14 @@ public final class RainbowAtrReplay {
             boolean buyArmed, boolean sellArmed, boolean buyLocked, int cooldown, double reserveQty,
             double position, double costBasis, double invested, double saleProceeds, double realizedGain,
             double fixedGain,
-            boolean active
+            boolean active,
+            double valuationPrice,
+            double fixedInvested
     ) {
-        public double potentialGain() { return position * close - costBasis; }
+        /** Valorisation au prix de valorisation (= clôture tant qu'aucune barre n'est inactive, cf. {@link RainbowAtrReplay#run}). */
+        public double potentialGain() { return position * valuationPrice - costBasis; }
 
-        public double totalGain() { return saleProceeds + position * close - invested; }
+        public double totalGain() { return saleProceeds + position * valuationPrice - invested; }
     }
 
     private RainbowAtrReplay() {
@@ -97,6 +100,10 @@ public final class RainbowAtrReplay {
 
         double pos = 0, costBasis = 0, realized = 0, invested = 0, saleProceeds = 0;
         double fixedQty = 0, fixedInvested = 0;
+        // Prix de valorisation : suit la clôture en proportion (rendement identique) sur les barres actives, reste plat sur les barres
+        // inactives (pas de rattrapage à la reprise). Ordres, bag, PnL, exposition et DCA fixe y sont évalués ; exactement la clôture
+        // si aucune barre n'est inactive.
+        double vp = Double.NaN, prevClose = Double.NaN;
         List<DayRow> rows = new ArrayList<>();
 
         for (int i = startIdx; i <= endIdx; i++) {
@@ -109,8 +116,10 @@ public final class RainbowAtrReplay {
             double atr = ds.atr(t.atrPeriod())[i];
             double cl = ds.close(i);
             double hi = ds.high(i);
+            vp = Double.isNaN(vp) ? cl : active ? vp * cl / prevClose : vp;
+            prevClose = cl;
             if (Double.isNaN(sma) || Double.isNaN(atr)) {
-                RainbowAtrStrategy.StepResult r = RainbowAtrStrategy.stepInvalid(st, cl, hi, ath, g);
+                RainbowAtrStrategy.StepResult r = RainbowAtrStrategy.stepInvalid(st, cl, hi, ath, g, active);
                 st = r.state();
                 ath = ath.observe(hi, ds.time(i));
                 continue;
@@ -123,12 +132,12 @@ public final class RainbowAtrReplay {
             RainbowSignal sig = r.signal();
 
             boolean trade = sig.sellKind() != RainbowSignal.SellKind.NONE || sig.buyKind() != RainbowSignal.BuyKind.NONE;
-            Sizer.Order order = trade ? sizer.size(sig, BigDecimal.valueOf(cl), BigDecimal.valueOf(pos)) : Sizer.Order.NONE;
+            Sizer.Order order = trade ? sizer.size(sig, BigDecimal.valueOf(vp), BigDecimal.valueOf(pos)) : Sizer.Order.NONE;
 
             double sellQty = order.sellQuantity().doubleValue();
             double sellProc = 0;
             if (sig.sellKind() != RainbowSignal.SellKind.NONE) {
-                sellProc = sellQty * cl;
+                sellProc = sellQty * vp;
                 double cost = costBasis * sellQty / pos;
                 realized += sellProc - cost;
                 costBasis -= cost;
@@ -138,13 +147,13 @@ public final class RainbowAtrReplay {
             double buyAmt = order.buyAmount().doubleValue();
             double buyQty = 0;
             if (sig.buyKind() != RainbowSignal.BuyKind.NONE) {
-                buyQty = buyAmt / cl;
+                buyQty = buyAmt / vp;
                 pos += buyQty;
                 costBasis += buyAmt;
                 invested += buyAmt;
             }
             if (active) {
-                fixedQty += base / cl;
+                fixedQty += base / vp;
                 fixedInvested += base;
             }
 
@@ -154,7 +163,7 @@ public final class RainbowAtrReplay {
                     sig.sellKind(), sig.sellFraction(), sellQty, sellProc,
                     sig.buyArmedNow(), sig.sellArmedNow(),
                     st.buyArmed(), st.sellArmed(), st.buyLocked(), st.cooldown(), st.reserveQty(),
-                    pos, costBasis, invested, saleProceeds, realized, fixedQty * cl - fixedInvested, active));
+                    pos, costBasis, invested, saleProceeds, realized, fixedQty * vp - fixedInvested, active, vp, fixedInvested));
         }
         return new Result(rows, st);
     }

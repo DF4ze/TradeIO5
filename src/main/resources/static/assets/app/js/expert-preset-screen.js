@@ -146,10 +146,22 @@
         const active = (hd.usedBy || []).filter((u) => u.enabled);
         if (active.length) lines.push({ warn: true, text: 'Moteur actif sur ' + [...new Set(active.map((u) => u.assetSymbol))].join(', ') + ' : l’enregistrement réinitialise son état.' });
       }
-      if (lines.length && !(await X.confirm('Enregistrer « ' + hd.name + ' »', lines, 'Enregistrer'))) return;
+      let asNew = false;
+      if (hd.origin === 'SYSTEM' && hd.editable && vals.name !== hd.name) {
+        const pick = await X.modal('Nom modifié', [
+          h('p', null, 'Vous avez modifié le nom : « ' + hd.name + ' » -> « ' + vals.name + ' ».'),
+          h('p', null, 'Renommer : le preset existant est modifié en place (réglages et nom, propagés aux Affectations).'),
+          h('p', null, 'Créer nouveau : un nouveau preset système est ajouté, l’original reste inchangé.'),
+          ...lines.map((l) => h('p', l.warn ? { class: 'err' } : null, l.text || l))],
+          [{ label: 'Annuler', value: false }, { label: 'Créer nouveau', value: 'new' }, { label: 'Renommer', value: 'rename', primary: true }]);
+        if (!pick) return;
+        asNew = pick === 'new';
+      } else if (lines.length && !(await X.confirm('Enregistrer « ' + hd.name + ' »', lines, 'Enregistrer'))) return;
       try {
-        const d = await X.req('PUT', url('/' + hd.id), cfg.toBody(vals, hd.revision));
-        TIO.toast('Preset enregistré');
+        const d = asNew ? await X.req('POST', url('/' + hd.id + '/save-as-system'), cfg.toBody(vals, hd.revision))
+                        : await X.req('PUT', url('/' + hd.id), cfg.toBody(vals, hd.revision));
+        TIO.toast(asNew ? 'Nouveau preset système créé' : 'Preset enregistré');
+        if (asNew) { st.baseline = null; await loadPresets(d.header.id); return; }
         st.presets = await X.presets(cfg.kind, st.asset);
         st.header = d.header; st.baseline = cfg.toValues(d);
         st.form.set(st.baseline); st.form.setErrors({}); st.form.setReadOnly(!st.header.editable);

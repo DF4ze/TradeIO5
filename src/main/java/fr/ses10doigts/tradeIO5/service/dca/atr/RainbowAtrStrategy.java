@@ -50,20 +50,25 @@ public final class RainbowAtrStrategy {
 
     /**
      * @param allowNewEntries {@code false} sur une bougie INACTIVE (hors régime, cf. {@link RainbowAtrReplay#inactive}) : plus
-     *                        aucun nouvel armement (achat EXTREME_BAS, vente EXTREME_HAUT) ni achat de zone ; l'automate moon, les
+     *                        aucun nouvel armement (achat EXTREME_BAS, vente EXTREME_HAUT), achat de zone ni entrée To the moon ; les
      *                        sorties moon et les armements déjà en cours (trailing stops, délais) continuent de vivre.
      */
     public static StepResult step(RainbowAtrState state, RainbowAtrBand band, double high, AthReference ath,
                                   double position, RainbowAtrTuning t, RainbowAtrGlobals g, boolean allowNewEntries) {
         double cl = band.close();
-        RainbowMoon.Step ms = RainbowMoon.advance(state.moon(), g.moonOn(), g.moonTrailingStopPct(), cl, high, ath.value());
+        RainbowMoon.Step ms = RainbowMoon.advance(state.moon(), g.moonOn(), g.moonTrailingStopPct(), cl, high, ath.value(), allowNewEntries);
         return stepWithMoon(state, band, ms, ath.includingToday(high), position, t, g, allowNewEntries);
     }
 
     /** Variante pour une bougie sans bornes : avance seulement l'automate moon. */
     public static StepResult stepInvalid(RainbowAtrState state, double close, double high, AthReference ath,
                                          RainbowAtrGlobals g) {
-        RainbowMoon.Step ms = RainbowMoon.advance(state.moon(), g.moonOn(), g.moonTrailingStopPct(), close, high, ath.value());
+        return stepInvalid(state, close, high, ath, g, true);
+    }
+
+    public static StepResult stepInvalid(RainbowAtrState state, double close, double high, AthReference ath,
+                                         RainbowAtrGlobals g, boolean allowNewEntries) {
+        RainbowMoon.Step ms = RainbowMoon.advance(state.moon(), g.moonOn(), g.moonTrailingStopPct(), close, high, ath.value(), allowNewEntries);
         return new StepResult(state.withMoon(ms.next()), RainbowSignal.invalid(ms.mode(), ms.entry()));
     }
 

@@ -57,8 +57,8 @@ public abstract class AbstractExpertPresetService<P extends ExpertPreset> {
     /** Réglages à plat, pour détecter ce qui change. */
     protected abstract Map<String, Object> settings(P preset);
 
-    /** Nouveau preset USER (non persisté) aux réglages de {@code source}. */
-    protected abstract P copyOf(P source, String asset, String name, User owner, String provider, Instant now);
+    /** Nouveau preset (non persisté) d'origine donnée aux réglages de {@code source} ; {@code owner} nul pour un SYSTEM. */
+    protected abstract P copyOf(P source, String asset, String name, PresetOrigin origin, User owner, String provider, Instant now);
 
     /** Preset système de base de l'actif, point de départ d'une création sans modèle. */
     protected abstract P baseFor(String asset);
@@ -190,6 +190,33 @@ public abstract class AbstractExpertPresetService<P extends ExpertPreset> {
         return preset;
     }
 
+    /**
+     * « Enregistrer comme nouveau » (ADMIN seul, source SYSTEM) : crée un nouveau preset SYSTEM aux réglages saisis et laisse
+     * l'original intact (aucun reset moteur, aucune Affectation touchée). Tracé au journal admin.
+     */
+    protected P saveAsSystem(ExpertContext ctx, Long id, String name, String provider, Runnable validate, Consumer<P> apply) {
+        P source = get(ctx, id);
+        if (source.getOrigin() != PresetOrigin.SYSTEM || !ctx.admin()) {
+            throw new ExpertApiException(ExpertApiException.Code.PRESET_SYSTEM_READ_ONLY,
+                    "Création d'un preset système réservée à l'administrateur, depuis un preset système");
+        }
+        validate.run();
+        String newName = support.getValidator().name(name);
+        String asset = source.getAssetSymbol();
+        requireNameFree(PresetOrigin.SYSTEM, ctx.user(), asset, newName);
+        String newProvider = ExpertAssets.normalizeProvider(provider);
+        if (newProvider != null) {
+            newProvider = support.getAssets().requireProvider(asset, newProvider);
+        }
+        P created = copyOf(source, asset, newName, PresetOrigin.SYSTEM, null, newProvider, support.getClock().now());
+        apply.accept(created);
+        repository.save(created);
+        support.getJournal().record(ctx.user().getUsername(), AdminAction.PRESET, kind() + ":" + created.getId(),
+                AdminActionLogService.payload("name", newName, "createdFrom", source.getId(), "revision", created.getRevision()),
+                AdminActionOutcome.OK);
+        return created;
+    }
+
     private void resetEngines(P preset, List<AssetAffectation> used, Map<Long, String> labelsBefore) {
         String reason = "Preset modifié : " + preset.getName() + " (révision " + preset.getRevision() + "), moteur réinitialisé";
         for (AssetAffectation a : used) {
@@ -214,7 +241,7 @@ public abstract class AbstractExpertPresetService<P extends ExpertPreset> {
         } else if (source.getReferenceProvider() != null && support.getAssets().providerNames(asset).contains(source.getReferenceProvider())) {
             provider = source.getReferenceProvider();
         }
-        return repository.save(copyOf(source, asset, name, ctx.user(), provider, support.getClock().now()));
+        return repository.save(copyOf(source, asset, name, PresetOrigin.USER, ctx.user(), provider, support.getClock().now()));
     }
 
     /** Nom dérivé de l'original, suffixé d'un entier tant qu'il est pris pour (propriétaire, actif). */

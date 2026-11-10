@@ -118,6 +118,11 @@ class RainbowAtrReplayTest {
             for (int j = 0; j < rows.size(); j++) {
                 DayRow r = rows.get(j);
                 assertEquals(!RainbowAtrReplay.isInactive(setOfBar[r.index()]), r.active());
+                if (j > 0) {
+                    DayRow p = rows.get(j - 1);
+                    double expected = r.active() ? p.valuationPrice() * r.close() / p.close() : p.valuationPrice();
+                    assertEquals(expected, r.valuationPrice(), 1e-9 * expected, "prix de valorisation : rendement identique si actif, plat sinon");
+                }
                 if (r.active()) {
                     continue;
                 }
