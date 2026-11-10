@@ -9,7 +9,7 @@ import java.util.List;
  * Machine à états hystérésis appliquée à une série chronologique de scores continus de
  * {@link RegressiveTrendScoreCalculator}, pour produire un état discret {@link TrendRegime} par
  * bougie — Étape 8 de la roadmap Trend unifié (2026-09-24, cf.
- * {@code docs/prompts/prompt-implementation-trend-unifie-etape8-regression-hysteresis.md} §2.2).
+ * {@code prompt supprimé (docs/prompts retiré le 2026-11-10)} §2.2).
  * Service pur, testable indépendamment de {@link TrendAnalyzer}/de la régression elle-même : ne
  * prend en entrée qu'une liste de scores, dans l'ordre chronologique.
  * <p>

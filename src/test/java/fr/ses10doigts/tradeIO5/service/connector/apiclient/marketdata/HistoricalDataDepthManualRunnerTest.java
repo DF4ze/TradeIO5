@@ -35,7 +35,7 @@ import java.util.List;
  * qui mesure et documente l'état réel de l'historique D1/H1 persisté pour BTCUSDT, et vérifie le
  * comportement du cache-aside ({@link CachingMarketDataApiClient}) sur une fenêtre pluriannuelle.
  * <p>
- * Cf. docs/prompts/prompt-implementation-trend-unifie-etape5-historique-d1.md (prompt d'origine)
+ * Cf. prompt supprimé (docs/prompts retiré le 2026-11-10) (prompt d'origine)
  * et docs/etudes/etude-indicateur-trend-unifie.md §8 (contexte). Ce lot ne calibre ni ne compare
  * rien (pas l'Étape 2 ni l'Étape 6) : il mesure, documente, et rend un verdict GO/NO-GO factuel.
  * <p>

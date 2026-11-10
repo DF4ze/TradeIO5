@@ -1,3 +1,8 @@
+---
+statut: archivé
+modifié_le: 2026-09-13
+empreinte: d12e63f630
+---
 > **ARCHIVÉ le 2026-09-12.** Journal chronologique (2026-07-09 → 2026-08-17), conservé pour l'historique.
 > Ne pas lire comme description de l'état actuel — plusieurs constats ci-dessous sont dépassés par des
 > lots ultérieurs (mentionnés dans le texte via des "Mise à jour ..." mais pas toujours rangés à la bonne
@@ -12,7 +17,7 @@ Point de situation demandé par Clem : pour chaque indicateur/stratégie/opinion
 lots, qu'est-ce qu'il reste à faire pour le rendre réellement opérationnel (compte/clé API,
 branchement dans le pipeline de décision, calibration/validation empirique). Basé sur une relecture
 du code actuel (`src/main/java`), des études (`docs/etude-*.md`), du protocole de calibration
-(`docs/calibration/calibration-rejection-zone.md`) et du backlog (`docs/specs-initiales/BackLog.ods`).
+(`docs/calibration/calibration-rejection-zone.md`) et du backlog (`docs/archive/sources/specs-initiales/BackLog.ods`).
 
 ## 0. Constat général
 
@@ -130,7 +135,7 @@ GitGardian correspondante a été acquittée par Clem.
   vit une "fenêtre de risque événementiel" dans le pipeline actuel (avant un FOMC/NFP, réduire
   l'exposition ou suspendre les décisions ?) — c'est un choix d'architecture, pas juste du câblage.
   **Branché le 2026-08-10 côté MCP** (`MacroCalendarMcpTools`, patron `DcaMcpTools`, cf.
-  `docs/suivi/point-avancement-2026-08-10.md`) : `get_macro_calendar` (liste des événements sur une
+  `docs/archive/suivi/point-avancement-2026-08-10.md`) : `get_macro_calendar` (liste des événements sur une
   fenêtre de dates, filtre `minImpact` optionnel) et `check_macro_risk_window` (booléen
   fenêtre-de-risque autour de maintenant) sont désormais des tools MCP invocables, enregistrés dans
   `McpServerConfig`. 458 tests, 0 échec. Ne couvre que la lecture à la demande — aucun point d'entrée
@@ -161,7 +166,7 @@ GitGardian correspondante a été acquittée par Clem.
 ## 4. Détail — Lot 3 (scraping fragile / définition à inventer)
 
 - **ETF_FLOW** — **mise à jour 2026-07-16** : basculé de Farside (scraping HTML) vers l'API REST
-  officielle SoSoValue (`SosoValueEtfFlowClient`), cf. `docs/etudes/etude-sourcing-etf-flow-alternative-farside.md`.
+  officielle SoSoValue (`SosoValueEtfFlowClient`), cf. `docs/archive/etudes/etude-sourcing-etf-flow-alternative-farside.md`.
   Codé et testé (348 tests, vérifié en réel avec une vraie clé le 2026-07-16 — BTC et ETH renvoient
   des flux nets distincts et cohérents avec les chiffres publics). Credential `SOSOVALUE` en base
   (clé gratuite `tradeio.sosovalue.apiKey`, palier "Demo"). Branché dans `CONFIDENCE_MODULATOR` et
@@ -212,14 +217,14 @@ GitGardian correspondante a été acquittée par Clem.
    le 2026-07-09 (voir §3).
 4. Rejouer la calibration `REJECTION_ZONE` sur données réelles avant tout branchement.
 5. ~~Trancher l'architecture ... et de la séparation `GLOBAL`/`MACRO`~~ — fait le 2026-07-15, voir
-   §8 (`docs/etudes/etude-nouvelles-opinions-indicateurs-non-branches.md`). Calendrier macro (fenêtre de
+   §8 (`docs/archive/etudes/etude-nouvelles-opinions-indicateurs-non-branches.md`). Calendrier macro (fenêtre de
    risque événementiel) reste ouvert, hors périmètre de ce lot.
 6. Si une décision automatique (pas seulement à la demande via MCP) est souhaitée : ajouter un
    scheduler qui appelle `get_opinion`/`evaluate_strategy` périodiquement pour les symboles suivis.
 
 ## 8. Branchement du 2026-07-15 — STABLECOIN_MARKET_CAP, DXY/SP500/NASDAQ, ORDER_BOOK+LIQUIDATIONS
 
-Suite à `docs/etudes/etude-nouvelles-opinions-indicateurs-non-branches.md` (design validé par Clem le
+Suite à `docs/archive/etudes/etude-nouvelles-opinions-indicateurs-non-branches.md` (design validé par Clem le
 2026-07-15, "implémente tout ça") : 3 des 5 indicateurs listés en §2-4 ci-dessus sont maintenant
 branchés, testés (313 tests, 0 échec, `mvn test` sur la machine réelle), et invocables via
 `get_opinion`/MCP.
@@ -243,7 +248,7 @@ branchés, testés (313 tests, 0 échec, `mvn test` sur la machine réelle), et 
 - **ETF_FLOW** — **mise à jour 2026-07-16** : branché. `EtfFlowConfidenceStrategy`
   (`StrategyType.CONFIDENCE_MODULATOR`, restreint à `BTCUSDT`/`ETHUSDT`) compare le flux net ETF
   (SoSoValue, USD brut) au mouvement de prix D1 récent — divergence = atténuation de confidence,
-  jamais un signal directionnel. Cf. `docs/etudes/etude-branchement-etf-flow-confidence-modulator.md`.
+  jamais un signal directionnel. Cf. `docs/archive/etudes/etude-branchement-etf-flow-confidence-modulator.md`.
   Volontairement **pas** ajoutée par défaut à `DefaultMarketOpinion` dans ce lot — accessible en ad
   hoc via `evaluate_strategy`/`get_opinion`/`get_indicator` (paramètre `stringParams.asset`), même
   progression prudente que `MovementQualificationStrategy` en son temps. 359 tests, vérifié en réel.
@@ -261,7 +266,7 @@ branchés, testés (313 tests, 0 échec, `mvn test` sur la machine réelle), et 
   `CachingMarketDataApiClient`) ; nouvelle table `etf_flow_snapshot` historisant chaque valeur
   quotidienne (BTC/ETH) en vue de futurs indicateurs de tendance ; `EtfFlowHistorizationJob` (cron
   07h00) garantit une ligne par jour même sans évaluation utilisateur. Cf.
-  `docs/etudes/etude-cache-etf-flow-historisation.md`. 369 tests, vérifié en réel (cache MISS puis HIT
+  `docs/archive/etudes/etude-cache-etf-flow-historisation.md`. 369 tests, vérifié en réel (cache MISS puis HIT
   confirmés en log). **Mise à jour 2026-07-16 (fetch Binance inutile)** : `get_indicator` déclenchait
   quand même un `MarketDatasetEngine.getDataset` (jusqu'à un vrai appel réseau Binance) pour ETF_FLOW
   et 9 autres indicateurs `getRequiredData()==0` (FEAR_GREED, STABLECOIN_MARKET_CAP, DXY, SP500,

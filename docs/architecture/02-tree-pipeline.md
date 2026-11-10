@@ -1,3 +1,9 @@
+---
+statut: courant
+vérifié_le: 2026-10-04
+modifié_le: 2026-10-05
+empreinte: 36108ff291
+---
 # Le moteur "tree" — pipeline Indicator → Strategy → Opinion → Scenario → Decision
 
 Vérifié le : 2026-10-04 (`RainbowAtrIndicator` ; reste : 2026-09-19 — `service/tree/{indicator,strategy,opinion,scenario,decision,event}/**` — swing structure re-vérifié le 2026-09-19).

@@ -1,3 +1,9 @@
+---
+statut: courant
+vérifié_le: 2026-11-07
+modifié_le: 2026-11-10
+empreinte: 1a40ef1b24
+---
 # Sécurité
 
 Vérifié le : 2026-11-07 (`service/expert/ExpertAccessGuard`, `security/WebSecurityConfig`, `security/apikey/ApiKeyAuthFilter`, `security/jwt/*`, controllers, `service/connector/**`, `model/entity/exchange/ApiCredential`).
@@ -42,8 +48,8 @@ Vérifié le : 2026-11-07 (`service/expert/ExpertAccessGuard`, `security/WebSecu
 - **Chiffrées au repos** (AES-256-GCM, `enc:v1:…`) par `SecretCipher` ; clé maître dans la variable d'environnement `TRADEIO_MASTER_KEY` du VPS (jamais en base, jamais dans Flyway, jamais en clair dans un log). Sans clé maître **dans le processus de l'app** (lancement / config IntelliJ, pas seulement le shell) : création impossible et résolution vide, aucun repli en clair. Une fois la credential créée en base, retirer `tradeio.okx.trade.*` des propriétés. Lecture uniquement via `TradeCredentialResolver` (copie détachée déchiffrée).
 - Clés READ saisies par l'utilisateur : `POST /api/credentials/read` (`ReadCredentialService`) : chiffrée, refusée sans clé maître (409), jamais renvoyée ; crée ou rattache le wallet de l'exchange (OKX, Kraken).
 - Création / rotation : par le propriétaire pour sa propre clé (`POST /api/credentials/trade`, `isAuthenticated`, utilisateur = connecté, aucun `userId` accepté) ou par l'admin (`POST /api/admin/execution/credentials`, ou `POST /api/admin/credentials` depuis la page Admin pour tout utilisateur y compris System, portée Trade ou Lecture) ; réponse sans secret ; aucun secret dans les logs, exceptions, DTO ni événements d'audit.
-- `ConnectorNoOrderMethodTest` inchangé : `service.connector` reste sans méthode d'ordre ; les ordres n'existent que dans `service.execution.exchange`, appelé par le seul `service.execution.run` (`ExecutionOrderArchitectureTest`). Le bean client d'ordres n'existe qu'en `LIVE` déverrouillé. Détail : [`10-execution-reelle.md`](10-execution-reelle.md).
-- Journal d'audit `admin_action_log` (append-only, lecture `ROLE_ADMIN` via `GET /api/admin/actions`) : actions admin d'exécution et saisies de credentials, charge utile filtrée des secrets ([`10-execution-reelle.md`](10-execution-reelle.md)).
+- `ConnectorNoOrderMethodTest` inchangé : `service.connector` reste sans méthode d'ordre ; les ordres n'existent que dans `service.execution.exchange`, appelé par le seul `service.execution.run` (`ExecutionOrderArchitectureTest`). Le bean client d'ordres n'existe qu'en `LIVE` déverrouillé. Détail : [`14-execution-reelle.md`](14-execution-reelle.md).
+- Journal d'audit `admin_action_log` (append-only, lecture `ROLE_ADMIN` via `GET /api/admin/actions`) : actions admin d'exécution et saisies de credentials, charge utile filtrée des secrets ([`14-execution-reelle.md`](14-execution-reelle.md)).
 - Endpoints de pilotage (`/api/admin/execution/**`, `/api/admin/credentials`, `/api/admin/bindings`, `/api/admin/actions`, `/api/admin/catalog/**`, `/api/admin/execution/order-test/**`) : `ROLE_ADMIN` strict (test `ExecutionAdminSecurityTest`) ; interrupteur et confirmation du 1ᵉʳ ordre : propriétaire du binding seulement (autre user ⇒ 404).
 
 ## Génération de paires de clés par utilisateur

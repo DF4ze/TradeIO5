@@ -15,7 +15,7 @@ public interface EventRepository extends JpaRepository<EventEntity, String> {
 
     /**
      * Palier 3, étape 4 : requête delta globale par date (restauration au redémarrage,
-     * cf. docs/etudes/etude-branchement-persistance-decision-engine.md §C/§E pt3). Strictement
+     * cf. docs/archive/etudes/etude-branchement-persistance-decision-engine.md §C/§E pt3). Strictement
      * postérieur (Spring Data "After" => {@code isAfter}) : un événement dont le timestamp est
      * exactement égal à {@code timestamp} n'est PAS renvoyé.
      */

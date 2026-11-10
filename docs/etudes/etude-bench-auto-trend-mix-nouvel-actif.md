@@ -1,6 +1,11 @@
+---
+statut: journal
+modifié_le: 2026-10-10
+empreinte: aa0a84d5e9
+---
 # Étude — Bench automatique du Trend Mix sur un nouvel actif
 
-Statut : analyse du 2026-10-09, **aucun code**. Prompt : [`../prompts/prompt-analyse-bench-auto-trend-mix-nouvel-actif.md`](../prompts/prompt-analyse-bench-auto-trend-mix-nouvel-actif.md). Contexte : [`../known-gaps/rainbow-dca-chantiers-ouverts.md`](../known-gaps/rainbow-dca-chantiers-ouverts.md) §1-2, [`../architecture/09-trend.md`](../architecture/09-trend.md).
+Statut : analyse du 2026-10-09, **aucun code**. Prompt : ../prompts/prompt-analyse-bench-auto-trend-mix-nouvel-actif.md *(supprimé)*. Contexte : [`../known-gaps/rainbow-dca-chantiers-ouverts.md`](../known-gaps/rainbow-dca-chantiers-ouverts.md) §1-2, [`../architecture/09-trend.md`](../architecture/09-trend.md).
 
 ## 0. Cadrage (réponses de Clem du 2026-10-09)
 

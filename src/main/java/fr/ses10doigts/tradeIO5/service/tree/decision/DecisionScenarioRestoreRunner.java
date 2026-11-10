@@ -6,7 +6,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
- * Restauration au (re)démarrage (Palier 3, étape 4, docs/etudes/etude-branchement-persistance-decision-engine.md
+ * Restauration au (re)démarrage (Palier 3, étape 4, docs/archive/etudes/etude-branchement-persistance-decision-engine.md
  * §C/§E pt3). Délègue entièrement à {@link DecisionScenarioRestoreService} depuis l'étape 6
  * (archivage sur inactivité) : toute la logique de reconstruction (photo + rejeu delta) a été
  * extraite dans ce service, réutilisable en dehors du seul démarrage (cf. {@code

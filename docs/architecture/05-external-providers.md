@@ -1,6 +1,12 @@
+---
+statut: courant
+vérifié_le: 2026-10-27
+modifié_le: 2026-11-10
+empreinte: c539bc125b
+---
 # Providers de données externes
 
-Vérifié le : 2026-10-27 (symboles Coinalyze/carnet/ETF, Finnhub 403 ; 2026-09-12 : croisement `docs/suivi/etat-des-lieux-indicateurs-strategies-opinions.md` archivé + `configuration/EtfFlowCachingConfig` + `service/scheduler/EtfFlowHistorizationJob` + `service/tree/macro/MacroEventCalendarService`).
+Vérifié le : 2026-10-27 (symboles Coinalyze/carnet/ETF, Finnhub 403 ; 2026-09-12 : croisement `docs/archive/suivi/etat-des-lieux-indicateurs-strategies-opinions.md` archivé + `configuration/EtfFlowCachingConfig` + `service/scheduler/EtfFlowHistorizationJob` + `service/tree/macro/MacroEventCalendarService`).
 
 | Donnée | Provider actuel | Provider historique/écarté | Notes |
 |---|---|---|---|

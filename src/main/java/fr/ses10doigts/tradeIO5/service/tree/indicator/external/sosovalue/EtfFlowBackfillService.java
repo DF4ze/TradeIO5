@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Backfill historique ETF_FLOW à la demande (docs/etudes/etude-cache-etf-flow-historisation.md, addendum
+ * Backfill historique ETF_FLOW à la demande (docs/archive/etudes/etude-cache-etf-flow-historisation.md, addendum
  * backfill) : demande explicite de Clem le 2026-07-16 ("je voudrais pouvoir cacher en DB la
  * totalité des data que contient sosovalue") après avoir constaté que le cache-aside quotidien
  * ({@link CachingEtfFlowClient#fetch}) ne construit l'historique qu'à raison d'une ligne par jour —
@@ -45,7 +45,7 @@ import java.util.Map;
  * se poursuit avec celle-là seule plutôt que d'échouer entièrement.
  * <p>
  * <b>Bug d'unité corrigé le 2026-08-10</b> (repéré le 2026-07-17, cf. {@code
- * docs/suivi/etat-des-lieux-indicateurs-strategies-opinions.md}) : Farside exprime ses flux en
+ * docs/archive/suivi/etat-des-lieux-indicateurs-strategies-opinions.md}) : Farside exprime ses flux en
  * millions USD ({@code 655.3} = 655,3 M$) tandis que SoSoValue renvoie du USD brut ({@code
  * -55066297.0}, cf. javadoc {@link SosoValueEtfFlowClient}). Les deux sources écrivaient
  * auparavant dans la même colonne {@code etf_flow_snapshot.total_net_inflow} sans conversion,

@@ -39,7 +39,7 @@ import java.util.concurrent.Future;
 
 /**
  * Suite de {@link RainbowDcaAtrScoreExportTest} (2026-09-28, cf. prompt
- * {@code docs/prompts/prompt-implementation-rainbow-bench-atr-robustesse.md}) : lève les 2 limites
+ * {@code prompt supprimé (docs/prompts retiré le 2026-11-10)}) : lève les 2 limites
  * connues de ce dernier -
  *  1) **optimum local** : remplace le simple OAT + combine glouton (une seule passe) par un
  *     coordinate ascent MULTI-PASSES qui repart du candidat combiné de la passe précédente et

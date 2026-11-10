@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-11-06
+empreinte: 6d1dcd6fd3
+---
 # Étude — Page Admin « Diagnostic / Docteur » + gestionnaire d'alarmes
 
 Daté : 2026-11-06. Étude seulement, rien de codé. Journal de conception (cf. `README.md` du dossier).

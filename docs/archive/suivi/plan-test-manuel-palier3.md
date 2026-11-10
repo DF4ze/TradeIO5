@@ -1,3 +1,8 @@
+---
+statut: archivé
+modifié_le: 2026-09-13
+empreinte: 50b07baf68
+---
 > **ARCHIVÉ le 2026-09-12.** Plan de test manuel daté (révisé 2026-08-17), conservé pour l'historique.
 > Les endpoints listés ici restent vérifiés dans [`../../api/rest-endpoints.md`](../../api/rest-endpoints.md)
 > et [`../../operations/scheduled-jobs.md`](../../operations/scheduled-jobs.md) (état courant).

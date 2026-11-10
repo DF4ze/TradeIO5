@@ -1,3 +1,9 @@
+---
+statut: courant
+vérifié_le: 2026-10-08
+modifié_le: 2026-10-13
+empreinte: 48a7b6c39a
+---
 # Trend unifié (`service/tree/trend`)
 
 Vérifié le : 2026-10-08 (`service/tree/trend/**`, `TrendConfirmationStrategy`, `RegressiveTrendStrategy`, `LinearRegressionIndicator`).

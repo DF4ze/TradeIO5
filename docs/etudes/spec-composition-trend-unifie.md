@@ -1,6 +1,11 @@
+---
+statut: journal
+modifié_le: 2026-10-04
+empreinte: 9429d22011
+---
 # Spécification — Fonction de composition régime/régression du Trend unifié (+ protocole de walk-forward)
 
-Statut : walk-forward exécuté le 2026-09-24 (résultats §10), **implémenté le 2026-09-24** (§11) — candidate retenue par Clem : régression à hystérésis (REG_H), à l'échelle swing. §1 à §9 ci-dessous documentent le raisonnement et la proposition de spécification (composition régime/régression) qui a précédé le walk-forward — non implémentée telle quelle, cf. §11 pour les écarts. Rédigée pour le lot [`prompt-implementation-trend-unifie-etape7-specification-composition-walkforward.md`](../prompts/prompt-implementation-trend-unifie-etape7-specification-composition-walkforward.md) ; contexte dans [`etude-indicateur-trend-unifie.md`](etude-indicateur-trend-unifie.md) §8 et §9.
+Statut : walk-forward exécuté le 2026-09-24 (résultats §10), **implémenté le 2026-09-24** (§11) — candidate retenue par Clem : régression à hystérésis (REG_H), à l'échelle swing. §1 à §9 ci-dessous documentent le raisonnement et la proposition de spécification (composition régime/régression) qui a précédé le walk-forward — non implémentée telle quelle, cf. §11 pour les écarts. Rédigée pour le lot prompt-implementation-trend-unifie-etape7-specification-composition-walkforward.md *(supprimé)* ; contexte dans [`etude-indicateur-trend-unifie.md`](etude-indicateur-trend-unifie.md) §8 et §9.
 
 Briques composées : `SWING_STRUCTURE` (régime, `SwingStructureCalculator`), `RegressiveTrendStrategy` (score de régression 3 fenêtres, noté `reg` ∈ [-1,1]), ADX (`adxFactor`, noté `force` ∈ [0,1]).
 

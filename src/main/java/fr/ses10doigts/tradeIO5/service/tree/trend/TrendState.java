@@ -5,7 +5,7 @@ import java.time.Instant;
 /**
  * Sortie du calculateur de Trend unifié ({@link TrendAnalyzer}) — contrat figé par l'Étape 8 de la
  * roadmap Trend unifié (2026-09-24, cf.
- * {@code docs/prompts/prompt-implementation-trend-unifie-etape8-regression-hysteresis.md} §3).
+ * {@code prompt supprimé (docs/prompts retiré le 2026-11-10)} §3).
  * Remplace l'ancien contrat porté par {@code SwingStructureRegime}/ADX (Étapes 1-7) : la Trend est
  * désormais entièrement portée par la régression linéaire multi-fenêtres à hystérésis (candidate
  * REG_H du walk-forward, cf. {@code docs/etudes/spec-composition-trend-unifie.md} §10).

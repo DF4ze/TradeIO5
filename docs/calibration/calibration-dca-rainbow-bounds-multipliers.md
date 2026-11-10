@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-10-04
+empreinte: 63e9b10928
+---
 # Calibration — DCA Rainbow : bornes % valides et méthodes de sortie ARMÉ
 
 > **Statut 2026-10-04** : bench des bornes en **%** (`RainbowDcaBacktestService`), **supplanté** par les bornes ATR ([`calibration-rainbow-atr-v3-regime.md`](calibration-rainbow-atr-v3-regime.md)). Conservé tant que le code correspondant n'est pas jugé inutile.

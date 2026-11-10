@@ -1,3 +1,8 @@
+---
+statut: courant
+modifié_le: 2026-11-07
+empreinte: f829e637aa
+---
 # Sécurité — remarques à traiter (base de la phase d'audit)
 
 Section de collecte : on y note toute remarque de sécurité au fil des chantiers ; la phase d'audit les traitera ensemble. État décrit : **actuel** (une remarque corrigée est supprimée, pas historisée). Description du fonctionnement sécurité : [`../architecture/07-security.md`](../architecture/07-security.md).

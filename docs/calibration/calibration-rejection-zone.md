@@ -1,7 +1,12 @@
+---
+statut: journal
+modifié_le: 2026-08-10
+empreinte: 3c4ae53212
+---
 # Calibration — Zones de rejet (Lot 3, item J)
 
-Complément à `docs/etudes/etude-indicateurs-macro-externes.md` §14 et au prompt d'implémentation
-`docs/prompts/prompt-implementation-lot3-indicateurs.md`. Documente le protocole de validation empirique
+Complément à `docs/archive/etudes/etude-indicateurs-macro-externes.md` §14 et au prompt d'implémentation
+`prompt-implementation-lot3-indicateurs.md` (supprimé). Documente le protocole de validation empirique
 de `RejectionZoneIndicator` et son résultat, conformément à l'exigence du lot : "livrer le code
 sans avoir fait cette étape ne satisfait pas ce lot, même si la compilation et les tests unitaires
 passent".

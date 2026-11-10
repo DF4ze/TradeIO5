@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Client SoSoValue (docs/etudes/etude-sourcing-etf-flow-alternative-farside.md) : remplace
+ * Client SoSoValue (docs/archive/etudes/etude-sourcing-etf-flow-alternative-farside.md) : remplace
  * {@code FarsideEtfFlowClient} (scraping HTML non versionné, retiré de la config Spring le
  * 2026-07-16) par une API REST officielle et documentée
  * (<a href="https://sosovalue.gitbook.io/soso-value-api-doc">sosovalue.gitbook.io</a>). Auth par
@@ -59,7 +59,7 @@ import java.util.Map;
  * procédure de correction des lignes historiques déjà persistées à l'ancienne échelle.
  * {@code EtfFlowConfidenceStrategy} (le seul consommateur de seuils sur ETF_FLOW) ne lit jamais
  * Farside directement, uniquement {@link #fetch} (SoSoValue, USD brut) via le cache — non
- * affecté par ce bug historique, cf. docs/etudes/etude-branchement-etf-flow-confidence-modulator.md.
+ * affecté par ce bug historique, cf. docs/archive/etudes/etude-branchement-etf-flow-confidence-modulator.md.
  * <p>
  * Mêmes garde-fous que les autres clients externes du projet ({@code CoinalyzeClient},
  * {@code FarsideEtfFlowClient}) : jamais d'exception qui remonte, toujours un
@@ -67,7 +67,7 @@ import java.util.Map;
  * distinct par étape d'échec (même objectif que Farside : détecter vite un changement de contrat
  * côté SoSoValue plutôt que de le noyer en silence).
  * <p>
- * <b>Plus {@code @Component} depuis le 2026-07-16</b> (docs/etudes/etude-cache-etf-flow-historisation.md) :
+ * <b>Plus {@code @Component} depuis le 2026-07-16</b> (docs/archive/etudes/etude-cache-etf-flow-historisation.md) :
  * enveloppé dans {@link CachingEtfFlowClient}, seul bean {@link EtfFlowProvider} du contexte
  * désormais (câblage dans {@code EtfFlowCachingConfig}) — même traitement que
  * {@code FarsideEtfFlowClient} en son temps, pour éviter toute ambiguïté d'injection dans
@@ -194,7 +194,7 @@ public class SosoValueEtfFlowClient extends AbstractExternalIndicator implements
     }
 
     /**
-     * Backfill historique (docs/etudes/etude-cache-etf-flow-historisation.md, addendum backfill) : même
+     * Backfill historique (docs/archive/etudes/etude-cache-etf-flow-historisation.md, addendum backfill) : même
      * endpoint que {@link #fetch}, {@code limit} paramétrable au lieu de {@code 1} fixe. Plafond
      * dur côté SoSoValue : {@code limit} max 300, aucun paramètre de pagination au-delà (
      * {@code start_date}/{@code end_date} existent mais sont eux-mêmes restreints "au mois le plus

@@ -1,3 +1,9 @@
+---
+statut: courant
+vérifié_le: 2026-09-12
+modifié_le: 2026-09-13
+empreinte: a4f7624fc5
+---
 # Tools MCP exposés
 
 Vérifié le : 2026-09-12 (`configuration/McpServerConfig`, `service/tree/api/mcp/TreeAnalysisMcpTools`, `service/dca/DcaMcpTools`, `service/tree/macro/MacroCalendarMcpTools`).

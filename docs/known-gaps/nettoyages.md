@@ -1,3 +1,9 @@
+---
+statut: gap
+vérifié_le: 2026-11-07
+modifié_le: 2026-11-09
+empreinte: 2adbf67037
+---
 # Nettoyages à prévoir
 
 Vérifié le : 2026-11-07. Points de nettoyage / purge **non faits**, à regrouper ici.

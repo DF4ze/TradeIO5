@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests unitaires de {@link RegressiveTrendScoreCalculator} — formule extraite de
  * {@code RegressiveTrendStrategy#evaluate} pour être mutualisée avec {@link TrendAnalyzer} (Étape 8
  * de la roadmap Trend unifié, cf.
- * {@code docs/prompts/prompt-implementation-trend-unifie-etape8-regression-hysteresis.md} §2.1/§5).
+ * {@code prompt supprimé (docs/prompts retiré le 2026-11-10)} §2.1/§5).
  * Les 3 fenêtres sont ici des {@link WindowInput} synthétiques (pas de calcul de régression réel) :
  * ce fichier couvre exclusivement la formule de combinaison, pas {@link LinearRegressionCalculator}
  * (déjà testé séparément).

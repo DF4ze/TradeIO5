@@ -10,7 +10,7 @@ import java.time.Instant;
 
 /**
  * Photo quotidienne de l'état courant d'un {@code MarketScenario} (Palier 3, étape 4,
- * docs/etudes/etude-branchement-persistance-decision-engine.md §C/§E pt3). Une ligne par scénario
+ * docs/archive/etudes/etude-branchement-persistance-decision-engine.md §C/§E pt3). Une ligne par scénario
  * ({@code scenarioId} = clé primaire) : {@code save(...)} sert déjà d'upsert, la photo n'accumule
  * pas d'historique — celui-ci est déjà couvert par le log d'événements existant
  * ({@code scenario_events} / la table générique {@code events} via {@link

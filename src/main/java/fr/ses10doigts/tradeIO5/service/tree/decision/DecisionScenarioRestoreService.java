@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
 
 /**
  * Reconstruction de l'état {@code ScenarioEngine}/{@code DecisionEngine} depuis photo + rejeu delta
- * (Palier 3, étape 4, docs/etudes/etude-branchement-persistance-decision-engine.md §C/§E pt3).
+ * (Palier 3, étape 4, docs/archive/etudes/etude-branchement-persistance-decision-engine.md §C/§E pt3).
  * <p>
  * Extrait de {@link DecisionScenarioRestoreRunner} à l'étape 6 (archivage sur inactivité) pour être
  * réutilisable en dehors du seul démarrage de l'application : {@link #restoreAll()} couvre le cas

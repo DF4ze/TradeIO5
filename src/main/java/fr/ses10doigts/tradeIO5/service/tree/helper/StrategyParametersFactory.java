@@ -23,7 +23,7 @@ public class StrategyParametersFactory {
      * Construit les 3 {@code IndicatorKey}/{@code IndicatorParameters} ({@code LINEAR_REGRESSION}
      * period court/moyen/long) requis par {@link TrendConfirmationStrategy} depuis son Étape 8
      * (2026-09-24, régression à hystérésis, cf.
-     * {@code docs/prompts/prompt-implementation-trend-unifie-etape8-regression-hysteresis.md}),
+     * {@code prompt supprimé (docs/prompts retiré le 2026-11-10)}),
      * ainsi que les paramètres de combinaison — même patron que
      * {@link #buildRegressiveTrendStrategyParam}. {@code TrendConfirmationParam} n'a plus de champ
      * {@code adxPeriod}/{@code adxLowThreshold}/{@code adxHighThreshold} depuis ce lot (ADX retiré
@@ -252,7 +252,7 @@ public class StrategyParametersFactory {
     /**
      * Valeurs par défaut alignées sur {@code EtfFlowConfidenceStrategy.DEFAULT_*} (mêmes réserves
      * que {@link MovementQualificationParam}/{@link OrderFlowParam} : point de départ, pas mesuré
-     * empiriquement — cf. docs/etudes/etude-branchement-etf-flow-confidence-modulator.md §9.2).
+     * empiriquement — cf. docs/archive/etudes/etude-branchement-etf-flow-confidence-modulator.md §9.2).
      */
     @AllArgsConstructor
     public static class EtfFlowConfidenceParam {

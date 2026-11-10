@@ -8,7 +8,7 @@ import java.time.LocalDate;
 
 /**
  * Paramètres d'un backtest DCA Rainbow (V0, résolution D1 pure — cf.
- * docs/prompts/prompt-implementation-dca-rainbow-v0.md). BTC uniquement pour ce lot : pas de
+ * prompt supprimé (docs/prompts retiré le 2026-11-10)). BTC uniquement pour ce lot : pas de
  * config DB multi-actif (cf. docs/CODING_RULES.md — "ne pas coder ce dont on n'a pas besoin"),
  * les bornes % par défaut ci-dessous sont celles calibrées pour BTC et doivent être passées
  * explicitement pour tout autre actif.

@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 /**
  * 2ᵉ job planifié du pipeline de veille média : classification + extraction LLM (Lot 2), séparé
  * de {@link MediaWatchIngestionJob} pour pouvoir tester et faire échouer les deux étapes
- * indépendamment (docs/prompts/prompt-implementation-veille-media-full.md, Lot 2 "TranscriptExtractionService").
+ * indépendamment (prompt supprimé (docs/prompts retiré le 2026-11-10), Lot 2 "TranscriptExtractionService").
  * <p>
  * Décalé de 15 minutes par rapport à l'ingestion (cron par défaut) pour laisser le temps aux
  * transcripts fraîchement ingérés d'être disponibles avant la classification. Révisé le

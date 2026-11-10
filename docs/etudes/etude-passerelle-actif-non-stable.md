@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-10-12
+empreinte: a194656cac
+---
 # Étude — Passerelle par actif non stable (PAXG sur Kraken), USDT exclu
 
 Date : 2026-10-12. Statut : analyse, aucun code, aucun ordre. Suite de `etude-chemin-achat-execution.md`. Prompt d'origine : `prompts/prompt-analyse-passerelle-actif-non-stable.md`.

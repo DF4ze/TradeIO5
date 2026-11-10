@@ -16,7 +16,7 @@ import java.util.List;
 
 /**
  * Archivage sur inactivité prolongée (Palier 3, étape 6,
- * docs/etudes/etude-branchement-persistance-decision-engine.md §E pt 5). Prend une photo globale
+ * docs/archive/etudes/etude-branchement-persistance-decision-engine.md §E pt 5). Prend une photo globale
  * (réutilise {@link DecisionScenarioSnapshotService} tel quel), puis évince de la mémoire active
  * (via {@link ScenarioEngine#evictOwner}/{@link DecisionEngine#evictOwner}) tout owner dont la
  * dernière connexion remonte à plus de {@link #ARCHIVAL_DELAY}. Ne supprime rien en base : la photo

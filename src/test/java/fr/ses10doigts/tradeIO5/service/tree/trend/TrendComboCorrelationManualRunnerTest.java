@@ -50,7 +50,7 @@ import java.util.Map;
  * unifié" : corrélation empirique ADX vs r² (RegressiveTrendStrategy) et taux de divergence entre
  * le régime SWING_STRUCTURE et le signe de RegressiveTrendStrategy.
  * <p>
- * Cf. docs/prompts/prompt-implementation-trend-unifie-etape6-correlation-adx-regression.md (prompt
+ * Cf. prompt supprimé (docs/prompts retiré le 2026-11-10) (prompt
  * d'origine) et docs/etudes/etude-indicateur-trend-unifie.md §8 (contexte). Ce lot ne calibre rien
  * (pas l'Étape 2) et ne fige aucune décision de composition : il mesure, exporte 2 CSV et rend une
  * lecture factuelle, soumise à Clem (cf. prompt §4 : "ne pas mettre à jour l'étude/roadmap avec une

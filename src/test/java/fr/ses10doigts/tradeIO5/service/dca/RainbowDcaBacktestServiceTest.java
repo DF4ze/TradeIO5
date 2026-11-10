@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
 /**
  * Cf. RainbowDcaBacktestService — règle exacte des zones/mécanismes ARMÉ/DÉCLENCHÉ confirmée par
  * Clem le 2026-09-12 (mémoire projet tradeio5_dca_rainbow_v0_zone_table_clarification_2026-09-12.md),
- * qui remplace le tableau de docs/prompts/prompt-implementation-dca-rainbow-v0.md.
+ * qui remplace le tableau de prompt supprimé (docs/prompts retiré le 2026-11-10).
  * <p>
  * Toutes les journées de test utilisent une seule bougie H1 par jour (00:00 UTC) : seul le
  * {@code close} entre en jeu dans la logique du service, une bougie H1 par jour suffit donc à

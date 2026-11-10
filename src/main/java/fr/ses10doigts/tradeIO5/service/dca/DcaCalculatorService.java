@@ -269,7 +269,7 @@ public class DcaCalculatorService {
      * Résout la source effective quand {@code source} n'est pas fourni explicitement : premier
      * candidat {@code enabled} de {@code asset_provider} par priorité pour cet asset. Si aucune
      * ligne n'existe pour ce symbole (asset pas encore migré côté {@code AssetInitializer}, cf.
-     * docs/etudes/etude-fallback-multi-provider-marketdata.md §3 étape 6), on conserve {@code BINANCE}
+     * docs/archive/etudes/etude-fallback-multi-provider-marketdata.md §3 étape 6), on conserve {@code BINANCE}
      * comme repli plutôt que de faire échouer un DCA qui fonctionnait hier. Cf. étape 8b.
      */
     private MarketDataSource resolveEffectiveSource(MarketDataSource source, String symbol) {

@@ -1,3 +1,8 @@
+---
+statut: archivé
+modifié_le: 2026-09-13
+empreinte: b8b819989b
+---
 > **ARCHIVÉ le 2026-09-12.** Point d'avancement daté, conservé pour l'historique. Le plan d'action
 > "décision → ordre" (§6) reste la meilleure synthèse disponible du gap fonctionnel principal du
 > projet — repris et mis à jour dans [`../../known-gaps/decision-to-order-gap.md`](../../known-gaps/decision-to-order-gap.md).
@@ -85,7 +90,7 @@ pas prioritaire avant que celui-ci soit plus mature).
 ## 4. GitGardian — ack résolu
 
 Anciennes clés Binance/Kraken committées (alerte GitGardian) confirmées mortes et retirées du
-code source depuis le 2026-07-09 (cf. `docs/suivi/etat-des-lieux-indicateurs-strategies-opinions.md`
+code source depuis le 2026-07-09 (cf. `docs/archive/suivi/etat-des-lieux-indicateurs-strategies-opinions.md`
 §1). Ack GitGardian acquitté par Clem le 2026-08-10.
 
 ## 5. Revue des 13 TODO/FIXME du code
@@ -111,7 +116,7 @@ priorise maintenant — pas une coïncidence : ce sont les seuls TODO du code qu
 noir sur blanc ce qui manque pour transformer une `Decision` en ordre réel. Détail au §6.
 
 **Mise à jour 2026-08-11** : les 3 items critiques (#1-3) sont résolus — cf.
-`docs/prompts/prompt-implementation-decision-palier1.md` (Palier 1). Ce lot rend la logique interne
+`prompt-implementation-decision-palier1.md` (supprimé) (Palier 1). Ce lot rend la logique interne
 Scenario/Decision cohérente et testable en isolation ; il ne rend pas la chaîne exécutable en prod
 (`DecisionEngine`/`DefaultScenarioEngine` restent de simples POJO non instanciés hors tests, pas de
 sizing réel, pas de persistance d'état) — cf. étude §2.2 et §12 pt 1. 465 tests OK (458 + 7 nouveaux)
@@ -190,7 +195,7 @@ exécution.
 
    **Mise à jour (2026-08-14, Palier 3, étape 8)** : nouveau `MacroRiskWindowModulator` codé et
    branché dans `GlobalMarketOpinion`/`MacroMarketOpinion`, cf.
-   `docs/prompts/prompt-implementation-decision-palier3-etape8.md`. Le "dépend de #5" ci-dessus
+   `prompt-implementation-decision-palier3-etape8.md` (supprimé). Le "dépend de #5" ci-dessus
    concernait le composant d'exécution réelle d'ordres (toujours hors périmètre du Palier 3, non
    entamé) — distinction non faite explicitement à l'époque de la rédaction de ce point. Ce qui est
    livré ici est une modulation de confidence en amont de la Decision (jamais l'exécution elle-même),
@@ -205,7 +210,7 @@ exécution.
    **Addendum (2026-08-12)** : la conception de ce scheduler a en fait redémarré, comme conséquence
    directe du chantier branchement/persistance (le moteur unique partagé retenu a structurellement
    besoin de quelque chose qui lui fournisse l'owner à chaque appel) — cf.
-   `docs/etudes/etude-branchement-persistance-decision-engine.md` §E point 6, sous la forme d'un
+   `docs/archive/etudes/etude-branchement-persistance-decision-engine.md` §E point 6, sous la forme d'un
    orchestrateur User×Wallet×Asset. Son activation réelle en prod (vs sa simple conception) reste une
    décision distincte, probablement encore à trancher avant le prompt d'implémentation Palier 3.
 

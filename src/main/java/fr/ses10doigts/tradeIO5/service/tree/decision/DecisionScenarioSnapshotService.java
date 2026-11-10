@@ -21,7 +21,7 @@ import java.util.List;
 
 /**
  * Photo quotidienne de l'état actif de {@link ScenarioEngine}/{@link DecisionEngine} (Palier 3,
- * étape 4, docs/etudes/etude-branchement-persistance-decision-engine.md §C/§E pt3). Upsert dans
+ * étape 4, docs/archive/etudes/etude-branchement-persistance-decision-engine.md §C/§E pt3). Upsert dans
  * {@code scenario_snapshots}/{@code decision_snapshots} — pas d'historique de photos accumulées
  * (déjà couvert par le log d'événements existant). Déclenché par {@link
  * fr.ses10doigts.tradeIO5.service.scheduler.DecisionScenarioSnapshotJob} (désactivé par défaut) ou

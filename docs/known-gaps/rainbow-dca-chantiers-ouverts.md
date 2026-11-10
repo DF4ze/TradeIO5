@@ -1,3 +1,9 @@
+---
+statut: gap
+vérifié_le: 2026-10-11
+modifié_le: 2026-11-07
+empreinte: c496271c7a
+---
 # Rainbow DCA ATR — chantiers ouverts
 
 Vérifié le : 2026-10-11 (code + décisions de Clem). Objectif n°1 du projet : **automatiser le DCA intelligent** (achats/ventes réels). Cette page liste ce qui sépare l'état actuel de cet objectif. Sauf mention « fait », rien ici n'est implémenté.
@@ -52,7 +58,7 @@ Hors Rainbow : branchement `WalletSnapshot`, sizing réel, composant d'exécutio
 Ordre voulu : d'abord boucler le fonctionnel du back, puis :
 - **Architecture des pages** : définir les pages, leur organisation, les menus.
 - **Charte graphique** à définir. Besoins d'interface déjà collectés (réglage des `asset_provider` depuis la GUI, affichage de la source des candles d'un lien) : [`../graphique/remarques-gui.md`](../graphique/remarques-gui.md).
-- **Saisie des credentials d'exchange** : faite pour la clé **TRADE OKX** (page `/admin`, onglet Credentials, `POST /api/credentials/trade`, cf. [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md)). Saisie des clés **READ** : `POST /api/credentials/read` (chiffrées, wallet créé). Reste à faire : autres exchanges que OKX/Kraken, gestion fine des wallets (renommer, désactiver).
+- **Saisie des credentials d'exchange** : faite pour la clé **TRADE OKX** (page `/admin`, onglet Credentials, `POST /api/credentials/trade`, cf. [`../architecture/14-execution-reelle.md`](../architecture/14-execution-reelle.md)). Saisie des clés **READ** : `POST /api/credentials/read` (chiffrées, wallet créé). Reste à faire : autres exchanges que OKX/Kraken, gestion fine des wallets (renommer, désactiver).
 
 ## 5b-bis. Élargissement des exchanges disponibles (à faire)
 
@@ -69,10 +75,10 @@ Aujourd'hui seuls OKX et Kraken (lecture + ordres) et Binance (lecture, données
 
 - **Constat** : PAXG n'a aucune paire spot en USDC/USDT sur Kraken (USD, EUR, XBT, ETH) ; la route sans fiat est `USDC → BTC → PAXG` (ETH chiffré, affiché, jamais choisi). Sur OKX, le compte EEA de Clem reçoit `51155` sur les paires USDT, USDT est exclu : seuls BTC et ETH (en USDC) sont achetables.
 - **Déjà en place** : groupe USD = USDC, statuts `OK` / `TRADABLE_VIA_INTERMEDIARY` / `NOT_TRADABLE_WITHOUT_FIAT` + `routeKey` persistés sur le binding, clients Kraken lecture seule (TradeVolume, Depth), `PathFinder` multi-jambes, plan dry-run multi-jambes avec stock en transit (`TransitStock`). `ExecutionGuard` refuse tout sauf `OK`. Attendu : Kraken PAXG ⇒ `TRADABLE_VIA_INTERMEDIARY` (`USDC>BTC>PAXG`), BTC/ETH ⇒ `OK`.
-- **Exécution multi-jambes codée** (retry borné de la jambe 2, stock en transit, validation par jambe, page) — [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md). **1ᵉʳ achat réel PAXG minimal exécuté sous contrôle de Clem** (taux taker réel via `TradeVolume`, coût ≈ 0,8 % par jambe ⇒ Fee Test rouge à 0,8 % : le seuil se règle par `tradeio.execution.fee-test.red-pct`). **Reste** : vérifier le comportement de la jambe 2 sans BTC détenu, exécution manuelle quelques jours avant tout cron. Hors périmètre : route ETH automatique, bascule automatique de route, ordre compensatoire, retrait/transfert API (jamais).
+- **Exécution multi-jambes codée** (retry borné de la jambe 2, stock en transit, validation par jambe, page) — [`../architecture/14-execution-reelle.md`](../architecture/14-execution-reelle.md). **1ᵉʳ achat réel PAXG minimal exécuté sous contrôle de Clem** (taux taker réel via `TradeVolume`, coût ≈ 0,8 % par jambe ⇒ Fee Test rouge à 0,8 % : le seuil se règle par `tradeio.execution.fee-test.red-pct`). **Reste** : vérifier le comportement de la jambe 2 sans BTC détenu, exécution manuelle quelques jours avant tout cron. Hors périmètre : route ETH automatique, bascule automatique de route, ordre compensatoire, retrait/transfert API (jamais).
 - **Lot B, étape a faite** (catalogue d'instruments, frais réels `trade-fee`, carnet, `PathFinder`, Fee Test, `GET …/bindings/{id}/path-quote` ; cf. [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md)) : le chemin le moins coûteux est chiffré en lecture seule. 
 - **Lot B, étape b faite** : plan d'ordres dry-run enregistré et affiché (job `ExecutionPlanJob` désactivé par défaut, bilan virtuel USDC, achats + ventes, `clOrdId` déterministes, expiration 5 min, mode global `OFF|DRY_RUN`, `LIVE` refusé au démarrage) — [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md). 
-- **Lots C1 (back-end) et C2 (panneau d'exécution sur la page) faits** : clé TRADE chiffrée, port d'ordres + client OKX (inactif par défaut), exécuteur avec réconciliation, audit append-only, kill switch, plafonds, double validation du 1ᵉʳ ordre — [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md). **1ᵉʳ ordre réel validé (BTC-USDC, minimal) ; `LIVE` verrouillé par défaut.** **Reste** : exécution manuelle quelques jours avant tout cron ; filtrage du catalogue par instruments du compte ; chiffrement optionnel des clés READ ; plafonds absolus (30 USD par ordre, 100 USD par jour, constantes) et multiplicateurs relatifs (table `execution_control`, SQL seulement) à rendre configurables par utilisateur dans la page, avec avertissement à l'approche des seuils.
+- **Lots C1 (back-end) et C2 (panneau d'exécution sur la page) faits** : clé TRADE chiffrée, port d'ordres + client OKX (inactif par défaut), exécuteur avec réconciliation, audit append-only, kill switch, plafonds, double validation du 1ᵉʳ ordre — [`../architecture/14-execution-reelle.md`](../architecture/14-execution-reelle.md). **1ᵉʳ ordre réel validé (BTC-USDC, minimal) ; `LIVE` verrouillé par défaut.** **Reste** : exécution manuelle quelques jours avant tout cron ; filtrage du catalogue par instruments du compte ; chiffrement optionnel des clés READ ; plafonds absolus (30 USD par ordre, 100 USD par jour, constantes) et multiplicateurs relatifs (table `execution_control`, SQL seulement) à rendre configurables par utilisateur dans la page, avec avertissement à l'approche des seuils.
 
 ## 5d. Carry des mises sous le minimum du provider (back fait, UI à faire)
 
@@ -130,3 +136,4 @@ Question : vaut-il mieux enchaîner les étapes (la fin de l'une déclenche la s
 Risque à étudier : si une étape devient plus longue (plus d'actifs, de liens, de providers, candles lentes ; la passe prend déjà ~8 s pour 3 presets), l'étape suivante peut démarrer alors que la précédente n'est pas finie et lire des runs incomplets. Les plans d'ordres expirent 5 min après leur création (`plan-ttl=PT5M`) : un enchaînement par cron doit donc rester dans cette fenêtre, ce que le chaînage garantirait mieux.
 
 À couvrir par l'étude : orchestrateur unique ou événements, comportement en cas d'échec d'une étape (arrêt de la chaîne ou poursuite), reprise, idempotence, observabilité, lien avec le kill switch et le `DecisionOrchestrator` (cron 06:00).
+- **Affectation choisie par lien : étude ouverte (2026-11-10).** Une Affectation désactivée fait ignorer ses liens sans signal ; l'activation devrait être dérivée des liens et l'Affectation choisissable par lien (plusieurs, nommées). Cf. [`../etudes/etude-affectation-par-lien.md`](../etudes/etude-affectation-par-lien.md).

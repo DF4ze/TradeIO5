@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests unitaires/d'assemblage de {@link TrendAnalyzer} — Étape 8 de la roadmap Trend unifié (cf.
- * {@code docs/prompts/prompt-implementation-trend-unifie-etape8-regression-hysteresis.md} §5) : la
+ * {@code prompt supprimé (docs/prompts retiré le 2026-11-10)} §5) : la
  * formule de score ({@link RegressiveTrendScoreCalculator}) et la machine à états
  * ({@link RegressionHysteresisCalculator}) sont testées séparément dans leurs propres fichiers ;
  * celui-ci couvre l'assemblage sur des bougies synthétiques (montée propre -&gt; UP, baisse -&gt;

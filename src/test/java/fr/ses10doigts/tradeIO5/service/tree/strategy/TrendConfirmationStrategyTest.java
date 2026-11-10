@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Réécrite le 2026-09-24 pour l'Étape 8 de la roadmap Trend unifié (cf.
- * {@code docs/prompts/prompt-implementation-trend-unifie-etape8-regression-hysteresis.md}) :
+ * {@code prompt supprimé (docs/prompts retiré le 2026-11-10)}) :
  * contrat d'entrée passé de SWING_STRUCTURE+ADX à 3x LINEAR_REGRESSION (7/14/30, D1), score/régime
  * calculés par {@link TrendAnalyzer} (régression multi-fenêtres à hystérésis) plutôt que par
  * SWING_STRUCTURE+ADX.

@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-10-11
+empreinte: f94311853a
+---
 # Etude trading stablecoin -> BTC / ETH / PAXG : frais, liquidite, API
 
 Date de demarrage : 2026-10-08.

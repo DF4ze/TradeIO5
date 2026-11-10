@@ -1,3 +1,9 @@
+---
+statut: courant
+vérifié_le: 2026-10-30
+modifié_le: 2026-11-07
+empreinte: cee215705b
+---
 # Charte graphique — piste B « Rainbow doux » (sombre et clair)
 
 Vérifié le : 2026-10-30. Source de vérité visuelle : maquettes (Artifact « TradeIO Maquettes » : `PlaqueB_Tel`, `PlaqueB_PC`, boards `Widgets · piste B`, `… · Rainbow`, `… courbes v3`). Cette page fixe les règles ; en cas d'écart, les valeurs ci-dessous font foi pour l'implémentation.

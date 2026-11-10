@@ -1,3 +1,9 @@
+---
+statut: courant
+vérifié_le: 2026-11-07
+modifié_le: 2026-11-10
+empreinte: 0645ac82dc
+---
 # Application utilisateur `/app` (front)
 
 Vérifié le : 2026-11-07. Charte : [`../graphique/charte-graphique.md`](../graphique/charte-graphique.md) ; données affichées : [`../graphique/inventaire-options-affichage.md`](../graphique/inventaire-options-affichage.md) ; endpoints : [`../api/rest-endpoints.md`](../api/rest-endpoints.md).

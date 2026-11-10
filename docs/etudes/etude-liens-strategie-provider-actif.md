@@ -1,6 +1,11 @@
+---
+statut: journal
+modifié_le: 2026-10-13
+empreinte: 5f1c878717
+---
 # Étude — Liens stratégie / provider / actif (vocabulaire et modèle cible)
 
-Statut : **décision de Clem du 2026-10-11**, validée en conversation. Le modèle cible n'est **pas** encore implémenté (le code contient une étape intermédiaire, cf. §5). Prompt d'implémentation : [`../prompts/prompt-implementation-liens-strategie-provider-actif.md`](../prompts/prompt-implementation-liens-strategie-provider-actif.md). État du code actuel : [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md).
+Statut : **décision de Clem du 2026-10-11**, validée en conversation. Le modèle cible n'est **pas** encore implémenté (le code contient une étape intermédiaire, cf. §5). Prompt d'implémentation : ../prompts/prompt-implementation-liens-strategie-provider-actif.md *(supprimé)*. État du code actuel : [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md).
 
 ## 1. Besoin
 

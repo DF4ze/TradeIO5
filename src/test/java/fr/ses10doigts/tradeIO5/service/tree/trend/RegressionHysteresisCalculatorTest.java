@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * Tests unitaires de {@link RegressionHysteresisCalculator} sur des séries de scores synthétiques
  * (Étape 8 de la roadmap Trend unifié, cf.
- * {@code docs/prompts/prompt-implementation-trend-unifie-etape8-regression-hysteresis.md} §2.2/§5) :
+ * {@code prompt supprimé (docs/prompts retiré le 2026-11-10)} §2.2/§5) :
  * entrée, maintien sous la barrière, sortie à 0, bascule directe UP → DOWN, warmup insuffisant.
  * {@code ENTER_THRESHOLD} vaut 1/6 ({@link MarketOpinionHelper#BARRIER} réutilisé), {@code EXIT_THRESHOLD}
  * vaut 0.

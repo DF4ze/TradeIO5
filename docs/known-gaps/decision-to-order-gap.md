@@ -1,12 +1,18 @@
+---
+statut: gap
+vérifié_le: 2026-09-12
+modifié_le: 2026-10-13
+empreinte: f3bf1e52c0
+---
 # Le trou décision → ordre réel
 
-Vérifié le : 2026-09-12 (connecteurs d'exchange et exécution revérifiés le 2026-10-10), en croisant le code (`service/tree/decision/**`, `model/dto/tree/{UserProfile,WalletSnapshot}`, `service/tree/api/mcp/TreeAnalysisFacade`) avec `docs/suivi/point-avancement-2026-08-10.md` (archivé, § 6). **C'est le malentendu le plus probable pour un agent qui lit ce projet superficiellement — à lire avant toute affirmation sur la capacité de l'app à trader réellement.**
+Vérifié le : 2026-09-12 (connecteurs d'exchange et exécution revérifiés le 2026-10-10), en croisant le code (`service/tree/decision/**`, `model/dto/tree/{UserProfile,WalletSnapshot}`, `service/tree/api/mcp/TreeAnalysisFacade`) avec `docs/archive/suivi/point-avancement-2026-08-10.md` (archivé, § 6). **C'est le malentendu le plus probable pour un agent qui lit ce projet superficiellement — à lire avant toute affirmation sur la capacité de l'app à trader réellement.**
 
 ## Constat
 
 Chaîne cible du DCA Rainbow automatisé et état de chaque brique : [`rainbow-dca-chantiers-ouverts.md`](rainbow-dca-chantiers-ouverts.md).
 
-TradeIO5 calcule des signaux et produit des `Decision`/`ActionStep` en base. Les décisions ne sont pas branchées sur l'exécution. Le chemin d'achat du bench Rainbow (plan d'ordres → exécuteur → port OKX) existe côté back-end mais **reste verrouillé** (`LIVE` non déverrouillé, aucun ordre réel envoyé à ce jour) : [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md). Le moteur `Decision`/`ActionStep` n'y est pas relié.
+TradeIO5 calcule des signaux et produit des `Decision`/`ActionStep` en base. Les décisions ne sont pas branchées sur l'exécution. Le chemin d'achat du bench Rainbow (plan d'ordres → exécuteur → port OKX) existe côté back-end mais **reste verrouillé** (`LIVE` non déverrouillé, aucun ordre réel envoyé à ce jour) : [`../architecture/14-execution-reelle.md`](../architecture/14-execution-reelle.md). Le moteur `Decision`/`ActionStep` n'y est pas relié.
 
 ## Ce qui existe déjà (squelette, pas de bug de conception)
 
@@ -14,7 +20,7 @@ TradeIO5 calcule des signaux et produit des `Decision`/`ActionStep` en base. Les
 - `UserProfile` (DTO : `riskProfile`, `exitingMarket`, `reinforcementActive`, `maxAllocationPerAsset`, `minCashReserve`).
 - `WalletSnapshot` (DTO : `balances`, `openPositions`, `totalValue`, `investedValue`).
 - `OpinionContext` transporte déjà ces deux DTO jusqu'à `AbstractAdvisor`.
-- Lecture **seule** et fiable des soldes réels : entité `Wallet`, interface `ReadOnlyBalanceReader` (`KrakenApiClient`, `BinanceApiClient`, `OkxBalanceReader` ; soldes disponibles, Earn automatique inclus (Kraken `.F`, Binance `LD*`), symboles standard ; toute panne lève `BalanceUnavailableException`, jamais une map vide ; cache 60 s via `BalanceCacheManager`, échecs non mis en cache). `ProviderApiService#getUserBalance`/`getAllBalances` s'appuient sur ces clients (une panne Kraken se propage désormais comme celle de Binance). Un plan d'ordres dry-run est enregistré ([`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md)) et un exécuteur verrouillé peut l'envoyer ([`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md)). Aucun composant de `service.connector` ne déclare de méthode d'ordre (test `ConnectorNoOrderMethodTest` ; les ordres n'existent que dans `service.execution.exchange`).
+- Lecture **seule** et fiable des soldes réels : entité `Wallet`, interface `ReadOnlyBalanceReader` (`KrakenApiClient`, `BinanceApiClient`, `OkxBalanceReader` ; soldes disponibles, Earn automatique inclus (Kraken `.F`, Binance `LD*`), symboles standard ; toute panne lève `BalanceUnavailableException`, jamais une map vide ; cache 60 s via `BalanceCacheManager`, échecs non mis en cache). `ProviderApiService#getUserBalance`/`getAllBalances` s'appuient sur ces clients (une panne Kraken se propage désormais comme celle de Binance). Un plan d'ordres dry-run est enregistré ([`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md)) et un exécuteur verrouillé peut l'envoyer ([`../architecture/14-execution-reelle.md`](../architecture/14-execution-reelle.md)). Aucun composant de `service.connector` ne déclare de méthode d'ordre (test `ConnectorNoOrderMethodTest` ; les ordres n'existent que dans `service.execution.exchange`).
 - `Decision`/`ActionStep`/`ActionStepExecutedCause` modélisent un cycle de vie `CREATED → EXECUTED/ABORTED` piloté par événements.
 
 ## Ce qui manque (vérifié, pas supposé)

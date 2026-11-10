@@ -1,3 +1,9 @@
+---
+statut: courant
+vérifié_le: 2026-09-12
+modifié_le: 2026-11-10
+empreinte: 2fe8f162c8
+---
 # Vue d'ensemble
 
 Vérifié le : 2026-09-12 (pom.xml, controllers, security, service/tree/**, service/scheduler/**).

@@ -1,3 +1,9 @@
+---
+statut: gap
+vérifié_le: 2026-11-08
+modifié_le: 2026-11-08
+empreinte: de6da15e80
+---
 # Front — écarts restants
 
 Vérifié le : 2026-11-08.

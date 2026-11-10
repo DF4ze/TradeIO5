@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-08-10
+empreinte: f17fffc7e5
+---
 # Calibration — MovementQualificationStrategy
 
 Complément à `docs/calibration/prompt-calibration-movement-qualification.md` et au protocole de référence

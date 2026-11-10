@@ -92,7 +92,7 @@ public class MarketOpinionParametersFactory {
 
     /**
      * Branche {@link fr.ses10doigts.tradeIO5.service.tree.strategy.impl.EtfFlowConfidenceStrategy}
-     * sur une {@code MarketOpinion} de scope {@code LOCAL} — docs/etudes/etude-branchement-etf-flow-confidence-modulator.md,
+     * sur une {@code MarketOpinion} de scope {@code LOCAL} — docs/archive/etudes/etude-branchement-etf-flow-confidence-modulator.md,
      * même patron que {@link #buildLocalOpinionParamWithOrderFlow}.
      * <p>
      * <b>Décision étude §9.4, mise à jour Palier 3 étape 7 (2026-08-14)</b> : à l'origine, cette

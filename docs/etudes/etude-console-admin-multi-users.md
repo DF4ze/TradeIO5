@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-11-06
+empreinte: 682d3db006
+---
 # Étude — Console admin multi-utilisateurs (filtres + actions groupées)
 
 Rédigée le 2026-11-06, analyse seule (aucun code). Onglet concerné : Administration > Console (`fragments/admin/console.html`, `static/assets/js/admin/console.js`).

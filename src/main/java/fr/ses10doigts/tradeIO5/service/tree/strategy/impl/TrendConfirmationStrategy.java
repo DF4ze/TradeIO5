@@ -32,7 +32,7 @@ import java.util.Set;
 /**
  * "Tendance confirmée" (étude {@code docs/etudes/etude-indicateur-trend-unifie.md} §3.1) — consomme
  * {@link TrendAnalyzer}, qui porte depuis l'Étape 8 de la roadmap Trend unifié (2026-09-24, cf.
- * {@code docs/prompts/prompt-implementation-trend-unifie-etape8-regression-hysteresis.md}) la
+ * {@code prompt supprimé (docs/prompts retiré le 2026-11-10)}) la
  * régression linéaire multi-fenêtres à hystérésis. {@code SWING_STRUCTURE} et ADX ne font plus
  * partie de cette Strategy depuis ce même lot (retirés de {@link TrendAnalyzer}).
  * <p>

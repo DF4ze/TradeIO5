@@ -1,3 +1,8 @@
+---
+statut: courant
+modifié_le: 2026-10-20
+empreinte: 17bde433f6
+---
 # Graphique (GUI) — idées et besoins à traiter
 
 Section de collecte, comme [`../securite/remarques-audit.md`](../securite/remarques-audit.md) : on y note au fil des chantiers tout besoin d'interface ou de charte graphique ; ils seront traités ensemble quand le back sera bouclé (ordre voulu, cf. [`../known-gaps/rainbow-dca-chantiers-ouverts.md`](../known-gaps/rainbow-dca-chantiers-ouverts.md) §5b). État décrit : **actuel** (un besoin traité est supprimé, pas historisé).

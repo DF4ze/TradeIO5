@@ -1,10 +1,15 @@
+---
+statut: journal
+modifié_le: 2026-11-10
+empreinte: e810547be6
+---
 # Étude — Provider Revolut X : clés générées par utilisateur, candles, exécution
 
 Statut : **étude, aucun code**. Vérifié le : 2026-11-10 (`RevolutXRequests`, `RevolutX*` sous `service/connector/apiclient/`, `RevolutXSpotOrderClient`, `ApiCredential`, `SecretCipher`, `ReadSecretConverter`, `ExchangeKeysService`, `MarketDataApiClient`) et doc officielle Revolut X (OpenAPI 1.0).
 
 ## 1. Point de départ (déjà dans le code)
 
-- Connecteur **lecture + ordres déjà écrit**, jamais appelé en réel : signature Ed25519 (`RevolutXRequests`), soldes, remplissages, catalogue de paires, carnet, frais (propriétés), client d'ordres IOC + validateur local. Cf. `architecture/05-external-providers.md`, `architecture/10-execution-reelle.md`.
+- Connecteur **lecture + ordres déjà écrit**, jamais appelé en réel : signature Ed25519 (`RevolutXRequests`), soldes, remplissages, catalogue de paires, carnet, frais (propriétés), client d'ordres IOC + validateur local. Cf. `architecture/05-external-providers.md`, `architecture/14-execution-reelle.md`.
 - Secrets : `ApiCredential(user, provider, scope READ|TRADE)` ; `apiKey` / `secretKey` chiffrés AES-256-GCM (clé maître `TRADEIO_MASTER_KEY`, aucun repli en clair). Pour Revolut X, `secretKey` = clé privée Ed25519 **PEM PKCS#8 collée à la main** (admin ou utilisateur).
 - `ExchangeKeysService.supported()` dérive de `TRADABLE_PROVIDERS`, qui contient `REVOLUT_X` : l'onboarding le propose déjà (le front est à vérifier).
 - **Manque** : génération des clés par le serveur, état « clé générée, clé API pas encore saisie », régénération sans coupure, candles, frais via endpoint, UX.
@@ -88,4 +93,4 @@ Réglée (2026-11-10) : l'historique court de Revolut X (~2,3 ans) n'est pas un 
 
 ## 8. Documentation à mettre à jour à l'implémentation
 
-`architecture/05-external-providers.md` (section Revolut X), `architecture/07-security.md` (moteur de clés, table pending), `architecture/10-execution-reelle.md`, `architecture/04-market-data.md` (nouvelle source), `architecture/12-doctor.md` (alarme).
+`architecture/05-external-providers.md` (section Revolut X), `architecture/07-security.md` (moteur de clés, table pending), `architecture/14-execution-reelle.md`, `architecture/04-market-data.md` (nouvelle source), `architecture/12-doctor.md` (alarme).

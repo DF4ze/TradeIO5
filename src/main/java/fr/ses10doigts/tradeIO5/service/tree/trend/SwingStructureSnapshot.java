@@ -7,7 +7,7 @@ import java.util.List;
  * Un point de la timeline retournée par {@link SwingStructureCalculator#computeTimeline} : l'état
  * (régime courant, pivots tout juste confirmés) associé à une bougie précise de l'historique
  * d'entrée. Introduit par le harnais de calibration
- * ({@code docs/prompts/prompt-implementation-trend-unifie-etape2.md} sec. 2.3) pour exposer
+ * ({@code prompt supprimé (docs/prompts retiré le 2026-11-10)} sec. 2.3) pour exposer
  * nativement la liste complète des pivots confirmés au fil du temps, sans rejouer
  * {@link SwingStructureCalculator#compute} sur des sous-listes croissantes.
  *

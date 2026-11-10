@@ -4,7 +4,7 @@ package fr.ses10doigts.tradeIO5.service.tree.trend;
  * Encodage numérique [-1, 1] du {@link SwingStructureRegime} — extrait du {@code switch} de
  * {@code SwingStructureIndicator.compute} (Étape 1 de la roadmap Trend unifié) pour être réutilisé
  * par {@code TrendConfirmationStrategy} (Étape 4) comme composante directionnelle de son score
- * final — cf. {@code docs/prompts/prompt-implementation-trend-unifie-etape4.md} sec. 1.2.
+ * final — cf. {@code prompt supprimé (docs/prompts retiré le 2026-11-10)} sec. 1.2.
  * <p>
  * <b>Choix de conception de ce lot</b> (ni l'étude ni la roadmap ne l'imposent explicitement) :
  * réutiliser l'encodage numérique déjà établi par l'adaptateur {@code SwingStructureIndicator}

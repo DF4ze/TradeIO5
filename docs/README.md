@@ -1,49 +1,84 @@
-# TradeIO5 — Documentation
+---
+statut: index
+sujet: Table de routage de la documentation
+modifié_le: 2026-11-10
+empreinte: 2508be45df
+---
+# TradeIO-5 — Documentation
 
-Point d'entrée unique pour comprendre l'état **actuel** de l'application sans lire le code.
+Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decisions/` (positions de Clem) > `architecture/` (état vérifié du code) > `known-gaps/` (reste à faire) > le reste (journaux, jamais une référence). Règles de tenue : [`CHARTE.md`](CHARTE.md).
 
-## Pour un agent qui découvre ce projet
+## À lire d'abord
+| Doc | Lire si… |
+|---|---|
+| [`architecture/01-overview.md`](architecture/01-overview.md) | tu découvres l'app : ce qu'elle fait et ne fait PAS |
+| [`architecture/02-tree-pipeline.md`](architecture/02-tree-pipeline.md) | tu touches Indicator → Strategy → Opinion → Scenario → Decision |
+| [`known-gaps/decision-to-order-gap.md`](known-gaps/decision-to-order-gap.md) | tu supposes que l'app passe de vrais ordres |
+| [`CODING_RULES.md`](CODING_RULES.md) | tu écris du code |
+| [`glossary.md`](glossary.md) | un acronyme/enum n'est pas clair |
 
-Lis dans cet ordre :
+## Décisions de Clem (tranchées — ne pas re-questionner)
+| Doc | Lire si… |
+|---|---|
+| [`decisions/regles-transverses.md`](decisions/regles-transverses.md) | USDC, fiscalité, cache candles, hygiène repo |
+| [`decisions/liens-strategie-provider-actif.md`](decisions/liens-strategie-provider-actif.md) | presets/liens/affectations, provider du signal |
+| [`decisions/modulation-exposition-puissance.md`](decisions/modulation-exposition-puissance.md) | curseurs exposition/puissance |
+| [`decisions/chemin-achat-execution.md`](decisions/chemin-achat-execution.md) | ordres réels, Fee Test, plan dry-run |
+| [`decisions/passerelle-actif-non-stable.md`](decisions/passerelle-actif-non-stable.md) | PAXG/Kraken, routes via USDC |
+| [`decisions/wallet-reel-capital-commun.md`](decisions/wallet-reel-capital-commun.md) | wallet réel, pools cash, exchanges utilisés |
+| [`decisions/fil-rouge-dca-automatisation.md`](decisions/fil-rouge-dca-automatisation.md) | Trend, Rainbow ATR, pine, bench, calibrations |
+| [`decisions/architecture-interface.md`](decisions/architecture-interface.md) | UX, pages, charte, logo |
+| [`decisions/definition-pnl.md`](decisions/definition-pnl.md) | calcul du PnL |
+| [`decisions/docteur-admin-ux.md`](decisions/docteur-admin-ux.md) | Docteur, page admin d'exécution, kill switch |
+| [`decisions/espace-expert.md`](decisions/espace-expert.md) | presets système/expert |
+| [`decisions/flyway-defauts-presets.md`](decisions/flyway-defauts-presets.md) | Flyway, défauts, sauvegarde DB |
+| [`decisions/providers.md`](decisions/providers.md) | providers, Revolut X, monétisation |
 
-1. [`architecture/01-overview.md`](architecture/01-overview.md) — ce que l'app fait réellement, ce qu'elle ne fait PAS (point critique, mal représenté par les anciens documents).
-2. [`architecture/02-tree-pipeline.md`](architecture/02-tree-pipeline.md) — le cœur métier (Indicator → Strategy → Opinion → Scenario → Decision).
-3. Les autres fichiers de `architecture/` selon le besoin (données de marché, providers externes, veille média, sécurité, multi-utilisateur, [Rainbow live : presets, liens, run quotidien](architecture/08-rainbow-live.md), [Trend unifié](architecture/09-trend.md), [plan d'ordres dry-run](architecture/10-execution-plan.md), [exécution réelle verrouillée et page Admin](architecture/10-execution-reelle.md), [application utilisateur `/app` (front)](architecture/11-front-app.md), [Espace Expert : presets, simulation, ChartDto](architecture/13-espace-expert.md)).
-4. [`known-gaps/front-gaps.md`](known-gaps/front-gaps.md) — écarts restants du front.
-4b. [`architecture/12-doctor.md`](architecture/12-doctor.md) — Docteur (onglet Admin « Diagnostic », contrôles, alarmes) ; reste à faire : [`known-gaps/doctor-diagnostic.md`](known-gaps/doctor-diagnostic.md).
-4c. [`known-gaps/nettoyages.md`](known-gaps/nettoyages.md) — purges et nettoyages à prévoir (non faits).
-5. [`known-gaps/decision-to-order-gap.md`](known-gaps/decision-to-order-gap.md) — **à lire avant de supposer que l'app passe de vrais ordres.** C'est le malentendu le plus probable.
-6. `api/` et `operations/` pour les détails d'intégration (endpoints REST, tools MCP, jobs planifiés, configuration, [Flyway et règle des défauts d'initialisation](operations/flyway.md)).
-7. [`glossary.md`](glossary.md) pour les acronymes/enums utilisés partout sans être réexpliqués.
+## Architecture (état vérifié du code)
+| Doc | Lire si… |
+|---|---|
+| [`architecture/03-ownership-and-lifecycle.md`](architecture/03-ownership-and-lifecycle.md) | multi-user, credentials, cycle de vie |
+| [`architecture/04-market-data.md`](architecture/04-market-data.md) | candles, cache DB |
+| [`architecture/05-external-providers.md`](architecture/05-external-providers.md) | providers de données externes |
+| [`architecture/06-media-watch.md`](architecture/06-media-watch.md) | veille média YouTube |
+| [`architecture/07-security.md`](architecture/07-security.md) | auth, sécurité |
+| [`architecture/08-rainbow-live.md`](architecture/08-rainbow-live.md) | Rainbow live : affectations, run quotidien, presets, Trend→Rainbow |
+| [`architecture/08a-rainbow-entites.md`](architecture/08a-rainbow-entites.md) | schéma d'entités Rainbow live |
+| [`architecture/08b-rainbow-bindings-expert.md`](architecture/08b-rainbow-bindings-expert.md) | liens (bindings), disponibilité, presets Expert |
+| [`architecture/08c-rainbow-chemin-achat-wallet.md`](architecture/08c-rainbow-chemin-achat-wallet.md) | dimensionnement réel, Fee Test, PathFinder, groupes d'actifs |
+| [`architecture/08d-rainbow-modulation.md`](architecture/08d-rainbow-modulation.md) | modulation : paramètres admin/user |
+| [`architecture/09-trend.md`](architecture/09-trend.md) | Trend unifié |
+| [`architecture/10-execution-plan.md`](architecture/10-execution-plan.md) | plan d'ordres dry-run |
+| [`architecture/14-execution-reelle.md`](architecture/14-execution-reelle.md) | exécution réelle, page Admin |
+| [`architecture/11-front-app.md`](architecture/11-front-app.md) | front `/app` |
+| [`architecture/12-doctor.md`](architecture/12-doctor.md) | Docteur / alarmes |
+| [`architecture/13-espace-expert.md`](architecture/13-espace-expert.md) | Espace Expert |
 
-Chaque fichier indique sa date de vérification par rapport au code (`Vérifié le : ...`). Un fichier sans code source cité doit être considéré comme suspect.
+## API & opérations
+| Doc | Lire si… |
+|---|---|
+| [`api/rest-endpoints.md`](api/rest-endpoints.md) | web, auth, décision, ETF, veille média (admin) |
+| [`api/rest-rainbow-live.md`](api/rest-rainbow-live.md) | endpoints Rainbow live (liens, wallet, décisions, modulation, run) |
+| [`api/rest-execution-plans.md`](api/rest-execution-plans.md) | endpoints plans d'ordres / état d'exécution |
+| [`api/rest-expert-portfolio.md`](api/rest-expert-portfolio.md) | endpoints Espace Expert, patrimoine, préférences |
+| [`api/mcp-tools.md`](api/mcp-tools.md) | tools MCP |
+| [`operations/configuration.md`](operations/configuration.md) | propriétés, secrets, environnement |
+| [`operations/flyway.md`](operations/flyway.md) | migrations, défauts d'initialisation |
+| [`operations/scheduled-jobs.md`](operations/scheduled-jobs.md) | jobs planifiés |
 
-## Sécurité
+## Reste à faire (known-gaps)
+[`rainbow-dca-chantiers-ouverts`](known-gaps/rainbow-dca-chantiers-ouverts.md) (objectif en cours : DCA intelligent) · [`front-gaps`](known-gaps/front-gaps.md) · [`doctor-diagnostic`](known-gaps/doctor-diagnostic.md) · [`nettoyages`](known-gaps/nettoyages.md) · [`code-level-inconsistencies`](known-gaps/code-level-inconsistencies.md)
 
-Remarques collectées pour la phase d'audit : [`securite/remarques-audit.md`](securite/remarques-audit.md) (authentification, journalisation des actions).
+## Interface, sécurité, mind-set
+| Doc | Lire si… |
+|---|---|
+| [`graphique/inventaire-options-affichage.md`](graphique/inventaire-options-affichage.md) | maquettes/GUI : actions et infos affichées (à tenir à jour) |
+| [`graphique/charte-graphique.md`](graphique/charte-graphique.md) | tokens, typo, composants |
+| [`graphique/remarques-gui.md`](graphique/remarques-gui.md) | besoins d'interface collectés |
+| [`securite/remarques-audit.md`](securite/remarques-audit.md) | phase d'audit |
+| [`mindset/`](mindset/) | philosophie d'investissement (Cryptolyze : [bear market](mindset/bear-market-exposition-accumulation.md), [prise de profits](mindset/prise-de-profits.md), [DeFi](mindset/pas-a-pas-defi.md)) |
 
-## Graphique
-
-**Maquettes / GUI : commencer par** [`graphique/inventaire-options-affichage.md`](graphique/inventaire-options-affichage.md) — liste unique de ce sur quoi l'utilisateur peut agir et des informations remontées à l'affichage, avec ce qui reste à implémenter côté back. À mettre à jour à chaque changement d'endpoint, de DTO ou de réglage utilisateur.
-
-Besoins d'interface et de charte graphique collectés au fil des chantiers (ex. régler les `asset_provider` depuis la GUI) : [`graphique/remarques-gui.md`](graphique/remarques-gui.md).
-
-Organisation de l'interface (hiérarchie de l'information, navigation, écrans, modes, admin) : [`etudes/etude-architecture-interface.md`](etudes/etude-architecture-interface.md).
-
-Charte graphique (tokens, typographie, Rainbow, composants, graphiques, widgets) : [`graphique/charte-graphique.md`](graphique/charte-graphique.md).
-
-## Objectif en cours
-
-Automatiser le **DCA intelligent** (Rainbow ATR) : état de la chaîne et chantiers ouverts dans [`known-gaps/rainbow-dca-chantiers-ouverts.md`](known-gaps/rainbow-dca-chantiers-ouverts.md).
-
-## Ce qui n'est pas garanti à jour
-
-- `docs/calibration/*.md` — protocole et résultats de benchs, pas de l'architecture. Le verdict « un jeu global par actif suffit » (bench Rainbow ATR) est **invalidé** (cf. `calibration-rainbow-atr-v3-regime.md`).
-- `docs/specs-initiales/*.odt/.ods` — specs d'origine, formats bureautiques non explorés.
-- La couche repository/entity JPA — non détaillée table par table.
-
-## Anciens documents
-
-Les anciens documents narratifs (`docs/suivi/`, ancien `README.md` racine) ont été **archivés** dans [`archive/`](archive/) : ils mélangeaient journal de bord chronologique et état courant, ce qui produisait les conclusions erronées à l'origine de ce redocumentage. Les emplacements d'origine contiennent désormais un stub de redirection.
-
-`docs/etudes/` et `docs/prompts/` restent en place : ce sont par construction des journaux de conception/implémentation datés (pas des documents prétendant décrire l'état courant), donc moins à risque de méprise — mais ils ne doivent **jamais** être lus comme référence d'architecture. Un fichier `README.md` a été ajouté dans chacun de ces deux dossiers pour le rappeler explicitement. Ils n'ont pas été déplacés dans `archive/` (voir note en fin de conversation sur les contraintes d'outillage).
+## Journaux (jamais une référence d'état courant)
+- Études actives (conception en cours) : [`etudes/README.md`](etudes/README.md)
+- Calibrations (protocoles/résultats de benchs ; verdict « un jeu global par actif » invalidé) : [`calibration/README.md`](calibration/README.md)
+- Archives (études closes, specs initiales, anciens suivis, sources PDF/ODT) : [`archive/README.md`](archive/README.md)

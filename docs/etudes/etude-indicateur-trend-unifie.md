@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-10-04
+empreinte: 5cb99ace6f
+---
 # Étude — Indicateur de Trend unifié (Régime + Force + Confiance + BOS)
 
 > **Mise à jour 2026-10-04** : le besoin Rainbow est désormais **2 jeux (Bull / Bear)**, plus UP/DOWN/RANGE ; le raccordement de la Trend au Rainbow reste à faire ([`known-gaps/rainbow-dca-chantiers-ouverts.md`](../known-gaps/rainbow-dca-chantiers-ouverts.md) §2). Implémentation actuelle : [`architecture/09-trend.md`](../architecture/09-trend.md).
@@ -75,7 +80,7 @@ Un renvoi a été ajouté en tête de ce fichier le 2026-09-18, indiquant que sa
 
 ## 7. Suite
 
-Roadmap rédigée le 2026-09-18 : [`docs/prompts/prompt-implementation-trend-unifie-roadmap.md`](../prompts/prompt-implementation-trend-unifie-roadmap.md). 4 étapes : (1) `SWING_STRUCTURE` complet, (2) harnais de calibration empirique BTC (devait trancher les points A et B/C ci-dessus — A devenu sans objet, B/C toujours ouverts, cf. §9.0), (3) `TrendAnalyzer` (assemblage Régime/Force/Confiance/BOS), (4) refactor `TrendConfirmationStrategy` pour consommer le composant partagé. Exposition MCP du calculateur et branchement sur le futur calculateur DCA Rainbow explicitement hors roadmap, à rouvrir séparément.
+Roadmap rédigée le 2026-09-18 : `prompt-implementation-trend-unifie-roadmap.md` (supprimé) *(supprimé)*. 4 étapes : (1) `SWING_STRUCTURE` complet, (2) harnais de calibration empirique BTC (devait trancher les points A et B/C ci-dessus — A devenu sans objet, B/C toujours ouverts, cf. §9.0), (3) `TrendAnalyzer` (assemblage Régime/Force/Confiance/BOS), (4) refactor `TrendConfirmationStrategy` pour consommer le composant partagé. Exposition MCP du calculateur et branchement sur le futur calculateur DCA Rainbow explicitement hors roadmap, à rouvrir séparément.
 
 ## 8. Addendum 2026-09-21 — réflexion dialectique sur la composition du signal (`RegressiveTrendStrategy`)
 
@@ -98,7 +103,7 @@ Le combo à 3 briques — `SWING_STRUCTURE` (Régime), `LINEAR_REGRESSION` multi
 
 ### Deux gates ajoutés à la roadmap, avant toute calibration/assemblage
 
-Cf. Étape 5 (vérification de l'historique D1) et Étape 6 (corrélation ADX/régression) dans [`docs/prompts/prompt-implementation-trend-unifie-roadmap.md`](../prompts/prompt-implementation-trend-unifie-roadmap.md) — chacune fait l'objet d'un prompt d'implémentation séparé, cohérent avec la convention du projet.
+Cf. Étape 5 (vérification de l'historique D1) et Étape 6 (corrélation ADX/régression) dans `prompt-implementation-trend-unifie-roadmap.md` (supprimé) *(supprimé)* — chacune fait l'objet d'un prompt d'implémentation séparé, cohérent avec la convention du projet.
 
 ### Ce que ce chantier devient
 
@@ -122,4 +127,4 @@ Le walk-forward exécuté pour trancher la spécification de composition (§9.1)
 
 Conséquence directe sur le constat du §1 de cette étude : le titre historique ("Régime + Force + Confiance + BOS") reste correct comme axes de sortie, mais leur brique porteuse a changé — `SWING_STRUCTURE` ne joue plus aucun rôle dans `TrendAnalyzer`/`TrendConfirmationStrategy` (elle reste utilisée ailleurs, `SwingStructureIndicator`, hors périmètre de ce chantier). L'axe Régime gagne enfin un véritable état RANGE (`TrendRegime.RANGE`), sans classification fine haussier/baissier/volatil (points B/C du §5 : toujours ouverts, cf. limite documentée en §11 de la spec de composition).
 
-Implémentation, contrat `TrendState` final et écarts vs. la proposition du §9.1 : [`spec-composition-trend-unifie.md`](spec-composition-trend-unifie.md) §11. Prompt : [`prompt-implementation-trend-unifie-etape8-regression-hysteresis.md`](../prompts/prompt-implementation-trend-unifie-etape8-regression-hysteresis.md). Roadmap close (8 étapes, cf. [`prompt-implementation-trend-unifie-roadmap.md`](../prompts/prompt-implementation-trend-unifie-roadmap.md)) ; prochain chantier (hors roadmap) : branchement du calculateur DCA Rainbow sur `TrendAnalyzer`.
+Implémentation, contrat `TrendState` final et écarts vs. la proposition du §9.1 : [`spec-composition-trend-unifie.md`](spec-composition-trend-unifie.md) §11. Prompt : prompt-implementation-trend-unifie-etape8-regression-hysteresis.md *(supprimé)*. Roadmap close (8 étapes, cf. prompt-implementation-trend-unifie-roadmap.md *(supprimé)*) ; prochain chantier (hors roadmap) : branchement du calculateur DCA Rainbow sur `TrendAnalyzer`.

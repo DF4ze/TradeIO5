@@ -3,7 +3,7 @@ package fr.ses10doigts.tradeIO5.service.tree.trend;
 /**
  * Score de tendance par régression linéaire multi-fenêtres — formule mutualisée (Étape 8 de la
  * roadmap Trend unifié, 2026-09-24, cf.
- * {@code docs/prompts/prompt-implementation-trend-unifie-etape8-regression-hysteresis.md} §2.1),
+ * {@code prompt supprimé (docs/prompts retiré le 2026-11-10)} §2.1),
  * extraite de {@code RegressiveTrendStrategy#evaluate} pour être consommée à la fois par
  * {@code RegressiveTrendStrategy} et par {@link TrendAnalyzer}, qui porte désormais l'axe Trend/
  * Régime de production. Service pur (mêmes garanties que {@link LinearRegressionCalculator}) : ne

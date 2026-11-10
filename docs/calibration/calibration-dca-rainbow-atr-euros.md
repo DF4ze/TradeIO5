@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-10-04
+empreinte: 065dc8afd1
+---
 # Calibration — DCA Rainbow : bornes ATR, score €, coordinate ascent multi-passes et robustesse
 
 > **Statut 2026-10-04** : premier bench ATR (mono-trend, `RainbowDcaAtrRobustBenchExportTest`), **supplanté** par le moteur pur `service/dca/atr` et le bench [`calibration-rainbow-atr-v3-regime.md`](calibration-rainbow-atr-v3-regime.md) (lui-même non retenu comme source de paramètres).

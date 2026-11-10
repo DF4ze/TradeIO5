@@ -38,7 +38,7 @@ import java.util.concurrent.Future;
 /**
  * Runner manuel (réseau + DB réels) qui précalcule et exporte {@code target/rainbow-dca-visualizer/dataset.json},
  * consommé par le visualiseur HTML autonome {@code docs/visualiseur-rainbow-dca.html} — cf.
- * docs/prompts/prompt-implementation-visualiseur-rainbow-dca-chart.md.
+ * prompt supprimé (docs/prompts retiré le 2026-11-10).
  * <p>
  * Pour chacun des 3 presets UP/DOWN/RANGE (mêmes fenêtres et mêmes valeurs stabilisées que
  * {@link RainbowDcaBacktestManualRunnerTest}, cf. tableau du prompt) :

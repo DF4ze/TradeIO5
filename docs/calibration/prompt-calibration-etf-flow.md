@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-08-10
+empreinte: 04ade31af6
+---
 # Prompt de calibration — EtfFlowConfidenceStrategy (BTC et ETH séparément)
 
 Prompt autonome, à exécuter dans une session avec accès réseau réel **et** accès à la base MySQL
@@ -16,7 +21,7 @@ valeurs de bon sens jamais confrontées à des données réelles — même situa
 `MovementQualificationStrategy` avant sa calibration, et que `RejectionZoneIndicator` avant la
 sienne (qui avait fini par ne pas être branché en prod, un raisonnement intuitif s'étant révélé faux
 une fois testé). Contrairement à ces deux précédents, **les données sont déjà en base** : le backfill
-du 2026-07-17 (`docs/etudes/etude-cache-etf-flow-historisation.md`, addendum Farside) a rempli
+du 2026-07-17 (`docs/archive/etudes/etude-cache-etf-flow-historisation.md`, addendum Farside) a rempli
 `etf_flow_snapshot` avec 629 jours pour BTC (2024-01-11 → 2026-07-16) et 497 jours pour ETH
 (2024-07-23 → 2026-07-16) — pas besoin de retaper SoSoValue/Farside pour cette calibration, juste
 d'exporter la table.
@@ -38,7 +43,7 @@ doivent rester identiques une fois calibrés).
 3. `docs/calibration/calibration-rejection-zone.md` et `docs/calibration/prompt-calibration-movement-qualification.md` —
    protocole de référence (test statistique vs groupe de contrôle aléatoire, grille de sensibilité,
    verdict explicite). Même méthodologie à appliquer ici.
-4. `docs/etudes/etude-cache-etf-flow-historisation.md` — comprendre `etf_flow_snapshot` (colonnes
+4. `docs/archive/etudes/etude-cache-etf-flow-historisation.md` — comprendre `etf_flow_snapshot` (colonnes
    `asset`/`date`/`total_net_inflow`/`fetched_at`) et la couverture réelle par asset (dates de
    lancement différentes BTC/ETH, cf. addendum Farside).
 5. `model/entity/market/EtfFlowSnapshotEntity.java`, `repository/market/EtfFlowSnapshotRepository.java`

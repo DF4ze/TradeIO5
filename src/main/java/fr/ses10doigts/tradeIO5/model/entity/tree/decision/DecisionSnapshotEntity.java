@@ -10,7 +10,7 @@ import java.time.Instant;
 
 /**
  * Photo quotidienne de l'état courant d'une {@code Decision} (Palier 3, étape 4,
- * docs/etudes/etude-branchement-persistance-decision-engine.md §C/§E pt3). Une ligne par décision
+ * docs/archive/etudes/etude-branchement-persistance-decision-engine.md §C/§E pt3). Une ligne par décision
  * ({@code decisionId} = clé primaire = {@code Decision.getId()}, PAS {@code
  * DecisionSnapshot.decisionId()} — les deux sont des identifiants distincts, cf. javadoc du
  * constructeur de reconstruction de {@code Decision}) : {@code save(...)} sert déjà d'upsert, pas

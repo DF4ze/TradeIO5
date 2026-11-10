@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-08-10
+empreinte: 92ab1acb5b
+---
 # Calibration — EtfFlowConfidenceStrategy (BTC et ETH séparément)
 
 Complément à `docs/calibration/prompt-calibration-etf-flow.md` et au protocole de référence

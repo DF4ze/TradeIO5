@@ -1,12 +1,18 @@
+---
+statut: courant
+vérifié_le: 2026-10-12
+modifié_le: 2026-11-07
+empreinte: a4ad84a4a8
+---
 # Plan d'ordres dry-run (lot B, étape b)
 
 Vérifié le : 2026-10-12 (`service/execution/**`, `model/entity/execution/**`, `repository/execution/**`, `service/scheduler/ExecutionPlanJob`, `controller/{ExecutionPlanAdminController,RainbowLiveExecutionPlanController}`, `rainbow-live.js`).
 
-**Le plan n'envoie rien.** Il calcule et enregistre ce qu'on achèterait / vendrait, par quel chemin et à quel coût ; les classes de `service.execution.plan` et le job de plan ne dépendent d'aucun port d'ordre. L'exécution réelle (re-devis, envoi, audit) est un composant séparé, verrouillé : [`10-execution-reelle.md`](10-execution-reelle.md). Chemin d'achat chiffré (catalogue, frais, carnet, `PathFinder`, Fee Test) : [`08-rainbow-live.md`](08-rainbow-live.md) §Chemin d'achat chiffré.
+**Le plan n'envoie rien.** Il calcule et enregistre ce qu'on achèterait / vendrait, par quel chemin et à quel coût ; les classes de `service.execution.plan` et le job de plan ne dépendent d'aucun port d'ordre. L'exécution réelle (re-devis, envoi, audit) est un composant séparé, verrouillé : [`14-execution-reelle.md`](14-execution-reelle.md). Chemin d'achat chiffré (catalogue, frais, carnet, `PathFinder`, Fee Test) : [`08-rainbow-live.md`](08-rainbow-live.md) §Chemin d'achat chiffré.
 
 ## Mode et activation
 
-- `tradeio.execution.mode` ∈ `OFF|DRY_RUN|LIVE` (`ExecutionSettings`, défaut `DRY_RUN`). `OFF` coupe aussi le dry-run (aucun plan). **`LIVE` est refusé au démarrage** (`IllegalStateException`) sans `tradeio.execution.live-unlocked=true` et sans `TRADEIO_MASTER_KEY` ([`10-execution-reelle.md`](10-execution-reelle.md)) ; valeur inconnue refusée aussi.
+- `tradeio.execution.mode` ∈ `OFF|DRY_RUN|LIVE` (`ExecutionSettings`, défaut `DRY_RUN`). `OFF` coupe aussi le dry-run (aucun plan). **`LIVE` est refusé au démarrage** (`IllegalStateException`) sans `tradeio.execution.live-unlocked=true` et sans `TRADEIO_MASTER_KEY` ([`14-execution-reelle.md`](14-execution-reelle.md)) ; valeur inconnue refusée aussi.
 - `RainbowLiveBinding.executionEnabled` (défaut `false`, modifié par `PUT /api/rainbow-live/bindings/{id}/execution`). Binding ni actif ni en simulation ⇒ actif `DISABLED` (visible, sans étape) ; tous les actifs désactivés ⇒ plan `DISABLED`.
 - **Simulation** (`RainbowLiveBinding.simulation`, modifiée par `PUT …/execution {mode}`) : l'actif est planifié comme un actif actif (chemin, coûts, carry, cash partagé) et la ligne d'actif porte `simulated = true` (tag « Simulation » au Journal et dans Actifs gérés). `OrderExecutor` **saute** les actifs simulés : aucun ordre n'est envoyé. `simulated` entre dans le hash des entrées.
 - **Achat minimum** (`minBuyUsd` du binding) : un achat dont le montant est inférieur au minimum est `BLOCKED`/`BELOW_MIN` avec avertissement ; le mécanisme de carry ci-dessous le cumule jusqu'au minimum (le minimum entre dans le hash des entrées).
@@ -66,7 +72,7 @@ Pas de persistance, pas d'écriture, aucune dépendance à un port d'ordre ; lec
 ## Lecture utilisateur et page
 
 - `GET /api/rainbow-live/execution-plans[?from=&to=]` (défaut 30 jours) et `/latest` (204 si aucun) : `RainbowLiveExecutionPlanController` → `OrderPlanQueryService` (base uniquement), propriétaire seulement, DTO dédiés (`OrderPlanDtos`), révisions remplacées non exposées. Cf. [`../api/rest-endpoints.md`](../api/rest-endpoints.md).
-- Affichage : frise de décision de la fiche actif (`/app/assets/{symbole}`) et Journal (`/app/journal`) : statut, jour (23:55 UTC), validité / « expiré », étapes, coût et badge Fee Test (vert / orange / rouge), raison de blocage. Exécution réelle : [`10-execution-reelle.md`](10-execution-reelle.md).
+- Affichage : frise de décision de la fiche actif (`/app/assets/{symbole}`) et Journal (`/app/journal`) : statut, jour (23:55 UTC), validité / « expiré », étapes, coût et badge Fee Test (vert / orange / rouge), raison de blocage. Exécution réelle : [`14-execution-reelle.md`](14-execution-reelle.md).
 
 ## Garde-fous (tests)
 

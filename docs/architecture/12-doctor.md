@@ -1,3 +1,8 @@
+---
+statut: courant
+modifié_le: 2026-11-10
+empreinte: 5056b5c26f
+---
 # Docteur — diagnostic et alarmes (Admin)
 
 Observateur : il lit l'état du système, déduit des verdicts et tient des alarmes. Il **n'agit jamais** (aucune correction, aucun relancement de job). Étude : [`etudes/etude-diagnostic-docteur-admin.md`](../etudes/etude-diagnostic-docteur-admin.md) ; reste à faire : [`known-gaps/doctor-diagnostic.md`](../known-gaps/doctor-diagnostic.md).

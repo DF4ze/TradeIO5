@@ -31,7 +31,7 @@ import java.util.TreeMap;
  * consommé par aucune Strategy — ne pas le modifier). Indépendant du DCA à montant fixe existant
  * ({@link DcaCalculatorService}), dont on ne réutilise le résultat que pour le bloc comparatif.
  * <p>
- * Cf. docs/prompts/prompt-implementation-dca-rainbow-v0.md et mémoire projet
+ * Cf. prompt supprimé (docs/prompts retiré le 2026-11-10) et mémoire projet
  * tradeio5_dca_rainbow_decoupled_architecture_2026-09-12.md /
  * tradeio5_dca_rainbow_v0_zone_table_clarification_2026-09-12.md (règle exacte des zones,
  * corrige le tableau du prompt d'origine — fait foi ici).

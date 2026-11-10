@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-10-13
+empreinte: 53d8e9113a
+---
 # Calibration — Rainbow DCA ATR v3 (ATH + To the moon) : meilleurs paramètres, global vs par régime de Trend
 
 Vérifié le : 2026-10-04. Moteur : `service/dca/atr/RainbowAtrEngine` (port fidèle de `tools/pine/rainbow_dca_v4_atr_moon.pine`, source de vérité — cf. [`architecture/04-market-data.md`](../architecture/04-market-data.md)). Bench : `src/test/java/.../service/dca/atr/RainbowAtrRegimeBench.java`. Données : D1 Binance `tools/calibration/{btc,eth,paxg}usdt_klines_d1_full.json` (BTC/ETH 2017-08 → 2026-09, PAXG 2020-08 → 2026-10 ; script `tools/calibration/fetch_binance_klines_d1.py [SYMBOLES]`), bench **hors réseau/DB**. Un bench par actif (`<dir>/d1.csv`), pas de pooling.

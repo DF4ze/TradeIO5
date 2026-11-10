@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * Calculateur de Trend unifié — Étape 8 de la roadmap Trend unifié (2026-09-24, cf.
- * {@code docs/prompts/prompt-implementation-trend-unifie-etape8-regression-hysteresis.md}) :
+ * {@code prompt supprimé (docs/prompts retiré le 2026-11-10)}) :
  * décision de Clem, après le walk-forward de l'Étape 7
  * ({@code docs/etudes/spec-composition-trend-unifie.md} §10), de porter la Trend entièrement par la
  * régression linéaire multi-fenêtres à hystérésis (candidate REG_H), à l'échelle des mouvements de

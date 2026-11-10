@@ -1,3 +1,9 @@
+---
+statut: courant
+vérifié_le: 2026-10-03
+modifié_le: 2026-11-06
+empreinte: 0c08082e27
+---
 # Configuration
 
 Vérifié le : 2026-10-03 (`configuration/**`, `RainbowLiveDefaultPresets`).

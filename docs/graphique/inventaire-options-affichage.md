@@ -1,6 +1,12 @@
+---
+statut: courant
+vérifié_le: 2026-11-06
+modifié_le: 2026-11-07
+empreinte: 64900873b2
+---
 # Inventaire GUI — actions utilisateur et informations affichées
 
-Vérifié le : 2026-11-06 (sources : [`../api/rest-endpoints.md`](../api/rest-endpoints.md), [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md), [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md), [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md), [`../architecture/09-trend.md`](../architecture/09-trend.md), [`../etudes/etude-architecture-interface.md`](../etudes/etude-architecture-interface.md)).
+Vérifié le : 2026-11-06 (sources : [`../api/rest-endpoints.md`](../api/rest-endpoints.md), [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md), [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md), [`../architecture/14-execution-reelle.md`](../architecture/14-execution-reelle.md), [`../architecture/09-trend.md`](../architecture/09-trend.md), [`../etudes/etude-architecture-interface.md`](../etudes/etude-architecture-interface.md)).
 
 But : liste unique de **ce sur quoi l'utilisateur peut agir** et de **ce que le back remonte à l'affichage**, pour travailler les maquettes sans rouvrir les autres docs. Les docs sources font foi ; en cas de doute, y retourner. Toute évolution des endpoints, DTO ou réglages doit être répercutée ici (et un élément implémenté passe de « à implémenter » à disponible).
 

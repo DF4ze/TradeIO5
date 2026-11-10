@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-08-10
+empreinte: db8e6eef15
+---
 # Prompt de calibration — MovementQualificationStrategy
 
 Prompt autonome, à exécuter dans une session avec accès réseau réel (pas le bac à sable Cowork —

@@ -47,7 +47,7 @@ import java.util.Set;
  * se contredisent.
  * <p>
  * <b>Formule mutualisée</b> depuis l'Étape 8 de la roadmap Trend unifié (2026-09-24, cf.
- * {@code docs/prompts/prompt-implementation-trend-unifie-etape8-regression-hysteresis.md} §2.1) :
+ * {@code prompt supprimé (docs/prompts retiré le 2026-11-10)} §2.1) :
  * le calcul du score lui-même vit désormais dans {@link RegressiveTrendScoreCalculator} (service
  * pur, partagé avec {@code TrendAnalyzer}, qui porte désormais l'axe Trend/Régime de production).
  * Les constantes {@code P_*}/{@code DEFAULT_*} de cette classe restent le <b>seul et unique

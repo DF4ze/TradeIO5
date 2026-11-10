@@ -7,7 +7,7 @@ import java.math.BigDecimal;
  * (percdown2, percdown1, percup1, percup2, percup3), calculées autour de la SMA du jour.
  * Partition exhaustive et disjointe de l'axe des prix en 6 zones — règle exacte confirmée par
  * Clem le 2026-09-12 (mémoire projet tradeio5_dca_rainbow_v0_zone_table_clarification_2026-09-12.md,
- * qui corrige et remplace le tableau de docs/prompts/prompt-implementation-dca-rainbow-v0.md) :
+ * qui corrige et remplace le tableau de prompt supprimé (docs/prompts retiré le 2026-11-10)) :
  *
  * <pre>
  * prix &lt; percdown2              -&gt; EXTREME_BAS (mécanisme ARMÉ/DÉCLENCHÉ achat)

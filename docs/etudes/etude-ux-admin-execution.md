@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-10-11
+empreinte: f994849100
+---
 # Étude — UX Admin d'exploitation (exécution réelle multi-exchange), pilotage du test Kraken
 
 Rédigée le 2026-10-11, analyse seule (aucun code, aucun ordre, aucun appel authentifié). Sources : `docs/**` listés au prompt + code (`ExecutionAdminController`, `ExecutionPlanAdminController`, `MainController`, `adminPage.html`, `rainbow-live.js`, `ApiCredentialInitializer`, `TradeCredentialService`, `ExecutionGuard`, `SpotOrderPort`, `Kraken*`, `PathFinder`, `ExchangeInstrument`, `WebSecurityConfig`, `JwtUtils`). Ce que ne couvre pas cette étude : exactitude des paramètres Kraken (`AddOrder`, permissions de clé) — **à reconfirmer dans la doc officielle** avant le lot Kraken.
@@ -154,7 +159,7 @@ Le test impose que seuls `service.execution.exchange` et `service.execution.run`
 - Architecture : `ExecutionOrderArchitectureTest` (esprit inchangé + règle validateur), `ExecutionPlanArchitectureTest`, `ConnectorNoOrderMethodTest`, `RainbowLiveNoExchangeDependencyTest` inchangés.
 
 ### 5.5 Impact documentation (à faire dans chaque lot, sans historique)
-`api/rest-endpoints.md` (nouveaux endpoints admin, DTO), `architecture/10-execution-reelle.md` (routage provider, validateur, page admin, mapping `clOrdId` Kraken), `architecture/07-security.md` (CSRF/SameSite, journal admin, credentials gérées par l'UI, provider TRADE élargi), `architecture/10-execution-plan.md` (si routes liées), `known-gaps/rainbow-dca-chantiers-ouverts.md` (§5b : page de saisie des credentials passe de « non fait » à « fait » ; retirer ce qui devient faux), `glossary.md` (validate, route liée).
+`api/rest-endpoints.md` (nouveaux endpoints admin, DTO), `architecture/14-execution-reelle.md` (routage provider, validateur, page admin, mapping `clOrdId` Kraken), `architecture/07-security.md` (CSRF/SameSite, journal admin, credentials gérées par l'UI, provider TRADE élargi), `architecture/10-execution-plan.md` (si routes liées), `known-gaps/rainbow-dca-chantiers-ouverts.md` (§5b : page de saisie des credentials passe de « non fait » à « fait » ; retirer ce qui devient faux), `glossary.md` (validate, route liée).
 
 ## 6. Pilotage Kraken
 
@@ -173,7 +178,7 @@ Le test impose que seuls `service.execution.exchange` et `service.execution.run`
 6. Catalogue : `costmin`, devise de frais, filtrage par compte si disponible (colonnes `ExchangeInstrument` + Flyway/initializers selon `operations/flyway.md`).
 7. `SpotOrderValidator` (§5.2) puis ordre minimal.
 
-## 7. Feuille de route par lots (détail : `docs/prompts/prompt-roadmap-ux-admin-execution.md`, 4 lots condensés)
+## 7. Feuille de route par lots (détail : `prompt-roadmap-ux-admin-execution.md` (supprimé), 4 lots condensés)
 
 Tableau d'origine en 7 lots, regroupés en 4 : (1+2) page Admin ; (3+4) Kraken + testeur ; (5+6) smoke test + Plans & audit ; (7) routes PAXG.
 

@@ -21,7 +21,7 @@ import java.util.List;
 
 /**
  * Orchestrateur du cycle Opinion → Scenario → Decision (Palier 3, étape 7,
- * docs/etudes/etude-branchement-persistance-decision-engine.md §E point 6). Calcule les Opinions du
+ * docs/archive/etudes/etude-branchement-persistance-decision-engine.md §E point 6). Calcule les Opinions du
  * périmètre DCA fixe ({@link #TRACKED_ASSETS}) une fois par cycle, puis les propage à chaque owner
  * actif via {@link ScenarioEngine#onMarketOpinion(OpinionSignal, ScenarioContext)} — la cascade
  * Opinion → Scenario → Decision se déclenche ensuite en interne (abonnement bus déjà en place côté

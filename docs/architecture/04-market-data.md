@@ -1,3 +1,9 @@
+---
+statut: courant
+vérifié_le: 2026-11-10
+modifié_le: 2026-11-10
+empreinte: 7fe55eaf40
+---
 # Données de marché (candles)
 
 Vérifié le : 2026-11-10 (client `RevolutXMarketDataApiClient` ; 2026-10-27 : bornes inclusives OKX `OkxMarketDataApiClient` ; 2026-10-12 : chemin D1 natif `MarketDatasetEngine#getDailyDatasetForAsset`, clients D1 ; 2026-10-10 : `service/connector/apiclient/marketdata/**` pagination ; 2026-10-08 : `service/market/dataset/**` ; 2026-10-04 : `service/dca/atr/**` ; autres références : 2026-09-12 — `service/market/dataset/MarketDatasetEngine`, `service/market/provider/MarketDataProviderRegistry`, `configuration/MarketDataCachingConfig`, `model/enumerate/market/MarketDataSource`).

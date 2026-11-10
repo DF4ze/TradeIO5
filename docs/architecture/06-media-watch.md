@@ -1,3 +1,9 @@
+---
+statut: courant
+vérifié_le: 2026-10-27
+modifié_le: 2026-10-27
+empreinte: 3893f4ff7b
+---
 # Veille média (YouTube)
 
 Vérifié le : 2026-10-27 (`YoutubeRssClient` retry ; 2026-09-12 : `service/tree/media/{TranscriptExtractionService,TranscriptClassificationService,TranscriptClaimExtractionService}`, `service/scheduler/{MediaWatchIngestionJob,MediaWatchExtractionJob}`).

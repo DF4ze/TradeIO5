@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-10-20
+empreinte: df6cc3ca98
+---
 # Spec V1 — DCA Rainbow : bande d'exposition, puissance et biais, embrayage risque macro
 
 > **Mise à jour 2026-10-04** : le §1 (4 combos de bornes **%**) est **caduc** — le Rainbow est passé aux bornes ATR (`service/dca/atr`) et le paramétrage par trend est **Bull/Bear (2 jeux par actif, pas de Sideways)**. La question ouverte est le branchement d'une Trend (simple, ou double global/local) vers ces jeux : [`known-gaps/rainbow-dca-chantiers-ouverts.md`](../known-gaps/rainbow-dca-chantiers-ouverts.md) §2. Le §2 (bande d'exposition) et les §4 à §7 (puissance, biais, journal, onboarding, paramètres admin) sont un design validé par Clem le 2026-10-13, non implémenté ; le §3 (risque macro) reste une intention.
@@ -185,4 +190,4 @@ API : `GET`/`PUT /api/admin/rainbow-modulation` (ADMIN). Écran : onglet « Modu
 - Historisation des séries macro pour un backtest de risque rejouable (si l'option (b) du §3 est retenue).
 
 ## Séquencement
-Roadmap en 4 étapes : [`../prompts/prompt-roadmap-modulation-bande-puissance.md`](../prompts/prompt-roadmap-modulation-bande-puissance.md). §3 (risque macro) reste conditionné à l'arbitrage live-vs-backtest.
+Roadmap en 4 étapes : ../prompts/prompt-roadmap-modulation-bande-puissance.md *(supprimé)*. §3 (risque macro) reste conditionné à l'arbitrage live-vs-backtest.

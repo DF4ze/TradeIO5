@@ -382,7 +382,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			// Flux RSS (/feeds/videos.xml) et page /watch ne demandent aucune clé API (endpoints
 			// publics), même principe que DEFILLAMA/FOREXFACTORY/FARSIDE ci-dessus : apiKey vide,
 			// seul le baseUrl porté par la credential résolue importe (cf.
-			// AbstractExternalIndicator#getWebClient et docs/prompts/prompt-implementation-veille-media-full.md,
+			// AbstractExternalIndicator#getWebClient et prompt supprimé (docs/prompts retiré le 2026-11-10),
 			// Lot 1a).
 
 			ApiCredential credential = ApiCredential.builder()
@@ -423,7 +423,7 @@ public class ApiCredentialInitializer implements CommandLineRunner {
 			logger.debug("🔑 Clé API {} déjà présente pour l'utilisateur System.", webProviderSosoValue.getName());
 
 		} else {
-			// ETF_FLOW (docs/etudes/etude-sourcing-etf-flow-alternative-farside.md) : remplace FARSIDE
+			// ETF_FLOW (docs/archive/etudes/etude-sourcing-etf-flow-alternative-farside.md) : remplace FARSIDE
 			// (scraping HTML) le 2026-07-16. Clé obtenue via inscription gratuite sur
 			// sosovalue.com/developer (palier "Demo", 20 appels/min), jamais committée en clair (ce
 			// fichier est gitignoré). À renseigner via application-*.properties sous

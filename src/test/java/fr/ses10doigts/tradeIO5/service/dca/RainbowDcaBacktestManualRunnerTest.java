@@ -40,7 +40,7 @@ import java.util.function.Function;
 
 /**
  * Runner manuel (réseau + DB réels) pour explorer le paramétrage du DCA Rainbow sur BTC — cf.
- * docs/prompts/prompt-implementation-dca-rainbow-v0.md, section "Comment lancer le backtest" : pas
+ * prompt supprimé (docs/prompts retiré le 2026-11-10), section "Comment lancer le backtest" : pas
  * de tool MCP ni d'endpoint REST dans ce lot (coût d'itération d'un tool MCP = un appel LLM par
  * essai). Désactivé par défaut ({@link Disabled}), même convention que {@code YoutubeManualNetworkTest}.
  * <p>

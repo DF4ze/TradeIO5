@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-10-13
+empreinte: 56a1c43801
+---
 # Étude — Source des candles du Rainbow live : provider du lien, sans fallback silencieux
 
 Date : 2026-10-12. Statut : implémentée le 2026-10-12 (chemin D1 natif, signal par lien, fallback bruyant, `asset_provider` à la volée). État courant : [`../architecture/04-market-data.md`](../architecture/04-market-data.md) et [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md). Décision finale sur le point bloquant Kraken : chemin D1 natif retenu ; la bascule des bougies manquantes sur Binance au-delà de 720 j est documentée comme extension (known-gaps §8bis), non faite.

@@ -1,3 +1,8 @@
+---
+statut: courant
+modifié_le: 2026-10-20
+empreinte: fb8b4dffd2
+---
 # Coding rules
 
 Règles de développement pour ce projet, à respecter par tout contributeur (humain ou agent).
@@ -24,4 +29,10 @@ Règles de développement pour ce projet, à respecter par tout contributeur (hu
 - **Loguer** Mettre en INFO les points clés comme les changements d'état, mettre en DEBUG les valeurs clés.
 - **Utiliser getFirst()/getLast() sur les List/Collection**, ne pas faire de .get(0) ou autre pour récupérer ces valeurs.
 - **Rester dans les clous fiscaux (France)** : aucun chemin d'ordre ni fonctionnalité ne doit créer un événement taxable (pas de nœud fiat, cf. `ExecutionDefaults.FIAT_CURRENCIES`). Ne le signaler au propriétaire que si une demande fait sortir des clous.
+- Collections : `isEmpty()` plutôt que `size()==0` ; `getFirst()`/`getLast()` plutôt que `get(0)`/`get(size-1)` (prod ET tests).
+- JUnit : `assertTrue(x)`/`assertFalse(x)` directs, pas `assertEquals(true,x)` ni `assertTrue(!x)`.
+- Pas de variable locale redondante (retour direct) ni d'initializer écrasé juste après.
+- Constante métier dupliquée entre classes interdite : source unique dès la 1re duplication.
+- Conception : poser les briques avant de demander un choix fermé ; si un point de design est ouvert, demander à Clem avant de rédiger un prompt.
+
 <!-- Ajouter ici les futures règles, au fil des décisions prises avec Clem. -->

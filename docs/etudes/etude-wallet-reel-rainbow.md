@@ -1,6 +1,11 @@
+---
+statut: journal
+modifié_le: 2026-10-13
+empreinte: cd4d25f536
+---
 # Étude — Vrai wallet (lecture seule) branché au Rainbow DCA ATR
 
-Statut : analyse du 2026-10-09, **aucun code**. Prompt : [`../prompts/prompt-analyse-wallet-reel-rainbow.md`](../prompts/prompt-analyse-wallet-reel-rainbow.md). Contexte : [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md), [`../known-gaps/rainbow-dca-chantiers-ouverts.md`](../known-gaps/rainbow-dca-chantiers-ouverts.md) §3/§5, [`../known-gaps/decision-to-order-gap.md`](../known-gaps/decision-to-order-gap.md).
+Statut : analyse du 2026-10-09, **aucun code**. Prompt : ../prompts/prompt-analyse-wallet-reel-rainbow.md *(supprimé)*. Contexte : [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md), [`../known-gaps/rainbow-dca-chantiers-ouverts.md`](../known-gaps/rainbow-dca-chantiers-ouverts.md) §3/§5, [`../known-gaps/decision-to-order-gap.md`](../known-gaps/decision-to-order-gap.md).
 
 ## 1. Reformulation
 

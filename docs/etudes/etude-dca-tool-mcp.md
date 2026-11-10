@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-10-04
+empreinte: 718565e738
+---
 # Étude — Tool MCP de suivi DCA (prix moyen, total investi, PnL)
 
 Objectif : exposer un tool MCP (dans l'esprit de `get_indicator`/`evaluate_strategy`/`get_opinion` de `TreeAnalysisMcpTools`) qui, à partir d'une date de début, une date de fin, une fréquence et une heure d'achat, calcule le prix moyen d'achat, le total investi et le PnL à date pour une stratégie DCA (Dollar-Cost Averaging).
@@ -157,7 +162,7 @@ heure donnée) sans réimplémenter l'agrégation ni passer par la machinerie pr
 
 ## 11. Statut d'implémentation Rainbow V0 (2026-09-13) — DONE
 
-Implémenté selon `docs/prompts/prompt-implementation-dca-rainbow-v0.md`, en résolution D1 pure,
+Implémenté selon `prompt-implementation-dca-rainbow-v0.md` (supprimé), en résolution D1 pure,
 BTC uniquement. Le tableau des zones intermédiaires du prompt s'est révélé incomplet en cours
 d'implémentation (2 intervalles non couverts) : Clem a donné la règle exacte à 6 zones qui fait
 foi, cf. mémoire projet `tradeio5_dca_rainbow_v0_zone_table_clarification_2026-09-12.md` — elle

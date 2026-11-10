@@ -21,7 +21,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Cf. docs/etudes/etude-cache-db-candles-h1.md. Vérifie le coeur du décorateur :
+ * Cf. docs/archive/etudes/etude-cache-db-candles-h1.md. Vérifie le coeur du décorateur :
  * - lecture-avant-réseau (aucun appel délégué si tout est déjà en cache) ;
  * - détection des trous et appel réseau borné à ces trous uniquement ;
  * - non-persistance de la bougie en cours (section 5) ;

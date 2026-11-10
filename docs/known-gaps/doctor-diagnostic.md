@@ -1,3 +1,9 @@
+---
+statut: gap
+vérifié_le: 2026-11-06
+modifié_le: 2026-11-10
+empreinte: 092143473d
+---
 # Docteur / Diagnostic Admin — reste à faire
 
 Vérifié le : 2026-11-06. Le socle, le moteur, l'API et l'onglet Admin sont en place : voir [`architecture/12-doctor.md`](../architecture/12-doctor.md). Conception : [`etudes/etude-diagnostic-docteur-admin.md`](../etudes/etude-diagnostic-docteur-admin.md).

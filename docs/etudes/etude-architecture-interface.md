@@ -1,10 +1,15 @@
+---
+statut: journal
+modifié_le: 2026-11-07
+empreinte: 2e641ff7f8
+---
 # Étude — Architecture de l'interface
 
 Journal de conception (cf. [`README.md`](README.md) du dossier : à ne pas lire comme référence d'architecture du code). Date : 2026-10-15.
 
 Périmètre : organisation des écrans, hiérarchie de l'information, navigation. **Pas** de charte graphique : voir [`../graphique/charte-graphique.md`](../graphique/charte-graphique.md). Maquettes filaires (Artifact « TradeIO Maquettes » dans claude.ai) : Accueil, Mes actifs, Fiche actif, Journal, Réglages, Onboarding, en mobile et PC.
 
-Besoins collectés en amont : [`../graphique/remarques-gui.md`](../graphique/remarques-gui.md). Écrans existants : [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md), [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md), [`etude-ux-admin-execution.md`](etude-ux-admin-execution.md).
+Besoins collectés en amont : [`../graphique/remarques-gui.md`](../graphique/remarques-gui.md). Écrans existants : [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md), [`../architecture/14-execution-reelle.md`](../architecture/14-execution-reelle.md), [`etude-ux-admin-execution.md`](etude-ux-admin-execution.md).
 
 ## 1. Cible et principes
 

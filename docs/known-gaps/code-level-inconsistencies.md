@@ -1,3 +1,9 @@
+---
+statut: gap
+vérifié_le: 2026-09-12
+modifié_le: 2026-10-11
+empreinte: f282e32173
+---
 # Incohérences et points d'attention vérifiés dans le code
 
 Vérifié le : 2026-09-12. Liste de faits ponctuels, confirmés en lisant le code, qui peuvent surprendre ou mener à une mauvaise conclusion s'ils sont ignorés. Ne pas confondre avec [`decision-to-order-gap.md`](decision-to-order-gap.md) (gap fonctionnel majeur, sa propre page).
@@ -16,7 +22,7 @@ Vérifié le : 2026-09-12. Liste de faits ponctuels, confirmés en lisant le cod
 
 ## Constantes codées en dur, candidates à l'externalisation (non bloquant)
 
-Toutes recensées dans la revue de TODO du 2026-08-10 (`docs/suivi/point-avancement-2026-08-10.md`, archivé) :
+Toutes recensées dans la revue de TODO du 2026-08-10 (`docs/archive/suivi/point-avancement-2026-08-10.md`, archivé) :
 
 - `DefaultMarketScenario.EXPIRATION_IDLE = 2h`.
 - Poids de blend confidence `0.7/0.3` dans `DefaultMarketScenario`.

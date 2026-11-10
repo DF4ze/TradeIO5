@@ -1,3 +1,8 @@
+---
+statut: courant
+modifié_le: 2026-11-07
+empreinte: f1c3d3cdb7
+---
 # Glossaire
 
 Vérifié le : 2026-10-11.

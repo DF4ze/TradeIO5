@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Exporte l'historique ETF_FLOW (table `etf_flow_snapshot`, remplie par le backfill du 2026-07-17,
-cf. docs/etudes/etude-cache-etf-flow-historisation.md) vers un CSV par asset, pour
+cf. docs/archive/etudes/etude-cache-etf-flow-historisation.md) vers un CSV par asset, pour
 tools/calibration/etf_flow_calibration.py.
 
 Contrairement aux calibrations précédentes (REJECTION_ZONE, MOVEMENT_QUALIFICATION), les données

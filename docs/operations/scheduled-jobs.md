@@ -1,3 +1,9 @@
+---
+statut: courant
+vérifié_le: 2026-10-10
+modifié_le: 2026-11-06
+empreinte: 2ff99d1ff8
+---
 # Jobs planifiés
 
 Vérifié le : 2026-10-10 (`service/scheduler/**`).
@@ -14,7 +20,7 @@ Vérifié le : 2026-10-10 (`service/scheduler/**`).
 | `UserArchivalJob` | `tradeio.decision.archival-cron` | `-` (`CRON_DISABLED`) | **Non** | `POST /api/admin/decision/archive` |
 | `DecisionOrchestratorJob` | `tradeio.decision.orchestrator-cron` | `-` (`CRON_DISABLED`) | **Non** | `POST /api/admin/decision/orchestrate` |
 | `RainbowLivePass2355Job` | `tradeio.rainbow-live.pass-2355-cron` | `-` (`CRON_DISABLED`) | **Non** (cible `0 55 23 * * *`, **UTC**, bougie D1 ouverte du jour ; le run suivant rafraîchit J-1) | `POST /api/admin/rainbow-live/run[?day=YYYY-MM-DD]` |
-| `ExecutionJob` | `tradeio.execution.run-cron` | `-` (`CRON_DISABLED`) | **Non** (UTC ; exécute les plans du run 23:55 ; sans effet hors mode `LIVE` déverrouillé, kill switch respecté ; cf. [`architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md)) | `POST /api/admin/execution/run?planId=` |
+| `ExecutionJob` | `tradeio.execution.run-cron` | `-` (`CRON_DISABLED`) | **Non** (UTC ; exécute les plans du run 23:55 ; sans effet hors mode `LIVE` déverrouillé, kill switch respecté ; cf. [`architecture/14-execution-reelle.md`](../architecture/14-execution-reelle.md)) | `POST /api/admin/execution/run?planId=` |
 | `ExecutionPlanJob` | `tradeio.execution.plan-cron` | `-` (`CRON_DISABLED`) | **Non** (cible `0 58 23 * * *`, **UTC**, juste après le run 23:55 ; plan dry-run, rien n'est envoyé) | `POST /api/admin/execution/plan` |
 
 **Ordre de résolution de la config** (le dernier écrase le précédent) : `application.properties` (dans le jar) → `application-prod.properties` (dans le jar, profil `prod` via `--spring.profiles.active=prod`) → `application-prod.properties` **externe** du VPS (`/home/oklm/TradeIO/`, répertoire de travail du service `tradeio`, prioritaire sur le classpath) → variables d'environnement de `/etc/tradeio/tradeio.env` (ne contient que `TRADEIO_MASTER_KEY`). `/var/param/*.properties` ne concerne pas TradeIO.

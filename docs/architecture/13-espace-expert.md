@@ -1,3 +1,9 @@
+---
+statut: courant
+vérifié_le: 2026-11-08
+modifié_le: 2026-11-10
+empreinte: fe3e6a98c9
+---
 # Espace Expert — paramétrage Trend / Rainbow par actif
 
 Vérifié le : 2026-11-08 (`controller/Expert*`, `service/expert/**`, `model/dto/expert/*`, `controller/AppPageController`, `static/assets/app/js/expert-*.js`, `tools/rainbow-replay/`). Modèle des presets et règles de gestion : [`08-rainbow-live.md`](08-rainbow-live.md) ; contrat REST : [`../api/rest-endpoints.md`](../api/rest-endpoints.md) ; écrans : [`11-front-app.md`](11-front-app.md).

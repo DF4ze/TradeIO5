@@ -1,6 +1,11 @@
+---
+statut: journal
+modifié_le: 2026-11-07
+empreinte: 0e2ef88e76
+---
 # Étude — Espace Expert : ce qui reste ouvert
 
-Journal de conception, pas une référence d'architecture. L'Espace Expert (modèle `TrendPreset` / `RainbowPreset` / `AssetAffectation`, API, simulation, écrans) est implémenté : voir [`../architecture/13-espace-expert.md`](../architecture/13-espace-expert.md) et [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md). Plan d'origine : [`../prompts/prompt-roadmap-espace-expert.md`](../prompts/prompt-roadmap-espace-expert.md).
+Journal de conception, pas une référence d'architecture. L'Espace Expert (modèle `TrendPreset` / `RainbowPreset` / `AssetAffectation`, API, simulation, écrans) est implémenté : voir [`../architecture/13-espace-expert.md`](../architecture/13-espace-expert.md) et [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md). Plan d'origine : ../prompts/prompt-roadmap-espace-expert.md *(supprimé)*.
 
 ## Points ouverts
 

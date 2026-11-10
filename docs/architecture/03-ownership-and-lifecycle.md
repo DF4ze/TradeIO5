@@ -1,3 +1,9 @@
+---
+statut: courant
+vérifié_le: 2026-09-12
+modifié_le: 2026-09-13
+empreinte: 315e1e1b42
+---
 # Multi-utilisateur : ownership, credentials, cycle de vie
 
 Vérifié le : 2026-09-12 (`service/tree/decision/{UserArchivalService,OwnerRefreshGuard,DecisionScenarioSnapshotService,DecisionScenarioRestoreService,DecisionScenarioRestoreRunner}.java`, `model/dto/tree/scenario/ScenarioOwner`, `controller/AuthController`).

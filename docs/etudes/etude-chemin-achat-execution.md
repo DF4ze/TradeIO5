@@ -1,3 +1,8 @@
+---
+statut: journal
+modifié_le: 2026-10-11
+empreinte: ac46637f98
+---
 # Étude — chemin d'achat via API (passerelle USDT), plan d'ordres, Fee Test, exécution réelle
 
 Date : 2026-10-10. Statut : **analyse seule** (aucun code, aucun ordre, aucun appel authentifié). Prérequis lot A (groupes d'actifs USD = USDC + USDT, `BindingCheck`, `ExecutionGuard`) : **présent dans le code** (vérifié). Vérification réelle du wallet OKX (clé Read) : **pas encore faite** (cf. `known-gaps/rainbow-dca-chantiers-ouverts.md` §5).

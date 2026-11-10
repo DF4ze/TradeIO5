@@ -60,7 +60,7 @@ public class DefaultMarketScenario implements MarketScenario {
      * transporte une quantité non nulle et testable de bout en bout — pas pour produire un ordre
      * exploitable. Le vrai calcul (curseur de risque × WalletSnapshot × rôle du wallet) reste un
      * chantier entier, non tranché à ce stade (cf. étude
-     * docs/etudes/etude-mecanique-decision-dca-intelligent.md §4/§7/§12 pt 7). Au passage,
+     * docs/archive/etudes/etude-mecanique-decision-dca-intelligent.md §4/§7/§12 pt 7). Au passage,
      * DefaultMarketScenario n'a même pas accès au prix ni au wallet dans son contexte actuel
      * (ScenarioContext), donc un vrai calcul n'aurait de toute façon pas sa place ici : cette
      * constante ne doit JAMAIS être utilisée pour un ordre réel tant que ce chantier n'est pas fait.
