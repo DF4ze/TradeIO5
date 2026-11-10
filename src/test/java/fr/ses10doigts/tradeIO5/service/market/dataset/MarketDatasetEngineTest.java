@@ -81,7 +81,7 @@ class MarketDatasetEngineTest {
     void setup() {
         engine = new MarketDatasetEngine(
                 cache, manager, providerRegistry, new TimeFrameConverter(),
-                binanceClient, krakenClient, okxClient, assetProviderRepository);
+                binanceClient, krakenClient, okxClient, null, assetProviderRepository);
 
         request = new MarketDatasetRequest(
                 "BTCUSDT",
@@ -236,7 +236,7 @@ class MarketDatasetEngineTest {
         MarketDatasetCache realCache = new MarketDatasetCache();
         MarketDatasetEngine localEngine = new MarketDatasetEngine(
                 realCache, manager, providerRegistry, new TimeFrameConverter(),
-                binanceClient, krakenClient, okxClient, assetProviderRepository);
+                binanceClient, krakenClient, okxClient, null, assetProviderRepository);
 
         when(providerRegistry.getProvider(any(), any())).thenReturn(provider);
         when(provider.loadSince(any())).thenReturn(

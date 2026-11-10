@@ -1,34 +1,43 @@
 package fr.ses10doigts.tradeIO5.service.connector.apiclient;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import fr.ses10doigts.tradeIO5.model.dto.execution.FeeRate;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceUnavailableException;
 import fr.ses10doigts.tradeIO5.service.connector.fee.TradingFeeProvider;
-import org.springframework.beans.factory.annotation.Value;
+import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Frais Revolut X : <b>l'API n'expose aucun endpoint de frais</b> (seuls {@code total_fee} / {@code fee_currency} d'un
- * ordre déjà exécuté existent). Les taux (en % du montant) sont donc fournis par la configuration
- * ({@value #MAKER_PROPERTY}, {@value #TAKER_PROPERTY}), à lire sur la grille tarifaire du compte. Propriété absente ou illisible
- * => {@link BalanceUnavailableException} (le Fee Test est indisponible), jamais de frais supposé.
+ * Frais Revolut X : {@code GET /1.0/configuration/fees/tiers} (signé, clé de lecture) renvoie, par type de produit, la grille de paliers
+ * et le palier courant du compte ({@code current_tier}, fonction du volume sur 30 jours). On lit le produit {@code spot}. Les taux de
+ * l'API sont des fractions ({@code 0.0009} = 0,09 %), convertis en % du montant. Le tarif est le même pour toutes les paires : le résultat
+ * est mis en cache {@link #TTL} par clé API (limite 100 requêtes/minute). Réponse absente, sans {@code spot}, sans palier courant ou
+ * illisible => {@link BalanceUnavailableException} (Fee Test indisponible), jamais de frais supposé.
  */
 @Component
 public class RevolutXTradingFeeProvider implements TradingFeeProvider {
 
-    public static final String MAKER_PROPERTY = "tradeio.revolutx.fee.maker-pct";
-    public static final String TAKER_PROPERTY = "tradeio.revolutx.fee.taker-pct";
+    static final String TIERS_PATH = "/1.0/configuration/fees/tiers";
+    static final Duration TTL = Duration.ofMinutes(5);
+    private static final String SPOT = "spot";
+    private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 
-    private final String maker;
-    private final String taker;
+    private record Cached(FeeRate rate, Instant fetchedAt) {
+    }
 
-    public RevolutXTradingFeeProvider(@Value("${" + MAKER_PROPERTY + ":}") String maker,
-                                      @Value("${" + TAKER_PROPERTY + ":}") String taker) {
-        this.maker = maker;
-        this.taker = taker;
+    private final DomainClock clock;
+    private final Map<String, Cached> cache = new ConcurrentHashMap<>();
+
+    public RevolutXTradingFeeProvider(DomainClock clock) {
+        this.clock = clock;
     }
 
     @Override
@@ -38,21 +47,44 @@ public class RevolutXTradingFeeProvider implements TradingFeeProvider {
 
     @Override
     public FeeRate getFeeRate(ApiCredential credential, String instId) {
-        return new FeeRate(percent(maker, MAKER_PROPERTY), percent(taker, TAKER_PROPERTY));
+        RevolutXRequests.requireComplete(credential);
+        Instant now = clock.now();
+        Cached cached = cache.get(credential.getApiKey());
+        if (cached != null && now.isBefore(cached.fetchedAt().plus(TTL))) {
+            return cached.rate();
+        }
+        JsonNode root = RevolutXRequests.requireJson(RevolutXRequests.get(credential, TIERS_PATH, null), "grille de frais");
+        FeeRate rate = spotRate(RevolutXRequests.dataOf(root));
+        cache.put(credential.getApiKey(), new Cached(rate, now));
+        return rate;
     }
 
-    private static BigDecimal percent(String value, String property) {
-        if (value == null || value.isBlank()) {
-            throw new BalanceUnavailableException("Revolut X : frais non exposés par l'API, renseigner " + property + " (en %)");
+    /** Taux du palier courant du produit spot ; visible pour les tests. */
+    static FeeRate spotRate(JsonNode data) {
+        if (data != null && data.isArray()) {
+            for (JsonNode product : data) {
+                if (SPOT.equals(product.path("type").asText()) && product.path("current_tier").isNumber()) {
+                    int current = product.path("current_tier").asInt();
+                    for (JsonNode tier : product.path("tiers")) {
+                        if (tier.path("tier").asInt(-1) == current) {
+                            return new FeeRate(pct(tier, "maker_fee"), pct(tier, "taker_fee"));
+                        }
+                    }
+                }
+            }
         }
+        throw new BalanceUnavailableException("Revolut X : palier de frais spot introuvable dans la réponse");
+    }
+
+    private static BigDecimal pct(JsonNode tier, String field) {
         try {
-            BigDecimal rate = new BigDecimal(value.strip());
-            if (rate.signum() < 0) {
+            BigDecimal fraction = new BigDecimal(tier.path(field).asText());
+            if (fraction.signum() < 0) {
                 throw new NumberFormatException("négatif");
             }
-            return rate;
+            return fraction.multiply(HUNDRED).stripTrailingZeros();
         } catch (NumberFormatException e) {
-            throw new BalanceUnavailableException("Revolut X : " + property + " illisible (pourcentage positif attendu)", e);
+            throw new BalanceUnavailableException("Revolut X : " + field + " illisible dans la grille de frais", e);
         }
     }
 }

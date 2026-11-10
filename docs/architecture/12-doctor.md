@@ -14,6 +14,7 @@ Un contrôle est une sonde pure qui renvoie un `CheckResult` (sujet, statut OK/U
 | `EXECUTION_STATE` | Mode, clé maître, kill switch (levé > 6 h ⇒ WARN) |
 | `PLAN_PROBLEMS` | Plans des 3 derniers jours en erreur / bloqués > 30 min |
 | `TRANSIT_STOCK` | Stocks de transit non résolus depuis > 12 h |
+| `KEY_REJECTED` | Clés à paire générée (Revolut X) refusées par l'exchange : sonde réelle de chaque credential active (`ProviderKeyPairSupport.verify`) au plus toutes les 60 min (`KEY_PROBE_INTERVAL_MINUTES`) ; refus (401/403) ⇒ CRIT, exchange injoignable ⇒ verdict précédent conservé ; credential désactivée ou supprimée ⇒ alarme résolue |
 | `DATABASE` | Requête de test, lenteur > 1 s |
 | `DISK` | Espace libre < 15 % (WARN) / < 5 % (CRIT) |
 | `LOG_ERRORS` | ERROR ≥ 1 ou WARN ≥ 50 sur 24 h (`DoctorLogBuffer`, appender logback en mémoire, borné, vidé au redémarrage) |

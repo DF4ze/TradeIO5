@@ -2,7 +2,7 @@
 (function (g) {
   'use strict';
   const TIO = g.TIO, h = TIO.h, ui = TIO.ui, F = TIO.fmt;
-  const NAMES = { OKX: 'OKX', KRAKEN: 'Kraken' };
+  const NAMES = { OKX: 'OKX', KRAKEN: 'Kraken', REVOLUT_X: 'Revolut X' };
   const FEE = { GREEN: ['Frais faibles', 'ok'], WARNING: ['Frais élevés', 'warn'], RED: ['Frais très élevés', 'down'] };
   /** Montant sur lequel les exchanges sont comparés : même base pour tous, indépendante du montant journalier. */
   const COMPARE_USD = 1000;

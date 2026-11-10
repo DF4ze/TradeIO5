@@ -43,6 +43,8 @@ public final class DoctorDefaults {
     public static final int LOG_BUFFER_MAX = 2000;
     public static final int LOG_MESSAGE_MAX = 300;
     public static final int SNOOZE_MAX_HOURS = 720;
+    /** Intervalle minimal entre deux sondes réelles d'une même clé (les passes du Docteur sont plus fréquentes). */
+    public static final int KEY_PROBE_INTERVAL_MINUTES = 60;
 
     public static final String PURGE_CRON_PROPERTY = "tradeio.doctor.purge-cron";
     /** 03:30 heure JVM, tous les jours (actif par défaut). */

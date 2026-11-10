@@ -57,7 +57,7 @@ class MarketDatasetEngineDailyTest {
     @BeforeEach
     void setup() {
         engine = new MarketDatasetEngine(cache, manager, providerRegistry, new TimeFrameConverter(),
-                binanceClient, krakenClient, okxClient, assetProviderRepository);
+                binanceClient, krakenClient, okxClient, null, assetProviderRepository);
     }
 
     private AssetProvider row(MarketDataSource source, String symbol, int priority, boolean enabled) {

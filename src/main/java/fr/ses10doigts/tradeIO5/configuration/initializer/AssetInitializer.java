@@ -131,7 +131,11 @@ public class AssetInitializer implements CommandLineRunner {
 
             new ProviderSeed("PAXG", MarketDataSource.BINANCE, "PAXGUSDT", 0, null),
             new ProviderSeed("PAXG", MarketDataSource.KRAKEN, "PAXGUSD", 1, KRAKEN_MAX_HORIZON_DAYS),
-            new ProviderSeed("PAXG", MarketDataSource.OKX, "PAXG-USDT", 2, null)
+            new ProviderSeed("PAXG", MarketDataSource.OKX, "PAXG-USDT", 2, null),
+
+            // Revolut X : cotation USDC (règle projet) ; BTC et ETH seulement (SOL/BNB/XRP/PAXG non servis pour l'instant)
+            new ProviderSeed("BTC", MarketDataSource.REVOLUT_X, "BTC-USDC", 3, null),
+            new ProviderSeed("ETH", MarketDataSource.REVOLUT_X, "ETH-USDC", 3, null)
     );
 
     @Override

@@ -14,6 +14,7 @@ import fr.ses10doigts.tradeIO5.service.execution.credential.MasterKeyMissingExce
 import fr.ses10doigts.tradeIO5.service.execution.credential.TradeCredentialService;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +36,7 @@ public class ReadCredentialService {
     private final ProviderRepository providerRepository;
     private final WalletRepository walletRepository;
     private final DomainClock clock;
+    private final ApplicationEventPublisher events;
 
     /**
      * Crée ou remplace (rotation) la clé READ de (user, provider).
@@ -69,6 +71,7 @@ public class ReadCredentialService {
         credential.setEnabled(enabled);
         ApiCredential saved = repository.save(credential);
         attachWallet(user, webProvider, saved);
+        events.publishEvent(new ReadCredentialStoredEvent(user, provider));
         log.info("Credential READ enregistrée id={} user={} provider={} enabled={}", saved.getId(), user.getId(), provider, enabled);
         return saved;
     }

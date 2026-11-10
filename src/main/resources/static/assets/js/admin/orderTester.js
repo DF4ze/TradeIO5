@@ -187,9 +187,32 @@
     });
   }
 
+  /** Prix limite auto depuis le carnet public (ask BUY / bid SELL ± tolérance du sélecteur) ; renseigne `input` et le retourne. */
+  async function autoPrice(provider, instId, side, input) {
+    if (!instId) { throw new Error('Prix auto : renseigner d\'abord la paire.'); }
+    const q = new URLSearchParams({ provider, instId, side, tolerancePct: byId('adm-ot-tol').value });
+    const r = await api('GET', '/api/admin/execution/order-test/price-suggestion?' + q);
+    input.value = String(r.px);
+    input.title = 'Auto : ' + r.bookPx + ' ± ' + r.tolerancePct + ' % (' + r.estimation + ')';
+    return String(r.px);
+  }
+
+  async function onAutoClick() {
+    await run(byId('adm-ot-px-auto'), async () => {
+      await autoPrice(byId('adm-ot-provider').value, byId('adm-ot-inst').value.trim().toUpperCase(),
+        byId('adm-ot-side').value, byId('adm-ot-px'));
+    });
+  }
+
   async function submit(event) {
     event.preventDefault();
     const mode = byId('adm-ot-sizemode').value;
+    if (!byId('adm-ot-px').value.trim()) {
+      try {
+        await autoPrice(byId('adm-ot-provider').value, byId('adm-ot-inst').value.trim().toUpperCase(),
+          byId('adm-ot-side').value, byId('adm-ot-px'));
+      } catch (e) { core.showAlert(e.message); return; }
+    }
     const body = {
       userId: byId('adm-ot-user').value ? Number(byId('adm-ot-user').value) : null,
       provider: byId('adm-ot-provider').value, instId: byId('adm-ot-inst').value.trim().toUpperCase(),
@@ -214,6 +237,16 @@
   async function validateRoute() {
     const numeric = /^\d+(\.\d+)?$/;
     const mode = byId('adm-ot-sizemode').value;
+    try {
+      if (!byId('adm-ot-px').value.trim()) {
+        await autoPrice(byId('adm-ot-provider').value, byId('adm-ot-inst').value.trim().toUpperCase(),
+          byId('adm-ot-side').value, byId('adm-ot-px'));
+      }
+      if (!byId('adm-ot-r2-px').value.trim()) {
+        await autoPrice(byId('adm-ot-provider').value, byId('adm-ot-r2-inst').value.trim().toUpperCase(),
+          byId('adm-ot-r2-side').value, byId('adm-ot-r2-px'));
+      }
+    } catch (e) { core.showAlert(e.message); return; }
     const leg1 = {
       userId: byId('adm-ot-user').value ? Number(byId('adm-ot-user').value) : null,
       provider: byId('adm-ot-provider').value, instId: byId('adm-ot-inst').value.trim().toUpperCase(),
@@ -242,6 +275,7 @@
   }
 
   byId('adm-ot-route').addEventListener('click', validateRoute);
+  byId('adm-ot-px-auto').addEventListener('click', onAutoClick);
   byId('adm-ot-form').addEventListener('submit', submit);
   byId('adm-ot-provider').addEventListener('change', onProviderChange);
   byId('adm-ot-sizemode').addEventListener('change', onSizeModeChange);

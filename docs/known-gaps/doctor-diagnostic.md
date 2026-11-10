@@ -10,6 +10,7 @@ Vérifié le : 2026-11-06. Le socle, le moteur, l'API et l'onglet Admin sont en 
 ## TODO
 - [ ] Agrégation des logs ERROR/WARN par signature (V1 : simple comptage 24 h en mémoire, vidé au redémarrage).
 - [ ] Contrôles non faits en V1 : fraîcheur des candles (B3), ping des providers (B1/B2), test des credentials (C3), jobs secondaires (A6), écarts de config.
+- [ ] **Catégorie « Clés API »** dans la page Diagnostic (famille dédiée, aujourd'hui `KEY_REJECTED` est classé EXECUTION) et **diagnostic de toutes les clés** : étendre la sonde réelle (`KEY_REJECTED`, limitée aux providers à paire générée) à toutes les credentials actives (OKX, Kraken, etc.), c'est le contrôle C3 ci-dessus.
 - [ ] **Bot Telegram** : push mobile des alarmes CRIT.
 - [ ] **« Doctor advertising »** : le Docteur pousse activement ses alarmes (sans ouvrir la page).
 - [ ] **Notifications par utilisateur** (alertes `UserAlertService` / credentials KO poussées à l'utilisateur concerné).

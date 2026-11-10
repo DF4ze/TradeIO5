@@ -295,14 +295,33 @@
       }));
     }, { span: false });
   }
+  // Cash (stablecoins) réparti par wallet : somme des parts stables de /holdings ; sous 0,1 % du cash, la part n'est pas affichée.
+  function cashByWallet(hold) {
+    const m = new Map();
+    ((hold && hold.assets) || []).filter((l) => l.stable).forEach((l) => (l.parts || []).forEach((p) => {
+      if (!TIO.isNum(p.value) || p.value <= 0) return;
+      const e = m.get(p.walletId) || { label: exchangeName(p.exchange) + (p.walletName && p.walletName !== p.exchange ? ' · ' + p.walletName : ''), value: 0 };
+      e.value += p.value;
+      m.set(p.walletId, e);
+    }));
+    const total = Array.from(m.values()).reduce((t, e) => t + e.value, 0);
+    return Array.from(m.values()).filter((e) => total > 0 && e.value / total * 100 >= DONUT_MIN_PCT).sort((a, b) => b.value - a.value).map((e, i) => ({ label: e.label, value: e.value, pct: e.value / total * 100, color: 'var(--s' + (i % 7) + ')', group: 'assets' }));
+  }
   function cashCard() {
-    const card = ui.widget('Cash et autonomie', () => TIO.get('/api/portfolio/autonomy' + walletQs()), (a) => {
+    const card = ui.widget('Cash et autonomie', () => Promise.all([TIO.get('/api/portfolio/autonomy' + walletQs()), TIO.safe(holdings(), null)]), (res) => {
+      const a = res[0], segments = cashByWallet(res[1]);
       const days = a.days;
+      const split = segments.length > 1 ? h('div', { class: 'donut-wrap' },
+        TIO.charts.donut(segments, { label: 'Cash par wallet', centerValue: F.usd(a.cash, 0), centerLabel: 'de cash', valueFmt: (s) => F.usd(s.value, 0) }),
+        h('div', { class: 'stack', style: { flex: '1 1 160px' } }, segments.map((s) => h('div', { class: 'row' },
+          h('i', { class: 'dot', style: { '--c': s.color } }), h('span', { class: 'num' }, s.label), h('span', { class: 'grow' }),
+          h('span', { class: 'num muted' }, F.usd(s.value, 0) + ' · ' + F.pct(s.pct, 0)))))) : null;
       return [h('div', { class: 'num value-lg' }, F.usd(a.cash, 0)),
+        split,
         h('div', { class: 'row row--between' }, h('span', { class: 'muted' }, 'Autonomie'), h('span', { class: 'num' }, F.days(days))),
         TIO.isNum(days) ? ui.bar(Math.min(100, days / 365 * 100)) : null,
         ui.note(TIO.isNum(days)
-          ? 'Stablecoins disponibles ; autonomie = nombre de jours d\'achats de base qu\'ils couvrent (' + F.usd(a.dailySpend, 0) + ' par jour en moyenne).'
+          ? 'Stablecoins disponibles (camembert : par wallet) ; autonomie = nombre de jours d\'achats de base qu\'ils couvrent (' + F.usd(a.dailySpend, 0) + ' par jour en moyenne).'
           : 'Stablecoins disponibles. L\'autonomie se calcule dès qu\'un actif est lié avec un montant de base.')];
     });
     onSelect(card);

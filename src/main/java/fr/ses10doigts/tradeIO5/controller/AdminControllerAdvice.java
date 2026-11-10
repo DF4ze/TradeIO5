@@ -3,6 +3,7 @@ package fr.ses10doigts.tradeIO5.controller;
 import fr.ses10doigts.tradeIO5.service.admin.AdminResourceNotFoundException;
 import fr.ses10doigts.tradeIO5.service.execution.credential.MasterKeyMissingException;
 import fr.ses10doigts.tradeIO5.service.connector.instrument.InstrumentLookupException;
+import fr.ses10doigts.tradeIO5.service.connector.keypair.KeyVerificationUnavailableException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -14,7 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  */
 @RestControllerAdvice(assignableTypes = {AdminExecutionQueryController.class, AdminActionController.class,
         AdminCredentialController.class, AdminBindingController.class, OwnCredentialController.class,
-        ExecutionPlanAdminController.class, ExecutionBulkAdminController.class, AdminOrderTestController.class, AdminCatalogController.class, AdminUserController.class})
+        ExecutionPlanAdminController.class, ExecutionBulkAdminController.class, AdminOrderTestController.class, AdminCatalogController.class, AdminUserController.class, ProviderKeyPairController.class})
 public class AdminControllerAdvice {
 
     @ExceptionHandler(AdminResourceNotFoundException.class)
@@ -29,6 +30,11 @@ public class AdminControllerAdvice {
 
     @ExceptionHandler(InstrumentLookupException.class)
     public ResponseEntity<RainbowLiveControllerAdvice.ErrorResponse> catalogUnavailable(InstrumentLookupException e) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new RainbowLiveControllerAdvice.ErrorResponse(e.getMessage()));
+    }
+
+    @ExceptionHandler(KeyVerificationUnavailableException.class)
+    public ResponseEntity<RainbowLiveControllerAdvice.ErrorResponse> keyUnverifiable(KeyVerificationUnavailableException e) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new RainbowLiveControllerAdvice.ErrorResponse(e.getMessage()));
     }
 

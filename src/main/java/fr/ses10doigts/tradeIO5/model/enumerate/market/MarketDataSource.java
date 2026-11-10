@@ -11,6 +11,7 @@ public enum MarketDataSource {
     KRAKEN(CEX),
     COINBASE(CEX),
     OKX(CEX),
+    REVOLUT_X(CEX),
 
     UNISWAP(DEX),
     SUSHISWAP(DEX),

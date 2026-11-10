@@ -47,7 +47,7 @@ class MarketDatasetEngineFreshnessTest {
         when(registry.getProvider(any(), any())).thenReturn(provider);
         engine = new MarketDatasetEngine(
                 new MarketDatasetCache(), new MarketDatasetManager(), registry, new TimeFrameConverter(),
-                mock(MarketDataApiClient.class), mock(MarketDataApiClient.class), mock(MarketDataApiClient.class),
+                mock(MarketDataApiClient.class), mock(MarketDataApiClient.class), mock(MarketDataApiClient.class), mock(MarketDataApiClient.class),
                 mock(AssetProviderRepository.class));
     }
 

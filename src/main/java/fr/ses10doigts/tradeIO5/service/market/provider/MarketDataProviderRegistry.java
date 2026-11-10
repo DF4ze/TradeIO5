@@ -38,6 +38,10 @@ public class MarketDataProviderRegistry {
                 // Web : OKX (candles publiques, sans ApiCredential)
                 MarketDataSource.OKX, param -> {
                     return new OkxMarketDataProvider((MarketDataApiClient) param);
+                },
+                // Web : Revolut X (candles publiques, sans ApiCredential)
+                MarketDataSource.REVOLUT_X, param -> {
+                    return new RevolutXMarketDataProvider((MarketDataApiClient) param);
                 }
         );
     }

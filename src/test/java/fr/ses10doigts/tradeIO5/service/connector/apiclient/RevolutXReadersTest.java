@@ -166,14 +166,29 @@ class RevolutXReadersTest {
     }
 
     @Test
-    @DisplayName("frais : lus de la configuration, jamais supposés")
+    @DisplayName("frais : palier spot courant de fees/tiers (fractions -> %), mis en cache, jamais supposés")
     void fees() {
-        FeeRate rate = new RevolutXTradingFeeProvider("0", "0.09").getFeeRate(cred(true), "BTC-USD");
+        routes.put("/api/1.0/configuration/fees/tiers", """
+                {"data":[{"type":"futures","current_tier":0,"currency":"USD","tiers":[{"tier":0,"maker_fee":"0.0001","taker_fee":"0.0009"}]},
+                 {"type":"spot","current_tier":1,"currency":"USD","tiers":[
+                   {"tier":0,"volume_from":"0","volume_to":"100","maker_fee":"0","taker_fee":"0.0010"},
+                   {"tier":1,"volume_from":"100","maker_fee":"0","taker_fee":"0.0009"}]}],"metadata":{"timestamp":1}}""");
+        RevolutXTradingFeeProvider provider = new RevolutXTradingFeeProvider(clock);
+        FeeRate rate = provider.getFeeRate(cred(true), "BTC-USDC");
         assertEquals(0, BigDecimal.ZERO.compareTo(rate.makerPct()));
         assertEquals(0, new BigDecimal("0.09").compareTo(rate.takerPct()));
-        assertThrows(BalanceUnavailableException.class, () -> new RevolutXTradingFeeProvider("", "").getFeeRate(cred(true), "BTC-USD"));
-        assertThrows(BalanceUnavailableException.class, () -> new RevolutXTradingFeeProvider("0", "abc").getFeeRate(cred(true), "BTC-USD"));
-        assertTrue(received.isEmpty());
+        assertEquals("/api/1.0/configuration/fees/tiers", received.getFirst().path());
+        provider.getFeeRate(cred(true), "ETH-USDC");
+        assertEquals(1, received.size());
+    }
+
+    @Test
+    @DisplayName("frais : palier spot absent ou réponse en erreur => indisponible")
+    void feesUnavailable() {
+        routes.put("/api/1.0/configuration/fees/tiers", "{\"data\":[{\"type\":\"futures\",\"current_tier\":0,\"tiers\":[]}]}");
+        assertThrows(BalanceUnavailableException.class, () -> new RevolutXTradingFeeProvider(clock).getFeeRate(cred(true), "BTC-USDC"));
+        status = 500;
+        assertThrows(BalanceUnavailableException.class, () -> new RevolutXTradingFeeProvider(clock).getFeeRate(cred(true), "BTC-USDC"));
     }
 
     @Test

@@ -2,7 +2,7 @@
 (function (g) {
   'use strict';
   const TIO = g.TIO, h = TIO.h, ui = TIO.ui;
-  const NAMES = { OKX: 'OKX', KRAKEN: 'Kraken' };
+  const NAMES = { OKX: 'OKX', KRAKEN: 'Kraken', REVOLUT_X: 'Revolut X' };
   const nameOf = (code) => NAMES[code] || code;
 
   TIO.start(function (root) {
@@ -65,6 +65,43 @@
       return h('div', { class: 'stack' }, ui.field('Clé API', key), ui.field('Clé secrète', secret),
         needsPassphrase ? ui.field('Passphrase', pass) : null, h('div', { class: 'row' }, submit));
     }
+    // exchange à clé générée par le serveur : (1) générer la paire, (2) enregistrer la clé publique chez l'exchange, (3) coller la clé API reçue
+    function keyPairForm(scope) {
+      const box = h('div', { class: 'stack' });
+      const base = '/api/credentials/keypair/' + st.sel + '/' + scope;
+      const fail = (e) => TIO.toast(e.message, true);
+      function drawEmpty() {
+        TIO.mount(box, h('div', { class: 'note' }, 'La clé privée est générée et chiffrée par TradeIO, elle ne sort jamais du serveur. Vous recevez la clé publique à enregistrer chez l\'exchange.'),
+          h('div', { class: 'row' }, h('button', { class: 'btn btn--primary', type: 'button', onclick: async () => {
+            try { draw(await TIO.post(base)); } catch (e) { fail(e); }
+          } }, 'Générer la clé')));
+      }
+      function draw(p) {
+        const pub = h('textarea', { readonly: 'readonly', rows: '5', spellcheck: 'false', class: 'ipbox' });
+        pub.value = p.publicKeyPem;
+        const apiKey = h('input', { type: 'password', autocomplete: 'off', spellcheck: 'false' });
+        const ok = h('button', { class: 'btn btn--primary', type: 'button', onclick: async () => {
+          ok.disabled = true;
+          try {
+            await TIO.post(base + '/promote', { apiKey: apiKey.value });
+            TIO.toast(scope === 'READ' ? 'Clé de lecture enregistrée' : 'Clé d\'écriture enregistrée');
+            st.replace[scope] = false;
+            await reload();
+          } catch (e) { fail(e); ok.disabled = false; }
+        } }, 'Valider et enregistrer');
+        TIO.mount(box,
+          h('div', { class: 'note' }, p.hint),
+          ui.field('Clé publique à enregistrer chez l\'exchange', pub, 'Empreinte ' + p.fingerprint.slice(0, 16) + '… · valable jusqu\'au ' + new Date(p.expiresAt).toLocaleString()),
+          h('div', { class: 'row' }, h('button', { class: 'btn', type: 'button', onclick: async () => {
+            try { await g.navigator.clipboard.writeText(p.publicKeyPem); TIO.toast('Clé publique copiée'); } catch (e) { TIO.toast('Copie impossible : sélectionnez le texte', true); }
+          } }, 'Copier'),
+          h('button', { class: 'btn', type: 'button', onclick: async () => { try { draw(await TIO.post(base)); } catch (e) { fail(e); } } }, 'Régénérer'),
+          h('button', { class: 'btn', type: 'button', onclick: async () => { try { await TIO.api('DELETE', base); drawEmpty(); } catch (e) { fail(e); } } }, 'Annuler')),
+          ui.field('Clé API fournie par l\'exchange', apiKey), h('div', { class: 'row' }, ok));
+      }
+      TIO.get(base).then(draw).catch((e) => { if (e.status === 404) drawEmpty(); else fail(e); });
+      return box;
+    }
     const perm = (text, warn) => h('div', { class: 'perm' + (warn ? ' perm--warn' : '') }, h('span', { 'aria-hidden': 'true' }, warn ? '⚠' : '✓'), text);
 
     function keyCard(scope, ex, needsPassphrase) {
@@ -94,7 +131,8 @@
         } }, 'Supprimer la clé'));
         body.push(row);
       } else {
-        body.push(...perms, keyForm(scope, needsPassphrase));
+        const sup = supported();
+        body.push(...perms, sup && sup.keyPair ? keyPairForm(scope) : keyForm(scope, needsPassphrase));
         if (state.configured) body.push(h('div', { class: 'row' }, h('button', { class: 'btn', type: 'button', onclick: () => { st.replace[scope] = false; render(); } }, 'Annuler')));
       }
       return ui.card(title, ...body, ui.cardOpts({ aside: asideChip }));

@@ -57,6 +57,7 @@ public class MarketDatasetEngine {
             @Qualifier("cachingBinanceMarketDataApiClient") MarketDataApiClient binanceClient,
             @Qualifier("cachingKrakenMarketDataApiClient") MarketDataApiClient krakenClient,
             @Qualifier("cachingOkxMarketDataApiClient") MarketDataApiClient okxClient,
+            @Qualifier("cachingRevolutXMarketDataApiClient") MarketDataApiClient revolutXClient,
             AssetProviderRepository assetProviderRepository
     ) {
         this.cache = cache;
@@ -68,6 +69,7 @@ public class MarketDatasetEngine {
         this.webClientsBySource.put(MarketDataSource.BINANCE, binanceClient);
         this.webClientsBySource.put(MarketDataSource.KRAKEN, krakenClient);
         this.webClientsBySource.put(MarketDataSource.OKX, okxClient);
+        this.webClientsBySource.put(MarketDataSource.REVOLUT_X, revolutXClient);
     }
 
     /**

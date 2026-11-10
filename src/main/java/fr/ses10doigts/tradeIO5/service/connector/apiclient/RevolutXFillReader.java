@@ -31,6 +31,8 @@ public class RevolutXFillReader implements ExchangeFillReader {
     static final String FILLS_PATH = "/1.0/orders/fills/";
     static final Duration DEFAULT_LOOKBACK = Duration.ofDays(365);
     private static final Duration WINDOW = Duration.ofDays(30);
+    /** {@code orders/historical} coûte 1 jeton par jour de plage, plafonné à 100 jetons/s : pause entre deux fenêtres (par jour de plage). */
+    private static final long PAUSE_MILLIS_PER_DAY = 12;
     private static final int PAGE_SIZE = 1900;
     private static final int MAX_CALLS = 600;
     /** Détail de l'ordre + remplissages. */
@@ -60,7 +62,8 @@ public class RevolutXFillReader implements ExchangeFillReader {
             do {
                 String query = "order_states=filled,cancelled&start_date=" + start.toEpochMilli() + "&end_date=" + end.toEpochMilli()
                         + "&limit=" + PAGE_SIZE + (cursor == null ? "" : "&cursor=" + cursor);
-                JsonNode root = RevolutXRequests.requireJson(RevolutXRequests.get(credential, HISTORICAL_PATH, query), "orders/historical");
+                JsonNode root = RevolutXRequests.requireJson(RevolutXRequests.getWithRetry(credential, HISTORICAL_PATH, query), "orders/historical");
+                pause(Duration.between(start, end).toDays() * PAUSE_MILLIS_PER_DAY);
                 calls++;
                 for (JsonNode order : RevolutXRequests.dataOf(root)) {
                     if (decimalOrZero(order, "filled_quantity").signum() <= 0) {
@@ -85,14 +88,14 @@ public class RevolutXFillReader implements ExchangeFillReader {
         if (id.isBlank() || !id.chars().allMatch(c -> Character.isLetterOrDigit(c) || c == '-')) {
             throw new BalanceUnavailableException("Revolut X : identifiant d'ordre illisible");
         }
-        JsonNode details = RevolutXRequests.dataOf(RevolutXRequests.requireJson(RevolutXRequests.get(credential, ORDER_PATH + id, null),
+        JsonNode details = RevolutXRequests.dataOf(RevolutXRequests.requireJson(RevolutXRequests.getWithRetry(credential, ORDER_PATH + id, null),
                 "orders/{id}")).path(0);
         BigDecimal fee = RevolutXTrades.totalFee(details);
         String feeCcy = details.path("fee_currency").asText("");
         List<ImportedFill> out = new ArrayList<>();
         boolean first = true;
         for (RevolutXTrades.Trade trade : RevolutXTrades.parse(RevolutXRequests.dataOf(
-                RevolutXRequests.requireJson(RevolutXRequests.get(credential, FILLS_PATH + id, null), "orders/fills")))) {
+                RevolutXRequests.requireJson(RevolutXRequests.getWithRetry(credential, FILLS_PATH + id, null), "orders/fills")))) {
             String side = trade.side().isBlank() ? order.path("side").asText() : trade.side();
             out.add(new ImportedFill(trade.tradeId(), id, order.path("client_order_id").asText(null), trade.base(), trade.quote(),
                     "sell".equalsIgnoreCase(side) ? TradeSide.SELL : TradeSide.BUY, trade.price(), trade.quantity(),
@@ -100,6 +103,14 @@ public class RevolutXFillReader implements ExchangeFillReader {
             first = false;
         }
         return out;
+    }
+
+    private static void pause(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static BigDecimal decimalOrZero(JsonNode node, String field) {

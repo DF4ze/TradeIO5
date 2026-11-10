@@ -57,6 +57,9 @@ public final class RevolutXRequests {
         }
     }
 
+    /** Ordres actifs (lecture signée) : sert aussi de sonde de validité d'une clé TRADE. */
+    public static final String ACTIVE_ORDERS_PATH = "/1.0/orders/active";
+
     private RevolutXRequests() {
     }
 
@@ -93,6 +96,40 @@ public final class RevolutXRequests {
             throw new BalanceUnavailableException("Revolut X : provider non déclaré ou désactivé");
         }
         return exchange(root(provider), HttpMethod.GET, path, query, null, null, null);
+    }
+
+    /** Racine de l'API publique Revolut X (candles : aucune clé, aucun provider déclaré requis). */
+    public static final String PUBLIC_ROOT = "https://revx.revolut.com/api";
+
+    /** GET public sur une racine explicite (données de marché, sans {@code WebProvider}). */
+    public static Reply publicGet(String root, String path, String query) {
+        return exchange(root, HttpMethod.GET, path, query, null, null, null);
+    }
+
+    /** Tentatives max d'une lecture limitée en débit (429) et pause de base entre deux tentatives (x numéro de tentative). */
+    static final int RATE_LIMIT_ATTEMPTS = 4;
+    static final long RATE_LIMIT_PAUSE_MILLIS = 1000;
+
+    /**
+     * GET privé signé, avec nouvelle tentative après un 429 (limite de débit Revolut X : {@code Retry-After} n'est pas exposé par
+     * {@link Reply}, pause croissante). Réservé aux lectures en rafale (historique) ; les autres appels échouent tout de suite.
+     */
+    public static Reply getWithRetry(ApiCredential credential, String path, String query) {
+        return retryOnRateLimit(() -> get(credential, path, query), RATE_LIMIT_ATTEMPTS, RATE_LIMIT_PAUSE_MILLIS);
+    }
+
+    static Reply retryOnRateLimit(java.util.function.Supplier<Reply> call, int attempts, long pauseMillis) {
+        Reply reply = call.get();
+        for (int attempt = 1; reply.status() == 429 && attempt < attempts; attempt++) {
+            try {
+                Thread.sleep(pauseMillis * attempt);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return reply;
+            }
+            reply = call.get();
+        }
+        return reply;
     }
 
     /** GET privé signé. */

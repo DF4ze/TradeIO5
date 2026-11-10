@@ -46,6 +46,15 @@ Vérifié le : 2026-11-07 (`service/expert/ExpertAccessGuard`, `security/WebSecu
 - Journal d'audit `admin_action_log` (append-only, lecture `ROLE_ADMIN` via `GET /api/admin/actions`) : actions admin d'exécution et saisies de credentials, charge utile filtrée des secrets ([`10-execution-reelle.md`](10-execution-reelle.md)).
 - Endpoints de pilotage (`/api/admin/execution/**`, `/api/admin/credentials`, `/api/admin/bindings`, `/api/admin/actions`, `/api/admin/catalog/**`, `/api/admin/execution/order-test/**`) : `ROLE_ADMIN` strict (test `ExecutionAdminSecurityTest`) ; interrupteur et confirmation du 1ᵉʳ ordre : propriétaire du binding seulement (autre user ⇒ 404).
 
+## Génération de paires de clés par utilisateur
+
+Providers dont l'auth repose sur une paire que l'utilisateur enregistre chez l'exchange (aujourd'hui Revolut X, Ed25519). Moteur générique : `ProviderKeyPairService` (`service/connector/keypair/`) + une implémentation de `ProviderKeyPairSupport` par provider (`RevolutXKeyPairSupport`). Ajouter un provider = un `@Component` implémentant `provider()`, `scopes()`, `algorithm()`/`keySize()`, `registrationHint()`, `verify(ApiCredential)` (et `fields(...)` si le mapping apiKey/secret/passphrase diffère).
+
+- **Flux** : `generate` ⇒ paire créée, privée chiffrée (`SecretCipher`, contexte `pendingKey:userId:provider:scope`) dans `provider_pending_key` (unique user/provider/portée, TTL 24 h, régénérer remplace la paire en attente), clé publique + empreinte SHA-256 renvoyées ; `promote(apiKey)` ⇒ `support.verify` (appel réel signé, hors transaction) puis stockage par `TradeCredentialService`/`ReadCredentialService`, paire en attente supprimée ; clé refusée ⇒ 400, exchange injoignable ⇒ 503, rien n'est promu ; `cancel` et `ProviderPendingKeyPurgeJob` (`tradeio.keypair.purge-interval-ms`, défaut 1 h) suppriment les paires non promues.
+- **Régénération / révocation** : régénérer = nouvelle paire + nouvelle promotion (la credential active n'est remplacée qu'à la promotion, aucune coupure) ; la révocation de l'ancienne clé se fait chez l'exchange.
+- **Secrets** : clé privée chiffrée au repos, jamais dans un DTO, un log, une exception ni le journal (`CREDENTIAL_STORED`, payload `event` = `KEY_GENERATED|KEY_PROMOTED|KEY_CANCELLED|KEY_REFUSED|KEY_UNVERIFIED` + empreinte) ; clé publique non conservée après promotion ; sans `TRADEIO_MASTER_KEY` ⇒ 409.
+- **Endpoints** (authentifié, utilisateur connecté) : cf. [`../api/rest-endpoints.md`](../api/rest-endpoints.md).
+
 ## Accès propriétaire (Rainbow live)
 
 `RainbowLiveController` (`/api/rainbow-live`) : `@PreAuthorize("isAuthenticated()")` au niveau classe (test `RainbowLiveControllerSecurityTest`, qui active réellement la sécurité par méthode), pas de `ROLE_API_AGENT`. Isolation par propriétaire : un preset d'un autre utilisateur est indiscernable d'un preset inexistant (404, pas de fuite d'existence).

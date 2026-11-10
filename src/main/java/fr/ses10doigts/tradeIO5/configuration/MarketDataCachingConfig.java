@@ -6,12 +6,13 @@ import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.CachingMar
 import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.KrakenMarketDataApiClient;
 import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.MarketDataApiClient;
 import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.OkxMarketDataApiClient;
+import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.RevolutXMarketDataApiClient;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Enveloppe chaque {@link MarketDataApiClient} exchange (Binance/Kraken/OKX) dans un
+ * Enveloppe chaque {@link MarketDataApiClient} exchange (Binance/Kraken/OKX/Revolut X) dans un
  * {@link CachingMarketDataApiClient} — cf. docs/etudes/etude-cache-db-candles-h1.md section 3.
  * <p>
  * Beans nommés explicitement ("cachingXxxMarketDataApiClient") plutôt que {@code @Primary} :
@@ -37,6 +38,12 @@ public class MarketDataCachingConfig {
     @Bean
     public MarketDataApiClient cachingOkxMarketDataApiClient(
             OkxMarketDataApiClient delegate, CandleRepository repository, DomainClock clock) {
+        return new CachingMarketDataApiClient(delegate, repository, clock);
+    }
+
+    @Bean
+    public MarketDataApiClient cachingRevolutXMarketDataApiClient(
+            RevolutXMarketDataApiClient delegate, CandleRepository repository, DomainClock clock) {
         return new CachingMarketDataApiClient(delegate, repository, clock);
     }
 }

@@ -17,8 +17,8 @@
       + '— jamais Withdraw. Restreindre la clé à l\'IP du VPS.',
     BITVAVO: 'Bitvavo : clé API + secret (pas de passphrase). Droits « Voir » pour la lecture, « Trader » pour les ordres '
       + '— jamais « Retirer ». Restreindre la clé à l\'IP du VPS.',
-    REVOLUT_X: 'Revolut X : clé API (dans le champ Clé API) + clé privée Ed25519 PEM (dans le champ secret). Pas de passphrase. '
-      + 'Droits trading uniquement, jamais de retrait.',
+    REVOLUT_X: 'Revolut X : de préférence via « Génération de clé » ci-dessous. Saisie manuelle : clé API (champ Clé API) + clé privée Ed25519 PEM (champ secret), '
+      + 'sans passphrase. Droit lecture pour la portée Lecture, trading pour Trade, jamais de retrait ; restreindre à l\'IP du VPS.',
     GATE_EU: 'Gate EU : clé API + secret (pas de passphrase). Droits spot lecture / trading uniquement, jamais de retrait. '
       + 'Restreindre la clé à l\'IP du VPS.'
   };
@@ -28,6 +28,43 @@
   const PASSPHRASE_PROVIDERS = ['OKX'];
   const DATA_HINT = 'Provider de données (ex. COINALYZE, TWELVE_DATA, FINNHUB pour System) : clé API seule suffit, secret facultatif. Portée Lecture.';
   let users = [];
+
+  /* Providers à clé générée par le serveur (GET /api/credentials/keypair/providers) : flux générer -> clé publique -> clé API, pour le compte connecté. */
+  let keyPairProviders = [];
+  const keyPairScope = () => byId('adm-cred-scope').value;
+
+  async function renderKeyPair() {
+    const provider = providerValue();
+    const panel = byId('adm-keypair');
+    const supported = !isFree() && keyPairProviders.some((p) => p.provider === provider);
+    panel.classList.toggle('d-none', !supported);
+    if (!supported) { return; }
+    const base = '/api/credentials/keypair/' + provider + '/' + keyPairScope();
+    const body = byId('adm-keypair-body');
+    const generate = el('button', { type: 'button', class: 'btn btn-outline-primary', text: 'Générer la clé' });
+    generate.addEventListener('click', () => run(generate, async () => { drawPending(await api('POST', base)); }));
+    function drawPending(p) {
+      const pub = el('textarea', { class: 'form-control font-monospace small', rows: 5, readonly: 'readonly' });
+      pub.value = p.publicKeyPem;
+      const apiKey = el('input', { type: 'password', class: 'form-control', autocomplete: 'off', placeholder: 'Clé API fournie par l\'exchange' });
+      const ok = el('button', { type: 'button', class: 'btn btn-primary', text: 'Valider et enregistrer' });
+      ok.addEventListener('click', () => run(ok, async () => {
+        const saved = await api('POST', base + '/promote', { apiKey: apiKey.value });
+        apiKey.value = '';
+        byId('adm-cred-status').textContent = 'Clé générée enregistrée (credential #' + saved.id + ', ' + saved.provider + ' ' + saved.scope + ').';
+        await load();
+      }));
+      const cancel = el('button', { type: 'button', class: 'btn btn-outline-secondary', text: 'Annuler' });
+      cancel.addEventListener('click', () => run(cancel, async () => { await api('DELETE', base); body.replaceChildren(generate); }));
+      body.replaceChildren(el('div', { class: 'alert alert-info small mb-0', text: p.hint }), pub,
+        el('div', { class: 'small text-muted', text: 'Empreinte SHA-256 ' + p.fingerprint + ' — valable jusqu\'au ' + core.fmtDate(p.expiresAt) }),
+        apiKey, el('div', { class: 'd-flex gap-2' }, ok, generate, cancel));
+      generate.textContent = 'Régénérer';
+    }
+    body.replaceChildren(generate);
+    generate.textContent = 'Générer la clé';
+    try { drawPending(await api('GET', base)); } catch (e) { if (e.status !== 404) { throw e; } }
+  }
 
   const isFree = () => byId('adm-cred-free').checked;
   const providerValue = () => (isFree() ? byId('adm-cred-provider-free').value.trim().toUpperCase() : byId('adm-cred-provider').value);
@@ -50,6 +87,7 @@
     if (provider && !order) { scope.value = 'READ'; }
     scope.disabled = !order;
     byId('adm-cred-hint').textContent = order ? (PROVIDER_HINTS[provider] || '') : (provider ? DATA_HINT : '');
+    renderKeyPair().catch((e) => { byId('adm-cred-status').textContent = e.message; });
   }
 
   function renderUsers() {
@@ -97,9 +135,10 @@
   }
 
   async function load() {
-    const [list, userList, providers] = await Promise.all([api('GET', '/api/admin/credentials'), api('GET', '/api/admin/users'),
-      api('GET', '/api/admin/providers')]);
+    const [list, userList, providers, keyPairs] = await Promise.all([api('GET', '/api/admin/credentials'), api('GET', '/api/admin/users'),
+      api('GET', '/api/admin/providers'), api('GET', '/api/credentials/keypair/providers')]);
     users = userList;
+    keyPairProviders = keyPairs;
     renderProviders(providers.providers);
     renderUsers();
     byId('adm-cred-body').replaceChildren(...(list.length ? list.map(row)
@@ -143,6 +182,7 @@
   byId('adm-cred-provider').addEventListener('change', onProviderChange);
   byId('adm-cred-provider-free').addEventListener('input', onProviderChange);
   byId('adm-cred-free').addEventListener('change', onProviderChange);
+  byId('adm-cred-scope').addEventListener('change', onProviderChange);
   onProviderChange();
   core.onState(showMasterWarning);
   core.register('credentials', { load: () => run(null, load), show: () => run(null, load) });

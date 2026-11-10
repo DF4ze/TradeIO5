@@ -12,6 +12,7 @@ import fr.ses10doigts.tradeIO5.repository.WalletRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceUnavailableException;
 import fr.ses10doigts.tradeIO5.service.connector.balance.ReadOnlyBalanceReader;
+import fr.ses10doigts.tradeIO5.service.connector.keypair.ProviderKeyPairService;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingService;
 import fr.ses10doigts.tradeIO5.service.execution.credential.TradeCredentialService;
 import lombok.extern.slf4j.Slf4j;
@@ -43,7 +44,8 @@ public class ExchangeKeysService {
         static final KeyState ABSENT = new KeyState(false, false, null);
     }
 
-    public record SupportedExchange(WebProviderCode provider, boolean needsPassphrase, boolean needsSecret) {
+    /** {@code keyPair} : le serveur génère la paire de clés de l'utilisateur ({@code ProviderKeyPairService}) au lieu d'une saisie de secret. */
+    public record SupportedExchange(WebProviderCode provider, boolean needsPassphrase, boolean needsSecret, boolean keyPair) {
     }
 
     public record ExchangeView(WebProviderCode provider, boolean needsPassphrase, KeyState read, KeyState trade, Long walletId,
@@ -57,15 +59,17 @@ public class ExchangeKeysService {
     private final ProviderRepository providerRepository;
     private final WalletRepository walletRepository;
     private final RainbowLiveBindingService bindingService;
+    private final ProviderKeyPairService keyPairs;
     private final Map<WebProviderCode, ReadOnlyBalanceReader> readers = new EnumMap<>(WebProviderCode.class);
 
     public ExchangeKeysService(ApiCredentialRepository credentialRepository, ProviderRepository providerRepository,
                                WalletRepository walletRepository, RainbowLiveBindingService bindingService,
-                               List<ReadOnlyBalanceReader> readerList) {
+                               ProviderKeyPairService keyPairs, List<ReadOnlyBalanceReader> readerList) {
         this.credentialRepository = credentialRepository;
         this.providerRepository = providerRepository;
         this.walletRepository = walletRepository;
         this.bindingService = bindingService;
+        this.keyPairs = keyPairs;
         readerList.forEach(r -> readers.put(r.getProviderCode(), r));
     }
 
@@ -73,7 +77,7 @@ public class ExchangeKeysService {
     public List<SupportedExchange> supported() {
         return TradeCredentialService.TRADABLE_PROVIDERS.stream().sorted(Comparator.comparing(Enum::name))
                 .map(p -> new SupportedExchange(p, TradeCredentialService.PASSPHRASE_PROVIDERS.contains(p),
-                        !TradeCredentialService.KEY_ONLY_PROVIDERS.contains(p))).toList();
+                        !TradeCredentialService.KEY_ONLY_PROVIDERS.contains(p), keyPairs.supports(p))).toList();
     }
 
     /** Exchanges de l'utilisateur : ceux où au moins une clé (lecture ou écriture) est enregistrée. */

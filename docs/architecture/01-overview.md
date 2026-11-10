@@ -34,7 +34,7 @@ Contrairement à la description "3 couches" de l'ancien README (Données/Décisi
 
 | Couche | Package(s) | Rôle |
 |---|---|---|
-| Ingestion de données | `service/connector/apiclient/**`, `service/market/**` | Récupération candles (Binance/Kraken/OKX) + cache DB, résolution de provider par asset |
+| Ingestion de données | `service/connector/apiclient/**`, `service/market/**` | Récupération candles (Binance/Kraken/OKX/Revolut X) + cache DB, résolution de provider par asset |
 | Indicateurs externes | `service/tree/indicator/external/**` | Wrappers par provider (Coinalyze, Twelve Data, Yahoo Finance, CoinStats, DefiLlama, SoSoValue, Finnhub, ForexFactory) |
 | Veille média | `service/tree/media/**` | Pipeline YouTube RSS → transcript → classification/extraction LLM |
 | Moteur `tree` (métier) | `service/tree/{indicator,strategy,opinion,scenario,decision,event}/**` | Pipeline Indicator→Strategy→Opinion→Scenario→Decision, `EventBus`/`EventStore` |

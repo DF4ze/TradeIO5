@@ -27,6 +27,9 @@ public interface ApiCredentialRepository extends JpaRepository<ApiCredential, Lo
 	Optional<ApiCredential> findByUserAndScopeAndEnabledTrueAndWebProvider_CodeAndWebProvider_EnabledTrue(User user,
 			CredentialScope scope, WebProviderCode code);
 
+	/** Credentials actives (toutes portées) des providers donnés, provider actif : sonde du Docteur. */
+	List<ApiCredential> findByEnabledTrueAndWebProvider_CodeInAndWebProvider_EnabledTrue(java.util.Collection<WebProviderCode> codes);
+
 	default List<ApiCredential> findReadByUserAndEnabledTrue(User user) {
 		return findByUserAndScopeAndEnabledTrue(user, CredentialScope.READ);
 	}

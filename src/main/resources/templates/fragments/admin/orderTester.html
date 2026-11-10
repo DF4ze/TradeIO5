@@ -29,8 +29,12 @@
 		</div>
 		<div class="col-6 col-md-3">
 			<label class="form-label" for="adm-ot-px" id="adm-ot-px-label">Plafond de prix (BUY) / plancher (SELL)</label>
-			<input type="text" inputmode="decimal" class="form-control" id="adm-ot-px" required>
-			<div class="form-text">Ordre limit IOC : il s'exécute tout de suite aux prix égaux ou meilleurs que cette limite, le reste est annulé. BUY : prix maximal accepté — mets le dernier prix (ticker) + 0,5 à 1 %. SELL : prix minimal accepté — dernier prix − 0,5 à 1 %. Trop serré : rien n'est exécuté ; trop large : tu acceptes un prix moins bon. L'exécution se fait au meilleur prix du carnet, pas à la limite. Le prix est arrondi au tick ; le plafond absolu par ordre (bandeau) s'applique au montant.</div>
+			<div class="input-group">
+				<input type="text" inputmode="decimal" class="form-control" id="adm-ot-px" placeholder="auto">
+				<select class="form-select flex-grow-0 w-auto" id="adm-ot-tol" title="Tolérance autour du meilleur prix du carnet"><option value="0.5">0,5 %</option><option value="0.25">0,25 %</option></select>
+				<button type="button" class="btn btn-outline-secondary" id="adm-ot-px-auto" title="Calcule le prix limite depuis le carnet">Auto</button>
+			</div>
+			<div class="form-text">Vide ⇒ calculé à la validation (meilleur ask BUY / bid SELL ± tolérance choisie, 0,5 % par défaut). Ordre limit IOC : il s'exécute tout de suite aux prix égaux ou meilleurs que cette limite, le reste est annulé. BUY : prix maximal accepté — mets le dernier prix (ticker) + 0,5 à 1 %. SELL : prix minimal accepté — dernier prix − 0,5 à 1 %. Trop serré : rien n'est exécuté ; trop large : tu acceptes un prix moins bon. L'exécution se fait au meilleur prix du carnet, pas à la limite. Le prix est arrondi au tick ; le plafond absolu par ordre (bandeau) s'applique au montant.</div>
 		</div>
 		<div class="col-12 col-md-6 d-flex align-items-end">
 			<div class="small text-muted" id="adm-ot-limits"></div>

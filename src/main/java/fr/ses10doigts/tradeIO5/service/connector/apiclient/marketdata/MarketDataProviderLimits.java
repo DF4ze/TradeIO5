@@ -24,6 +24,12 @@ public final class MarketDataProviderLimits {
     /** OKX {@code /market/history-candles} : 100 bougies max par page. */
     public static final int OKX_HISTORY_PAGE_SIZE = 100;
 
+    /** Revolut X {@code GET /1.0/public/candles/{symbol}} : 1000 bougies max par appel. */
+    public static final int REVOLUT_X_CANDLES_PAGE_SIZE = 1000;
+
+    /** Revolut X candles publiques : 1 requête/seconde (1 jeton/s, 1 jeton par requête) ; marge incluse. */
+    public static final long REVOLUT_X_PAGE_PAUSE_MILLIS = 1100;
+
     /** Garde-fou : nombre max d'appels réseau d'une même pagination (200 x 1000 H1 > capacité du Bucket). */
     public static final int MAX_PAGES_PER_FETCH = 200;
 

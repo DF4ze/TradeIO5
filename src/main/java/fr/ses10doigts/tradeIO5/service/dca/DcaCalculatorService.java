@@ -68,6 +68,7 @@ public class DcaCalculatorService {
             @Qualifier("cachingBinanceMarketDataApiClient") MarketDataApiClient binanceClient,
             @Qualifier("cachingKrakenMarketDataApiClient") MarketDataApiClient krakenClient,
             @Qualifier("cachingOkxMarketDataApiClient") MarketDataApiClient okxClient,
+            @Qualifier("cachingRevolutXMarketDataApiClient") MarketDataApiClient revolutXClient,
             DomainClock clock,
             AssetProviderRepository assetProviderRepository
     ) {
@@ -75,6 +76,7 @@ public class DcaCalculatorService {
         this.clientsBySource.put(MarketDataSource.BINANCE, binanceClient);
         this.clientsBySource.put(MarketDataSource.KRAKEN, krakenClient);
         this.clientsBySource.put(MarketDataSource.OKX, okxClient);
+        this.clientsBySource.put(MarketDataSource.REVOLUT_X, revolutXClient);
         this.clock = clock;
         this.assetProviderRepository = assetProviderRepository;
     }

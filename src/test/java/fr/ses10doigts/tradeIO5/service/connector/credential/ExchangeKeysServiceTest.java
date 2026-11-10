@@ -47,7 +47,7 @@ class ExchangeKeysServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ExchangeKeysService(credentials, providers, wallets, bindings, List.of());
+        service = new ExchangeKeysService(credentials, providers, wallets, bindings, org.mockito.Mockito.mock(fr.ses10doigts.tradeIO5.service.connector.keypair.ProviderKeyPairService.class), List.of());
         when(providers.findByCode(WebProviderCode.OKX)).thenReturn(Optional.of(okx));
         when(providers.findByCode(WebProviderCode.KRAKEN)).thenReturn(Optional.empty());
         read = ApiCredential.builder().user(user).webProvider(okx).scope(CredentialScope.READ).apiKey("abcdefgh1234").secretKey("s").enabled(true).build();

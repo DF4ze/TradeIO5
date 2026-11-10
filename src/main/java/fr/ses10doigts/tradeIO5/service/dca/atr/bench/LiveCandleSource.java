@@ -20,6 +20,7 @@ public final class LiveCandleSource {
             case BINANCE -> MarketDataSource.BINANCE;
             case KRAKEN -> MarketDataSource.KRAKEN;
             case OKX -> MarketDataSource.OKX;
+            case REVOLUT_X -> MarketDataSource.REVOLUT_X;
             default -> null;
         };
     }

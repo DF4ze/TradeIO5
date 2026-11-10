@@ -581,7 +581,7 @@ class RainbowDcaAtrRobustBenchExportTest {
                 DomainClock clock,
                 AssetProviderRepository assetProviderRepository
         ) {
-            return new DcaCalculatorService(binanceClient, krakenClient, okxClient, clock, assetProviderRepository) {
+            return new DcaCalculatorService(binanceClient, krakenClient, okxClient, null, clock, assetProviderRepository) {
                 private final Map<CalculateKey, DcaResult> cache = new ConcurrentHashMap<>();
                 @Override
                 public DcaResult calculate(

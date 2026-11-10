@@ -18,7 +18,7 @@ Historisation du patrimoine : tables `portfolio_snapshot` (unique user/wallet/jo
 
 Passerelle actif non stable : table `transit_stock` et colonnes `transit_stock.finish_side` et `rainbow_live_binding.route_key` (remplace `bridge_pair`), `rainbow_live_binding.preferred_route` (route imposée par l'utilisateur, nullable), `rainbow_live_binding.fee_test_{route,pct,level,amount,at}` (dernier Fee Test réalisé, nullable), dans `V1__init.sql`.
 
-Lot d'exécution réelle (cf. [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md)) : tables `execution_control` et `rainbow_live_order_event`, colonnes d'exécution des étapes et des plans, `rainbow_live_binding.first_live_{approved,confirmed}_at`, `admin_action_log` (journal admin append-only), `transaction.fee_currency`, `api_credentials.scope` (+ contrainte `uk_credential_user_provider_scope`), toutes dans `V1__init.sql`.
+Lot d'exécution réelle (cf. [`../architecture/10-execution-reelle.md`](../architecture/10-execution-reelle.md)) : tables `execution_control` et `rainbow_live_order_event`, colonnes d'exécution des étapes et des plans, `rainbow_live_binding.first_live_{approved,confirmed}_at`, `admin_action_log` (journal admin append-only), `transaction.fee_currency`, `api_credentials.scope` (+ contrainte `uk_credential_user_provider_scope`), `provider_pending_key` (paires de clés en attente), toutes dans `V1__init.sql`.
 
 **Base existante en `ddl-auto=update` : `ApiCredential.scope` demande un SQL manuel, une seule fois, avant le déploiement** (Hibernate n'ajoute pas de défaut à la colonne et ne supprime jamais l'ancien index unique, qui interdirait une clé `TRADE` à côté de la clé `READ`) :
 
@@ -97,3 +97,11 @@ Initializers existants : `AssetInitializer` (1), `AssetGroupInitializer` (2, gro
 - Données historiques de marché (`candle`, `etf_flow_snapshot`) : sauvegardées chaque semaine par `HistoricalDataBackupJob` (`tradeio.backup.dir`, défaut `backup/historical`, fichiers `<table>.tsv.gz`, jamais écrasés par une table vide) et rechargées au démarrage par `HistoricalDataInitializer` si la table est vide et le fichier présent. Le dossier de backup doit être conservé hors de la base supprimée.
 - Données d'exploitation : `video_contents`/`media_claims`/`llm_call_logs` (coût LLM), `transaction`.
 - Branche décisionnelle (`decision_snapshots`, `scenario_snapshots`, `events`) : en pause ; un mécanisme de sauvegarde récurrente reste à définir si elle reprend.
+
+Revolut X candles : `MarketDataSource` gagne `REVOLUT_X` (enum MySQL natif, `ddl-auto=update` ne le modifie pas) ⇒ SQL manuel sur base existante, avant le déploiement :
+
+```sql
+ALTER TABLE asset_provider MODIFY source ENUM('BINANCE','CHAINLINK','COINBASE','DATABASE','FILE','KRAKEN','MEMORY','OKX','REVOLUT_X','SUSHISWAP','UNISWAP') NOT NULL;
+ALTER TABLE candle MODIFY source ENUM('BINANCE','CHAINLINK','COINBASE','DATABASE','FILE','KRAKEN','MEMORY','OKX','REVOLUT_X','SUSHISWAP','UNISWAP') NOT NULL;
+ALTER TABLE rainbow_live_binding_run MODIFY live_candle_source ENUM('BINANCE','CHAINLINK','COINBASE','DATABASE','FILE','KRAKEN','MEMORY','OKX','REVOLUT_X','SUSHISWAP','UNISWAP');
+```

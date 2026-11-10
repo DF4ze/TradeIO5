@@ -52,7 +52,7 @@ import java.util.regex.Pattern;
 public class RevolutXSpotOrderClient implements SpotOrderPort {
 
     static final String ORDERS_PATH = "/1.0/orders";
-    static final String ACTIVE_PATH = "/1.0/orders/active";
+    static final String ACTIVE_PATH = RevolutXRequests.ACTIVE_ORDERS_PATH;
     static final String HISTORICAL_PATH = "/1.0/orders/historical";
     static final String FILLS_PATH = "/1.0/orders/fills/";
 

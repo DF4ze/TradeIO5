@@ -86,7 +86,7 @@ class DcaCalculatorServiceTest {
     @BeforeEach
     void setUp() {
         FixedDomainClock clock = new FixedDomainClock(CLOCK_NOW);
-        service = new DcaCalculatorService(binanceClient, krakenClient, okxClient, clock, assetProviderRepository);
+        service = new DcaCalculatorService(binanceClient, krakenClient, okxClient, null, clock, assetProviderRepository);
     }
 
     @Test
