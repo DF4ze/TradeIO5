@@ -1,0 +1,9 @@
+{
+  "docs_dir": "docs",
+  "entry": "docs/README.md",
+  "archive_dir": "docs/archive",
+  "code_dirs": ["src", "tools"],
+  "size_warn_kb": 20,
+  "stale_days": 60,
+  "no_header": ["docs/archive/README-old.md"]
+}

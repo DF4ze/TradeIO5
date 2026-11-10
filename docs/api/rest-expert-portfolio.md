@@ -1,0 +1,73 @@
+---
+statut: courant
+vérifié_le: 2026-11-07
+modifié_le: 2026-11-10
+empreinte: 878b786c98
+---
+# Endpoints REST — Espace Expert, patrimoine, préférences
+
+Suite de [`rest-endpoints.md`](rest-endpoints.md) (Endpoints REST).
+
+## Patrimoine et performance (utilisateur, `PortfolioController`)
+
+Base seule (instantanés quotidiens `portfolio_snapshot` et transactions), aucun appel exchange, scopé à l'utilisateur connecté.
+
+| Endpoint | Réponse |
+|---|---|
+| `GET /api/portfolio/summary?period=7d\|30d\|90d\|1y\|all` (défaut `30d`) | `PortfolioSummaryDto` : `series[{day, total, stable, assets, exposurePct}]` (un point par jour, wallets additionnés ; valeurs nulles si un wallet n'était pas exploitable), `current` (dernier point), `pnl{amount, pct, since}` = variation de valeur entre le premier et le dernier point exploitable (nul sous deux points), `autonomyDays` (stable ÷ dépense quotidienne moyenne des liens, nul si indéterminable), `flowsIncluded=false` : **dépôts/retraits non suivis** (mention à afficher). Période inconnue ⇒ 400 |
+| `GET /api/portfolio/assets` | `[AssetPerformanceDto]` par actif du dernier instantané (trades rejoués en prix moyen pondéré, cf. ci-dessous) ; nuls si le prix manque |
+| `GET /api/portfolio/holdings[?walletId=]` (`HomeOverviewService`) | `HoldingsDto` : **soldes live** (lecture seule des exchanges via `ReadOnlyBalanceReader`, cache 60 s) de tous les wallets activés — avec ou sans passe — valorisés au dernier cours D1 (cache DB des bougies, jamais un prix par exchange). `{walletId, fetchedAt, total, stable, assetsValue, exposurePct, partial, assets[{assetSymbol, quantity, price, value, sharePct, stable, parts[{walletId, walletName, exchange, quantity, value}]}], unavailable[{walletId, walletName, exchange, reason}]}` ; actifs identiques regroupés (détail dans `parts`), stablecoins (USDC, USDT, DAI… + groupe USD) au nominal ; `partial=true` si un actif n'a pas de cours (exclu des totaux). Wallet inconnu ou d'un autre user ⇒ 404 |
+| `GET /api/portfolio/history[?walletId=&period=]` | `PortfolioHistoryDto` `{walletId, period, from, to, estimated=true, flowsIncluded=false, pnl, series[{day, total, stable, assets, exposurePct}]}` : historique **reconstruit** = soldes actuels remontés à rebours en annulant les `Transaction` (frais en actif ou en quote), valorisés à la clôture D1 du jour (720 j max). Estimation : dépôts/retraits non suivis. Jour sans cours ⇒ valeurs nulles |
+| `GET /api/portfolio/autonomy[?walletId=]` | `AutonomyDto` `{cash, days, dailySpend}` : cash **live** (stablecoins lus, un wallet ou tous) et autonomie = cash ÷ dépense quotidienne moyenne des liens (montant de base x multiplicateur moyen, liens du wallet si `walletId`) ; `days` et `dailySpend` nuls sans lien |
+| `GET /api/portfolio/asset-performance[?walletId=]` | `[AssetPerformanceDto]` par actif (hors stables, y compris entièrement vendu : réalisé conservé) : `quantity, price, value, investedNet` (info), `avgBuyPrice` = PRU de la quantité détenue (moyenne des PRU wallets pondérée par la quantité détenue), **latent** `pnl`/`pnlPct` = quantité × (cours − PRU), **réalisé** `realizedPnl`/`realizedPct` = gains des ventes net de frais contre le PRU, `totalPnl` = réalisé + latent, `fees`, `volume` (achats + ventes en $), `bought` (achats cumulés en $), `sells`, `incomplete` (vente > achats connus, plafonnée), `parts[]` = même mesure par wallet (avec `walletName`, `exchange`). Trades manuels et TradeIO rejoués par wallet × actif ; achat coté en autre crypto converti en dollars au cours D1 du jour du trade (sans cours : trade ignoré) ; frais inclus (stable, devise de cotation, actif acheté, ou autre devise au cours D1 ; devise sans cours : ignorés) |
+| `GET /api/portfolio/pnl[?walletId=&period=]` | `PnlSummaryDto` : `realized` (cumul), `realizedInPeriod` (ventes dont la date tombe dans `period`, défaut 30d), `unrealized` (latent), `total` (réalisé cumulé + latent), pourcentages (réalisé / coût vendu, latent / coût détenu, total / capital engagé), `fees`, `volume`, `bought`, `incomplete`, `partial` |
+| `GET /api/portfolio/transactions[?walletId=]` | `[TradeLineDto]` `{id, timestamp, side, assetSymbol, quantity, price, notional, fee, feeCurrency, feeUsd, walletId, walletName, exchange, quoteCurrency, origin}`, plus récent d'abord, 300 max. `feeUsd` = frais en dollars (nul sans frais ou cours inconnu). `origin` = `MANUAL` (passé à la main sur l'exchange) ou `TRADEIO` (ordre envoyé par TradeIO) ; ancien trade sans tag : `TRADEIO` si son identifiant externe est préfixé `<EXCHANGE>:` (FillRecorder), sinon `MANUAL`. `quoteCurrency` nulle = dollar |
+| `POST /api/portfolio/transactions/sync[?walletId=&force=]` (`ExchangeTradeImportService`) | `{imported, tradeio, manual, failedWallets[]}` : importe en **lecture seule** l'historique des remplissages spot (OKX `fills-history`, 3 mois ; Kraken `TradesHistory` + `Ledgers` pour les achats de l'interface/DCA) des wallets activés avec clé de lecture. Un trade TradeIO remonte aussi sur l'exchange : reconnu (identifiant client `t5…` ou `ordId` d'une étape du plan) et jamais doublonné (identifiant externe `<EXCHANGE>:<tradeId>`). Premier passage d'un wallet depuis le démarrage : tout l'historique accessible ; ensuite 7 jours. Espacé de 5 min par wallet sauf `force=true`. Un wallet en échec est listé sans bloquer les autres. L'import part aussi **tout seul** à chaque enregistrement ou remplacement d'une clé de lecture (`ReadCredentialStoredEvent` ⇒ `TradeImportOnCredentialListener`, après commit, en tâche de fond `@Async`, forcé hors espacement ; ajout d'un provider, y compris par le flux de clés générées) |
+| `GET /api/rainbow-live/bindings/{id}/bands?period=&simulated=` (`RainbowLiveBandsController`, période défaut `90d`, `simulated` défaut `false` ; `simulated=true` ⇒ bandes recalculées par `RainbowBandsSimulator` sur les bougies D1 du lien, Trend Mix : jeu Bull/Bear du régime du jour, `simulated=true` dans la réponse, aucune écriture) | `RainbowBandsDto` : bandes **figées** (valeurs vues par le moteur à chaque passe) du preset du lien, un point par jour joué `{day, close, sma, atr, boundDown2, boundDown1, boundUp1, boundUp2, boundUp3, zone, activeSet, trendRegime, action}` (`action` = `BUY`/`SELL` quand le moteur a voulu acheter/vendre ce jour-là, sinon `null` ; en simulé rejoué par le moteur (`RainbowAtrReplay`, machine à froid au premier jour) sur toute la période), `simulated=false` (bandes recalculées avant le premier run : non faites). Période invalide ⇒ 400 ; lien d'autrui ou inconnu ⇒ 404 |
+| `GET /api/rainbow-live/next-pass` (`RainbowLiveNextPassController`) | `{enabled, nextRunAt}` : prochain déclenchement du cron de la passe (UTC) ; `enabled=false` et `nextRunAt` nul si le planificateur est désactivé |
+| `GET /api/rainbow-live/bindings/{id}/transactions` | `BindingTradesDto` : `avgBuyPrice` et `trades[{id, timestamp, side, quantity, price, fee, feeCurrency}]` du wallet et de l'actif du lien ; lien inconnu ou d'un autre utilisateur ⇒ 404 |
+
+## Préférences et alertes (utilisateur, `/api/user`)
+
+| Méthode | Chemin | Description |
+|---|---|---|
+| GET | `/preferences` | `{theme (ignoré : l'application est sombre), displayMode SIMPLE\|ADVANCED\|EXPERT, startingProfile, alertsDisabled[AlertType], caps{maxOrderUsd, maxDayUsd, absoluteMaxOrderUsd, absoluteMaxDayUsd}, warnings[]}` : valeurs par défaut si jamais réglé |
+| PUT | `/preferences` | Corps `{theme, alertsDisabled, maxOrderUsd, maxDayUsd}` (remplace le bloc ; plafonds nuls = pas de plafond personnel). Plafond > plafond absolu (30 USD/ordre, 100 USD/jour) ou valeur invalide ⇒ 400, rien n'écrit. `warnings` non vide dès 80 % du plafond absolu |
+| PUT | `/preferences/profile` | Corps `{profile PRUDENT\|BALANCED\|DYNAMIC\|FULL}` (`CUSTOM` refusé) : applique la bande d'exposition du profil (20–50 / 30–70 / 40–90 / 0–100), historisé, réponse `{profile, modulation}` ; profil absent ⇒ 400 |
+| GET | `/alerts` | `[AlertDto{type, severity WARNING\|ERROR, assetSymbol, bindingId, message, day}]` dérivés des statuts existants (aucun stockage), seulement dans l'app, hors types coupés : `BUY_BLOCKED, DATA_UNAVAILABLE, NOT_TRADABLE, CREDENTIAL_PROBLEM, PLAN_PROBLEM, TRANSIT_STOCK` |
+
+Les plafonds personnels ne font que **resserrer** les plafonds absolus de l'exécution (en base, réglables par l'admin) (`OrderExecutor` : min des deux, raisons `CAP_ORDER`/`CAP_DAY`).
+
+## Espace Expert (utilisateur, `/api/expert`)
+
+Authentifié **et** `displayMode = EXPERT` (ADMIN compris), sinon 403 `EXPERT_MODE_REQUIRED` (garde `ExpertAccessGuard`, appelée par chaque contrôleur). Scopé à l'utilisateur connecté. Aucun appel exchange. Erreurs (`ExpertControllerAdvice`) : `{error, code, details}` ; 400 `VALIDATION` avec `details` = message par champ (rien n'est écrit).
+
+| Méthode | Chemin | Description |
+|---|---|---|
+| GET | `/api/expert/assets` | Actifs des presets de base : providers actifs, `exploitable`, `simulable` (≥ 1 provider actif), `eligibility` (`requiredPoints` D1 pour simuler l'Affectation de l'utilisateur, ou les presets de base ; par provider : `available` = bougies déjà en cache, `maxDepth`, `eligible` = cache suffisant, `loadable` = profondeur du provider suffisante) |
+| GET | `/api/expert/{trend,rainbow}-presets?asset=` | Presets visibles de l'actif : SYSTEM + ceux de l'appelant (en-têtes : `origin`, `mine`, `editable`, `deletable`, `usedBy` = `{affectationId, assetSymbol, role, enabled}` des Affectations de l'appelant, `enabled` = moteur allumé, `revision`, `referenceProvider`) |
+| GET | `/api/expert/{trend,rainbow}-presets/{id}` | Détail (réglages). Preset USER d'un autre ⇒ 404 `PRESET_NOT_FOUND` |
+| POST | `/api/expert/{trend,rainbow}-presets` | 201. Corps `{assetSymbol, name, copyFromId?, referenceProvider?}` : copie `copyFromId`, sinon le preset de base de l'actif (Trend = `TREND`, Rainbow = `RAINBOW_BEAR`). `referenceProvider` doit porter l'actif |
+| PUT | `/api/expert/{trend,rainbow}-presets/{id}` | Modifie (corps = réglages + `name`, `referenceProvider`, `revision` obligatoire). `revision` périmée ⇒ 409 `PRESET_REVISION_CONFLICT` (`currentRevision`). SYSTEM : ADMIN seul, sinon 403 `PRESET_SYSTEM_READ_ONLY` (invite à dupliquer). Sans changement ⇒ renvoyé tel quel, révision inchangée |
+| GET | `/api/expert/{trend,rainbow}-presets/{id}/impact` | ADMIN seul (sinon 403 `ADMIN_REQUIRED`), preset SYSTEM seulement : `{affectations, activeEngines}` = nombre d'Affectations (tous utilisateurs) qui l'installent et dont le moteur est actif ; comptes seulement, aucune identité |
+| DELETE | `/api/expert/{trend,rainbow}-presets/{id}` | 204. SYSTEM ⇒ 403 `PRESET_SYSTEM_UNDELETABLE` ; installé dans une Affectation ⇒ 409 `PRESET_IN_USE` (liste actif + rôle) |
+| POST | `/api/expert/{trend,rainbow}-presets/{id}/duplicate` | 201. Corps optionnel `{assetSymbol?, name?}` : même actif ou autre, nom unique (suffixe « (copie) », « (copie) 2 »…), `referenceProvider` copié seulement si l'actif cible le porte, jamais affecté |
+| GET | `/api/expert/affectations`, `/{asset}` | Affectation (créée sur les presets de base si absente) : presets installés, `complete`, `providerGaps` (information : preset dont le `referenceProvider` diffère des liens de l'utilisateur sur l'actif) |
+| PUT | `/api/expert/affectations/{asset}` | Corps `{trendPresetId, rainbowUpId, rainbowDownId}` (manquant ⇒ 400, preset invisible ⇒ 404) ; `AssetAffectationService#assign` (purge moteur + `LIVE_SWITCH`) |
+
+### Simulations (`ExpertSimulationController`, `/api/expert/simulations`)
+
+Calcul asynchrone en mémoire (aucune table) : `QUEUED → LOADING_DATA → COMPUTING → DONE | FAILED`. Visible de son seul créateur (autre utilisateur ⇒ 404). Une simulation par (utilisateur, type, actif) : la relance remplace la précédente. Durée de vie 30 min après la fin, 5 résultats par utilisateur au plus (le plus ancien est libéré), une seule simulation active par utilisateur, 10 demandes / 60 s par utilisateur, file bornée (propriétés `tradeio.expert.simulation.*`). Données : pipeline cache D1 existant (aucun appel exchange hors pipeline), chargement unique par (actif, source), fallback d'un autre provider signalé (`meta.substituted` + `meta.warnings`).
+
+| Méthode | Chemin | Description |
+|---|---|---|
+| POST | `/api/expert/simulations` | 202 `{id, state}`. Corps `{type (TREND\|RAINBOW\|AFFECTATION), assetSymbol, provider?, from?, to?, trend?, rainbow?, signal?, rainbowUp?, rainbowDown?}` ; `trend` / `rainbow` / `rainbowUp` / `rainbowDown` = `{id}` ou `{draft}` (brouillon non enregistré, validé comme un preset). Défauts : Trend et jeux de l'Affectation de l'utilisateur ; plage = 24 derniers mois jusqu'à la dernière bougie fermée ; `provider` = provider de référence du preset. RAINBOW : `signal` UP\|DOWN (régime joué, défaut = slot de l'Affectation où le preset est installé) |
+| GET | `/api/expert/simulations/{id}` | 200 `{id, type, assetSymbol, state, progress, createdAt, finishedAt, expiresAt, error?, result?}`. Un échec asynchrone est un 200 avec `state = FAILED` et `error {code, message, details}` |
+| DELETE | `/api/expert/simulations/{id}` | 204, libère (annule si en cours) |
+
+`result` : `meta` (type, actif, provider demandé / utilisé / symbole, `substituted`, plage effective, libellés, `warnings`), `eligibility`, `phases` / `switches` (régimes sur la plage), `trendMetrics`, `chart` (séries par bougie : `d`, `trend` 0/1 UP/2 DOWN/3 RANGE, `active` 0/1, `cols` aux noms de `replay-template.html` = `RainbowReplayColumns.COLS` dont `pos` (taille du bag) et `reserve`, `wallet {capital, asset, stable, total}`, `sets`), `lines` (14 lignes du tableau pine : index, clé, libellé, valeur ou texte, unité). TREND : `cols` = o/h/l/c, pas de wallet ni de lignes.
+
+Erreurs (`ExpertControllerAdvice`) : 400 `VALIDATION` (corps, plage) ; 403 `EXPERT_MODE_REQUIRED` ; 404 `SIMULATION_NOT_FOUND` / `PRESET_NOT_FOUND` ; 409 `SIMULATION_ALREADY_RUNNING` ; 422 `ELIGIBILITY_INSUFFICIENT` (`details` : `requiredPoints`, `availablePoints`, `provider` ; au dépôt si aucun provider n'a la profondeur, sinon après chargement via `state = FAILED`) ; 429 `SIMULATION_RATE_LIMITED` / `SIMULATION_BUSY`.
+
+Effets d'une modification : réglages changés sur un preset installé ⇒ purge des états moteur + événement `LIVE_SWITCH` par Affectation concernée ; preset SYSTEM ⇒ propagé à tous les utilisateurs qui l'installent + ligne `AdminAction.PRESET` (cible `trend-preset:<id>` / `rainbow-preset:<id>`, payload : noms, provider, révision, nombre d'Affectations, changements). Renommage / provider seuls : révision +1, ni reset ni événement.
+
