@@ -87,4 +87,15 @@ class PlanProblemsCheckTest {
         assertEquals(DoctorStatus.CRIT, r.get(0).status());
         assertEquals(DoctorStatus.WARN, r.get(1).status());
     }
+
+    @Test
+    @DisplayName("Ordre limité au plafond (motif *_CLAMPED) => WARN, même sur un plan EXECUTED")
+    void clampedOrderWarns() {
+        RainbowLiveOrderPlan clamped = plan(1, PlanStatus.EXECUTED);
+        clamped.setExecutionBlockReason("ETH@1:CAP_ORDER_CLAMPED");
+        List<CheckResult> r = run(clamped);
+        assertEquals(1, r.size());
+        assertEquals(DoctorStatus.WARN, r.getFirst().status());
+        assertTrue(r.getFirst().message().contains("LIMITÉ"));
+    }
 }

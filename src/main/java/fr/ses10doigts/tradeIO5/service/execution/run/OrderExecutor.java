@@ -126,6 +126,10 @@ public class OrderExecutor {
         private final Map<String, ExecutionBlockReason> blocks = new LinkedHashMap<>();
         /** Première raison de non-envoi par actif (coût rouge, dérive, minimum…) : remontée à l'affichage du plan. */
         private final Map<String, String> skips = new LinkedHashMap<>();
+        /** Actifs dont un ordre est limité au plafond par ordre : motif {@code CAP_*_CLAMPED} (remonté au plan et au Docteur). */
+        private final Map<String, String> clamps = new LinkedHashMap<>();
+        /** Plafond par ordre effectif (USD) des actifs dont un ordre est limité. */
+        private final Map<String, BigDecimal> orderCaps = new HashMap<>();
         private int sent;
     }
 
@@ -394,7 +398,7 @@ public class OrderExecutor {
             block(plan, run, asset.key(), ExecutionBlockReason.FIRST_LIVE_NOT_VALIDATED);
             return;
         }
-        Optional<ExecutionBlockReason> cap = capBlock(plan, asset, assetSteps, binding);
+        Optional<ExecutionBlockReason> cap = capBlock(plan, asset, assetSteps, binding, run);
         if (cap.isPresent()) {
             block(plan, run, asset.key(), cap.get());
             return;
@@ -409,8 +413,13 @@ public class OrderExecutor {
         runChain(plan, asset, assetSteps, binding, trade.get(), instruments, run);
     }
 
-    /** Plafonds : par ordre (× baseAmount du preset, puis absolu) et par jour / utilisateur (× somme des baseAmount, puis absolu). */
-    private Optional<ExecutionBlockReason> capBlock(PlanView plan, AssetView asset, List<StepView> assetSteps, BindingView binding) {
+    /**
+     * Plafonds : par ordre (× baseAmount du preset, puis absolu) et par jour / utilisateur (× somme des baseAmount, puis absolu).
+     * Un ordre au-dessus du plafond par ordre n'est <b>pas bloqué</b> : il est limité au plafond (alerte forte au journal, à l'audit
+     * et au Docteur) ; les plafonds journaliers restent bloquants.
+     */
+    private Optional<ExecutionBlockReason> capBlock(PlanView plan, AssetView asset, List<StepView> assetSteps, BindingView binding,
+                                                    Run run) {
         if (binding.baseAmount() == null || binding.baseAmount().signum() <= 0) {
             return Optional.of(ExecutionBlockReason.NO_BASE_AMOUNT);
         }
@@ -420,16 +429,19 @@ public class OrderExecutor {
         if (userCaps != null && userCaps.maxOrderUsd() != null) {
             orderCap = orderCap.min(userCaps.maxOrderUsd());
         }
+        BigDecimal absoluteCap = ExecutionControlService.absoluteMaxOrderUsd(ctl);
+        boolean absoluteBinds = absoluteCap.compareTo(orderCap) <= 0;
+        BigDecimal effectiveCap = absoluteBinds ? absoluteCap : orderCap;
         BigDecimal assetNotional = BigDecimal.ZERO;
         for (StepView step : assetSteps) {
             if (step.cash()) {
-                if (step.quoteAmount().compareTo(ExecutionControlService.absoluteMaxOrderUsd(ctl)) > 0) {
-                    return Optional.of(ExecutionBlockReason.CAP_ABSOLUTE_ORDER);
+                BigDecimal amount = step.quoteAmount();
+                if (amount.compareTo(effectiveCap) > 0) {
+                    clampOrder(plan, asset, run, step, effectiveCap, absoluteBinds ? ExecutionBlockReason.CAP_ABSOLUTE_ORDER
+                            : ExecutionBlockReason.CAP_ORDER);
+                    amount = effectiveCap;
                 }
-                if (step.quoteAmount().compareTo(orderCap) > 0) {
-                    return Optional.of(ExecutionBlockReason.CAP_ORDER);
-                }
-                assetNotional = assetNotional.add(step.quoteAmount());
+                assetNotional = assetNotional.add(amount);
             }
         }
         Instant dayStart = clock.now().truncatedTo(ChronoUnit.DAYS);
@@ -448,6 +460,17 @@ public class OrderExecutor {
             return Optional.of(ExecutionBlockReason.CAP_DAY);
         }
         return Optional.empty();
+    }
+
+    /** Ordre limité au plafond par ordre : alerte forte (journal WARN, audit {@code ALERT}, verdict du Docteur via le motif du plan). */
+    private void clampOrder(PlanView plan, AssetView asset, Run run, StepView step, BigDecimal cap, ExecutionBlockReason bound) {
+        run.orderCaps.put(asset.key(), cap);
+        run.clamps.putIfAbsent(asset.key(), bound.name() + ExecutionBlockReason.CLAMPED_SUFFIX);
+        log.warn("⚠️⚠️ Plan {} : ordre {} LIMITÉ au plafond {} ({} USD voulus => {} USD) — relever le multiplicateur d'ordre / le baseAmount "
+                + "si ce n'est pas voulu", plan.id(), asset.key(), bound, step.quoteAmount().setScale(2, RoundingMode.HALF_UP),
+                cap.setScale(2, RoundingMode.HALF_UP));
+        events.record(plan.id(), step.id(), step.clOrdId(), OrderEventType.ALERT,
+                payload("reason", bound.name() + ExecutionBlockReason.CLAMPED_SUFFIX, "wantedUsd", step.quoteAmount(), "capUsd", cap));
     }
 
     // ------------------------------------------------------------------ chaîne d'étapes d'un actif
@@ -502,6 +525,11 @@ public class OrderExecutor {
                     stepRunner.restage(step.id(), clOrdId);
                 }
                 BigDecimal sz = sizeOf(step, instrument, feed);
+                BigDecimal orderCap = run.orderCaps.get(asset.key());
+                if (orderCap != null && step.cash() && step.quoteAmount().compareTo(orderCap) > 0) {
+                    sz = PathFinder.roundToStep(sz.multiply(orderCap).divide(step.quoteAmount(), 18, RoundingMode.DOWN),
+                            instrument.lotSz(), RoundingMode.DOWN);
+                }
                 if (sz.signum() <= 0 || sz.compareTo(instrument.minSz()) < 0
                         || (instrument.costMin() != null && sz.multiply(step.px()).compareTo(instrument.costMin()) < 0)) {
                     notSent = "BELOW_MIN";
@@ -751,9 +779,11 @@ public class OrderExecutor {
                 next = PlanStatus.PLANNED;
             }
             plan.setStatus(next);
-            String reasons = Stream.concat(run.blocks.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()),
-                    run.skips.entrySet().stream().filter(e -> !run.blocks.containsKey(e.getKey())).map(e -> e.getKey() + ":" + e.getValue()))
-                    .collect(Collectors.joining(";"));
+            String reasons = Stream.of(
+                            run.blocks.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()),
+                            run.skips.entrySet().stream().filter(e -> !run.blocks.containsKey(e.getKey())).map(e -> e.getKey() + ":" + e.getValue()),
+                            run.clamps.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()))
+                    .flatMap(java.util.function.Function.identity()).collect(Collectors.joining(";"));
             plan.setExecutionBlockReason(reasons.isEmpty() ? null : reasons.length() > 120 ? reasons.substring(0, 120) : reasons);
             plan.setExecutionFinishedAt(next == PlanStatus.EXECUTING || next == PlanStatus.PLANNED ? null : clock.now());
             if (next == PlanStatus.PLANNED) {

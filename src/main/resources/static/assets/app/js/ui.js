@@ -13,7 +13,7 @@
       NOT_TRADABLE_WITHOUT_FIAT: 'Actif non tradable sans monnaie fiat', BAND_LIMIT: "Bande d'exposition atteinte",
       NO_PATH: "Aucun chemin d'achat", BELOW_MIN: "Sous le minimum de l'exchange",
       INSUFFICIENT_FUNDS_AFTER_FEES: 'Fonds insuffisants après frais', READING_UNAVAILABLE: 'Lecture des soldes indisponible',
-      CAP_ORDER: 'Plafond par ordre', CAP_DAY: 'Plafond par jour',
+      CAP_ORDER: 'Plafond par ordre', CAP_DAY: 'Plafond par jour', CAP_ORDER_CLAMPED: 'Ordre limité au plafond', CAP_ABSOLUTE_ORDER_CLAMPED: 'Ordre limité au plafond absolu',
     },
     plan: {
       PLANNED: 'Prévu', BLOCKED: 'Bloqué', EXPIRED: 'Expiré', DISABLED: 'Désactivé', SUPERSEDED: 'Remplacé',

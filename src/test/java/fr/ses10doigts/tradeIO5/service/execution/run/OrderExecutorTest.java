@@ -257,16 +257,32 @@ class OrderExecutorTest {
     }
 
     @Test
-    @DisplayName("Plafonds : par ordre (× baseAmount), absolu par ordre, par jour (absolu)")
-    void caps() {
+    @DisplayName("Plafond par ordre (× baseAmount) dépassé : l'ordre est limité au plafond, pas bloqué ; motif CAP_ORDER_CLAMPED au plan")
+    void orderCapClampsInsteadOfBlocking() {
         addAsset("BTC", btcUsdc, "6", 100L);
-        assertEquals(ExecutionBlockReason.CAP_ORDER, runLive().blocked().get("BTC@10"));
-        plan.setStatus(PlanStatus.PLANNED);
-        stepsById.get(100L).setQuoteAmount(new BigDecimal("35"));
+        ExecutionResult r = runLive();
+        assertTrue(r.blocked().isEmpty(), "limité, pas bloqué");
+        assertEquals(1, exchange.submitCount());
+        assertEquals(0, new BigDecimal("0.00004").compareTo(exchange.submitted.getFirst().sz()), "6 USD voulus => 4 USD (1 x baseAmount)");
+        assertTrue(plan.getExecutionBlockReason().contains("BTC@10:CAP_ORDER_CLAMPED"), plan.getExecutionBlockReason());
+    }
+
+    @Test
+    @DisplayName("Plafond absolu par ordre dépassé : ordre limité au plafond absolu, motif CAP_ABSOLUTE_ORDER_CLAMPED")
+    void absoluteOrderCapClamps() {
+        addAsset("BTC", btcUsdc, "35", 100L);
         baseAmount = new BigDecimal("50");
-        assertEquals(ExecutionBlockReason.CAP_ABSOLUTE_ORDER, runLive().blocked().get("BTC@10"));
-        plan.setStatus(PlanStatus.PLANNED);
-        stepsById.get(100L).setQuoteAmount(new BigDecimal("8"));
+        ExecutionResult r = runLive();
+        assertTrue(r.blocked().isEmpty());
+        assertEquals(0, new BigDecimal("0.0003").compareTo(exchange.submitted.getFirst().sz()), "35 USD voulus => 30 USD (absolu)");
+        assertTrue(plan.getExecutionBlockReason().contains("BTC@10:CAP_ABSOLUTE_ORDER_CLAMPED"), plan.getExecutionBlockReason());
+    }
+
+    @Test
+    @DisplayName("Plafond par jour (absolu) : reste bloquant")
+    void absoluteDayCapBlocks() {
+        addAsset("BTC", btcUsdc, "8", 100L);
+        baseAmount = new BigDecimal("50");
         RainbowLiveOrderStep earlier = RainbowLiveOrderStep.builder().id(7L).assetSymbol("BTC").instId("BTC-USDC")
                 .quoteAmount(new BigDecimal("95")).status(StepStatus.FILLED).build();
         when(steps.findSentSince(any(), any(), any())).thenReturn(List.of(earlier));
@@ -275,14 +291,23 @@ class OrderExecutorTest {
     }
 
     @Test
-    @DisplayName("Plafonds personnels : resserrent le plafond par ordre et par jour, jamais au-dessus des plafonds absolus")
-    void userCapsTighten() {
+    @DisplayName("Plafond personnel par ordre : resserre, l'ordre est limité (jamais au-dessus des plafonds absolus)")
+    void userOrderCapClamps() {
         addAsset("BTC", btcUsdc, "8", 100L);
         baseAmount = new BigDecimal("50");
         when(preferences.caps(any())).thenReturn(
                 new fr.ses10doigts.tradeIO5.service.preferences.UserPreferencesService.UserCaps(new BigDecimal("5"), null));
-        assertEquals(ExecutionBlockReason.CAP_ORDER, runLive().blocked().get("BTC@10"));
-        plan.setStatus(PlanStatus.PLANNED);
+        ExecutionResult r = runLive();
+        assertTrue(r.blocked().isEmpty());
+        assertEquals(0, new BigDecimal("0.00005").compareTo(exchange.submitted.getFirst().sz()), "8 USD voulus => 5 USD (plafond perso)");
+        assertTrue(plan.getExecutionBlockReason().contains("CAP_ORDER_CLAMPED"));
+    }
+
+    @Test
+    @DisplayName("Plafond personnel par jour : reste bloquant")
+    void userDayCapBlocks() {
+        addAsset("BTC", btcUsdc, "8", 100L);
+        baseAmount = new BigDecimal("50");
         when(preferences.caps(any())).thenReturn(
                 new fr.ses10doigts.tradeIO5.service.preferences.UserPreferencesService.UserCaps(null, new BigDecimal("6")));
         assertEquals(ExecutionBlockReason.CAP_DAY, runLive().blocked().get("BTC@10"));

@@ -25,6 +25,9 @@ public enum ExecutionBlockReason {
     CAP_ABSOLUTE_ORDER(true),
     CAP_ABSOLUTE_DAY(true);
 
+    /** Suffixe des motifs « ordre limité au plafond » (<code>CAP_ORDER_CLAMPED</code>, <code>CAP_ABSOLUTE_ORDER_CLAMPED</code>) : pas un blocage. */
+    public static final String CLAMPED_SUFFIX = "_CLAMPED";
+
     private final boolean permanent;
 
     ExecutionBlockReason(boolean permanent) {

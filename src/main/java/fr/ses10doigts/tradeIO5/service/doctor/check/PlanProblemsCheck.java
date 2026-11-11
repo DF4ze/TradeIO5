@@ -8,6 +8,7 @@ import fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderPlan;
 import fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderStep;
 import fr.ses10doigts.tradeIO5.model.entity.execution.StepStatus;
 import fr.ses10doigts.tradeIO5.repository.execution.RainbowLiveOrderPlanRepository;
+import fr.ses10doigts.tradeIO5.service.execution.run.ExecutionBlockReason;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveExecutionService;
 import fr.ses10doigts.tradeIO5.service.doctor.CheckResult;
 import fr.ses10doigts.tradeIO5.service.doctor.DoctorCheck;
@@ -25,7 +26,7 @@ import java.util.List;
 
 /**
  * Plans d'ordres récents en difficulté (C4, A4) : {@code FAILED} (CRIT), {@code PARTIAL} / {@code EXPIRED} (WARN), plan resté
- * {@code EXECUTING} trop longtemps (CRIT), steps {@code UNKNOWN} (CRIT) ou {@code REJECTED} (WARN). Un verdict par plan courant
+ * {@code EXECUTING} trop longtemps (CRIT), steps {@code UNKNOWN} (CRIT) ou {@code REJECTED} (WARN), ordre limité au plafond par ordre (WARN, motif {@code *_CLAMPED}). Un verdict par plan courant
  * des {@link DoctorDefaults#PLAN_WINDOW_DAYS} derniers jours ; un plan remplacé ou sorti de la fenêtre résout son alarme.
  */
 @Component
@@ -97,6 +98,13 @@ public class PlanProblemsCheck implements DoctorCheck {
             default -> {
                 // PLANNED, BLOCKED (cas normal), DISABLED, EXECUTED : rien à signaler au niveau du plan
             }
+        }
+        String planReason = plan.getExecutionBlockReason();
+        if (planReason != null && planReason.contains(ExecutionBlockReason.CLAMPED_SUFFIX)) {
+            if (status == DoctorStatus.OK) {
+                status = DoctorStatus.WARN;
+            }
+            problems.add("⚠️ ordre LIMITÉ au plafond par ordre (" + planReason + ") : montant réellement acheté < montant voulu par le signal");
         }
         for (RainbowLiveOrderStep step : plan.getSteps()) {
             if (step.getStatus() == StepStatus.UNKNOWN) {

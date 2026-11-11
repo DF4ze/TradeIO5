@@ -36,7 +36,7 @@ Base seule (instantanés quotidiens `portfolio_snapshot` et transactions), aucun
 | PUT | `/preferences/profile` | Corps `{profile PRUDENT\|BALANCED\|DYNAMIC\|FULL}` (`CUSTOM` refusé) : applique la bande d'exposition du profil (20–50 / 30–70 / 40–90 / 0–100), historisé, réponse `{profile, modulation}` ; profil absent ⇒ 400 |
 | GET | `/alerts` | `[AlertDto{type, severity WARNING\|ERROR, assetSymbol, bindingId, message, day}]` dérivés des statuts existants (aucun stockage), seulement dans l'app, hors types coupés : `BUY_BLOCKED, DATA_UNAVAILABLE, NOT_TRADABLE, CREDENTIAL_PROBLEM, PLAN_PROBLEM, TRANSIT_STOCK` |
 
-Les plafonds personnels ne font que **resserrer** les plafonds absolus de l'exécution (en base, réglables par l'admin) (`OrderExecutor` : min des deux, raisons `CAP_ORDER`/`CAP_DAY`).
+Les plafonds personnels ne font que **resserrer** les plafonds absolus de l'exécution (en base, réglables par l'admin) (`OrderExecutor` : min des deux, `CAP_ORDER` limite l'ordre sans le bloquer, `CAP_DAY` bloque).
 
 ## Espace Expert (utilisateur, `/api/expert`)
 
