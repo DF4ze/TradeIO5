@@ -81,6 +81,15 @@ button, input, select { font: inherit; color: inherit; }
 }
 .tio-nav a.tab svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .tio-nav a.tab[aria-current="page"] { background: var(--brand); color: var(--on-accent); }
+.tio-nav a.tab { position: relative; }
+.tab-count {
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: inline-grid; place-items: center;
+  font-size: 11px; font-weight: 800; line-height: 1; color: #0f1119; background: var(--warn);
+}
+.tab-count[hidden] { display: none; }
+.tab-count[data-sev="crit"] { background: var(--down); color: #fff; }
+.tio-nav a.tab .tab-count { position: absolute; top: 2px; right: 8px; }
+@media (min-width: 900px) { .tio-nav a.tab .tab-count { position: static; margin-left: auto; } }
 @media (min-width: 900px) {
   .tio-main { margin-left: 236px; margin-right: 24px; max-width: none; padding: 26px 8px 40px; }
   .tio-main > * { max-width: 1120px; }

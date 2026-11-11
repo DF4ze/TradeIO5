@@ -1,8 +1,8 @@
 ---
 statut: gap
 vérifié_le: 2026-10-11
-modifié_le: 2026-11-10
-empreinte: b0dde1b922
+modifié_le: 2026-11-11
+empreinte: 74828b918e
 ---
 # Rainbow DCA ATR — chantiers ouverts
 
@@ -19,7 +19,7 @@ Vérifié le : 2026-10-11 (code + décisions de Clem). Objectif n°1 du projet :
 | Branchement Trend → jeu de paramètres | fait : Trend Mix (`TrendMixCalculator` = méga-pine `rainbow_trend_dca_v1.pine`, vérifié par Clem Java vs pine) choisit Bull/Bear à chaque bougie (`RainbowSetSelector`) ; état de la machine et ATH persistés ; branché au dry-run quotidien (presets `TREND_MIX`, [`08`](../architecture/08-rainbow-live.md)), pas à une exécution réelle |
 | Run Rainbow quotidien 23:55 UTC (signal des presets actifs, page web ; sans simulation de wallet ni performance) | fait, tourne chaque jour sur le VPS — [`08`](../architecture/08-rainbow-live.md) |
 | Candles du signal par lien (D1 natif 720 j, source = exchange du wallet) | fait en code, tests ciblés verts, **pas encore déployé ni exécuté en réel** (colonnes `candle_source*` ajoutées par `ddl-auto=update` au 1ᵉʳ démarrage). Reste : affichage page, ATH Trend Mix sur la source du lien, bascule Binance au-delà de 720 j — §8bis, [étude](../etudes/etude-source-candles-provider-du-lien.md) |
-| Recréation d'une base (Flyway + initializers) | fait : `V1__init.sql` généré (non activé), défauts créés par les initializers (presets système de base) — [`operations/flyway.md`](../operations/flyway.md). données historiques (`candle`, `etf_flow_snapshot`) sauvegardées chaque semaine et rechargées au démarrage. **Ouvert** : sauvegarde récurrente de la branche décisionnelle (branche en pause) |
+| Recréation d'une base (Flyway + initializers) | fait : `V1__init.sql` généré, Flyway actif (baseline V1), défauts créés par les initializers (presets système de base) — [`operations/flyway.md`](../operations/flyway.md). données historiques (`candle`, `etf_flow_snapshot`) sauvegardées chaque semaine et rechargées au démarrage. **Ouvert** : sauvegarde récurrente de la branche décisionnelle (branche en pause) |
 | Bande d'exposition, puissance, biais, onboarding | design validé, non fait — [spec V1 §2, §4–§7](../etudes/spec-rainbow-v1-trend-global-exposition-risque-macro.md) |
 | Risque macro (`riskCursor`) | non fait — spec V1 §3 |
 | Wallet réel (lecture seule) branché au preset live | fait : connecteurs, bindings, moteur sur vrai cash, page ; lecture OKX et Kraken vérifiée en réel (Home affiche PAXG Kraken) ; reste la bascule preset / `bagPercent` et les cas BLOCKED / UNAVAILABLE en conditions réelles, cf. §5 ; `WalletSnapshot` (branche décisionnelle) non branché — [`decision-to-order-gap.md`](decision-to-order-gap.md) |

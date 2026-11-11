@@ -16,6 +16,7 @@ Back Spring (Java 21) + front `/app` : DCA intelligent crypto (Rainbow ATR), mul
 - Ne jamais re-décrire une décision dans un 2e doc : la lier.
 - Doc déplacée/archivée => `python tools/doc-police/doc_police.py archive …` (réécrit les liens). Jamais de lien cassé.
 - Ouvrir une étude : `docs/etudes/`. Elle est archivée une fois sa décision reprise dans `architecture/` ou `decisions/`.
+- Schéma DB : Flyway actif. Toute modif d'entité = nouveau `V<n>__*.sql` (idempotent), jamais de migration appliquée modifiée, jamais d'`ALTER` manuel. Répéter en recette avant la prod : [`docs/operations/flyway.md`](docs/operations/flyway.md), [`docs/operations/recette.md`](docs/operations/recette.md).
 - Outils utilitaires => `tools/` + référence dans `docs/`.
 - Calibration/bench : mode itératif ; demander avant de relancer un bench coûteux.
 - Prompts d'implémentation : pas conservés (dossier supprimé).

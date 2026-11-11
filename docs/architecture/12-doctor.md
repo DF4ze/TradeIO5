@@ -39,3 +39,4 @@ Un contrôle qui lève une exception produit un WARN sujet `_contrôle`. Seuils 
 ## API et interface
 Endpoints `/api/admin/doctor/*` : [`api/rest-endpoints.md`](../api/rest-endpoints.md). Ack et report journalisés (`AdminAction.DOCTOR`, cible `alarm:<id>`).
 Onglet « Diagnostic » de `/admin` (`fragments/admin/doctor.html`, `js/admin/doctor.js`) : statut global, alarmes (Acquitter / Reporter 1 h, 24 h, 7 j, option « résolues »), contrôles par famille, bouton « Relancer », journal des jobs paginé. Pastille de l'onglet = alarmes ouvertes (CRIT rouge, sinon WARN), rafraîchie toutes les 60 s.
+Le même compteur (CRIT ⇒ rouge, sinon orange, masqué à 0) apparaît sur l'entrée « Administration » du menu `/app` pour les admins : `app/fragments.html` (`#tio-admin-count`), `static/assets/app/js/admin-alarms.js` (poll `/api/admin/doctor` toutes les 60 s), style `.tab-count` dans `tradeio.css`.

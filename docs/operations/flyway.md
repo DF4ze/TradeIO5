@@ -1,89 +1,44 @@
 ---
 statut: courant
-vérifié_le: 2026-10-13
-modifié_le: 2026-11-10
-empreinte: ecf0beed68
+vérifié_le: 2026-11-11
+modifié_le: 2026-11-11
+empreinte: efb901308e
 ---
 # Flyway et défauts d'initialisation
 
-Vérifié le : 2026-10-13 (`pom.xml`, `application.properties`, `src/main/resources/db/migration/V1__init.sql`, `src/test/.../flyway/FlywaySchemaTest`, `configuration/initializer/*`).
+Vérifié le : 2026-11-11 (`pom.xml`, `application.properties`, `db/migration/`, `FlywaySchemaTest`, `configuration/initializer/*`).
 
 ## État
 
-Flyway est **préparé mais non activé** : dépendances `flyway-core` + `flyway-mysql` (versions du BOM Spring Boot), `spring.flyway.enabled=false` (`application.properties` et propriétés de test), `V1__init.sql` généré depuis les entités. Le schéma reste géré par `spring.jpa.hibernate.ddl-auto` (`update` en dev/prod, `create-drop` en test). L'activation attend que les entités se stabilisent : tant qu'elle n'est pas faite, **aucune migration à écrire**.
+Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11) : `spring.flyway.enabled=true`, `baseline-on-migrate=true`, `baseline-version=1` (`application.properties`), `spring.jpa.hibernate.ddl-auto=validate` (`application-dev/prod.properties`, gitignorés ; le fichier externe `/home/oklm/TradeIO/application-prod.properties` prime en prod). Les tests gardent `spring.flyway.enabled=false` (H2 `create-drop`).
 
-`V1__init.sql` ne contient ni wallet fictif ni colonnes de simulation (`rainbow_live_run` ne porte que le signal `signal_*`, `rainbow_live_binding_run` le bloc `live_*`) : une base existante issue d'un schéma antérieur doit être recréée depuis ce script.
+- Base **vide** : Flyway applique `V1__init.sql` puis les migrations suivantes.
+- Base **existante sans historique** (issue de `ddl-auto=update`) : baseline à V1 (aucune exécution de V1), puis migrations `V2+`. Le schéma de ces bases correspondait à V1 au 2026-11-11, aux restes legacy près (ci-dessous).
+- `V1__init.sql` est généré depuis les entités (Hibernate, dialecte MySQL) : types, `enum` MySQL natifs, unicités, FK `ON DELETE CASCADE`.
 
-Tables du plan d'ordres dry-run (`rainbow_live_order_plan`, `rainbow_live_order_plan_asset`, `rainbow_live_order_step`, FK `ON DELETE CASCADE`) et colonne `rainbow_live_binding.execution_enabled` : créées par `ddl-auto=update` tant que Flyway est inactif, présentes dans `V1__init.sql` (cf. [`../architecture/10-execution-plan.md`](../architecture/10-execution-plan.md)). Défaut `execution_enabled = false` porté par la colonne (donnée utilisateur, pas un défaut d'initializer).
+## Règles
 
-Carry des mises sous le minimum : colonnes `rainbow_live_order_plan_asset.carry_in_usd`, `carry_out_usd` et `base_amount` (nullables), dans `V1__init.sql`, ajoutées par `ddl-auto=update` sur base existante.
+- Le schéma de référence = **entités JPA**. Toute modification d'entité (table, colonne, contrainte, valeur d'enum) = un **nouveau fichier `V<n>__description.sql`** dans `src/main/resources/db/migration/`. Plus aucun `ALTER` manuel.
+- Une migration appliquée n'est **jamais modifiée** (checksum vérifié) ; on corrige par une migration suivante.
+- Migration **idempotente** (rejouable en dev/recette) : conditionner chaque DDL par `information_schema` + `PREPARE`/`EXECUTE` (compatible MySQL 8 et MariaDB 10.11).
+- Ne jamais supprimer dans une migration ce que le code lit encore (cf. legacy ci-dessous).
+- `ddl-auto=validate` : un écart entité/schéma empêche le démarrage.
 
-Plafonds / Fee Test : colonnes nullables `execution_control.absolute_max_order_usd|absolute_max_day_usd|fee_warn_pct|fee_red_pct` ajoutées par `ddl-auto=update` et complétées par `ExecutionControlInitializer` (base d'abord ; sinon propriété `tradeio.execution.fee-test.*` pour le Fee Test ; sinon constante codée dans l'initializer : 30 / 100 USD, 0,2 / 0,8 %), valeur d'enum `LIMITS` de `admin_action_log.action`. Modulation Rainbow (socle) : table `rainbow_modulation_control` (singleton, initializer `@Order(71)`), colonnes nullables `user_trading_settings.exposure_min|exposure_max|power|bias` (null ⇒ valeurs neutres) valeur d'enum `MODULATION` de `admin_action_log.action`, colonne `rainbow_live_binding.base_amount` (nullable), colonnes `user_trading_settings.starting_profile|theme|display_mode|alerts_disabled|max_order_usd|max_day_usd` (préférences, nullables), colonne `rainbow_live_binding_run.live_modulation` (journal JSON, nullable) et valeur d'enum `BAND_LIMIT` de `live_block_reason`, toutes dans `V1__init.sql`.
+## Restes legacy (tolérés par `validate`, à nettoyer dans un V2 avec le code legacy)
 
-Historisation du patrimoine : tables `portfolio_snapshot` (unique user/wallet/jour) et `portfolio_snapshot_asset` (unique snapshot/actif), `ON DELETE CASCADE`, dans `V1__init.sql` ; créées par `ddl-auto=update` tant que Flyway est inactif.
+Tant que `AffectationMigrationService` (migration des anciens presets vers les Affectations) existe, il lit `rainbow_live_binding|rainbow_live_engine_state|rainbow_live_run.preset_id` et la table `rainbow_live_preset`. Présents en prod hors V1 : colonnes `preset_id` (+ FK, uniques `uk_rainbow_live_*_preset_day`), tables `rainbow_asset_strategy` et `rainbow_live_user_settings` (sans entité), FK `rainbow_live_preset.asset_strategy_id`. Nettoyage : décision « legacy après une semaine » ([`../decisions/flyway-defauts-presets.md`](../decisions/flyway-defauts-presets.md)) ; **supprimer le code legacy avant les colonnes**.
 
-Passerelle actif non stable : table `transit_stock` et colonnes `transit_stock.finish_side` et `rainbow_live_binding.route_key` (remplace `bridge_pair`), `rainbow_live_binding.preferred_route` (route imposée par l'utilisateur, nullable), `rainbow_live_binding.fee_test_{route,pct,level,amount,at}` (dernier Fee Test réalisé, nullable), dans `V1__init.sql`.
-
-Lot d'exécution réelle (cf. [`../architecture/14-execution-reelle.md`](../architecture/14-execution-reelle.md)) : tables `execution_control` et `rainbow_live_order_event`, colonnes d'exécution des étapes et des plans, `rainbow_live_binding.first_live_{approved,confirmed}_at`, `admin_action_log` (journal admin append-only), `transaction.fee_currency`, `api_credentials.scope` (+ contrainte `uk_credential_user_provider_scope`), `provider_pending_key` (paires de clés en attente), toutes dans `V1__init.sql`.
-
-**Base existante en `ddl-auto=update` : `ApiCredential.scope` demande un SQL manuel, une seule fois, avant le déploiement** (Hibernate n'ajoute pas de défaut à la colonne et ne supprime jamais l'ancien index unique, qui interdirait une clé `TRADE` à côté de la clé `READ`) :
-
-```sql
-ALTER TABLE api_credentials ADD COLUMN scope ENUM('READ','TRADE') NOT NULL DEFAULT 'READ';
-ALTER TABLE api_credentials DROP INDEX uk_credential_user_provider;
-ALTER TABLE api_credentials ADD CONSTRAINT uk_credential_user_provider_scope UNIQUE (user_id, web_provider_id, scope);
-ALTER TABLE api_credentials MODIFY api_key VARCHAR(512) NOT NULL, MODIFY secret_key VARCHAR(512), MODIFY passphrase VARCHAR(512);
-```
-
-**Base existante : unicité du binding `(user_id, asset_symbol, wallet_id)`** : Hibernate crée la nouvelle contrainte mais garde l'ancienne (qui interdit un 2ᵉ binding du même actif). Le `DROP` direct échoue (index requis par la FK `user_id`) ⇒ créer la nouvelle d'abord si elle n'existe pas :
-
-```sql
-ALTER TABLE rainbow_live_binding ADD CONSTRAINT uk_rainbow_live_binding_user_asset_wallet UNIQUE (user_id, asset_symbol, wallet_id);
-ALTER TABLE rainbow_live_binding DROP INDEX uk_rainbow_live_binding_user_asset;
-```
-
-`rainbow_live_order_step.wallet_id` (nullable) est ajoutée par `ddl-auto=update` ; les étapes existantes restent à `NULL`. 
-
-Réglages stratégiques : colonnes `rainbow_live_binding.simulation` (boolean `NOT NULL` : base existante ⇒ `ALTER TABLE rainbow_live_binding ADD COLUMN simulation BIT NOT NULL DEFAULT 0;`) et `min_buy_usd` (nullable), `rainbow_live_order_plan_asset.simulated` (boolean, même précaution), table `user_modulation_history` ; `starting_profile` gagne `FULL` et `CUSTOM` (enum MySQL natif, SQL manuel ci-dessous).
-
-Catalogue : colonnes `exchange_instrument.cost_min`, `native_pair`, `fee_currency` (nullables) ajoutées par `ddl-auto=update`, présentes dans `V1__init.sql`. **Base existante : `admin_action_log.action` est un `ENUM` MySQL natif, Hibernate n'y ajoute pas les valeurs `ORDER_VALIDATE`, `ORDER_SEND`, `ORDER_READ`, `MODULATION`, `LIMITS` et `PRESET`** ⇒ SQL manuel avant le déploiement :
-
-```sql
-ALTER TABLE user_trading_settings MODIFY starting_profile ENUM('BALANCED','CUSTOM','DYNAMIC','FULL','PRUDENT');
-ALTER TABLE rainbow_live_binding_run MODIFY live_block_reason ENUM('BAND_LIMIT','INSUFFICIENT_CASH','NONE','NOT_TRADABLE_WITHOUT_FIAT','UNAVAILABLE');
-ALTER TABLE admin_action_log MODIFY action ENUM('ARM_BINDING','AUTO_REENGAGE','CREDENTIAL_ENABLED','CREDENTIAL_STORED','KILL_SWITCH','LIMITS','MODULATION','ORDER_READ','ORDER_SEND','ORDER_VALIDATE','PLAN','PRESET','RECONCILE','RUN') NOT NULL;
-``` Le catalogue se remplit à nouveau au prochain rafraîchissement (ou `refresh(provider)`) : tant que `native_pair` est nul, Kraken ne peut recevoir aucun ordre (`PAIR_UNKNOWN`).
-
-## Principe
-
-- Le schéma de référence est celui des **entités JPA**, jamais celui d'une base existante.
-- `V1__init.sql` recrée le schéma complet sur une base vide (MySQL/MariaDB). Pas de baseline : l'environnement cible est une base créée de zéro.
-- Les valeurs par défaut de l'application (assets, providers, rôles, stratégies Actif Rainbow…) ne sont **pas** dans les migrations : elles sont créées au démarrage par les initializers (cf. règle ci-dessous).
-
-## Générer / contrôler V1 (avant activation)
+## Générer / contrôler V1
 
 | Commande | Effet |
 |---|---|
-| `mvn test -Dtest=FlywaySchemaTest -Dflyway.generate=true` | (Ré)écrit `db/migration/V1__init.sql` depuis les entités (génération de script JPA via Hibernate, dialecte MySQL, sans connexion à une base). À relancer après chaque évolution d'entité tant que Flyway n'est pas activé. |
-| `mvn test -Dtest=FlywaySchemaTest -Dflyway.check=true` | Échoue si `V1__init.sql` diverge des entités. |
-| `mvn test` (sans option) | Vérifie que le schéma généré s'applique sur une base vide (H2 en mode MySQL, test de fumée). |
+| `mvn test -Dtest=FlywaySchemaTest -Dflyway.generate=true` | Réécrit `V1__init.sql` depuis les entités. **Ne plus l'utiliser** : V1 est figé ; une évolution d'entité = nouvelle migration. |
+| `mvn test -Dtest=FlywaySchemaTest -Dflyway.check=true` | Échoue si `V1__init.sql` diverge des entités ; valable uniquement tant qu'aucune migration `V2+` ne change le schéma. |
+| `mvn test` | Le schéma généré s'applique sur H2 (test de fumée). |
 
-Relire `V1__init.sql` avant l'activation (types, `enum` MySQL natifs des `@Enumerated(STRING)`, contraintes d'unicité, FK `ON DELETE CASCADE`).
+## Déployer une migration
 
-## Activer Flyway (procédure)
-
-1. `FlywaySchemaTest` en mode check vert, `V1__init.sql` relu.
-2. Sauvegarder la base cible (`mysqldump`) si elle contient des données à conserver.
-3. Base vide : dans `application-dev/prod.properties` (gitignorés) mettre `spring.flyway.enabled=true` et `spring.jpa.hibernate.ddl-auto=validate`.
-4. Premier démarrage : Flyway applique `V1`, Hibernate valide, les initializers peuplent les défauts.
-5. Base non vide créée par `ddl-auto` : Flyway refuse de démarrer (schéma non vide sans historique). Soit recréer la base, soit poser un baseline explicite (`spring.flyway.baseline-on-migrate=true`, `spring.flyway.baseline-version=1`) après vérification que le schéma est identique à `V1`.
-6. Tests : Flyway reste désactivé (`spring.flyway.enabled=false`), schéma `create-drop` sur H2.
-
-## Règles une fois Flyway activé
-
-- Toute modification d'entité (table, colonne, contrainte, valeur d'enum) = un nouveau fichier `V<n>__description.sql` dans `db/migration/`.
-- Une migration appliquée n'est **jamais modifiée** (Flyway vérifie son checksum) ; on corrige par une migration suivante.
-- `ddl-auto=validate` : un écart entité/schéma empêche le démarrage.
+Procédure complète (recette puis prod, retour arrière) : [`recette.md`](recette.md). Résumé : recette sur copie de la prod → dump prod → arrêt → démarrage (Flyway migre) → surveillance du journal. En cas de problème : lien `tradeio.jar` vers l'ancien jar ; restauration du dump seulement si une migration a modifié des données.
 
 ## Règle des défauts d'initialisation (valable dès maintenant)
 
@@ -92,23 +47,6 @@ Tout nouveau « défaut » de l'application (donnée de paramétrage devant exis
 Tables de cache de données publiques (non seedées par un initializer) : `exchange_instrument` (catalogue des paires, rempli à la demande par `InstrumentCatalog`).
 
 Initializers existants : `AssetInitializer` (1), `AssetGroupInitializer` (2, groupe `USD` = USDC seul), `RoleInitializer` (10), `UserInitializer` (20), `HistoricalDataInitializer` (5, recharge `candle` et `etf_flow_snapshot` depuis les fichiers de backup si la table est vide), `ApiCredentialInitializer` (40, tous profils : clés du user System (CoinStats, Coinalyze, Twelve Data, Finnhub, SoSoValue) et clés Binance/Kraken/OKX d'OKlm lues dans les propriétés `tradeio.<fournisseur>.apiKey|secretKey` (OKX : `tradeio.okx.read.*` et `tradeio.okx.trade.*`, avec `passphrase`) des `application-*.properties` (gitignorés) ; clé absente => warning, rien semé), `WalletInitializer` (45), `WebProviderInitializer` (dont OKX, `https://www.okx.com`), `ContentSourceInitializer` (50), `ExecutionControlInitializer` (70, ligne `execution_control` kill switch engagé), `RainbowModulationControlInitializer` (71, ligne `rainbow_modulation_control` aux défauts de `ModulationDefaults`, jamais modifiée ensuite), `ExpertBasePresetInitializer` (61, 9 presets système de base Trend / Rainbow Bull / Rainbow Bear, jamais modifiés ensuite), `AffectationMigrationInitializer` (62, migration idempotente des anciens presets utilisateur vers les Affectations ; les Affectations des nouveaux utilisateurs sont créées à leur première utilisation), cf. [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md).
-
-Affectation jouée selon ses liens (colonne `asset_affectation.enabled` supprimée de l'entité et de `V1__init.sql`) : `ddl-auto=update` ne supprime pas la colonne `NOT NULL` sans défaut, qui ferait échouer les insertions ⇒ SQL manuel sur base existante, avant le déploiement (sauvegarder la base avant) :
-
-```sql
-ALTER TABLE asset_affectation DROP COLUMN enabled;
-```
-
-Affectations nommées (plusieurs par actif) : `ddl-auto=update` ajoute `name` (nullable) et `system_instance` (`BIT NOT NULL`, 0 sur les lignes existantes) et crée l'index `uk_asset_affectation_user_asset_name`, mais **ne supprime pas l'ancien index unique** `uk_asset_affectation_user_asset (user_id, asset_symbol)`, qui interdirait une 2ᵉ Affectation par actif ⇒ SQL manuel avant le déploiement :
-
-L'index sert aussi la clé étrangère sur `user_id` (MySQL refuse sinon : erreur 1553) : créer d'abord un index simple.
-
-```sql
-ALTER TABLE asset_affectation ADD INDEX idx_asset_affectation_user (user_id);
-ALTER TABLE asset_affectation DROP INDEX uk_asset_affectation_user_asset;
-```
-
-Les Affectations existantes gardent `name` nul ; l'instance Système est adoptée au premier `ensureAffectations` si elle porte les presets de base, sinon créée à côté.
 
 ## Données non recréées par les initializers
 
@@ -120,11 +58,3 @@ Les Affectations existantes gardent `name` nul ; l'instance Système est adopté
 - Données historiques de marché (`candle`, `etf_flow_snapshot`) : sauvegardées chaque semaine par `HistoricalDataBackupJob` (`tradeio.backup.dir`, défaut `backup/historical`, fichiers `<table>.tsv.gz`, jamais écrasés par une table vide) et rechargées au démarrage par `HistoricalDataInitializer` si la table est vide et le fichier présent. Le dossier de backup doit être conservé hors de la base supprimée.
 - Données d'exploitation : `video_contents`/`media_claims`/`llm_call_logs` (coût LLM), `transaction`.
 - Branche décisionnelle (`decision_snapshots`, `scenario_snapshots`, `events`) : en pause ; un mécanisme de sauvegarde récurrente reste à définir si elle reprend.
-
-Revolut X candles : `MarketDataSource` gagne `REVOLUT_X` (enum MySQL natif, `ddl-auto=update` ne le modifie pas) ⇒ SQL manuel sur base existante, avant le déploiement :
-
-```sql
-ALTER TABLE asset_provider MODIFY source ENUM('BINANCE','CHAINLINK','COINBASE','DATABASE','FILE','KRAKEN','MEMORY','OKX','REVOLUT_X','SUSHISWAP','UNISWAP') NOT NULL;
-ALTER TABLE candle MODIFY source ENUM('BINANCE','CHAINLINK','COINBASE','DATABASE','FILE','KRAKEN','MEMORY','OKX','REVOLUT_X','SUSHISWAP','UNISWAP') NOT NULL;
-ALTER TABLE rainbow_live_binding_run MODIFY live_candle_source ENUM('BINANCE','CHAINLINK','COINBASE','DATABASE','FILE','KRAKEN','MEMORY','OKX','REVOLUT_X','SUSHISWAP','UNISWAP');
-```

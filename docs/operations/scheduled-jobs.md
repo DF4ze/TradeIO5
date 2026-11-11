@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-10-10
-modifié_le: 2026-11-06
-empreinte: 2ff99d1ff8
+modifié_le: 2026-11-11
+empreinte: f5afeaa183
 ---
 # Jobs planifiés
 
@@ -64,7 +64,7 @@ Isolation par élément (asset, source) répétée dans plusieurs jobs (`EtfFlow
 
 Vérifié le : 2026-11-06 (`service/doctor/**`, `service/scheduler/**`).
 
-Chaque exécution d'un job planifié laisse une ligne `job_run` (table créée par `ddl-auto=update`) : job, déclencheur (`CRON` / `MANUAL`), statut (`OK` / `PARTIAL` si des éléments isolés sont en erreur / `FAILED` si exception), début, durée, nombre d'erreurs, résumé, message d'exception. L'écriture est best-effort (`JobRunRecorder`) : un échec du journal ne casse jamais le job, et l'exception du job est relancée à l'identique.
+Chaque exécution d'un job planifié laisse une ligne `job_run` (table gérée par Flyway) : job, déclencheur (`CRON` / `MANUAL`), statut (`OK` / `PARTIAL` si des éléments isolés sont en erreur / `FAILED` si exception), début, durée, nombre d'erreurs, résumé, message d'exception. L'écriture est best-effort (`JobRunRecorder`) : un échec du journal ne casse jamais le job, et l'exception du job est relancée à l'identique.
 
 Jobs tracés : `RainbowLivePass2355Job`, `ExecutionPlanJob`, `ExecutionJob`, `HistoricalDataBackupJob`, `MediaWatchIngestionJob`, `MediaWatchExtractionJob`, `EtfFlowHistorizationJob`, `DecisionScenarioSnapshotJob`, `UserArchivalJob`. Les déclenchements manuels `POST /api/admin/rainbow-live/run` et du plan du jour (Console) sont tracés en `MANUAL`. `DecisionOrchestratorJob` n'est pas tracé (hors périmètre du Docteur pour l'instant).
 

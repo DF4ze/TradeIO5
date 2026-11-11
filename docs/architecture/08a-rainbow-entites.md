@@ -1,14 +1,14 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-10
-empreinte: ad1bd0fe3f
+modifié_le: 2026-11-11
+empreinte: 0f25838ef8
 ---
 # Rainbow live — Entités (schéma)
 
 Suite de [`08-rainbow-live.md`](08-rainbow-live.md) (Rainbow DCA ATR live — Affectations, signal quotidien, liens (bindings), API REST).
 
-## Entités (schéma créé par `ddl-auto=update` ; migration Flyway préparée mais non activée, cf. [`../operations/flyway.md`](../operations/flyway.md))
+## Entités (schéma géré par Flyway : toute modif d'entité = nouvelle migration, cf. [`../operations/flyway.md`](../operations/flyway.md))
 
 - `TrendPreset` (`trend_preset`) : réglages du Trend Mix (colonnes typées `TrendMixCalculator.Params`), `rangeMapping` (`KEEP_PREVIOUS|TO_BEAR|TO_BULL` : jeu retenu quand le Trend est RANGE), `assetSymbol` (BTC|ETH|PAXG), `name`, `origin` (`PresetOrigin` SYSTEM|USER), `owner` (nul pour SYSTEM), `baseRole` (`BasePresetRole` : `TREND` pour le preset de base, nul sinon), `revision`, `createdAt`/`updatedAt`. **Unique (asset, base_role)** pour les presets de base et **(owner, asset, name)** pour ceux des utilisateurs.
 - `RainbowPreset` (`rainbow_preset`) : `@Embedded RainbowAtrConfig` + `analysisWindowMonths`, mêmes colonnes d'identité (`assetSymbol`, `name`, `origin`, `owner`, `baseRole` ∈ `RAINBOW_BULL|RAINBOW_BEAR|null`, `revision`) et mêmes unicités. **Neutre** : c'est l'Affectation qui l'installe sur UP ou sur DOWN (le même preset peut occuper les deux emplacements).

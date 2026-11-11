@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-10-12
-modifié_le: 2026-11-07
-empreinte: a4ad84a4a8
+modifié_le: 2026-11-11
+empreinte: fe11b843d5
 ---
 # Plan d'ordres dry-run (lot B, étape b)
 

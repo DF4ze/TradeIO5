@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-10-03
-modifié_le: 2026-11-06
-empreinte: 0c08082e27
+modifié_le: 2026-11-11
+empreinte: c4db3e3dbe
 ---
 # Configuration
 
@@ -47,6 +47,8 @@ Vérifié le : 2026-10-03 (`configuration/**`, `RainbowLiveDefaultPresets`).
 | `tradeio.execution.fee-test.warn-pct` / `red-pct` | `0.2` / `0.8` | Seuils Fee Test (coût total en %) |
 | `tradeio.execution.forbidden-nodes` | devises fiat | Nœuds interdits dans un chemin (liste CSV) |
 | `tradeio.execution.instrument-catalog.refresh-after` | `PT24H` | Âge maximal du catalogue d'instruments avant rafraîchissement |
+| `spring.flyway.enabled` / `baseline-on-migrate` / `baseline-version` | `true` / `true` / `1` | Flyway actif (désactivé dans les tests) ; `spring.jpa.hibernate.ddl-auto=validate` en dev/prod — cf. [`flyway.md`](flyway.md) |
+| Profil `recette` | – | Répétition de déploiement sur copie de prod (port 9004, exécution `OFF`, crons coupés) — cf. [`recette.md`](recette.md) |
 | `tradeio.security.agent-api-key` | vide (filtre inactif) | Active l'authentification par clé API (`ROLE_API_AGENT`) |
 
 Cette liste n'est pas nécessairement exhaustive — construite à partir des classes lues dans ce lot (jobs, sécurité, OpenAI, ETF flow), pas d'une recherche exhaustive de tous les `@Value`/`@ConfigurationProperties` du projet.

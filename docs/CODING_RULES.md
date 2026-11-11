@@ -1,7 +1,7 @@
 ---
 statut: courant
-modifié_le: 2026-10-20
-empreinte: fb8b4dffd2
+modifié_le: 2026-11-11
+empreinte: 690f889930
 ---
 # Coding rules
 
@@ -32,6 +32,7 @@ Règles de développement pour ce projet, à respecter par tout contributeur (hu
 - Collections : `isEmpty()` plutôt que `size()==0` ; `getFirst()`/`getLast()` plutôt que `get(0)`/`get(size-1)` (prod ET tests).
 - JUnit : `assertTrue(x)`/`assertFalse(x)` directs, pas `assertEquals(true,x)` ni `assertTrue(!x)`.
 - Pas de variable locale redondante (retour direct) ni d'initializer écrasé juste après.
+- **Schéma DB** : toute modification d'entité (table, colonne, contrainte, valeur d'enum) = un nouveau `src/main/resources/db/migration/V<n>__description.sql`, idempotent ; une migration appliquée n'est jamais modifiée ; ne rien supprimer que le code lit encore. Pas d'`ALTER` manuel (cf. [`operations/flyway.md`](operations/flyway.md)).
 - Constante métier dupliquée entre classes interdite : source unique dès la 1re duplication.
 - Conception : poser les briques avant de demander un choix fermé ; si un point de design est ouvert, demander à Clem avant de rédiger un prompt.
 

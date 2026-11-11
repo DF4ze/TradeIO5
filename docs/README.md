@@ -1,8 +1,8 @@
 ---
 statut: index
 sujet: Table de routage de la documentation
-modifié_le: 2026-11-10
-empreinte: 2508be45df
+modifié_le: 2026-11-11
+empreinte: 31c4021fc8
 ---
 # TradeIO-5 — Documentation
 
@@ -63,7 +63,8 @@ Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decis
 | [`api/rest-expert-portfolio.md`](api/rest-expert-portfolio.md) | endpoints Espace Expert, patrimoine, préférences |
 | [`api/mcp-tools.md`](api/mcp-tools.md) | tools MCP |
 | [`operations/configuration.md`](operations/configuration.md) | propriétés, secrets, environnement |
-| [`operations/flyway.md`](operations/flyway.md) | migrations, défauts d'initialisation |
+| [`operations/flyway.md`](operations/flyway.md) | migrations (Flyway actif), défauts d'initialisation |
+| [`operations/recette.md`](operations/recette.md) | recette sur copie de prod, déploiement prod, retour arrière |
 | [`operations/scheduled-jobs.md`](operations/scheduled-jobs.md) | jobs planifiés |
 
 ## Reste à faire (known-gaps)

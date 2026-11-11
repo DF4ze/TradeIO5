@@ -1,0 +1,32 @@
+# Profil "recette" : répétition de déploiement sur le VPS, sur une COPIE de la base prod.
+# Copier en application-recette.properties à côté du jar (dossier de travail dédié, ex. /home/oklm/TradeIO-recette),
+# puis lancer avec --spring.profiles.active=recette. Jamais de secret dans ce template (cf. docs/operations/recette.md).
+server.port=9004
+spring.datasource.url=jdbc:mysql://localhost:3306/tradeio5_recette?rewriteBatchedStatements=true
+spring.datasource.username=<utilisateur MariaDB>
+spring.datasource.password=<mot de passe>
+spring.jpa.hibernate.ddl-auto=validate
+spring.flyway.enabled=true
+spring.thymeleaf.cache=true
+bezkoder.app.jwtCookieName=bezkoder
+bezkoder.app.jwtSecret=<secret JWT>
+bezkoder.app.jwtExpirationMs=86400000
+tradeio.openai.apiKey=<ou valeur factice>
+tradeio.openai.baseUrl=https://api.openai.com/v1
+tradeio.openai.model.low=GPT_4_1_MINI
+tradeio.openai.model.medium=GPT_4_1
+tradeio.openai.model.high=GPT_5_5
+
+# Aucun effet de bord : pas d'ordre, pas de cron, pas de clé maître (clés TRADE chiffrées illisibles).
+tradeio.execution.mode=OFF
+tradeio.execution.live-unlocked=false
+tradeio.execution.run-cron=-
+tradeio.execution.plan-cron=-
+tradeio.rainbow-live.pass-2355-cron=-
+tradeio.decision.orchestrator-cron=-
+tradeio.decision.snapshot-cron=-
+tradeio.decision.archival-cron=-
+tradeio.media-watch.poll-cron=-
+tradeio.media-watch.extraction-cron=-
+tradeio.etf-flow.historization-cron=-
+tradeio.backup.historical-cron=-
