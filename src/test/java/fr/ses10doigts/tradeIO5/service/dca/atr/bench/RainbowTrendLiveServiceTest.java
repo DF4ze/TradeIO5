@@ -45,6 +45,10 @@ import org.springframework.context.annotation.Import;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
+import fr.ses10doigts.tradeIO5.model.enumerate.WalletSource;
+import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -91,6 +95,8 @@ class RainbowTrendLiveServiceTest {
     @Autowired private RainbowAthReferenceRepository athRepository;
     @Autowired private RainbowLiveRunRepository runRepository;
     @Autowired private UserRepository userRepository;
+    @Autowired private fr.ses10doigts.tradeIO5.repository.WalletRepository walletRepository;
+    @Autowired private fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository bindingRepository;
     @Autowired private RainbowLivePresetEventService eventService;
     @Autowired private AffectationConfigResolver configResolver;
     @Autowired private AdminActionLogRepository adminLog;
@@ -122,11 +128,28 @@ class RainbowTrendLiveServiceTest {
         basePresetService.ensureBasePresets();
         btc = null;
         for (AssetAffectation a : affectationService.ensureAffectations(alice)) {
-            AssetAffectation enabled = affectationService.setEnabled(alice, a.getId(), true);
             if (a.getAssetSymbol().equals(ASSET)) {
-                btc = enabled;
+                btc = ownLinked(alice);
+            } else {
+                link(alice, a);
             }
         }
+    }
+
+    /** Affectation utilisateur éditable (copie des presets Système) portée par un lien : jouée par la passe. */
+    private AssetAffectation ownLinked(User u) {
+        AssetAffectation base = affectationService.forAsset(u, ASSET);
+        return link(u, affectationService.create(u, ASSET, "Perso", base.getTrendPreset().getId(), base.getRainbowUp().getId(),
+                base.getRainbowDown().getId()));
+    }
+
+    /** Lien non archivé sur l'Affectation : c'est lui qui la fait jouer (portefeuille mocké, aucune position). */
+    private AssetAffectation link(User u, AssetAffectation a) {
+        Wallet w = walletRepository.save(Wallet.builder().name("w-" + u.getUsername() + "-" + a.getAssetSymbol())
+                .source(WalletSource.EXCHANGE).webProviderCode(WebProviderCode.OKX).user(u).build());
+        bindingRepository.save(RainbowLiveBinding.builder().user(u).assetSymbol(a.getAssetSymbol()).affectation(a).wallet(w)
+                .bagPercent(100.0).priority(1).build());
+        return a;
     }
 
     private LocalDate day(int idx) {
@@ -243,8 +266,7 @@ class RainbowTrendLiveServiceTest {
 
     private AssetAffectation followerOf(String username) {
         User u = userRepository.save(User.builder().username(username).email(username + "@example.com").password("x").enabled(true).build());
-        AssetAffectation a = affectationService.forAsset(u, ASSET);
-        return affectationService.setEnabled(u, a.getId(), true);
+        return ownLinked(u);
     }
 
     private RainbowPreset withWindow(AssetAffectation a, RainbowPreset base, int windowMonths, String name) {
@@ -257,7 +279,7 @@ class RainbowTrendLiveServiceTest {
     private void changeWindow(AssetAffectation a, int windowMonths) {
         RainbowPreset up = withWindow(a, a.getRainbowUp(), windowMonths, "Up " + windowMonths + "m");
         RainbowPreset down = withWindow(a, a.getRainbowDown(), windowMonths, "Down " + windowMonths + "m");
-        affectationService.assign(a.getUser(), ASSET, a.getTrendPreset().getId(), up.getId(), down.getId());
+        affectationService.update(a.getUser(), a.getId(), null, a.getTrendPreset().getId(), up.getId(), down.getId());
     }
 
     @Test

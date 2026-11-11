@@ -33,6 +33,13 @@ public class ExpertControllerAdvice {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ExpertErrorResponse(e.getMessage(), "AFFECTATION_NOT_FOUND", null));
     }
 
+    @ExceptionHandler(fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationRuleException.class)
+    public ResponseEntity<ExpertErrorResponse> affectationRule(fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationRuleException e) {
+        HttpStatus status = e.getReason() == fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationRuleException.Reason.SYSTEM_READ_ONLY
+                ? HttpStatus.FORBIDDEN : HttpStatus.CONFLICT;
+        return ResponseEntity.status(status).body(new ExpertErrorResponse(e.getMessage(), "AFFECTATION_" + e.getReason().name(), null));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ExpertErrorResponse> badRequest(IllegalArgumentException e) {
         return ResponseEntity.badRequest().body(new ExpertErrorResponse(e.getMessage(), "BAD_REQUEST", null));

@@ -32,8 +32,8 @@ public class StepRequoter {
 
     private static final BigDecimal TWO = BigDecimal.valueOf(2);
 
-    /** Coût de la jambe (%) et mid du carnet au moment du devis. */
-    public record Requote(BigDecimal costPct, BigDecimal mid) {
+    /** Coût de la jambe (%), mid du carnet et prix de référence (ask en achat, bid en vente, au tick) au moment du devis. */
+    public record Requote(BigDecimal costPct, BigDecimal mid, BigDecimal refPrice) {
     }
 
     private final Map<WebProviderCode, TradingFeeProvider> feeProviders;
@@ -61,6 +61,6 @@ public class StepRequoter {
                 .orElseThrow(() -> new IllegalStateException("Carnet trop peu profond pour " + instrument.instId()));
         PathLeg leg = PathFinder.legOfSize(instrument, legSide, market, sz);
         BigDecimal mid = market.bid().add(market.ask()).divide(TWO, 18, RoundingMode.HALF_UP);
-        return new Requote(leg.costPct(), mid);
+        return new Requote(leg.costPct(), mid, leg.refPrice());
     }
 }

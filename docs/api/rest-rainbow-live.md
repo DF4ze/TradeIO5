@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-07
 modifié_le: 2026-11-10
-empreinte: bdfcddf857
+empreinte: 6f0c38fa27
 ---
 # Endpoints REST — Rainbow live (bindings, wallet, décisions, modulation, run)
 
@@ -12,7 +12,7 @@ Suite de [`rest-endpoints.md`](rest-endpoints.md) (Endpoints REST).
 
 | Méthode | Chemin | Rôle | Effet |
 |---|---|---|---|
-| POST | `/api/admin/rainbow-live/run[?day=YYYY-MM-DD]` | ADMIN | Exécute le run quotidien (tous users actifs, Affectations `enabled`) sur la bougie D1 ouverte ; `day` (UTC) force le jour. Réponse : `{day, processed, skipped, errors}`. Aucun ordre réel |
+| POST | `/api/admin/rainbow-live/run[?day=YYYY-MM-DD]` | ADMIN | Exécute le run quotidien (tous users actifs, Affectations référencées par un lien non archivé) sur la bougie D1 ouverte ; `day` (UTC) force le jour. Réponse : `{day, processed, skipped, errors}`. Aucun ordre réel |
 | POST | `/api/admin/rainbow-live/resync[?affectationId=]` | ADMIN | Resynchronisation **forcée** de l'état moteur des Affectations actives (ou d'une seule) jusqu'à la veille : rejeu de la fenêtre sur les clôtures, sans run ni ordre ; tracée au journal admin (action `RUN`). Réponse : `{toDay, resynced, upToDate, skipped, errors}` |
 
 ## Bindings Rainbow live (utilisateur, `RainbowLiveBindingController`, `/api/rainbow-live/bindings`)
@@ -24,9 +24,9 @@ Authentifié, scopé à l'user ; binding / wallet d'un autre user ou inexistant 
 | Méthode | Chemin | Description |
 |---|---|---|
 | GET | `` | Liste `BindingDto` `{id, assetSymbol, affectationId, affectationName, walletId, walletName, exchange, bagPercent, priority, baseAmount?, tradability?, quoteMember?, routeKey?, executionEnabled, firstLiveArmed, firstLiveConfirmed}` (par priorité ; `tradability` = dernier statut `BindingCheck` persisté) |
-| POST | `` | Corps `{assetSymbol, walletId, bagPercent?, priority?, baseAmount?, preferredRoute?}` (défauts : 100, rang de l'actif, montant du preset Rainbow joué, route la moins chère) ; l'Affectation de l'actif est utilisée ; `preferredRoute` = route d'achat imposée (`USDC>ETH>BTC`, 2 ou 3 nœuds, dernier = l'actif, sinon 400), exposée dans `BindingDto.preferredRoute` ; si `baseAmount` est fourni, le Fee Test est calculé et mémorisé à la création (au mieux : un échec du devis n'annule pas le lien) ; `BindingDto` porte le dernier Fee Test (`feeTestRoute`, `feeTestPct` en %, `feeTestLevel`, `feeTestAmount` en USD, `feeTestAt`) ⇒ 201 `{binding, check}` ; binding existant pour (actif, wallet) ⇒ 409 (une même Affectation peut alimenter plusieurs bindings) ; `bagPercent` hors [0,100] / actif inconnu ⇒ 400 |
+| POST | `` | Corps `{assetSymbol, walletId, bagPercent?, priority?, baseAmount?, preferredRoute?, affectationId?}` (défauts : 100, rang de l'actif, montant du preset Rainbow joué, route la moins chère ; `affectationId` absent = instance Système de l'actif ; Affectation d'un autre utilisateur ⇒ 404, d'un autre actif ou incomplète ⇒ 400) ; `preferredRoute` = route d'achat imposée (`USDC>ETH>BTC`, 2 ou 3 nœuds, dernier = l'actif, sinon 400), exposée dans `BindingDto.preferredRoute` ; si `baseAmount` est fourni, le Fee Test est calculé et mémorisé à la création (au mieux : un échec du devis n'annule pas le lien) ; `BindingDto` porte le dernier Fee Test (`feeTestRoute`, `feeTestPct` en %, `feeTestLevel`, `feeTestAmount` en USD, `feeTestAt`) ⇒ 201 `{binding, check}` ; binding existant pour (actif, wallet) ⇒ 409 (une même Affectation peut alimenter plusieurs bindings) ; `bagPercent` hors [0,100] / actif inconnu ⇒ 400 |
 | GET | `/{id}` | `BindingDto` |
-| PUT | `/{id}` | Corps `{walletId?, bagPercent?, priority?, baseAmount?, resetBaseAmount?}` (actif immuable, champs nuls inchangés ; `baseAmount` > 0 sinon 400 ; `resetBaseAmount=true` = retour au montant du preset) ⇒ `{binding, check}` |
+| PUT | `/{id}` | Corps `{walletId?, bagPercent?, priority?, baseAmount?, resetBaseAmount?, affectationId?}` (actif immuable, champs nuls inchangés ; `affectationId` différent de l'actuel ⇒ moteur de la nouvelle Affectation réinitialisé (états purgés, rejeu à la passe suivante) + événement `LIVE_SWITCH`, rien n'est bloqué ; mêmes contrôles qu'à la création ; `baseAmount` > 0 sinon 400 ; `resetBaseAmount=true` = retour au montant du preset) ⇒ `{binding, check}` |
 | DELETE | `/{id}` | 204 : **archive** le lien (`archived_at`, exécution coupée, historique et Affectation conservés) ; déjà archivé ou inconnu ⇒ 404. Un `POST` sur le même (actif, wallet) réactive la ligne archivée au lieu de répondre 409 |
 | PUT | `/{id}/execution` | Corps `{mode DISABLED\|SIMULATION\|ACTIVE}` (ou `{enabled}` : true ⇒ ACTIVE, false ⇒ DISABLED) : mode d'exécution du binding (défaut `DISABLED`) ; `SIMULATION` joue toute la chaîne sans envoyer d'ordre ; la 1ʳᵉ activation (`ACTIVE`) arme automatiquement le 1ᵉʳ ordre réel (`firstLiveApprovedAt`) ⇒ `BindingDto` (porte `executionMode`, `minBuyUsd`) |
 | PUT | `/{id}` | (mise à jour du lien) accepte aussi `minBuyUsd` (> 0) et `resetMinBuy` (retire l'achat minimum) en plus de `bagPercent`, `baseAmount`… |
@@ -51,12 +51,11 @@ Authentifié (`@PreAuthorize("isAuthenticated()")` sur la classe), scopé à l'u
 |---|---|---|
 | GET | `/defaults` | `{assets, cashCurrency, analysisWindowMonths, baseAmount, configs{BTC,ETH,PAXG → {tuning, globals}}, reentryModes[], zones[{code,name,label}], trendDefaults{actif → TrendConfigDto}, rangeMappings[]}` (enum `ReentryMode` et libellés de zones fournis par le serveur) |
 | GET | `/preset-events[?asset=BTC]` | Historique des changements d'Affectation du user (`PresetEventDto`), du plus récent au plus ancien |
-| GET | `/affectations[?asset=BTC]` | Crée les Affectations manquantes (inactives, sur les presets système de base) puis liste `AffectationDto` ; actif hors BTC/ETH/PAXG ⇒ 400 |
+| GET | `/affectations[?asset=BTC][&provider=REVOLUT_X]` | Crée les instances Système manquantes (« BTC Système », presets de base ; jouées seulement une fois reliées) puis liste `AffectationDto` (Système d'abord, puis par nom). Avec `provider` : ordre de préférence = correspondance du `referenceProvider` des trois presets (`providerMatch` FULL, PARTIAL, NONE), puis Système, puis Affectations utilisateur les plus récentes ; actif hors BTC/ETH/PAXG ⇒ 400 |
 | GET | `/affectations/{id}` | `AffectationDto` ; inexistante ou d'un autre user ⇒ 404 |
-| PATCH | `/affectations/{id}/enabled` | Corps `{enabled}` ⇒ `AffectationDto` |
 
 Réponses (noms de champs) :
-- `AffectationDto` : `id, assetSymbol, name` (libellé « <Up> / <Down> »)`, enabled, complete, analysisWindowMonths, createdAt, updatedAt, trendPreset{id, name, origin}, rainbowUp{…}, rainbowDown{…}, tuning, globals` (config de référence = preset DOWN)`, runCount, firstRunDay?, lastRun?{day, close, zone, actionType, actionAmountUsdc, actionQuantity, activeSet?, trendRegime?}, trendConfig?` ; `origin` ∈ `SYSTEM|USER` ; `TrendConfigDto` = `{trend{shortWindow, mediumWindow, longWindow, slopeScale, enter, exit, confirm, smaPeriod, atrPeriod, atrMultiplier, wickDown, wickUp}, rangeMapping, bear{tuning, globals}, bull{tuning, globals}}` (`bear` = DOWN, `bull` = UP ; `tuning` = champs de `RainbowAtrTuning`, `globals` = champs de `RainbowAtrGlobals`, `baseAmount` inclus).
+- `AffectationDto` : `id, assetSymbol, name` (nom donné, à défaut libellé « <Up> / <Down> »)`, system, providerMatch?, enabled (dérivé : au moins un lien non archivé), complete, analysisWindowMonths, createdAt, updatedAt, trendPreset{id, name, origin}, rainbowUp{…}, rainbowDown{…}, tuning, globals` (config de référence = preset DOWN)`, runCount, firstRunDay?, lastRun?{day, close, zone, actionType, actionAmountUsdc, actionQuantity, activeSet?, trendRegime?}, trendConfig?` ; `origin` ∈ `SYSTEM|USER` ; `TrendConfigDto` = `{trend{shortWindow, mediumWindow, longWindow, slopeScale, enter, exit, confirm, smaPeriod, atrPeriod, atrMultiplier, wickDown, wickUp}, rangeMapping, bear{tuning, globals}, bull{tuning, globals}}` (`bear` = DOWN, `bull` = UP ; `tuning` = champs de `RainbowAtrTuning`, `globals` = champs de `RainbowAtrGlobals`, `baseAmount` inclus).
 - `PresetEventDto` : `id, assetSymbol, type (ENABLE|DISABLE|LIVE_SWITCH), presetBeforeId?, presetBeforeName?, presetAfterId?, presetAfterName?, occurredAt, reason?`.
 - Erreurs : `{"error": "<message>"}` (400 / 404 / 409, `RainbowLiveControllerAdvice`).
 

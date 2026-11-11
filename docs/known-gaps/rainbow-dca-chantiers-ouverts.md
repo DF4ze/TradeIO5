@@ -1,8 +1,8 @@
 ---
 statut: gap
 vérifié_le: 2026-10-11
-modifié_le: 2026-11-07
-empreinte: c496271c7a
+modifié_le: 2026-11-10
+empreinte: b0dde1b922
 ---
 # Rainbow DCA ATR — chantiers ouverts
 
@@ -13,7 +13,7 @@ Vérifié le : 2026-10-11 (code + décisions de Clem). Objectif n°1 du projet :
 | Brique | État |
 |---|---|
 | Moteur Rainbow ATR (pine v4 = source de vérité, port Java) | fait — découpé en couches L1 bornes / L2 `step` pur + `RainbowAtrState` / L3 `AthReference` / L4 `Sizer` (référence seulement) ; état et ATH persistés par Affectation / actif (`RainbowLiveEngineState`, `RainbowAthReference`) — [`04-market-data.md`](../architecture/04-market-data.md) |
-| Paramétrage par actif et par trend (Bull / Bear) | fait pour BTC, ETH, PAXG : presets système de base (« Trend de base », « <ACTIF> Bull », « <ACTIF> Bear », jeux du pine v4 repris en Java), installés par défaut dans l'Affectation de chaque utilisateur (inactive au départ). Réglages PAXG ajustés à la main par Clem |
+| Paramétrage par actif et par trend (Bull / Bear) | fait pour BTC, ETH, PAXG : presets système de base (« Trend de base », « <ACTIF> Bull », « <ACTIF> Bear », jeux du pine v4 repris en Java), installés par défaut dans l'Affectation de chaque utilisateur (jouée dès qu'un lien la référence). Réglages PAXG ajustés à la main par Clem |
 | Trend simple (`TrendAnalyzer`, UP/DOWN/RANGE) | fait — [`09-trend.md`](../architecture/09-trend.md) |
 | Client d'ordres Kraken | code et tests faits (`KrakenSpotOrderClient`, testeur d'ordre `validate`) ; **jamais utilisé en réel** : ni `validate` ni ordre réel passés sur Kraken, hypothèses sur l'API à confirmer au 1ᵉʳ essai. PAXG reste `NOT_TRADABLE_WITHOUT_FIAT` (aucune paire stable) |
 | Branchement Trend → jeu de paramètres | fait : Trend Mix (`TrendMixCalculator` = méga-pine `rainbow_trend_dca_v1.pine`, vérifié par Clem Java vs pine) choisit Bull/Bear à chaque bougie (`RainbowSetSelector`) ; état de la machine et ATH persistés ; branché au dry-run quotidien (presets `TREND_MIX`, [`08`](../architecture/08-rainbow-live.md)), pas à une exécution réelle |
@@ -136,4 +136,3 @@ Question : vaut-il mieux enchaîner les étapes (la fin de l'une déclenche la s
 Risque à étudier : si une étape devient plus longue (plus d'actifs, de liens, de providers, candles lentes ; la passe prend déjà ~8 s pour 3 presets), l'étape suivante peut démarrer alors que la précédente n'est pas finie et lire des runs incomplets. Les plans d'ordres expirent 5 min après leur création (`plan-ttl=PT5M`) : un enchaînement par cron doit donc rester dans cette fenêtre, ce que le chaînage garantirait mieux.
 
 À couvrir par l'étude : orchestrateur unique ou événements, comportement en cas d'échec d'une étape (arrêt de la chaîne ou poursuite), reprise, idempotence, observabilité, lien avec le kill switch et le `DecisionOrchestrator` (cron 06:00).
-- **Affectation choisie par lien : étude ouverte (2026-11-10).** Une Affectation désactivée fait ignorer ses liens sans signal ; l'activation devrait être dérivée des liens et l'Affectation choisissable par lien (plusieurs, nommées). Cf. [`../etudes/etude-affectation-par-lien.md`](../etudes/etude-affectation-par-lien.md).

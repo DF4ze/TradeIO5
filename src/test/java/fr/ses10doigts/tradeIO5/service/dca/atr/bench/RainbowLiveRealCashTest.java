@@ -370,7 +370,7 @@ class RainbowLiveRealCashTest {
 
         assertEquals(1, bindingRunRepository.count(), "un seul run de lien : celui de BTC");
         assertTrue(bindingRepository.findAllByAffectation(p.get("ETH")).isEmpty());
-        assertEquals(RainbowLiveAction.BUY, signal(p.get("ETH")).getActionType());
+        assertTrue(runRepository.findByAffectationAndDay(p.get("ETH"), LAST_DAY).isEmpty(), "Affectation sans lien : non jouée");
     }
 
     @Test

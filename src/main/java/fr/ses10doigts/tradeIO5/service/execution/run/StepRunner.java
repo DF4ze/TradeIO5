@@ -92,6 +92,7 @@ public class StepRunner {
         tx.executeWithoutResult(status -> {
             RainbowLiveOrderStep step = steps.findById(c.stepId()).orElseThrow();
             step.setStatus(StepStatus.SUBMITTED);
+            step.setPx(c.px());
             step.setSentSz(c.sz());
             step.setQuoteMid(c.mid());
             step.setSubmittedAt(clock.now());

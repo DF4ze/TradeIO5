@@ -13,6 +13,7 @@ import fr.ses10doigts.tradeIO5.model.entity.execution.PlanStatus;
 import fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderPlan;
 import fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderStep;
 import fr.ses10doigts.tradeIO5.model.entity.execution.StepSide;
+import fr.ses10doigts.tradeIO5.model.dto.execution.LegSide;
 import fr.ses10doigts.tradeIO5.model.entity.execution.StepStatus;
 import fr.ses10doigts.tradeIO5.model.entity.execution.TransitStock;
 import fr.ses10doigts.tradeIO5.model.enumerate.WalletSource;
@@ -158,7 +159,7 @@ public class OrderExecutor {
                          TransitStockRepository transit, PlatformTransactionManager transactionManager,
                          UserPreferencesService preferences) {
         this(settings, control, router, plans, steps, bindings, runs, wallets, users, credentials, catalog, requoter, stepRunner, events,
-                feeTest, clock, transit, transactionManager, ExecutionDefaults.LEG2_RETRY_DELAY, preferences);
+                feeTest, clock, transit, transactionManager, ExecutionDefaults.STEP_RETRY_DELAY, preferences);
     }
 
     OrderExecutor(ExecutionSettings settings, ExecutionControlService control, SpotOrderRouter router,
@@ -483,7 +484,7 @@ public class OrderExecutor {
                 stop = true;
                 continue;
             }
-            int maxAttempts = leg2 ? ExecutionDefaults.LEG2_MAX_ATTEMPTS : 1;
+            int maxAttempts = ExecutionDefaults.STEP_MAX_ATTEMPTS;
             StepRunner.StepResult result = null;
             String notSent = null;
             int sends = 0;
@@ -534,18 +535,23 @@ public class OrderExecutor {
                     break;
                 }
                 notSent = null;
+                // Plafond recalculé sur le carnet frais : le prix figé au plan peut être dépassé par le marché (IOC jamais exécuté).
+                BigDecimal px = PathFinder.capPrice(step.side() == StepSide.BUY ? LegSide.BUY : LegSide.SELL, quote.refPrice(),
+                        settings.getSlippageTolerancePct(), instrument.tickSz());
                 result = stepRunner.send(new StepRunner.StepContext(plan.id(), binding.walletId(), step.id(), clOrdId, step.instId(),
-                        step.side(), sz, step.px(), instrument, trade, quote.mid(), binding.provider()));
+                        step.side(), sz, px, instrument, trade, quote.mid(), binding.provider()));
                 sends++;
                 run.sent++;
                 if (result.status().executed() || result.status().inFlight()) {
                     break;
                 }
-                if (leg2 && attempt < maxAttempts) {
+                if (attempt < maxAttempts && (leg2 || result.status() == StepStatus.CANCELED)) {
                     events.record(plan.id(), step.id(), clOrdId, OrderEventType.ALERT,
-                            payload("reason", "LEG2_RETRY", "attempt", attempt, "status", result.status()));
-                    log.warn("Plan {} : jambe 2 {} non exécutée (essai {}/{}), re-devis puis nouvel essai", plan.id(), step.instId(),
+                            payload("reason", "STEP_RETRY", "attempt", attempt, "status", result.status()));
+                    log.warn("Plan {} : étape {} non exécutée (essai {}/{}), re-devis puis nouvel essai", plan.id(), step.instId(),
                             attempt, maxAttempts);
+                } else {
+                    break;
                 }
             }
             if (result == null) {

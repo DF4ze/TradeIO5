@@ -214,11 +214,11 @@ public class RainbowLiveExecutionService {
         PassContext ctx = batch.contextFor(day);
         long loadBefore = ctx.loadNanos()[0];
         affectationService.ensureAffectations(user);
-        List<AssetAffectation> enabled = affectationService.list(user).stream().filter(AssetAffectation::isEnabled).toList();
-        if (!enabled.isEmpty()) {
+        List<AssetAffectation> active = affectationService.active(user);
+        if (!active.isEmpty()) {
             runService.discardDay(user, day);
             bindingRunService.discardDay(user, day);
-            runUser(ctx, enabled, counters);
+            runUser(ctx, active, counters);
         }
         PassSummary summary = summaryOf(day, counters, ctx.loadNanos()[0] - loadBefore, start);
         log.info("Bench Rainbow : fin recalcul forcé jour={} user={} traités={} sautés={} erreurs={} (chargement={} ms, signal={} ms, liens={} ms, total={} ms)",
@@ -275,15 +275,24 @@ public class RainbowLiveExecutionService {
         return summary;
     }
 
-    /** Création des affectations de stratégie manquants puis affectations {@code enabled} des utilisateurs actifs, groupés par utilisateur. */
+    /** Création des affectations de stratégie manquants puis affectations jouées (référencées par un lien non archivé) des utilisateurs actifs, groupés par utilisateur. */
     private Map<Long, List<AssetAffectation>> collectAffectations(Counters counters) {
         Map<Long, List<AssetAffectation>> byUser = new LinkedHashMap<>();
         for (User user : userRepository.findByEnabledTrueAndArchivedAtIsNull()) {
             try {
                 affectationService.ensureAffectations(user);
-                List<AssetAffectation> enabled = affectationService.list(user).stream().filter(AssetAffectation::isEnabled).toList();
-                if (!enabled.isEmpty()) {
-                    byUser.put(user.getId(), enabled);
+                List<AssetAffectation> active = new ArrayList<>();
+                for (AssetAffectation linked : affectationService.linked(user)) {
+                    if (linked.isComplete()) {
+                        active.add(linked);
+                    } else {
+                        counters.skipped++;
+                        log.warn("Bench Rainbow : Affectation {} (actif {}) incomplète, liée mais non jouée (user={})",
+                                linked.getId(), linked.getAssetSymbol(), user.getId());
+                    }
+                }
+                if (!active.isEmpty()) {
+                    byUser.put(user.getId(), active);
                 }
             } catch (Exception e) {
                 counters.errors++;

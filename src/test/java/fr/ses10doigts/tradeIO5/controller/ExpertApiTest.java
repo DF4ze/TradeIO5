@@ -215,6 +215,17 @@ class ExpertApiTest {
         return body;
     }
 
+    @Autowired private fr.ses10doigts.tradeIO5.repository.WalletRepository walletRepository;
+    @Autowired private fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository bindingRepository;
+
+    /** Affectation utilisateur éditable de BTC (copie des presets de l'instance Système). */
+    private AssetAffectation editable(User u) {
+        return affectationRepository.findByUserAndAssetSymbolOrderByIdAsc(u, "BTC").stream().filter(x -> !x.isSystem()).findFirst().orElseGet(() -> {
+            AssetAffectation base = affectationService.forAsset(u, "BTC");
+            return affectationService.create(u, "BTC", "Perso", base.getTrendPreset().getId(), base.getRainbowUp().getId(), base.getRainbowDown().getId());
+        });
+    }
+
     private AssetAffectation withState(User u) {
         AssetAffectation a = affectationService.forAsset(u, "BTC");
         stateRepository.save(RainbowLiveEngineState.of(a, DAY, RainbowAtrState.initial()));
@@ -374,8 +385,8 @@ class ExpertApiTest {
     @DisplayName("Modification d'un preset USER installé : révision +1, états moteur purgés, événement ; autre Affectation intacte ; révision périmée ⇒ 409")
     void userUpdateResetsEngine() throws Exception {
         long copy = created("/api/expert/trend-presets/" + systemTrendId("BTC") + "/duplicate", java.util.Map.of());
-        AssetAffectation mine = affectationService.forAsset(alice, "BTC");
-        affectationService.assign(alice, "BTC", copy, mine.getRainbowUp().getId(), mine.getRainbowDown().getId());
+        AssetAffectation mine = editable(alice);
+        affectationService.update(alice, mine.getId(), null, copy, mine.getRainbowUp().getId(), mine.getRainbowDown().getId());
         stateRepository.save(RainbowLiveEngineState.of(mine, DAY, RainbowAtrState.initial()));
         AssetAffectation other = withState(bob);
         em.flush();
@@ -401,8 +412,8 @@ class ExpertApiTest {
     @DisplayName("Renommer sans changer les réglages : révision +1 mais ni reset moteur ni événement ; modification sans effet : rien")
     void renameDoesNotReset() throws Exception {
         long copy = created("/api/expert/rainbow-presets", java.util.Map.of("assetSymbol", "BTC", "name", "Perso"));
-        AssetAffectation mine = affectationService.forAsset(alice, "BTC");
-        affectationService.assign(alice, "BTC", mine.getTrendPreset().getId(), copy, copy);
+        AssetAffectation mine = editable(alice);
+        affectationService.update(alice, mine.getId(), null, mine.getTrendPreset().getId(), copy, copy);
         stateRepository.save(RainbowLiveEngineState.of(mine, DAY, RainbowAtrState.initial()));
         em.flush();
         long events = eventRepository.count();
@@ -422,8 +433,11 @@ class ExpertApiTest {
         long base = systemTrendId("BTC");
         AssetAffectation a = withState(alice);
         withState(bob);
-        a.setEnabled(true);
-        affectationRepository.save(a);
+        fr.ses10doigts.tradeIO5.model.entity.currency.Wallet w = walletRepository.save(fr.ses10doigts.tradeIO5.model.entity.currency.Wallet.builder()
+                .name("w-alice").source(fr.ses10doigts.tradeIO5.model.enumerate.WalletSource.EXCHANGE)
+                .webProviderCode(fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode.OKX).user(alice).build());
+        bindingRepository.save(fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding.builder().user(alice)
+                .assetSymbol(a.getAssetSymbol()).affectation(a).wallet(w).bagPercent(100.0).priority(1).build());
         em.flush();
         as(alice, false, DisplayMode.EXPERT);
         mvc.perform(get("/api/expert/trend-presets/" + base + "/impact")).andExpect(status().isForbidden());
@@ -507,15 +521,15 @@ class ExpertApiTest {
     @DisplayName("Suppression : preset USER installé ⇒ 409 avec les Affectations (actif, rôle) ; libre ⇒ 204 et disparu")
     void deleteRules() throws Exception {
         long copy = created("/api/expert/rainbow-presets", java.util.Map.of("assetSymbol", "BTC", "name", "D"));
-        AssetAffectation mine = affectationService.forAsset(alice, "BTC");
+        AssetAffectation mine = editable(alice);
         long trend = mine.getTrendPreset().getId();
         long up = mine.getRainbowUp().getId();
         long down = mine.getRainbowDown().getId();
-        affectationService.assign(alice, "BTC", trend, copy, down);
+        affectationService.update(alice, mine.getId(), null, trend, copy, down);
         mvc.perform(delete("/api/expert/rainbow-presets/" + copy)).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PRESET_IN_USE"))
                 .andExpect(jsonPath("$.details[0].assetSymbol").value("BTC")).andExpect(jsonPath("$.details[0].role").value("RAINBOW_UP"));
         mvc.perform(get("/api/expert/rainbow-presets/" + copy)).andExpect(status().isOk());
-        affectationService.assign(alice, "BTC", trend, up, down);
+        affectationService.update(alice, mine.getId(), null, trend, up, down);
         mvc.perform(delete("/api/expert/rainbow-presets/" + copy)).andExpect(status().isNoContent());
         mvc.perform(get("/api/expert/rainbow-presets/" + copy)).andExpect(status().isNotFound());
     }
@@ -523,7 +537,7 @@ class ExpertApiTest {
     // ---------------------------------------------------------------- Affectations
 
     @Test
-    @DisplayName("Affectations : lecture (créées sur les presets de base), PUT via assign (purge moteur), preset d'un autre ⇒ 404, ids manquants ⇒ 400")
+    @DisplayName("Affectations : lecture (Système créées sur les presets de base), création / renommage / changement de presets (purge moteur) / suppression, Système en lecture seule, nom pris ⇒ 409, preset d'un autre ⇒ 404, ids manquants ⇒ 400")
     void affectations() throws Exception {
         mvc.perform(get("/api/expert/affectations")).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(3))
                 .andExpect(jsonPath("$[0].assetSymbol").value("BTC")).andExpect(jsonPath("$[0].complete").value(true))
@@ -534,18 +548,40 @@ class ExpertApiTest {
         long trend = systemTrendId("BTC");
         long bear = systemRainbowId("BTC", "RAINBOW_BEAR");
 
-        putJson("/api/expert/affectations/btc", java.util.Map.of("trendPresetId", trend, "rainbowUpId", mineId, "rainbowDownId", bear))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.rainbowUp.id").value(mineId)).andExpect(jsonPath("$.rainbowUp.origin").value("USER"))
-                .andExpect(jsonPath("$.rainbowDown.id").value(bear));
-        assertEquals(0, stateRepository.findAll().stream().filter(s -> s.getAffectation().getId().equals(a.getId())).count(), "assign purge le moteur");
-        mvc.perform(get("/api/expert/affectations/BTC")).andExpect(jsonPath("$.rainbowUp.name").value("Pour affecter"));
+        java.util.Map<String, Object> body = java.util.Map.of("trendPresetId", trend, "rainbowUpId", mineId, "rainbowDownId", bear);
+        putJson("/api/expert/affectations/" + a.getId(), body).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("AFFECTATION_SYSTEM_READ_ONLY"));
+        mvc.perform(delete("/api/expert/affectations/" + a.getId())).andExpect(status().isForbidden());
+
+        java.util.Map<String, Object> create = new java.util.HashMap<>(body);
+        create.put("assetSymbol", "BTC");
+        create.put("name", "Ma stratégie");
+        JsonNode mine = json(postJson("/api/expert/affectations", create).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Ma stratégie")).andExpect(jsonPath("$.system").value(false))
+                .andExpect(jsonPath("$.rainbowUp.id").value(mineId)).andExpect(jsonPath("$.enabled").value(false)));
+        long id = mine.get("id").asLong();
+        postJson("/api/expert/affectations", create).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("AFFECTATION_NAME_TAKEN"));
+        mvc.perform(get("/api/expert/affectations").param("asset", "BTC")).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2));
+
+        AssetAffectation custom = affectationRepository.findById(id).orElseThrow();
+        stateRepository.save(RainbowLiveEngineState.of(custom, DAY, RainbowAtrState.initial()));
+        em.flush();
+        java.util.Map<String, Object> change = java.util.Map.of("name", "Renommée", "trendPresetId", trend, "rainbowUpId", bear, "rainbowDownId", bear);
+        putJson("/api/expert/affectations/" + id, change).andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Renommée"))
+                .andExpect(jsonPath("$.rainbowUp.id").value(bear));
+        assertEquals(0, stateRepository.findAll().stream().filter(s -> s.getAffectation().getId().equals(id)).count(), "changement de presets : moteur purgé");
+        mvc.perform(get("/api/expert/affectations/" + id)).andExpect(jsonPath("$.rainbowUp.name").exists());
 
         as(bob, false, DisplayMode.EXPERT);
-        putJson("/api/expert/affectations/BTC", java.util.Map.of("trendPresetId", trend, "rainbowUpId", mineId, "rainbowDownId", bear))
-                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("PRESET_NOT_FOUND"));
-        putJson("/api/expert/affectations/BTC", java.util.Map.of("trendPresetId", trend)).andExpect(status().isBadRequest())
+        mvc.perform(get("/api/expert/affectations/" + id)).andExpect(status().isNotFound());
+        postJson("/api/expert/affectations", create).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("PRESET_NOT_FOUND"));
+        postJson("/api/expert/affectations", java.util.Map.of("assetSymbol", "BTC", "name", "X", "trendPresetId", trend)).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.details.rainbowUpId").exists());
-        putJson("/api/expert/affectations/DOGE", java.util.Map.of("trendPresetId", trend, "rainbowUpId", bear, "rainbowDownId", bear))
+        postJson("/api/expert/affectations", java.util.Map.of("assetSymbol", "DOGE", "name", "X", "trendPresetId", trend, "rainbowUpId", bear, "rainbowDownId", bear))
                 .andExpect(status().isBadRequest());
+
+        as(alice, false, DisplayMode.EXPERT);
+        mvc.perform(delete("/api/expert/affectations/" + id)).andExpect(status().isNoContent());
+        mvc.perform(get("/api/expert/affectations/" + id)).andExpect(status().isNotFound());
     }
 }

@@ -39,18 +39,18 @@ public final class RainbowLiveDtos {
     public record TrendConfigDto(TrendMixCalculator.Params trend, String rangeMapping, ConfigDto bear, ConfigDto bull) {
     }
 
-    /** Activation / désactivation d'une Affectation. */
-    public record EnabledDto(boolean enabled) {
-    }
-
     /** Dernier signal enregistré d'un preset (run le plus récent). */
     public record LastRunDto(LocalDate day, Double close, Integer zone, RainbowLiveAction actionType,
                              Double actionAmountUsdc, Double actionQuantity,
                              String activeSet, String trendRegime) {
     }
 
-    /** Affectation (utilisateur, actif) : presets installés, fenêtre, config de référence (preset DOWN) et activité du moteur. */
-    public record AffectationDto(Long id, String assetSymbol, String name, boolean enabled, boolean complete,
+    /**
+     * Affectation (utilisateur, actif) : presets installés, fenêtre, config de référence (preset DOWN) et activité du moteur.
+     * {@code system} = instance Système (lecture seule) ; {@code providerMatch} (FULL | PARTIAL | NONE, nul sans provider demandé) =
+     * correspondance entre le provider demandé et le provider de référence des trois presets.
+     */
+    public record AffectationDto(Long id, String assetSymbol, String name, boolean system, String providerMatch, boolean enabled, boolean complete,
                                  int analysisWindowMonths, Instant createdAt, Instant updatedAt,
                                  PresetRefDto trendPreset, PresetRefDto rainbowUp, PresetRefDto rainbowDown,
                                  RainbowAtrTuning tuning, RainbowAtrGlobals globals, long runCount, LocalDate firstRunDay,

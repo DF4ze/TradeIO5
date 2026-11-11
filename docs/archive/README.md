@@ -1,8 +1,8 @@
 ---
 statut: index
 sujet: Index des archives
-modifié_le: 2026-09-13
-empreinte: 7d3a821df9
+modifié_le: 2026-11-10
+empreinte: 7467883983
 ---
 # Archive
 
@@ -55,3 +55,9 @@ Documents conservés pour l'historique. **Jamais une référence de l'état cour
 ## Autres
 
 - [`README-old.md`](README-old.md) — ancien `README.md` racine du projet.
+
+## Index des archives
+
+| Fichier | Archivé le | Raison | Remplacé par |
+|---|---|---|---|
+| [`etudes/etude-affectation-par-lien.md`](etudes/etude-affectation-par-lien.md) | 2026-11-10 | Réalisée : lots 1 à 3 livrés (activation dérivée des liens, Affectations nommées, UI) | — |

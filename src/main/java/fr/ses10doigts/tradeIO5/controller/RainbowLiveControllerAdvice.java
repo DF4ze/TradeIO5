@@ -26,6 +26,12 @@ public class RainbowLiveControllerAdvice {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));
     }
 
+    @ExceptionHandler(fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationRuleException.class)
+    public ResponseEntity<ErrorResponse> affectationRule(fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationRuleException e) {
+        return ResponseEntity.status(e.getReason() == fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationRuleException.Reason.SYSTEM_READ_ONLY
+                ? HttpStatus.FORBIDDEN : HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
+    }
+
     @ExceptionHandler(RainbowLiveBindingNotFoundException.class)
     public ResponseEntity<ErrorResponse> bindingNotFound(RainbowLiveBindingNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));

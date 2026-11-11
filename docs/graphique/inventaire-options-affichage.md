@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-06
-modifié_le: 2026-11-07
-empreinte: 64900873b2
+modifié_le: 2026-11-10
+empreinte: 5cecc02c29
 ---
 # Inventaire GUI — actions utilisateur et informations affichées
 
@@ -12,7 +12,7 @@ But : liste unique de **ce sur quoi l'utilisateur peut agir** et de **ce que le 
 
 Légende : **[OK]** disponible côté back (API) · **[GUI]** déjà un écran dans `/app` · **[Prévu]** décrit dans l'étude d'interface, écran non construit (back disponible) · **[À implémenter]** absent du back (aucun endpoint ni modèle) : à construire pour que la maquette soit réalisable. Récapitulatif : §6.
 
-Vocabulaire : « actif » (utilisateur) = **lien/binding** (technique : actif × wallet) ; « preset » = jeu de paramètres (Trend ou Rainbow) ; « Affectation » = par actif, un preset Trend + un Rainbow UP + un Rainbow DOWN. Actifs gérés : **BTC, ETH, PAXG**. Jour = jour UTC ; une passe quotidienne à 23:55 UTC (signal), plan à 23:58.
+Vocabulaire : « actif » (utilisateur) = **lien/binding** (technique : actif × wallet) ; « preset » = jeu de paramètres (Trend ou Rainbow) ; « Affectation » = un preset Trend + un Rainbow UP + un Rainbow DOWN pour un actif, nommée ; plusieurs par actif (Système commune « BTC Système », lecture seule, et les vôtres) ; chaque lien en joue une. Actifs gérés : **BTC, ETH, PAXG**. Jour = jour UTC ; une passe quotidienne à 23:55 UTC (signal), plan à 23:58.
 
 ---
 
@@ -53,6 +53,7 @@ Unique par (user, actif, wallet). `GET /api/rainbow-live/bindings`, `POST` (cré
 | Achat minimum | `PUT /{id}` `minBuyUsd` (`resetMinBuy` pour retirer) | sous ce montant l'achat est reporté en carry |
 | Part de la position offerte | `bagPercent` 0–100 (défaut 100) | dynamique : % de la position réelle que la stratégie peut vendre |
 | Priorité de passage du cash | `priority` | défaut = rang d'actif (BTC 0, ETH 1, PAXG 2) ; ordre de consommation du cash commun |
+| Affectation du lien | `PUT /{id}` `affectationId` | menu par lien (Actifs gérés), trié provider correspondant, Système, vôtres ; changer réinitialise le moteur de la nouvelle (rejeu à la passe suivante), rien n'est bloqué ; autre actif / incomplète ⇒ 400, autre utilisateur ⇒ 404 |
 | Mode d'exécution | `PUT /{id}/execution` `{mode DISABLED\|SIMULATION\|ACTIVE}` | défaut **Désactivé** ; Simulation = chaîne complète jouée sans ordre (tag « Simulation » Journal / Actifs gérés) ; Actif n'envoie rien en soi ; la 1ʳᵉ activation arme automatiquement le 1ᵉʳ ordre réel. L'écran affiche d'abord exchange, chemin d'achat et Fee Test, puis une seule validation (activation + confirmation) |
 | Confirmer le 1ᵉʳ ordre réel | `POST /{id}/confirm-first-live` | possible dès que l'exécution du lien est activée (sinon 409) ; enchaînée par l'écran avec l'activation |
 | Vérifier la disponibilité | `GET /{id}/check` | appelle l'exchange (lecture seule), persiste le statut |
@@ -63,11 +64,11 @@ Après création/modification, la réponse porte `{binding, check}` : un check K
 
 ### 1.4 Affectations
 
-`GET /api/rainbow-live/affectations[?asset=]` (crée au passage les Affectations manquantes, inactives, sur les presets système de base), `GET /affectations/{id}`, `PATCH /affectations/{id}/enabled`.
+`GET /api/rainbow-live/affectations[?asset=]` (crée au passage les Affectations manquantes sur les presets système de base), `GET /affectations/{id}`.
 
 | Action | Détail |
 |---|---|
-| Activer / désactiver | seule une Affectation **active** est jouée par la passe (bascule obligatoire par l'utilisateur) |
+| Activation | pas de bascule : une Affectation est jouée si un lien non archivé la référence (`enabled` du DTO = dérivé, lecture seule) |
 | Presets installés | Trend, Rainbow UP, Rainbow DOWN affichés avec leur origine (système / propre) ; leur édition relève de l'Espace Expert |
 
 ### 1.5 Modulation (curseurs)

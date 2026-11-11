@@ -39,6 +39,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationRuleException;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -63,6 +65,8 @@ class RainbowLiveBenchPersistenceTest {
 
     @Autowired private ExpertFixtures fixtures;
     @Autowired private ExpertBasePresetService basePresetService;
+    @Autowired private fr.ses10doigts.tradeIO5.repository.WalletRepository walletRepository;
+    @Autowired private fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository bindingRepository;
     @Autowired private AssetAffectationService affectationService;
     @Autowired private RainbowLiveRunService runService;
     @Autowired private TrendPresetRepository trendRepository;
@@ -138,7 +142,7 @@ class RainbowLiveBenchPersistenceTest {
         assertEquals(3, created.size());
         for (AssetAffectation a : created) {
             assertTrue(a.isComplete());
-            assertFalse(a.isEnabled());
+            assertFalse(affectationService.isActive(a), "aucun lien => non jouée");
             assertEquals(PresetOrigin.SYSTEM, a.getTrendPreset().getOrigin());
         }
         assertTrue(affectationService.ensureAffectations(alice).isEmpty(), "2e appel : pas de doublon");
@@ -154,10 +158,44 @@ class RainbowLiveBenchPersistenceTest {
     }
 
     @Test
-    @DisplayName("Unicité (user, actif) en base ; l'Affectation d'un user n'est pas visible d'un autre")
+    @DisplayName("Affectations nommées : plusieurs par actif, nom unique, Système en lecture seule, suppression refusée si utilisée, liste triée par provider")
+    void namedAffectations() {
+        basePresetService.ensureBasePresets();
+        AssetAffectation system = affectationService.forAsset(alice, "BTC");
+        assertTrue(system.isSystem());
+        assertEquals("BTC Système", system.getName());
+        Long t = system.getTrendPreset().getId();
+        Long u = system.getRainbowUp().getId();
+        Long d = system.getRainbowDown().getId();
+
+        AssetAffectation mine = affectationService.create(alice, "BTC", "Prudente", t, u, d);
+        assertFalse(mine.isSystem());
+        assertEquals(2, affectationService.listForAsset(alice, "BTC").size());
+        assertEquals(system.getId(), affectationService.listForAsset(alice, "BTC").getFirst().getId(), "Système d'abord");
+        assertThrows(AffectationRuleException.class, () -> affectationService.create(alice, "BTC", " prudente ", t, u, d), "nom pris (insensible à la casse)");
+        assertTrue(affectationService.listForAsset(bob, "BTC").isEmpty(), "les Affectations d'un user ne sont pas visibles d'un autre");
+        affectationService.create(bob, "BTC", "Prudente", t, u, d);
+
+        assertThrows(AffectationRuleException.class, () -> affectationService.update(alice, system.getId(), "X", t, u, d), "Système en lecture seule");
+        assertThrows(AffectationRuleException.class, () -> affectationService.delete(alice, system.getId()));
+        assertEquals("Renommée", affectationService.update(alice, mine.getId(), "Renommée", t, u, d).getName());
+        assertTrue(eventService.list(alice, "BTC").isEmpty(), "simple renommage : aucun événement");
+
+        Wallet w = walletRepository.save(Wallet.builder().name("w").source(fr.ses10doigts.tradeIO5.model.enumerate.WalletSource.EXCHANGE)
+                .webProviderCode(fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode.OKX).user(alice).build());
+        bindingRepository.save(fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding.builder().user(alice).assetSymbol("BTC")
+                .affectation(mine).wallet(w).bagPercent(100.0).priority(0).build());
+        assertThrows(AffectationRuleException.class, () -> affectationService.delete(alice, mine.getId()), "utilisée par un lien");
+        AssetAffectation free = affectationService.create(alice, "BTC", "Libre", t, u, d);
+        affectationService.delete(alice, free.getId());
+        assertEquals(2, affectationService.listForAsset(alice, "BTC").size());
+    }
+
+    @Test
+    @DisplayName("Unicité (user, actif, nom) en base ; l'Affectation d'un user n'est pas visible d'un autre")
     void affectationUnique() {
         AssetAffectation a = btc(alice, "Bench");
-        AssetAffectation dup = AssetAffectation.builder().user(alice).assetSymbol("BTC").trendPreset(a.getTrendPreset())
+        AssetAffectation dup = AssetAffectation.builder().user(alice).assetSymbol("BTC").name(a.getName()).trendPreset(a.getTrendPreset())
                 .rainbowUp(a.getRainbowUp()).rainbowDown(a.getRainbowDown()).createdAt(Instant.EPOCH).updatedAt(Instant.EPOCH).build();
         assertThrows(DataIntegrityViolationException.class, () -> affectationRepository.saveAndFlush(dup));
         em.clear();
@@ -170,12 +208,12 @@ class RainbowLiveBenchPersistenceTest {
     @DisplayName("assign : presets installés, état moteur purgé, événement LIVE_SWITCH ; identique => rien ; autre actif / autre user refusés")
     void assign() {
         basePresetService.ensureBasePresets();
-        AssetAffectation base = affectationService.forAsset(alice, "BTC");
+        AssetAffectation base = fixtures.editable(affectationService, alice, "BTC");
         stateRepository.save(RainbowLiveEngineState.of(base, DAY, RainbowAtrState.initial()));
         em.flush();
         assertEquals(1, stateRepository.count());
 
-        AssetAffectation same = affectationService.assign(alice, "BTC", base.getTrendPreset().getId(),
+        AssetAffectation same = affectationService.update(alice, base.getId(), null, base.getTrendPreset().getId(),
                 base.getRainbowUp().getId(), base.getRainbowDown().getId());
         assertEquals(1, stateRepository.count(), "presets inchangés : état conservé");
         assertTrue(eventService.list(alice, "BTC").isEmpty());
@@ -183,14 +221,14 @@ class RainbowLiveBenchPersistenceTest {
 
         RainbowPreset own = fixtures.affectation(bob, "BTC", "perso", RainbowLiveDefaultPresets.configFor("BTC").toTuning(),
                 RainbowLiveDefaultPresets.configFor("BTC").toGlobals()).getRainbowUp();
-        assertThrows(IllegalArgumentException.class, () -> affectationService.assign(alice, "BTC",
+        assertThrows(IllegalArgumentException.class, () -> affectationService.update(alice, base.getId(), null,
                 base.getTrendPreset().getId(), own.getId(), base.getRainbowDown().getId()), "preset d'un autre user");
         RainbowPreset eth = rainbowRepository.findByAssetSymbolAndBaseRole("ETH", BasePresetRole.RAINBOW_BULL).orElseThrow();
-        assertThrows(IllegalArgumentException.class, () -> affectationService.assign(alice, "BTC",
+        assertThrows(IllegalArgumentException.class, () -> affectationService.update(alice, base.getId(), null,
                 base.getTrendPreset().getId(), eth.getId(), base.getRainbowDown().getId()), "preset d'un autre actif");
 
         RainbowPreset bear = base.getRainbowDown();
-        AssetAffectation switched = affectationService.assign(alice, "BTC", base.getTrendPreset().getId(), bear.getId(), bear.getId());
+        AssetAffectation switched = affectationService.update(alice, base.getId(), null, base.getTrendPreset().getId(), bear.getId(), bear.getId());
         em.flush();
         assertEquals(base.getId(), switched.getId());
         assertEquals(bear.getId(), switched.getRainbowUp().getId());

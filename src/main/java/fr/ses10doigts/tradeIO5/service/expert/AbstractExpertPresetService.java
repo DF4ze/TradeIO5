@@ -69,7 +69,7 @@ public abstract class AbstractExpertPresetService<P extends ExpertPreset> {
         List<P> presets = new ArrayList<>(repository.findByAssetSymbolAndOrigin(symbol, PresetOrigin.SYSTEM));
         presets.addAll(repository.findByAssetSymbolAndOwner(symbol, ctx.user()));
         presets.sort(Comparator.comparing((P p) -> p.getOrigin()).thenComparing(P::getName));
-        AssetAffectation mine = support.getAffectationRepository().findByUserAndAssetSymbol(ctx.user(), symbol).orElse(null);
+        List<AssetAffectation> mine = support.getAffectationRepository().findByUserAndAssetSymbolOrderByIdAsc(ctx.user(), symbol);
         return presets.stream().map(p -> header(ctx, p, mine)).toList();
     }
 
@@ -81,7 +81,7 @@ public abstract class AbstractExpertPresetService<P extends ExpertPreset> {
 
     @Transactional(readOnly = true)
     public PresetHeaderDto header(ExpertContext ctx, P preset) {
-        return header(ctx, preset, support.getAffectationRepository().findByUserAndAssetSymbol(ctx.user(), preset.getAssetSymbol()).orElse(null));
+        return header(ctx, preset, support.getAffectationRepository().findByUserAndAssetSymbolOrderByIdAsc(ctx.user(), preset.getAssetSymbol()));
     }
 
     /** Impact d'une modification d'un preset SYSTEM (ADMIN seul) : nombre d'Affectations qui l'installent et de moteurs actifs, sans identité. */
@@ -95,7 +95,7 @@ public abstract class AbstractExpertPresetService<P extends ExpertPreset> {
             throw new ExpertApiException(ExpertApiException.Code.PRESET_NOT_FOUND, "Preset système introuvable : " + id);
         }
         List<AssetAffectation> used = affectationsUsing(preset);
-        return new ImpactDto(used.size(), (int) used.stream().filter(AssetAffectation::isEnabled).count());
+        return new ImpactDto(used.size(), (int) used.stream().filter(support::isActive).count());
     }
 
     @Transactional
@@ -105,7 +105,7 @@ public abstract class AbstractExpertPresetService<P extends ExpertPreset> {
             throw new ExpertApiException(ExpertApiException.Code.PRESET_SYSTEM_UNDELETABLE, "Un preset système ne se supprime pas");
         }
         List<UsageDto> usages = affectationsUsing(preset).stream()
-                .flatMap(a -> rolesIn(a, preset).stream().map(r -> new UsageDto(a.getId(), a.getAssetSymbol(), r.name(), a.isEnabled()))).toList();
+                .flatMap(a -> rolesIn(a, preset).stream().map(r -> new UsageDto(a.getId(), a.getAssetSymbol(), r.name(), support.isActive(a)))).toList();
         if (!usages.isEmpty()) {
             throw new ExpertApiException(ExpertApiException.Code.PRESET_IN_USE,
                     "Preset encore installé dans une Affectation : changez l'Affectation avant de le supprimer", usages);
@@ -269,10 +269,10 @@ public abstract class AbstractExpertPresetService<P extends ExpertPreset> {
                 .orElseThrow(() -> new ExpertApiException(ExpertApiException.Code.PRESET_NOT_FOUND, "Preset introuvable : " + id));
     }
 
-    private PresetHeaderDto header(ExpertContext ctx, P p, AssetAffectation mine) {
+    private PresetHeaderDto header(ExpertContext ctx, P p, List<AssetAffectation> mine) {
         boolean system = p.getOrigin() == PresetOrigin.SYSTEM;
-        List<UsageDto> usedBy = mine == null ? List.of()
-                : rolesIn(mine, p).stream().map(r -> new UsageDto(mine.getId(), mine.getAssetSymbol(), r.name(), mine.isEnabled())).toList();
+        List<UsageDto> usedBy = mine.stream().flatMap(a -> rolesIn(a, p).stream()
+                .map(r -> new UsageDto(a.getId(), a.getAssetSymbol(), r.name(), support.isActive(a)))).toList();
         return new PresetHeaderDto(p.getId(), p.getAssetSymbol(), p.getName(), p.getOrigin().name(), ctx.isOwner(p.getOwner()),
                 p.getBaseRole() == null ? null : p.getBaseRole().name(), p.getReferenceProvider(), p.getRevision(),
                 system ? ctx.admin() : ctx.isOwner(p.getOwner()), !system && ctx.isOwner(p.getOwner()), usedBy,

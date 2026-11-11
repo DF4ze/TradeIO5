@@ -75,7 +75,7 @@ public class AffectationMigrationService {
         for (List<LegacyRainbowPreset> group : groups.values()) {
             LegacyRainbowPreset first = group.getFirst();
             if (!RainbowLiveDefaultPresets.ASSETS.contains(first.getAssetSymbol())
-                    || affectationRepository.findByUserAndAssetSymbol(first.getUser(), first.getAssetSymbol()).isPresent()) {
+                    || !affectationRepository.findByUserAndAssetSymbolOrderByIdAsc(first.getUser(), first.getAssetSymbol()).isEmpty()) {
                 continue;
             }
             LegacyRainbowPreset kept = choose(group, tablesWithPresetId);
@@ -140,7 +140,7 @@ public class AffectationMigrationService {
             }
         }
         return AssetAffectation.builder().user(p.getUser()).assetSymbol(asset).trendPreset(trend).rainbowUp(up)
-                .rainbowDown(down).enabled(p.isEnabled()).createdAt(now).updatedAt(now).build();
+                .rainbowDown(down).createdAt(now).updatedAt(now).build();
     }
 
     private static RainbowLiveTrendConfigs.Resolved resolve(LegacyRainbowTrendConfig row, String asset) {

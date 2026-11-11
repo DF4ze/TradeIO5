@@ -15,6 +15,10 @@
       TIO.safe(TIO.get('/api/portfolio/holdings'), null),
       TIO.safe(TIO.get('/api/rainbow-live/affectations'), []),
       TIO.safe(TIO.get('/api/rainbow-live/decisions' + TIO.qs({ from: iso(-30), to: iso(0) })), [])]);
+    // Affectations proposées par lien (actif x provider), triées côté serveur : correspondance de provider, Système, puis les vôtres
+    const pairs = [...new Set(bindings.map((b) => b.assetSymbol + '|' + (b.exchange || '')))];
+    const affLists = await Promise.all(pairs.map((k) => { const [a, ex] = k.split('|'); return TIO.safe(TIO.get('/api/rainbow-live/affectations' + TIO.qs({ asset: a, provider: ex || undefined })), []); }));
+    const affBy = Object.fromEntries(pairs.map((k, i) => [k, affLists[i]]));
     // état de la stratégie par lien : celui de la décision la plus récente
     const stateBy = {};
     decisions.filter((d) => d.strategyState).sort((x, y) => (x.day < y.day ? -1 : 1)).forEach((d) => { stateBy[d.bindingId] = d.strategyState; });
@@ -33,7 +37,7 @@
       const line = lines[b.assetSymbol];
       const part = line && (line.parts || []).find((x) => x.walletId === b.walletId);
       const pos = part ? { quantity: part.quantity, value: part.value } : (line && !(line.parts || []).length ? { quantity: line.quantity, value: line.value } : null);
-      return { b, live: liveBy[b.assetSymbol] || null, state: TIO.stateText(stateBy[b.id]), perf: perfOf(perfBy[b.assetSymbol], b.walletId), pos, presetBase: presetBase[b.affectationId], shared: count[b.assetSymbol] > 1 };
+      return { b, live: liveBy[b.assetSymbol] || null, state: TIO.stateText(stateBy[b.id]), perf: perfOf(perfBy[b.assetSymbol], b.walletId), pos, presetBase: presetBase[b.affectationId], affs: affBy[b.assetSymbol + '|' + (b.exchange || '')] || [], shared: count[b.assetSymbol] > 1 };
     });
     // groupes par provider, du plus gros au plus petit
     const groups = new Map();
@@ -79,6 +83,26 @@
       b.preferredRoute ? h('div', { class: 'muted small' }, 'Route choisie par vous (imposée à l\'exécution).') : null);
   }
 
+  const MATCH = { FULL: ' · provider ✓', PARTIAL: ' · provider ~' };
+  const affLabel = (a) => a.name + (a.system ? ' (Système)' : '') + (MATCH[a.providerMatch] || '');
+
+  /** Choix de l'Affectation du lien : liste triée par préférence ; changer réinitialise le moteur (rejeu de l'historique à la prochaine passe). */
+  function affectationSetting(item, call, zone) {
+    const b = item.b;
+    const list = item.affs.some((a) => a.id === b.affectationId) ? item.affs : [{ id: b.affectationId, name: b.affectationName || 'Affectation', system: false }].concat(item.affs);
+    const sel = h('select', { 'aria-label': 'Affectation de ' + b.assetSymbol },
+      list.map((a) => h('option', { value: String(a.id), selected: a.id === b.affectationId }, affLabel(a))));
+    sel.value = String(b.affectationId);
+    sel.addEventListener('change', () => {
+      const target = list.find((a) => String(a.id) === sel.value);
+      TIO.clear(zone);
+      zone.appendChild(confirmRow('Utiliser « ' + target.name + ' » pour ' + b.assetSymbol + (b.exchange ? ' sur ' + b.exchange : '') + ' ? Le moteur de cette Affectation est réinitialisé et rejoue l\'historique à la prochaine passe ; aucun ordre n\'est bloqué.', 'Changer',
+        () => call(() => TIO.api('PUT', BIND + '/' + b.id, { affectationId: target.id }), 'Affectation changée'),
+        () => { sel.value = String(b.affectationId); TIO.clear(zone); }));
+    });
+    return ui.setting('Affectation', 'Les presets (Trend, Rainbow UP / DOWN) joués pour ce lien. Triées : provider correspondant, Système, puis les vôtres (créées dans l\'Espace Expert).', sel);
+  }
+
   /** Réglages du lien (replié) : montant de base, mode d'exécution, premier ordre, part vendable et achat minimum (Avancé). */
   function settingsPanel(item, refresh) {
     const b = item.b, p = item.perf, sym = b.assetSymbol;
@@ -107,6 +131,7 @@
       h('div', { class: 'muted small' }, TIO.labels.check[b.tradability] || ''),
       pathPanel(item, call),
       ui.setting('Montant de base', baseDesc, h('div', { class: 'row' }, h('div', { class: 'field', style: { width: '110px' } }, amount), saveAmount)),
+      affectationSetting(item, call, zone),
       ui.setting('Exécution', EM.describe(EM.modeOf(b)), EM.control(item, refresh)),
     ];
     if (b.executionEnabled && !b.firstLiveConfirmed) {

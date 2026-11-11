@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,7 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Lecture du bench grandeur nature pour l'API REST (presets enrichis, dernier signal). Toutes les
@@ -77,15 +79,38 @@ public class RainbowLiveQueryService {
                 Arrays.stream(RainbowSetSelector.RangeMapping.values()).map(Enum::name).toList());
     }
 
-    /** Création des Affectations manquantes (presets de base) puis liste enrichie ; transaction en écriture. */
+    /**
+     * Création des instances Système manquantes puis liste enrichie ; transaction en écriture. Avec {@code provider}, la liste est
+     * triée par ordre de préférence : correspondance de provider (complète, partielle, aucune), puis Système, puis Affectations
+     * utilisateur les plus récentes.
+     */
     @Transactional
-    public List<AffectationDto> listAffectations(User user, String asset) {
+    public List<AffectationDto> listAffectations(User user, String asset, String provider) {
         if (asset != null && !RainbowLiveDefaultPresets.ASSETS.contains(asset)) {
             throw new IllegalArgumentException("Actif non autorisé : " + asset
                     + " (autorisés : " + RainbowLiveDefaultPresets.ASSETS + ")");
         }
         affectationService.ensureAffectations(user);
-        return toDtos(affectationService.list(user).stream().filter(a -> asset == null || a.getAssetSymbol().equals(asset)).toList());
+        List<AssetAffectation> list = affectationService.list(user).stream().filter(a -> asset == null || a.getAssetSymbol().equals(asset)).toList();
+        if (provider == null || provider.isBlank()) {
+            return toDtos(list, null);
+        }
+        return toDtos(list.stream().sorted(Comparator.<AssetAffectation>comparingInt(a -> -matchRank(a, provider))
+                .thenComparing(a -> !a.isSystem()).thenComparing(AssetAffectation::getUpdatedAt, Comparator.reverseOrder())).toList(), provider);
+    }
+
+    private static int matchRank(AssetAffectation a, String provider) {
+        long matching = Stream.of(a.getTrendPreset(), a.getRainbowUp(), a.getRainbowDown())
+                .filter(p -> p != null && provider.equalsIgnoreCase(p.getReferenceProvider())).count();
+        return matching == 3 ? 2 : matching > 0 ? 1 : 0;
+    }
+
+    private static String matchName(AssetAffectation a, String provider) {
+        return provider == null ? null : switch (matchRank(a, provider)) {
+            case 2 -> "FULL";
+            case 1 -> "PARTIAL";
+            default -> "NONE";
+        };
     }
 
     /** Historique des changements d'Affectation du user (filtre actif optionnel), du plus récent au plus ancien. */
@@ -100,12 +125,12 @@ public class RainbowLiveQueryService {
 
     @Transactional(readOnly = true)
     public AffectationDto getAffectation(User user, Long id) {
-        return toDtos(List.of(affectationService.get(user, id))).getFirst();
+        return toDtos(List.of(affectationService.get(user, id)), null).getFirst();
     }
 
     // ---------------------------------------------------------------- mapping
 
-    private List<AffectationDto> toDtos(List<AssetAffectation> affectations) {
+    private List<AffectationDto> toDtos(List<AssetAffectation> affectations, String provider) {
         if (affectations.isEmpty()) {
             return List.of();
         }
@@ -113,17 +138,17 @@ public class RainbowLiveQueryService {
                 .collect(Collectors.toMap(RunStats::getAffectationId, Function.identity()));
         Map<Long, RainbowLiveRun> latest = runRepository.latestByAffectations(affectations).stream()
                 .collect(Collectors.toMap(r -> r.getAffectation().getId(), Function.identity()));
-        return affectations.stream().map(a -> toDto(a, stats.get(a.getId()), latest.get(a.getId()))).toList();
+        return affectations.stream().map(a -> toDto(a, stats.get(a.getId()), latest.get(a.getId()), provider)).toList();
     }
 
-    private AffectationDto toDto(AssetAffectation a, RunStats stats, RainbowLiveRun latest) {
+    private AffectationDto toDto(AssetAffectation a, RunStats stats, RainbowLiveRun latest, String provider) {
         RainbowLivePassBlock block = latest == null ? null : latest.getSignal();
         LastRunDto lastRun = block == null ? null : new LastRunDto(latest.getDay(), block.getClose(), block.getZone(),
                 block.getActionType(), block.getActionAmountUsdc(), block.getActionQuantity(), block.getActiveSet(),
                 block.getTrendRegime());
         boolean complete = a.isComplete();
         RainbowAtrConfig cfg = complete ? configResolver.config(a) : null;
-        return new AffectationDto(a.getId(), a.getAssetSymbol(), a.label(), a.isEnabled(), complete,
+        return new AffectationDto(a.getId(), a.getAssetSymbol(), a.displayName(), a.isSystem(), matchName(a, provider), affectationService.isActive(a), complete,
                 complete ? configResolver.analysisWindowMonths(a) : 0, a.getCreatedAt(), a.getUpdatedAt(),
                 ref(a.getTrendPreset() == null ? null : a.getTrendPreset().getId(), a.getTrendPreset() == null ? null : a.getTrendPreset().getName(),
                         a.getTrendPreset() == null ? null : a.getTrendPreset().getOrigin().name()),

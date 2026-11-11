@@ -122,7 +122,7 @@ class AffectationMigrationServiceTest {
         User donor = userRepository.save(User.builder().username("d" + Long.toString(System.nanoTime(), 36)).email(Long.toString(System.nanoTime(), 36) + "@test.local").password("x").build());
         AssetAffectation tmp = affectationRepository.save(AssetAffectation.builder().user(donor).assetSymbol(p.getAssetSymbol())
                 .trendPreset(trendRepository.findAll().getFirst()).rainbowUp(rainbowRepository.findAll().getFirst())
-                .rainbowDown(rainbowRepository.findAll().getFirst()).enabled(true).createdAt(NOW).updatedAt(NOW).build());
+                .rainbowDown(rainbowRepository.findAll().getFirst()).createdAt(NOW).updatedAt(NOW).build());
         em.persist(RainbowLiveEngineState.of(tmp, DAY, RainbowAtrState.initial()));
         em.persist(fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun.builder().user(p.getUser()).assetSymbol(p.getAssetSymbol()).affectation(tmp).day(DAY)
                 .signal(RainbowLivePassBlock.builder().close(100.0).build()).build());
@@ -150,11 +150,10 @@ class AffectationMigrationServiceTest {
         em.flush();
 
         assertTrue(migration.migrate() >= 1);
-        AssetAffectation a = affectationRepository.findByUserAndAssetSymbol(alice, "BTC").orElseThrow();
+        AssetAffectation a = affectationRepository.findByUserAndAssetSymbolOrderByIdAsc(alice, "BTC").getFirst();
         assertEquals(PresetOrigin.SYSTEM, a.getTrendPreset().getOrigin());
         assertEquals(BasePresetRole.RAINBOW_BULL, a.getRainbowUp().getBaseRole());
         assertEquals(BasePresetRole.RAINBOW_BEAR, a.getRainbowDown().getBaseRole());
-        assertTrue(a.isEnabled());
         assertEquals(1, count("rainbow_live_run", "affectation_id = " + a.getId() + " AND preset_id IS NULL"));
         assertEquals(1, count("rainbow_live_engine_state", "affectation_id = " + a.getId() + " AND preset_id IS NULL"));
 
@@ -172,7 +171,7 @@ class AffectationMigrationServiceTest {
         em.flush();
 
         migration.migrate();
-        AssetAffectation a = affectationRepository.findByUserAndAssetSymbol(alice, "ETH").orElseThrow();
+        AssetAffectation a = affectationRepository.findByUserAndAssetSymbolOrderByIdAsc(alice, "ETH").getFirst();
         assertEquals(PresetOrigin.USER, a.getTrendPreset().getOrigin());
         assertEquals(alice.getId(), a.getTrendPreset().getOwner().getId());
         assertEquals(RainbowLiveTrendConfigs.defaults("ETH").trend().smaPeriod() + 7, a.getTrendPreset().toParams().smaPeriod());
@@ -188,7 +187,7 @@ class AffectationMigrationServiceTest {
         em.flush();
 
         migration.migrate();
-        AssetAffectation a = affectationRepository.findByUserAndAssetSymbol(alice, "PAXG").orElseThrow();
+        AssetAffectation a = affectationRepository.findByUserAndAssetSymbolOrderByIdAsc(alice, "PAXG").getFirst();
         assertEquals(PresetOrigin.SYSTEM, a.getTrendPreset().getOrigin());
         assertNotEquals(null, a.getRainbowUp().getBaseRole());
     }
@@ -203,8 +202,7 @@ class AffectationMigrationServiceTest {
         em.flush();
 
         assertTrue(migration.migrate() >= 1);
-        AssetAffectation a = affectationRepository.findByUserAndAssetSymbol(alice, "BTC").orElseThrow();
-        assertTrue(a.isEnabled(), "le preset activé est retenu");
+        AssetAffectation a = affectationRepository.findByUserAndAssetSymbolOrderByIdAsc(alice, "BTC").getFirst();
         assertEquals(1, count("rainbow_live_run", "affectation_id = " + a.getId()));
         assertEquals(0, count("rainbow_live_run", "preset_id IS NOT NULL AND affectation_id IS NULL"));
         assertEquals(1, count("rainbow_live_engine_state", "affectation_id = " + a.getId()));

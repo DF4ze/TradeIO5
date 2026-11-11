@@ -71,11 +71,12 @@ public final class ExpertDtos {
                                  List<String> bindingProviders, boolean gap) {
     }
 
-    public record AffectationDto(Long id, String assetSymbol, boolean enabled, boolean complete, PresetRefDto trend,
+    public record AffectationDto(Long id, String assetSymbol, String name, boolean system, boolean enabled, boolean complete, PresetRefDto trend,
                                  PresetRefDto rainbowUp, PresetRefDto rainbowDown, List<ProviderGapDto> providerGaps,
                                  Instant updatedAt) {
     }
 
-    public record AssignRequest(Long trendPresetId, Long rainbowUpId, Long rainbowDownId) {
+    /** Création ({@code assetSymbol} + {@code name} obligatoires) ou modification ({@code name} nul = inchangé) d'une Affectation. */
+    public record AffectationRequest(String assetSymbol, String name, Long trendPresetId, Long rainbowUpId, Long rainbowDownId) {
     }
 }

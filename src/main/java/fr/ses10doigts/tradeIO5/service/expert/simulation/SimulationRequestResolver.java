@@ -55,7 +55,7 @@ public class SimulationRequestResolver {
 
     @Transactional(readOnly = true)
     public ResolvedSimulation resolve(ExpertContext ctx, SimulationType type, String asset, SimulationRequest request) {
-        AssetAffectation affectation = affectationRepository.findByUserAndAssetSymbol(ctx.user(), asset).orElse(null);
+        AssetAffectation affectation = affectationRepository.findByUserAndAssetSymbolAndSystemTrue(ctx.user(), asset).orElse(null);
         TrendSettings trend = trend(ctx, asset, request.trend(), affectation);
         return switch (type) {
             case TREND -> new ResolvedSimulation(type, asset, trend.params(), trend.mapping(), trend.label(), null, null, null,

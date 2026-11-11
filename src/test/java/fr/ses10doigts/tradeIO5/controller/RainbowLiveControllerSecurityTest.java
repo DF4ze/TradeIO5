@@ -37,8 +37,7 @@ class RainbowLiveControllerSecurityTest {
     static class Config {
         @Bean
         RainbowLiveController controller() {
-            return new RainbowLiveController(mock(AssetAffectationService.class), mock(RainbowLiveQueryService.class),
-                    mock(IAuthenticationFacade.class));
+            return new RainbowLiveController(mock(RainbowLiveQueryService.class), mock(IAuthenticationFacade.class));
         }
     }
 
@@ -61,7 +60,7 @@ class RainbowLiveControllerSecurityTest {
     @DisplayName("Sans contexte de sécurité : refus (non authentifié)")
     void noAuthentication() {
         assertThrows(AuthenticationCredentialsNotFoundException.class, () -> controller.defaults());
-        assertThrows(AuthenticationCredentialsNotFoundException.class, () -> controller.affectations(null));
+        assertThrows(AuthenticationCredentialsNotFoundException.class, () -> controller.affectations(null, null));
         assertThrows(AuthenticationCredentialsNotFoundException.class, () -> controller.affectation(1L));
     }
 

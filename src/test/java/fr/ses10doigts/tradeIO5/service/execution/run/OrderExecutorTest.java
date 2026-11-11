@@ -112,7 +112,7 @@ class OrderExecutorTest {
         when(plans.transition(anyLong(), any(), any(), any())).thenReturn(1);
         when(credentials.resolve(any(), any())).thenReturn(Optional.of(new ApiCredential()));
         when(requoter.requote(any(), any(), any(), any(), any(), any()))
-                .thenReturn(new StepRequoter.Requote(new BigDecimal("0.10"), new BigDecimal("100000")));
+                .thenAnswer(i -> quote("0.10", i));
         plan = RainbowLiveOrderPlan.builder().id(1L).user(user).day(DAY).status(PlanStatus.PLANNED)
                 .expiresAt(NOW.plusSeconds(3600)).assets(new ArrayList<>()).steps(new ArrayList<>()).build();
         when(plans.findById(1L)).thenReturn(Optional.of(plan));
@@ -317,10 +317,10 @@ class OrderExecutorTest {
     void requoteDrift() {
         addAsset("BTC", btcUsdc, "4", 100L);
         when(requoter.requote(any(), any(), any(), any(), any(), any()))
-                .thenReturn(new StepRequoter.Requote(new BigDecimal("0.20"), new BigDecimal("100000")));
+                .thenAnswer(i -> quote("0.20", i));
         assertEquals(0, runLive().sent());
         when(requoter.requote(any(), any(), any(), any(), any(), any()))
-                .thenReturn(new StepRequoter.Requote(new BigDecimal("5"), new BigDecimal("100000")));
+                .thenAnswer(i -> quote("5", i));
         assertEquals(0, runLive().sent());
         assertTrue(plan.getExecutionBlockReason().endsWith("BTC@10:COST_RED"), "la raison du non-envoi remonte au plan");
         assertEquals(0, exchange.totalCalls());
@@ -407,6 +407,42 @@ class OrderExecutorTest {
         verify(transitRepo, never()).save(any());
     }
 
+    /** Re-devis simulé : prix de référence = prix planifié (notionnel / taille), sauf si {@code ref} est fourni. */
+    private static StepRequoter.Requote quote(String cost, org.mockito.invocation.InvocationOnMock i) {
+        BigDecimal notional = i.getArgument(5, BigDecimal.class);
+        BigDecimal sz = i.getArgument(4, BigDecimal.class);
+        // null lors d'un re-stubbing (Mockito rappelle l'ancienne réponse avec des matchers)
+        BigDecimal ref = notional == null || sz == null ? BigDecimal.ONE : notional.divide(sz, 18, java.math.RoundingMode.HALF_UP);
+        return new StepRequoter.Requote(new BigDecimal(cost), new BigDecimal("100000"), ref);
+    }
+
+    @Test
+    @DisplayName("Marché monté depuis le plan : IOC annulé, retry avec un plafond recalculé sur le re-devis, plan EXECUTED")
+    void drift_retriesWithRefreshedCap() {
+        addAsset("BTC", btcUsdc, "4", 100L);
+        BigDecimal[] ref = {new BigDecimal("100500"), new BigDecimal("101000")};
+        int[] n = {0};
+        when(requoter.requote(any(), any(), any(), any(), any(), any())).thenAnswer(i ->
+                new StepRequoter.Requote(new BigDecimal("0.10"), new BigDecimal("100000"), ref[n[0]++]));
+        int[] sends = {0};
+        exchange.onSubmit(r -> exchange.mode(++sends[0] == 1 ? Mode.NO_FILL : Mode.FILL_ALL));
+        ExecutionResult r = runLive();
+        assertEquals(PlanStatus.EXECUTED, r.status());
+        assertEquals(2, exchange.submitCount());
+        assertEquals(0, new BigDecimal("100600.5").compareTo(exchange.submitted.getFirst().px()), "plafond = ask re-coté x 1,001");
+        assertEquals(0, new BigDecimal("101101").compareTo(exchange.submitted.getLast().px()), "plafond recalculé au 2e essai");
+    }
+
+    @Test
+    @DisplayName("Achat annulé à chaque essai : retries bornés puis plan FAILED, aucun ordre compensatoire")
+    void cancelledEveryAttemptFails() {
+        addAsset("BTC", btcUsdc, "4", 100L);
+        exchange.onSubmit(r -> exchange.mode(Mode.NO_FILL));
+        ExecutionResult r = runLive();
+        assertEquals(PlanStatus.FAILED, r.status());
+        assertEquals(ExecutionDefaults.STEP_MAX_ATTEMPTS, exchange.submitCount());
+    }
+
     @Test
     @DisplayName("Jambe 2 refusée une fois : retry sous un nouvel identifiant, plan EXECUTED, aucun stock")
     void leg2RetryThenSuccess() {
@@ -432,7 +468,7 @@ class OrderExecutorTest {
         exchange.onSubmit(r -> exchange.mode(r.instId().equals("PAXG-BTC") ? Mode.NO_FILL : Mode.FILL_ALL));
         ExecutionResult r = runLive();
         assertEquals(PlanStatus.PARTIAL, r.status());
-        assertEquals(1 + ExecutionDefaults.LEG2_MAX_ATTEMPTS, exchange.submitCount());
+        assertEquals(1 + ExecutionDefaults.STEP_MAX_ATTEMPTS, exchange.submitCount());
         assertTrue(exchange.submitted.stream().skip(1).allMatch(o -> o.instId().equals("PAXG-BTC") && o.side() == StepSide.BUY));
         org.mockito.ArgumentCaptor<TransitStock> stock = org.mockito.ArgumentCaptor.forClass(TransitStock.class);
         verify(transitRepo).save(stock.capture());
@@ -447,8 +483,7 @@ class OrderExecutorTest {
     void leg2RedGoesToTransitStock() {
         addPaxgRoute();
         when(requoter.requote(any(), any(), any(), any(), any(), any())).thenAnswer(i ->
-                new StepRequoter.Requote(i.getArgument(2, InstrumentInfo.class).instId().equals("PAXG-BTC")
-                        ? new BigDecimal("5") : new BigDecimal("0.10"), new BigDecimal("100000")));
+                quote(i.getArgument(2, InstrumentInfo.class).instId().equals("PAXG-BTC") ? "5" : "0.10", i));
         ExecutionResult r = runLive();
         assertEquals(PlanStatus.PARTIAL, r.status());
         assertEquals(1, exchange.submitCount());

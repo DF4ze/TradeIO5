@@ -13,7 +13,12 @@ import java.util.Optional;
 
 public interface AssetAffectationRepository extends JpaRepository<AssetAffectation, Long> {
 
-    Optional<AssetAffectation> findByUserAndAssetSymbol(User user, String assetSymbol);
+    List<AssetAffectation> findByUserAndAssetSymbolOrderByIdAsc(User user, String assetSymbol);
+
+    /** Instance Système de l'utilisateur sur l'actif (au plus une). */
+    Optional<AssetAffectation> findByUserAndAssetSymbolAndSystemTrue(User user, String assetSymbol);
+
+    boolean existsByUserAndAssetSymbolAndName(User user, String assetSymbol, String name);
 
     List<AssetAffectation> findByUser(User user);
 

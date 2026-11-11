@@ -25,4 +25,11 @@ public interface RainbowLiveBindingRepository extends JpaRepository<RainbowLiveB
 
     /** Une Affectation peut alimenter plusieurs liens (un par wallet). */
     List<RainbowLiveBinding> findAllByAffectation(AssetAffectation affectation);
+
+    /** Vrai si au moins un lien non archivé référence l'Affectation (c'est ce qui la fait jouer par la passe). */
+    boolean existsByAffectationAndArchivedAtIsNull(AssetAffectation affectation);
+
+    /** Affectations référencées par au moins un lien non archivé de l'utilisateur. */
+    @Query("select distinct b.affectation from RainbowLiveBinding b where b.user = :user and b.archivedAt is null and b.affectation is not null")
+    List<AssetAffectation> findActiveAffectationsByUser(@Param("user") User user);
 }

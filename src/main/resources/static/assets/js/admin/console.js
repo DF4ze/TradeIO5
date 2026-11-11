@@ -258,7 +258,8 @@
     box.className = 'border rounded p-2 small';
     box.textContent = 'Passe live ' + s.day + ' : ' + s.processed + ' traité(s), ' + s.skipped + ' ignoré(s), '
       + s.errors + ' erreur(s)' + (s.totalMs == null ? '' : ' · ' + s.totalMs + ' ms (chargement ' + s.loadMs + ', signal ' + s.signalMs
-      + ', liens ' + s.linksMs + ')') + '.';
+      + ', liens ' + s.linksMs + ')') + '.'
+      + (s.processed + s.skipped + s.errors === 0 ? ' Aucune Affectation jouée : une Affectation n\'est jouée que si un lien (actif géré) non archivé la référence.' : '');
   }
 
   /** Resynchronisation forcée de l'état moteur Trend Mix jusqu'à la veille (rejeu, aucun run ni ordre). */

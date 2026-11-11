@@ -1,8 +1,8 @@
 ---
 statut: index
 sujet: Index des études actives
-modifié_le: 2026-09-13
-empreinte: ffa51d5c28
+modifié_le: 2026-11-10
+empreinte: e3cc130a93
 ---
 # Études (journal de conception daté)
 
@@ -10,7 +10,7 @@ empreinte: ffa51d5c28
 
 | Étude | Sujet | Dernière modif |
 |---|---|---|
-| [`etude-affectation-par-lien.md`](etude-affectation-par-lien.md) | Étude — Affectation choisie par lien (comblement du manque Lien ↔ Affectation) |  |
+| [`etude-affectation-par-lien.md`](../archive/etudes/etude-affectation-par-lien.md) | Étude — Affectation choisie par lien (comblement du manque Lien ↔ Affectation) |  |
 | [`etude-architecture-interface.md`](etude-architecture-interface.md) | Étude — Architecture de l'interface |  |
 | [`etude-bench-auto-trend-mix-nouvel-actif.md`](etude-bench-auto-trend-mix-nouvel-actif.md) | Étude — Bench automatique du Trend Mix sur un nouvel actif |  |
 | [`etude-chemin-achat-execution.md`](etude-chemin-achat-execution.md) | Étude — chemin d'achat via API (passerelle USDT), plan d'ordres, Fee Test, exécution réelle |  |

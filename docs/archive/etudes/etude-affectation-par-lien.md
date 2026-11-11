@@ -1,11 +1,15 @@
 ---
-statut: journal
+statut: archivé
+archivé_le: 2026-11-10
+raison: Réalisée : lots 1 à 3 livrés (activation dérivée des liens, Affectations nommées, UI)
 modifié_le: 2026-11-10
-empreinte: 83558f81de
+empreinte: 3fa4cf9e38
 ---
 # Étude — Affectation choisie par lien (comblement du manque Lien ↔ Affectation)
 
-Statut : **étude du 2026-11-10**, décisions de Clem du même jour intégrées (§5), aucun code. État actuel du code : [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md). Modèle des liens : [`etude-liens-strategie-provider-actif.md`](etude-liens-strategie-provider-actif.md).
+> ⚠ **ARCHIVÉ le 2026-11-10** — Réalisée : lots 1 à 3 livrés (activation dérivée des liens, Affectations nommées, UI). Ne jamais lire comme référence de l'état courant.
+
+Statut : **étude du 2026-11-10**, décisions de Clem du même jour intégrées (§5), aucun code. État actuel du code : [`../architecture/08-rainbow-live.md`](../../architecture/08-rainbow-live.md). Modèle des liens : [`etude-liens-strategie-provider-actif.md`](../../etudes/etude-liens-strategie-provider-actif.md).
 
 ## 1. Constat
 
@@ -64,7 +68,7 @@ La FK `binding → affectation` existe donc déjà : le besoin est surtout de **
 
 ### 3.4 Base de données (point d'attention)
 
-Flyway est inactif, le schéma suit `ddl-auto=update` : retirer `@UniqueConstraint` **ne supprime pas l'index MySQL** `uk_asset_affectation_user_asset`, et retirer le champ `enabled` laisse une colonne `NOT NULL` sans défaut qui ferait échouer les insertions. SQL manuel à passer sur la base (dev puis VPS, après **sauvegarde de la base VPS**) avant démarrage de la nouvelle version : `DROP INDEX uk_asset_affectation_user_asset`, `DROP COLUMN enabled` ; colonne `name` et nouvel index créés par `ddl-auto`. À consigner dans [`../operations/flyway.md`](../operations/flyway.md).
+Flyway est inactif, le schéma suit `ddl-auto=update` : retirer `@UniqueConstraint` **ne supprime pas l'index MySQL** `uk_asset_affectation_user_asset`, et retirer le champ `enabled` laisse une colonne `NOT NULL` sans défaut qui ferait échouer les insertions. SQL manuel à passer sur la base (dev puis VPS, après **sauvegarde de la base VPS**) avant démarrage de la nouvelle version : `DROP INDEX uk_asset_affectation_user_asset`, `DROP COLUMN enabled` ; colonne `name` et nouvel index créés par `ddl-auto`. À consigner dans [`../operations/flyway.md`](../../operations/flyway.md).
 
 ## 4. Découpage proposé
 
@@ -76,7 +80,7 @@ Documentation à mettre à jour avec chaque lot : `architecture/08-rainbow-live.
 
 ## 5. Décisions de Clem (2026-11-10)
 
-Reprises dans [`../decisions/liens-strategie-provider-actif.md`](../decisions/liens-strategie-provider-actif.md) :
+Reprises dans [`../decisions/liens-strategie-provider-actif.md`](../../decisions/liens-strategie-provider-actif.md) :
 1. On joue le **lien** : une Affectation sans lien n'est jamais jouée.
 2. Affectations **Système** (définition commune, rattachées par défaut au premier lien d'un actif) et **Utilisateur** (propres, non partagées) ; un utilisateur peut en créer plusieurs par actif, **nom unique par `(utilisateur, actif)`**, un lien n'en référence qu'**une**.
 3. Changement d'Affectation d'un lien : reset du moteur et rejeu historique, sans blocage ni avertissement d'évènements différés.

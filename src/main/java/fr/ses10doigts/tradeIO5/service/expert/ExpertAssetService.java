@@ -44,18 +44,18 @@ public class ExpertAssetService {
                     List<ProviderDto> providers = assets.providers(symbol).stream()
                             .map(p -> new ProviderDto(p.getSource().name(), p.getMaxHorizonDays())).toList();
                     String name = assetRepository.findBySymbol(symbol).map(a -> a.getName()).orElse(symbol);
-                    boolean exploitable = affectationRepository.findByUserAndAssetSymbol(ctx.user(), symbol)
-                            .map(AssetAffectation::isComplete).orElse(false);
+                    boolean exploitable = affectationRepository.findByUserAndAssetSymbolOrderByIdAsc(ctx.user(), symbol).stream()
+                            .anyMatch(AssetAffectation::isComplete);
                     return new AssetDto(symbol, name, providers, exploitable, !providers.isEmpty(), eligibility(ctx, symbol));
                 }).toList();
     }
 
     /**
-     * Historique D1 requis pour simuler l'Affectation de l'utilisateur (à défaut, les presets système de base) et bougies déjà en
+     * Historique D1 requis pour simuler l'Affectation Système de l'utilisateur (à défaut, les presets système de base) et bougies déjà en
      * cache par provider. Aucun appel exchange.
      */
     private EligibilityDto eligibility(ExpertContext ctx, String symbol) {
-        AssetAffectation affectation = affectationRepository.findByUserAndAssetSymbol(ctx.user(), symbol).orElse(null);
+        AssetAffectation affectation = affectationRepository.findByUserAndAssetSymbolAndSystemTrue(ctx.user(), symbol).orElse(null);
         TrendPreset trend = affectation != null && affectation.getTrendPreset() != null ? affectation.getTrendPreset()
                 : trendRepository.findByAssetSymbolAndBaseRole(symbol, BasePresetRole.TREND).orElse(null);
         RainbowPreset up = affectation != null && affectation.getRainbowUp() != null ? affectation.getRainbowUp()

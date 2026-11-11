@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-07
 modifié_le: 2026-11-10
-empreinte: 878b786c98
+empreinte: fff3778b08
 ---
 # Endpoints REST — Espace Expert, patrimoine, préférences
 
@@ -45,15 +45,17 @@ Authentifié **et** `displayMode = EXPERT` (ADMIN compris), sinon 403 `EXPERT_MO
 | Méthode | Chemin | Description |
 |---|---|---|
 | GET | `/api/expert/assets` | Actifs des presets de base : providers actifs, `exploitable`, `simulable` (≥ 1 provider actif), `eligibility` (`requiredPoints` D1 pour simuler l'Affectation de l'utilisateur, ou les presets de base ; par provider : `available` = bougies déjà en cache, `maxDepth`, `eligible` = cache suffisant, `loadable` = profondeur du provider suffisante) |
-| GET | `/api/expert/{trend,rainbow}-presets?asset=` | Presets visibles de l'actif : SYSTEM + ceux de l'appelant (en-têtes : `origin`, `mine`, `editable`, `deletable`, `usedBy` = `{affectationId, assetSymbol, role, enabled}` des Affectations de l'appelant, `enabled` = moteur allumé, `revision`, `referenceProvider`) |
+| GET | `/api/expert/{trend,rainbow}-presets?asset=` | Presets visibles de l'actif : SYSTEM + ceux de l'appelant (en-têtes : `origin`, `mine`, `editable`, `deletable`, `usedBy` = `{affectationId, assetSymbol, role, enabled}` des Affectations de l'appelant, `enabled` = moteur allumé (au moins un lien non archivé), `revision`, `referenceProvider`) |
 | GET | `/api/expert/{trend,rainbow}-presets/{id}` | Détail (réglages). Preset USER d'un autre ⇒ 404 `PRESET_NOT_FOUND` |
 | POST | `/api/expert/{trend,rainbow}-presets` | 201. Corps `{assetSymbol, name, copyFromId?, referenceProvider?}` : copie `copyFromId`, sinon le preset de base de l'actif (Trend = `TREND`, Rainbow = `RAINBOW_BEAR`). `referenceProvider` doit porter l'actif |
 | PUT | `/api/expert/{trend,rainbow}-presets/{id}` | Modifie (corps = réglages + `name`, `referenceProvider`, `revision` obligatoire). `revision` périmée ⇒ 409 `PRESET_REVISION_CONFLICT` (`currentRevision`). SYSTEM : ADMIN seul, sinon 403 `PRESET_SYSTEM_READ_ONLY` (invite à dupliquer). Sans changement ⇒ renvoyé tel quel, révision inchangée |
 | GET | `/api/expert/{trend,rainbow}-presets/{id}/impact` | ADMIN seul (sinon 403 `ADMIN_REQUIRED`), preset SYSTEM seulement : `{affectations, activeEngines}` = nombre d'Affectations (tous utilisateurs) qui l'installent et dont le moteur est actif ; comptes seulement, aucune identité |
 | DELETE | `/api/expert/{trend,rainbow}-presets/{id}` | 204. SYSTEM ⇒ 403 `PRESET_SYSTEM_UNDELETABLE` ; installé dans une Affectation ⇒ 409 `PRESET_IN_USE` (liste actif + rôle) |
 | POST | `/api/expert/{trend,rainbow}-presets/{id}/duplicate` | 201. Corps optionnel `{assetSymbol?, name?}` : même actif ou autre, nom unique (suffixe « (copie) », « (copie) 2 »…), `referenceProvider` copié seulement si l'actif cible le porte, jamais affecté |
-| GET | `/api/expert/affectations`, `/{asset}` | Affectation (créée sur les presets de base si absente) : presets installés, `complete`, `providerGaps` (information : preset dont le `referenceProvider` diffère des liens de l'utilisateur sur l'actif) |
-| PUT | `/api/expert/affectations/{asset}` | Corps `{trendPresetId, rainbowUpId, rainbowDownId}` (manquant ⇒ 400, preset invisible ⇒ 404) ; `AssetAffectationService#assign` (purge moteur + `LIVE_SWITCH`) |
+| GET | `/api/expert/affectations[?asset=]`, `/{id}` | Affectations de l'utilisateur (instance Système créée sur les presets de base si absente ; plusieurs par actif, Système d'abord) : `id`, `assetSymbol`, `name`, `system`, `enabled` (au moins un lien non archivé), presets installés, `complete`, `providerGaps` (information : preset dont le `referenceProvider` diffère des liens de l'utilisateur sur l'actif) ; autre utilisateur ⇒ 404 `AFFECTATION_NOT_FOUND` |
+| POST | `/api/expert/affectations` | 201. Corps `{assetSymbol, name, trendPresetId, rainbowUpId, rainbowDownId}` (champ manquant ⇒ 400, preset invisible ⇒ 404, nom (1-64, insensible à la casse) déjà pris sur l'actif ⇒ 409 `AFFECTATION_NAME_TAKEN`) : Affectation utilisateur |
+| PUT | `/api/expert/affectations/{id}` | Corps identique, `name` nul = inchangé ; changement de presets ⇒ purge moteur + `LIVE_SWITCH`, simple renommage ⇒ rien ; instance Système ⇒ 403 `AFFECTATION_SYSTEM_READ_ONLY` |
+| DELETE | `/api/expert/affectations/{id}` | 204 ; Système ⇒ 403 ; déjà liée ou jouée (lien, même archivé, ou runs) ⇒ 409 `AFFECTATION_IN_USE` |
 
 ### Simulations (`ExpertSimulationController`, `/api/expert/simulations`)
 

@@ -35,25 +35,29 @@ public class ExpertFixtures {
 
     private int seq;
 
-    /** Crée (ou met à jour) l'Affectation de l'utilisateur sur l'actif avec ce jeu, activée. */
+    /** Crée (ou met à jour) l'Affectation de l'utilisateur sur l'actif avec ce jeu (jouée seulement si un lien la référence). */
     public AssetAffectation affectation(User u, String asset, String name, RainbowAtrTuning t, RainbowAtrGlobals g) {
-        return affectation(u, asset, name, t, g, true);
-    }
-
-    public AssetAffectation affectation(User u, String asset, String name, RainbowAtrTuning t, RainbowAtrGlobals g, boolean enabled) {
         Instant now = Instant.parse("2026-01-01T00:00:00Z");
         String unique = name + "#" + (++seq);
         TrendPreset trend = trendRepository.save(trend(u, asset, unique, now));
         RainbowPreset up = rainbowRepository.save(rainbow(u, asset, unique + " Up", t, g, now));
         RainbowPreset down = rainbowRepository.save(rainbow(u, asset, unique + " Down", t, g, now));
-        AssetAffectation a = affectationRepository.findByUserAndAssetSymbol(u, asset).orElseGet(() -> AssetAffectation.builder()
-                .user(u).assetSymbol(asset).createdAt(now).build());
+        AssetAffectation a = affectationRepository.findByUserAndAssetSymbolOrderByIdAsc(u, asset).stream().filter(x -> !x.isSystem()).findFirst()
+                .orElseGet(() -> AssetAffectation.builder().user(u).assetSymbol(asset).createdAt(now).build());
+        a.setName(unique);
         a.setTrendPreset(trend);
         a.setRainbowUp(up);
         a.setRainbowDown(down);
-        a.setEnabled(enabled);
         a.setUpdatedAt(now);
         return affectationRepository.save(a);
+    }
+
+    /** Affectation utilisateur éditable de l'actif ; à défaut, créée sur les presets de l'instance Système (« Perso »). */
+    public AssetAffectation editable(AssetAffectationService service, User u, String asset) {
+        return affectationRepository.findByUserAndAssetSymbolOrderByIdAsc(u, asset).stream().filter(x -> !x.isSystem()).findFirst().orElseGet(() -> {
+            AssetAffectation base = service.forAsset(u, asset);
+            return service.create(u, asset, "Perso", base.getTrendPreset().getId(), base.getRainbowUp().getId(), base.getRainbowDown().getId());
+        });
     }
 
     private static TrendPreset trend(User u, String asset, String name, Instant now) {

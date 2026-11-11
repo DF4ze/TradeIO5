@@ -41,19 +41,34 @@ public class RainbowLiveBindingService {
 
     private final DomainClock clock;
 
-    /** Création : {@code bagPercent} et {@code priority} nuls => défauts (100 %, rang de l'actif). */
+    /**
+     * Création : {@code bagPercent} et {@code priority} nuls => défauts (100 %, rang de l'actif) ; {@code affectationId} nul =>
+     * instance Système de l'actif.
+     */
     public record CreateRequest(String assetSymbol, Long walletId, Double bagPercent, Integer priority,
-                                Double baseAmount, String preferredRoute) {
+                                Double baseAmount, String preferredRoute, Long affectationId) {
+        public CreateRequest(String assetSymbol, Long walletId, Double bagPercent, Integer priority, Double baseAmount, String preferredRoute) {
+            this(assetSymbol, walletId, bagPercent, priority, baseAmount, preferredRoute, null);
+        }
+
         public CreateRequest(String assetSymbol, Long walletId, Double bagPercent, Integer priority) {
-            this(assetSymbol, walletId, bagPercent, priority, null, null);
+            this(assetSymbol, walletId, bagPercent, priority, null, null, null);
         }
     }
 
-    /** Modification : l'actif est immuable ; {@code bagPercent} / {@code priority} nuls => inchangés. */
+    /**
+     * Modification : l'actif est immuable ; {@code bagPercent} / {@code priority} / {@code affectationId} nuls => inchangés. Changer
+     * d'Affectation réinitialise le moteur de la nouvelle (rejeu de l'historique à la passe suivante).
+     */
     public record UpdateRequest(Long walletId, Double bagPercent, Integer priority, Double baseAmount,
-                                boolean resetBaseAmount, Double minBuyUsd, boolean resetMinBuy) {
+                                boolean resetBaseAmount, Double minBuyUsd, boolean resetMinBuy, Long affectationId) {
+        public UpdateRequest(Long walletId, Double bagPercent, Integer priority, Double baseAmount,
+                             boolean resetBaseAmount, Double minBuyUsd, boolean resetMinBuy) {
+            this(walletId, bagPercent, priority, baseAmount, resetBaseAmount, minBuyUsd, resetMinBuy, null);
+        }
+
         public UpdateRequest(Long walletId, Double bagPercent, Integer priority) {
-            this(walletId, bagPercent, priority, null, false, null, false);
+            this(walletId, bagPercent, priority, null, false, null, false, null);
         }
     }
 
@@ -72,7 +87,8 @@ public class RainbowLiveBindingService {
                     }
                     return existing;
                 }).orElse(null);
-        AssetAffectation affectation = affectationService.forAsset(user, req.assetSymbol());
+        AssetAffectation affectation = req.affectationId() == null ? affectationService.forAsset(user, req.assetSymbol())
+                : affectationService.requireLinkable(user, req.assetSymbol(), req.affectationId());
         double bag = req.bagPercent() == null ? DEFAULT_BAG_PERCENT : requireBagPercent(req.bagPercent());
         int priority = req.priority() == null ? defaultPriority(req.assetSymbol()) : req.priority();
 
@@ -113,6 +129,12 @@ public class RainbowLiveBindingService {
         }
         if (req.priority() != null) {
             binding.setPriority(req.priority());
+        }
+        if (req.affectationId() != null && !req.affectationId().equals(binding.getAffectation().getId())) {
+            AssetAffectation target = affectationService.requireLinkable(user, binding.getAssetSymbol(), req.affectationId());
+            AssetAffectation before = binding.getAffectation();
+            binding.setAffectation(target);
+            affectationService.switchLink(user, before, target);
         }
         if (req.resetBaseAmount()) {
             binding.setBaseAmount(null);

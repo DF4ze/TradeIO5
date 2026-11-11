@@ -334,6 +334,15 @@ public class PathFinder {
     }
 
     /** Arrondit {@code value} à un multiple de {@code step}. */
+    /** Prix plafond d'un ordre limit IOC : prix de référence ± tolérance (%), arrondi au tick (BUY vers le haut, SELL vers le bas). */
+    public static BigDecimal capPrice(LegSide side, BigDecimal refPrice, BigDecimal tolerancePct, BigDecimal tickSz) {
+        BigDecimal tolerance = tolerancePct.divide(HUNDRED, 18, RoundingMode.HALF_UP);
+        if (side == LegSide.BUY) {
+            return roundToStep(refPrice.multiply(BigDecimal.ONE.add(tolerance)), tickSz, RoundingMode.UP);
+        }
+        return roundToStep(refPrice.multiply(BigDecimal.ONE.subtract(tolerance)), tickSz, RoundingMode.DOWN);
+    }
+
     public static BigDecimal roundToStep(BigDecimal value, BigDecimal step, RoundingMode mode) {
         return value.divide(step, 0, mode).multiply(step);
     }

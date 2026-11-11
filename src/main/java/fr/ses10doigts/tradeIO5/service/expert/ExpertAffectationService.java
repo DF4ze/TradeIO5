@@ -1,7 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.expert;
 
 import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertDtos.AffectationDto;
-import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertDtos.AssignRequest;
+import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertDtos.AffectationRequest;
 import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertDtos.PresetRefDto;
 import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertDtos.ProviderGapDto;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
@@ -20,10 +20,10 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Lecture et écriture de l'Affectation de l'utilisateur par actif. L'écriture s'appuie sur
- * {@link AssetAffectationService#assign} (contrôles d'actif et de propriété, purge moteur, événement) ; l'activation reste
- * gérée par {@code PATCH /api/rainbow-live/affectations/{id}/enabled}. Le signalement d'écart de provider est une
- * information, jamais un blocage.
+ * Lecture et écriture des Affectations de l'utilisateur (plusieurs par actif, nommées). L'écriture s'appuie sur
+ * {@link AssetAffectationService} (contrôles d'actif et de propriété, instance Système en lecture seule, purge moteur,
+ * événement) ; une Affectation est jouée si un lien la référence. Le signalement d'écart de provider est une information,
+ * jamais un blocage.
  */
 @Service
 @RequiredArgsConstructor
@@ -35,33 +35,53 @@ public class ExpertAffectationService {
     private final RainbowLiveBindingRepository bindingRepository;
     private final ExpertAssets assets;
 
-    /** Affectations de l'utilisateur (une par actif, créées sur les presets de base si absentes). */
+    /** Affectations de l'utilisateur (instances Système créées sur les presets de base si absentes), filtre d'actif optionnel. */
     @Transactional
-    public List<AffectationDto> list(ExpertContext ctx) {
+    public List<AffectationDto> list(ExpertContext ctx, String asset) {
+        String symbol = asset == null ? null : assets.requireAsset(asset);
         affectationService.ensureAffectations(ctx.user());
         List<RainbowLiveBinding> bindings = bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(ctx.user());
-        return affectationService.list(ctx.user()).stream().map(a -> dto(a, bindings)).toList();
+        return affectationService.list(ctx.user()).stream().filter(a -> symbol == null || a.getAssetSymbol().equals(symbol))
+                .map(a -> dto(a, bindings)).toList();
     }
 
+    @Transactional(readOnly = true)
+    public AffectationDto get(ExpertContext ctx, Long id) {
+        return dto(affectationService.get(ctx.user(), id), bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(ctx.user()));
+    }
+
+    /** Crée une Affectation utilisateur ; un preset invisible de l'appelant (USER d'un autre) ⇒ 404, nom pris ⇒ 409. */
     @Transactional
-    public AffectationDto get(ExpertContext ctx, String asset) {
-        AssetAffectation a = affectationService.forAsset(ctx.user(), assets.requireAsset(asset));
+    public AffectationDto create(ExpertContext ctx, AffectationRequest request) {
+        String symbol = assets.requireAsset(require("assetSymbol", request.assetSymbol()));
+        checkPresets(ctx, request);
+        AssetAffectation a = affectationService.create(ctx.user(), symbol, request.name(), request.trendPresetId(),
+                request.rainbowUpId(), request.rainbowDownId());
         return dto(a, bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(ctx.user()));
     }
 
-    /** Installe Trend + Rainbow UP + Rainbow DOWN ; un preset invisible de l'appelant (USER d'un autre) ⇒ 404. */
+    /** Renomme et/ou change les presets (le moteur est réinitialisé si un preset change) ; instance Système ⇒ 403. */
     @Transactional
-    public AffectationDto assign(ExpertContext ctx, String asset, AssignRequest request) {
-        String symbol = assets.requireAsset(asset);
-        trendService.get(ctx, require("trendPresetId", request.trendPresetId()));
-        rainbowService.get(ctx, require("rainbowUpId", request.rainbowUpId()));
-        rainbowService.get(ctx, require("rainbowDownId", request.rainbowDownId()));
-        AssetAffectation a = affectationService.assign(ctx.user(), symbol, request.trendPresetId(), request.rainbowUpId(),
+    public AffectationDto update(ExpertContext ctx, Long id, AffectationRequest request) {
+        checkPresets(ctx, request);
+        AssetAffectation a = affectationService.update(ctx.user(), id, request.name(), request.trendPresetId(), request.rainbowUpId(),
                 request.rainbowDownId());
         return dto(a, bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(ctx.user()));
     }
 
-    private static Long require(String field, Long id) {
+    /** Supprime une Affectation utilisateur jamais liée ; Système ⇒ 403, déjà utilisée ⇒ 409. */
+    @Transactional
+    public void delete(ExpertContext ctx, Long id) {
+        affectationService.delete(ctx.user(), id);
+    }
+
+    private void checkPresets(ExpertContext ctx, AffectationRequest request) {
+        trendService.get(ctx, require("trendPresetId", request.trendPresetId()));
+        rainbowService.get(ctx, require("rainbowUpId", request.rainbowUpId()));
+        rainbowService.get(ctx, require("rainbowDownId", request.rainbowDownId()));
+    }
+
+    private static <T> T require(String field, T id) {
         if (id == null) {
             throw new ExpertValidationException(field, "obligatoire");
         }
@@ -75,7 +95,8 @@ public class ExpertAffectationService {
         gap(gaps, "TREND", a.getTrendPreset(), providers);
         gap(gaps, "RAINBOW_UP", a.getRainbowUp(), providers);
         gap(gaps, "RAINBOW_DOWN", a.getRainbowDown(), providers);
-        return new AffectationDto(a.getId(), a.getAssetSymbol(), a.isEnabled(), a.isComplete(), ref(a.getTrendPreset()), ref(a.getRainbowUp()),
+        boolean active = userBindings.stream().anyMatch(b -> b.getAffectation() != null && a.getId().equals(b.getAffectation().getId()));
+        return new AffectationDto(a.getId(), a.getAssetSymbol(), a.displayName(), a.isSystem(), active, a.isComplete(), ref(a.getTrendPreset()), ref(a.getRainbowUp()),
                 ref(a.getRainbowDown()), gaps, a.getUpdatedAt());
     }
 

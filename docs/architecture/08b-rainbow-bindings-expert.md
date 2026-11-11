@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-07
 modifié_le: 2026-11-10
-empreinte: 7c3ffbd14b
+empreinte: db67129418
 ---
 # Rainbow live — Bindings, disponibilité, presets Expert
 
@@ -15,7 +15,7 @@ Garde, API, simulation et écrans : [`13-espace-expert.md`](13-espace-expert.md)
 - **Droits** : preset SYSTEM modifiable par ADMIN seul et jamais supprimable ; preset USER visible et modifiable par son propriétaire seul (autre ⇒ 404). Duplication (même actif ou autre) ⇒ preset USER de l'appelant, jamais affecté d'office.
 - **Modification** : verrou pessimiste + contrôle manuel de `revision` (409 si périmée), `revision` +1 à chaque changement.
 - **Propagation + reset moteur** : si les réglages changent, `deleteByAffectation` des états moteur et événement `LIVE_SWITCH` pour **chaque** Affectation qui utilise le preset (ré-amorçage à la passe suivante) ; preset SYSTEM ⇒ en plus ligne `AdminAction.PRESET` (journal `AdminActionLogService`). `GET …/{id}/impact` (ADMIN, SYSTEM) renvoie le nombre d'Affectations concernées et actives.
-- **Suppression** : un preset encore installé (Trend, UP ou DOWN) dans une Affectation, quelle qu'elle soit, est refusé en **409 `PRESET_IN_USE`** avec la liste des usages (Affectation, actif, rôle, activée) ; il faut d'abord changer l'Affectation.
+- **Suppression** : un preset encore installé (Trend, UP ou DOWN) dans une Affectation, quelle qu'elle soit, est refusé en **409 `PRESET_IN_USE`** avec la liste des usages (Affectation, actif, rôle, jouée) ; il faut d'abord changer l'Affectation.
 - **Provider de référence** : porté par le preset (`ExpertPreset#referenceProvider`), validé contre les providers actifs de l'actif, copié à la duplication seulement si l'actif cible le porte, jamais affecté automatiquement.
 - **Validation** : `ExpertPresetValidator` (bornes de `RainbowAtrTuning#violations`, `RainbowLiveTrendConfigs#trendErrors`, fenêtre d'analyse 1..24 mois).
 

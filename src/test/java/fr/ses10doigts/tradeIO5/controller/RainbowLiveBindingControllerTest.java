@@ -83,6 +83,8 @@ class RainbowLiveBindingControllerTest {
     @Autowired private WalletRepository walletRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private EntityManager em;
+    @Autowired private fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveEngineStateRepository stateRepository;
+    @Autowired private fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService eventService;
 
     private final ObjectMapper om = new ObjectMapper().findAndRegisterModules();
     private final IAuthenticationFacade facade = mock(IAuthenticationFacade.class);
@@ -127,6 +129,38 @@ class RainbowLiveBindingControllerTest {
         m.put("walletId", walletId);
         m.put("bagPercent", bag);
         return m;
+    }
+
+    @Test
+    @DisplayName("Affectation du lien : Système par défaut, choix à la création, changement => moteur de la nouvelle purgé + LIVE_SWITCH ; autre actif / autre user refusés")
+    void affectationChoice() throws Exception {
+        var base = affectationService.forAsset(alice, "BTC");
+        var perso = affectationService.create(alice, "BTC", "Perso", base.getTrendPreset().getId(), base.getRainbowUp().getId(),
+                base.getRainbowDown().getId());
+
+        java.util.Map<String, Object> body = createBody("BTC", aliceWallet.getId(), null);
+        body.put("affectationId", perso.getId());
+        Number id = com.jayway.jsonpath.JsonPath.read(json(post("/api/rainbow-live/bindings"), body).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.binding.affectationId").value(perso.getId().intValue())).andReturn().getResponse().getContentAsString(),
+                "$.binding.id");
+
+        stateRepository.save(fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveEngineState.of(base, java.time.LocalDate.of(2026, 10, 1),
+                fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrState.initial()));
+        em.flush();
+        json(put("/api/rainbow-live/bindings/" + id), java.util.Map.of("affectationId", base.getId())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.binding.affectationId").value(base.getId().intValue()));
+        em.flush();
+        assertEquals(0, stateRepository.count(), "moteur de la nouvelle Affectation réinitialisé");
+        assertEquals(java.util.List.of("LIVE_SWITCH"), eventService.list(alice, "BTC").stream().map(e -> e.getType().name()).toList());
+
+        json(put("/api/rainbow-live/bindings/" + id), java.util.Map.of("affectationId", base.getId())).andExpect(status().isOk());
+        assertEquals(1, eventService.list(alice, "BTC").size(), "même Affectation : aucun reset ni événement");
+
+        var eth = affectationService.forAsset(alice, "ETH");
+        json(put("/api/rainbow-live/bindings/" + id), java.util.Map.of("affectationId", eth.getId())).andExpect(status().isBadRequest());
+        var bobs = affectationService.forAsset(bob, "BTC");
+        json(put("/api/rainbow-live/bindings/" + id), java.util.Map.of("affectationId", bobs.getId())).andExpect(status().isNotFound());
+        assertEquals(base.getId(), bindingRepository.findById(id.longValue()).orElseThrow().getAffectation().getId());
     }
 
     @Test

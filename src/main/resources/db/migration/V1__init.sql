@@ -35,7 +35,7 @@
     ) engine=InnoDB;
 
     create table asset_affectation (
-        enabled bit not null,
+        system_instance bit not null,
         created_at datetime(6) not null,
         id bigint not null auto_increment,
         rainbow_down_id bigint,
@@ -44,6 +44,7 @@
         updated_at datetime(6) not null,
         user_id bigint not null,
         asset_symbol varchar(16) not null,
+        name varchar(64),
         primary key (id)
     ) engine=InnoDB;
 
@@ -848,7 +849,7 @@
        add constraint uk_credential_user_provider_scope unique (user_id, web_provider_id, scope);
 
     alter table asset_affectation 
-       add constraint uk_asset_affectation_user_asset unique (user_id, asset_symbol);
+       add constraint uk_asset_affectation_user_asset_name unique (user_id, asset_symbol, name);
 
     alter table asset_group 
        add constraint uk_asset_group_code unique (code);

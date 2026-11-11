@@ -53,9 +53,9 @@ public final class ExecutionDefaults {
     /** Stable de cotation du cash (seul membre du groupe USD) : une étape cotée en cette devise porte le notionnel USD des plafonds. */
     public static final String CASH_STABLE = "USDC";
 
-    /** Jambe 2 d'une route via intermédiaire : nombre maximal d'envois (1 + retries), délai entre deux, re-devis à chaque essai. */
-    public static final int LEG2_MAX_ATTEMPTS = 3;
-    public static final Duration LEG2_RETRY_DELAY = Duration.ofSeconds(2);
+    /** Étape d'ordre : nombre maximal d'envois (1 + retries), délai entre deux ; re-devis et nouveau prix plafond à chaque essai. */
+    public static final int STEP_MAX_ATTEMPTS = 3;
+    public static final Duration STEP_RETRY_DELAY = Duration.ofSeconds(2);
 
     /** Plafonds par défaut en multiples du {@code baseAmount} du preset (ordre = 1 ×, jour/utilisateur = 2 ×). */
     public static final BigDecimal DEFAULT_MAX_ORDER_MULTIPLIER = BigDecimal.ONE;

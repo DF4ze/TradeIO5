@@ -1,5 +1,9 @@
 package fr.ses10doigts.tradeIO5.service.dca.atr.bench;
 
+import fr.ses10doigts.tradeIO5.model.entity.currency.Wallet;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
+import fr.ses10doigts.tradeIO5.model.enumerate.WalletSource;
+import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
 import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlService;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
@@ -111,6 +115,8 @@ class RainbowLiveExecutionServiceTest {
     @Autowired private AssetAffectationRepository affectationRepository;
     @Autowired private RainbowLiveRunRepository runRepository;
     @Autowired private UserRepository userRepository;
+    @Autowired private fr.ses10doigts.tradeIO5.repository.WalletRepository walletRepository;
+    @Autowired private fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository bindingRepository;
 
     /** Bougies servies par actif ; absence de clé => exception du provider. Filtrées sur {@code endTime}. */
     private final Map<String, List<MarketData>> candlesByAsset = new HashMap<>();
@@ -165,8 +171,16 @@ class RainbowLiveExecutionServiceTest {
         return a;
     }
 
+    /** Affectation jouée : un lien non archivé la référence (portefeuille mocké, aucune position). */
     private AssetAffectation preset(User u, String asset, String name, RainbowAtrTuning t, RainbowAtrGlobals g) {
-        return fixtures.affectation(u, asset, name, t, g);
+        AssetAffectation a = fixtures.affectation(u, asset, name, t, g);
+        if (!bindingRepository.existsByAffectationAndArchivedAtIsNull(a)) {
+            Wallet w = walletRepository.save(Wallet.builder().name("w-" + u.getUsername() + "-" + asset)
+                    .source(WalletSource.EXCHANGE).webProviderCode(WebProviderCode.OKX).user(u).build());
+            bindingRepository.save(RainbowLiveBinding.builder().user(u).assetSymbol(asset).affectation(a).wallet(w)
+                    .bagPercent(100.0).priority(1).build());
+        }
+        return a;
     }
 
     /** Un preset FLAT par actif autorisé => aucun preset par défaut créé par le job. */
@@ -503,11 +517,11 @@ class RainbowLiveExecutionServiceTest {
         for (String a : RainbowLiveDefaultPresets.ASSETS) {
             serve(a, flat(N, 100));
         }
-        AssetAffectation off = fixtures.affectation(alice, "BTC", "off", FLAT, globals(false, 1.0), false);
+        AssetAffectation off = fixtures.affectation(alice, "BTC", "off", FLAT, globals(false, 1.0));
 
         PassSummary s = service.runPass(ASOF_2355);
 
-        assertEquals(3, affectationService.list(alice).size(), "BTC existante + ETH et PAXG créées sur les presets de base");
+        assertEquals(4, affectationService.list(alice).size(), "BTC fixture + Système BTC, ETH et PAXG créées sur les presets de base");
         assertEquals(0, affectationService.list(disabledUser).size(), "aucune Affectation pour un user désactivé");
         assertEquals(0, runRepository.countByAffectation(off));
         assertEquals(0, s.processed(), "Affectations inactives : rien n'est joué");

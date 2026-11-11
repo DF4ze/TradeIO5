@@ -34,7 +34,7 @@ public class RainbowLivePresetEventService {
                 .presetBeforeId(beforeLabel == null ? null : after.getId())
                 .presetBeforeName(beforeLabel)
                 .presetAfterId(after.getId())
-                .presetAfterName(after.label())
+                .presetAfterName(after.displayName())
                 .occurredAt(clock.now())
                 .reason(reason)
                 .build());
@@ -44,7 +44,7 @@ public class RainbowLivePresetEventService {
     @Transactional
     public RainbowLivePresetEvent record(User user, String assetSymbol, RainbowLivePresetEventType type,
                                          AssetAffectation before, AssetAffectation after, String reason) {
-        return record(user, assetSymbol, type, before == null ? null : before.label(), after, reason);
+        return record(user, assetSymbol, type, before == null ? null : before.displayName(), after, reason);
     }
 
     @Transactional(readOnly = true)

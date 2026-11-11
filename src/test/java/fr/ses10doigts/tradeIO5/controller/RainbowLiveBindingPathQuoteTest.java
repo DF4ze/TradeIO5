@@ -90,6 +90,7 @@ class RainbowLiveBindingPathQuoteTest {
 
     @Autowired private fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures fixtures;
     @Autowired private RainbowLiveBindingService bindingService;
+    @Autowired private fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService basePresetService;
     @Autowired private WalletRepository walletRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private ProviderRepository providerRepository;
@@ -109,6 +110,7 @@ class RainbowLiveBindingPathQuoteTest {
 
     @BeforeEach
     void setUp() {
+        basePresetService.ensureBasePresets();
         when(CHECK.check(any(fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding.class)))
                 .thenReturn(new BindingCheckResult(BindingCheckStatus.OK, "OK"));
         alice = userRepository.save(User.builder().username("alice").email("alice@example.com").password("x").build());

@@ -416,12 +416,7 @@ public class OrderPlanner {
 
     /** Prix plafond : prix de référence ± tolérance de slippage, arrondi au tick (BUY vers le haut, SELL vers le bas). */
     private BigDecimal capPrice(PathLeg leg, InstrumentInfo instrument) {
-        BigDecimal tolerance = slippageTolerancePct.divide(HUNDRED, AMOUNT_SCALE, RoundingMode.HALF_UP);
-        if (leg.side() == LegSide.BUY) {
-            return PathFinder.roundToStep(leg.refPrice().multiply(BigDecimal.ONE.add(tolerance)), instrument.tickSz(), RoundingMode.UP);
-        }
-        return PathFinder.roundToStep(leg.refPrice().multiply(BigDecimal.ONE.subtract(tolerance)), instrument.tickSz(),
-                RoundingMode.DOWN);
+        return PathFinder.capPrice(leg.side(), leg.refPrice(), slippageTolerancePct, instrument.tickSz());
     }
 
     private String warnings(FeeTestLevel level, BigDecimal costPct, PathEstimation estimation, String extra) {

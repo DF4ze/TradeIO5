@@ -96,7 +96,7 @@ class RainbowLiveControllerTest {
         alice = userRepository.save(User.builder().username("alice").email("alice@example.com").password("x").build());
         bob = userRepository.save(User.builder().username("bob").email("bob@example.com").password("x").build());
         as(alice);
-        mvc = MockMvcBuilders.standaloneSetup(new RainbowLiveController(affectationService, queryService, facade))
+        mvc = MockMvcBuilders.standaloneSetup(new RainbowLiveController(queryService, facade))
                 .setControllerAdvice(new RainbowLiveControllerAdvice())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(om)).build();
     }
@@ -172,20 +172,13 @@ class RainbowLiveControllerTest {
     }
 
     @Test
-    @DisplayName("PATCH /affectations/{id}/enabled : active puis désactive ; aucun endpoint de création / suppression")
-    void toggleEnabled() throws Exception {
+    @DisplayName("Aucun endpoint de création / suppression / activation d'Affectation")
+    void noMutationEndpoints() throws Exception {
         mvc.perform(get("/api/rainbow-live/affectations")).andExpect(status().isOk());
-        Long id = affectationRepository.findByUserAndAssetSymbol(alice, "BTC").orElseThrow().getId();
-
-        mvc.perform(patch("/api/rainbow-live/affectations/" + id + "/enabled").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"enabled\":true}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.enabled").value(true));
-        mvc.perform(patch("/api/rainbow-live/affectations/" + id + "/enabled").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"enabled\":false}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.enabled").value(false));
-
+        Long id = affectationRepository.findByUserAndAssetSymbolAndSystemTrue(alice, "BTC").orElseThrow().getId();
         mvc.perform(post("/api/rainbow-live/affectations")).andExpect(status().is4xxClientError());
         mvc.perform(delete("/api/rainbow-live/affectations/" + id)).andExpect(status().is4xxClientError());
+        mvc.perform(patch("/api/rainbow-live/affectations/" + id + "/enabled")).andExpect(status().is4xxClientError());
     }
 
     @Test
@@ -198,11 +191,12 @@ class RainbowLiveControllerTest {
 
         mvc.perform(get("/api/rainbow-live/affectations").param("asset", "BTC"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].runCount").value(2))
-                .andExpect(jsonPath("$[0].firstRunDay").value("2026-10-01"))
-                .andExpect(jsonPath("$[0].lastRun.day").value("2026-10-02"))
-                .andExpect(jsonPath("$[0].lastRun.actionType").value("NONE"))
-                .andExpect(jsonPath("$[0].lastRun.close").value(110_000.0));
+                .andExpect(jsonPath("$[0].system").value(true)).andExpect(jsonPath("$[0].runCount").value(0))
+                .andExpect(jsonPath("$[1].runCount").value(2))
+                .andExpect(jsonPath("$[1].firstRunDay").value("2026-10-01"))
+                .andExpect(jsonPath("$[1].lastRun.day").value("2026-10-02"))
+                .andExpect(jsonPath("$[1].lastRun.actionType").value("NONE"))
+                .andExpect(jsonPath("$[1].lastRun.close").value(110_000.0));
     }
 
     @Test
@@ -214,9 +208,6 @@ class RainbowLiveControllerTest {
         for (Long id : new Long[]{aliceAffectation.getId(), 987654L}) {
             String base = "/api/rainbow-live/affectations/" + id;
             mvc.perform(get(base)).andExpect(status().isNotFound());
-            mvc.perform(patch(base + "/enabled").contentType(MediaType.APPLICATION_JSON).content("{\"enabled\":true}"))
-                    .andExpect(status().isNotFound());
         }
-        assertTrue(affectationRepository.findById(aliceAffectation.getId()).orElseThrow().isEnabled(), "Affectation d'alice intacte");
     }
 }

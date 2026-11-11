@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-10-13
 modifié_le: 2026-11-10
-empreinte: e8d504448b
+empreinte: ecf0beed68
 ---
 # Flyway et défauts d'initialisation
 
@@ -92,6 +92,23 @@ Tout nouveau « défaut » de l'application (donnée de paramétrage devant exis
 Tables de cache de données publiques (non seedées par un initializer) : `exchange_instrument` (catalogue des paires, rempli à la demande par `InstrumentCatalog`).
 
 Initializers existants : `AssetInitializer` (1), `AssetGroupInitializer` (2, groupe `USD` = USDC seul), `RoleInitializer` (10), `UserInitializer` (20), `HistoricalDataInitializer` (5, recharge `candle` et `etf_flow_snapshot` depuis les fichiers de backup si la table est vide), `ApiCredentialInitializer` (40, tous profils : clés du user System (CoinStats, Coinalyze, Twelve Data, Finnhub, SoSoValue) et clés Binance/Kraken/OKX d'OKlm lues dans les propriétés `tradeio.<fournisseur>.apiKey|secretKey` (OKX : `tradeio.okx.read.*` et `tradeio.okx.trade.*`, avec `passphrase`) des `application-*.properties` (gitignorés) ; clé absente => warning, rien semé), `WalletInitializer` (45), `WebProviderInitializer` (dont OKX, `https://www.okx.com`), `ContentSourceInitializer` (50), `ExecutionControlInitializer` (70, ligne `execution_control` kill switch engagé), `RainbowModulationControlInitializer` (71, ligne `rainbow_modulation_control` aux défauts de `ModulationDefaults`, jamais modifiée ensuite), `ExpertBasePresetInitializer` (61, 9 presets système de base Trend / Rainbow Bull / Rainbow Bear, jamais modifiés ensuite), `AffectationMigrationInitializer` (62, migration idempotente des anciens presets utilisateur vers les Affectations ; les Affectations des nouveaux utilisateurs sont créées à leur première utilisation), cf. [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md).
+
+Affectation jouée selon ses liens (colonne `asset_affectation.enabled` supprimée de l'entité et de `V1__init.sql`) : `ddl-auto=update` ne supprime pas la colonne `NOT NULL` sans défaut, qui ferait échouer les insertions ⇒ SQL manuel sur base existante, avant le déploiement (sauvegarder la base avant) :
+
+```sql
+ALTER TABLE asset_affectation DROP COLUMN enabled;
+```
+
+Affectations nommées (plusieurs par actif) : `ddl-auto=update` ajoute `name` (nullable) et `system_instance` (`BIT NOT NULL`, 0 sur les lignes existantes) et crée l'index `uk_asset_affectation_user_asset_name`, mais **ne supprime pas l'ancien index unique** `uk_asset_affectation_user_asset (user_id, asset_symbol)`, qui interdirait une 2ᵉ Affectation par actif ⇒ SQL manuel avant le déploiement :
+
+L'index sert aussi la clé étrangère sur `user_id` (MySQL refuse sinon : erreur 1553) : créer d'abord un index simple.
+
+```sql
+ALTER TABLE asset_affectation ADD INDEX idx_asset_affectation_user (user_id);
+ALTER TABLE asset_affectation DROP INDEX uk_asset_affectation_user_asset;
+```
+
+Les Affectations existantes gardent `name` nul ; l'instance Système est adoptée au premier `ensureAffectations` si elle porte les presets de base, sinon créée à côté.
 
 ## Données non recréées par les initializers
 
