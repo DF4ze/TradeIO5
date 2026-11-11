@@ -123,4 +123,34 @@ class ApiKeyAuthFilterTest {
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(existing);
         verify(filterChain).doFilter(request, response);
     }
+
+    @Test
+    @DisplayName("recette + option admin : la clé agent reçoit aussi ROLE_ADMIN")
+    void grantsAdmin_onlyInRecetteProfile() throws Exception {
+        configureKey(CONFIGURED_KEY);
+        ReflectionTestUtils.setField(filter, "grantAdmin", true);
+        ReflectionTestUtils.setField(filter, "activeProfiles", "dev, recette");
+        when(request.getHeader(ApiKeyAuthFilter.HEADER_NAME)).thenReturn(CONFIGURED_KEY);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
+                .extracting(Object::toString)
+                .containsExactlyInAnyOrder("ROLE_" + ApiKeyAuthFilter.ROLE_API_AGENT, "ROLE_ADMIN");
+    }
+
+    @Test
+    @DisplayName("option admin hors profil recette (prod) : ROLE_ADMIN jamais accordé")
+    void doesNotGrantAdmin_outsideRecetteProfile() throws Exception {
+        configureKey(CONFIGURED_KEY);
+        ReflectionTestUtils.setField(filter, "grantAdmin", true);
+        ReflectionTestUtils.setField(filter, "activeProfiles", "prod");
+        when(request.getHeader(ApiKeyAuthFilter.HEADER_NAME)).thenReturn(CONFIGURED_KEY);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
+                .extracting(Object::toString)
+                .containsExactly("ROLE_" + ApiKeyAuthFilter.ROLE_API_AGENT);
+    }
 }

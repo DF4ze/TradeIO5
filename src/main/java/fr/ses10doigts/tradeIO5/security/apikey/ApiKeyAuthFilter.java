@@ -19,6 +19,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -40,11 +42,22 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
 
     public static final String HEADER_NAME = "X-Api-Key";
     public static final String ROLE_API_AGENT = "API_AGENT";
+    public static final String RECETTE_PROFILE = "recette";
 
     private static final Logger log = LoggerFactory.getLogger(ApiKeyAuthFilter.class);
 
     @Value("${tradeio.security.agent-api-key:}")
     private String configuredApiKey;
+
+    /**
+     * Recette uniquement : la clé agent reçoit aussi {@code ROLE_ADMIN} pour que les smoke tests couvrent les
+     * endpoints admin. Sans effet hors profil {@value #RECETTE_PROFILE} (garde-fou : jamais en prod).
+     */
+    @Value("${tradeio.security.agent-api-key-admin:false}")
+    private boolean grantAdmin;
+
+    @Value("${spring.profiles.active:}")
+    private String activeProfiles;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response,
@@ -54,7 +67,11 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
                 && configuredApiKey != null && !configuredApiKey.isBlank()) {
             String providedKey = request.getHeader(HEADER_NAME);
             if (providedKey != null && constantTimeEquals(providedKey, configuredApiKey)) {
-                List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + ROLE_API_AGENT));
+                List<GrantedAuthority> authorities = new ArrayList<>();
+                authorities.add(new SimpleGrantedAuthority("ROLE_" + ROLE_API_AGENT));
+                if (adminGranted()) {
+                    authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+                }
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken("api-agent", null, authorities);
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -66,6 +83,11 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean adminGranted() {
+        return grantAdmin && activeProfiles != null
+                && Arrays.stream(activeProfiles.split(",")).map(String::trim).anyMatch(RECETTE_PROFILE::equals);
     }
 
     private static boolean constantTimeEquals(String a, String b) {

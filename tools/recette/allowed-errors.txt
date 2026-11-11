@@ -1,0 +1,7 @@
+# Motifs (regex étendues, une par ligne) tolérés dans le journal de la recette. Tout autre ERROR => KO.
+# Clé maître volontairement absente en recette (clés TRADE chiffrées illisibles).
+TRADEIO_MASTER_KEY
+[Cc]lé maître
+master key
+# Requêtes non authentifiées volontaires des smoke tests (vérifient que l'accès est refusé).
+AuthEntryPointJwt - Unauthorized error: Full authentication is required to access this resource : /(app|api/admin/doctor)$

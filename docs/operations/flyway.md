@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-11
 modifié_le: 2026-11-11
-empreinte: efb901308e
+empreinte: 0916479793
 ---
 # Flyway et défauts d'initialisation
 
@@ -24,9 +24,15 @@ Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11) : `spring.f
 - Ne jamais supprimer dans une migration ce que le code lit encore (cf. legacy ci-dessous).
 - `ddl-auto=validate` : un écart entité/schéma empêche le démarrage.
 
-## Restes legacy (tolérés par `validate`, à nettoyer dans un V2 avec le code legacy)
+## Restes legacy
 
-Tant que `AffectationMigrationService` (migration des anciens presets vers les Affectations) existe, il lit `rainbow_live_binding|rainbow_live_engine_state|rainbow_live_run.preset_id` et la table `rainbow_live_preset`. Présents en prod hors V1 : colonnes `preset_id` (+ FK, uniques `uk_rainbow_live_*_preset_day`), tables `rainbow_asset_strategy` et `rainbow_live_user_settings` (sans entité), FK `rainbow_live_preset.asset_strategy_id`. Nettoyage : décision « legacy après une semaine » ([`../decisions/flyway-defauts-presets.md`](../decisions/flyway-defauts-presets.md)) ; **supprimer le code legacy avant les colonnes**.
+Les prod/dev existantes portent des restes du modèle d'avant les Affectations (colonnes `preset_id`, tables `rainbow_live_preset`, `rainbow_asset_strategy`…), hors `V1__init.sql` et tolérés par `validate`. Leur suppression est un `V2` à écrire **après** le retrait du code qui les lit (`AffectationMigrationService` lit `preset_id` : un V2 qui les supprimait avant a fait échouer la recette du 2026-11-11 avec `Unknown column 'preset_id'`). Liste et ordre : [`../known-gaps/nettoyages.md`](../known-gaps/nettoyages.md).
+
+## Base locale (dev)
+
+- Base locale existante : le 1er démarrage pose le baseline V1 tout seul.
+- Si une base a appliqué une migration retirée ou modifiée ensuite, `validate` refuse de démarrer : supprimer la ligne correspondante de `flyway_schema_history` (ou `flyway repair`) et remettre à la main le schéma dans l'état attendu. Une migration publiée n'est jamais retirée : on en ajoute une nouvelle.
+- Écarts connus de la base locale vis-à-vis de V1 (sans impact tant qu'ils ne bloquent pas un `INSERT`) : colonne héritée `rainbow_modulation_control.rebalance_daily_cap_pct` (`NOT NULL`, sans entité). Une base locale trop dérivée se recrée depuis V1 + initializers.
 
 ## Générer / contrôler V1
 
