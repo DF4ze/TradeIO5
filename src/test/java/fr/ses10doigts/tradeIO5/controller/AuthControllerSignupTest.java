@@ -29,6 +29,7 @@ class AuthControllerSignupTest {
     @DisplayName("rôles postés ignorés : ROLE_USER uniquement")
     void signupAlwaysGetsUserRole() {
         AuthController controller = new AuthController();
+        controller.signupEnabled = true;
         controller.userRepository = mock(UserRepository.class);
         controller.roleRepository = mock(RoleRepository.class);
         controller.encoder = mock(PasswordEncoder.class);
@@ -50,5 +51,20 @@ class AuthControllerSignupTest {
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(controller.userRepository).save(saved.capture());
         assertThat(saved.getValue().getRoles()).containsExactly(userRole);
+    }
+
+    @Test
+    @DisplayName("inscription fermée (défaut) : aucun compte créé, redirection vers /login")
+    void signupClosedByDefault() {
+        AuthController controller = new AuthController();
+        controller.userRepository = mock(UserRepository.class);
+        SignupRequest req = new SignupRequest();
+        req.setUsername("ami");
+        req.setEmail("ami@test.fr");
+        req.setPassword("secret1");
+        req.setVerifPassword("secret1");
+
+        assertThat(controller.registerUserForm(req).getViewName()).isEqualTo("redirect:/login");
+        org.mockito.Mockito.verifyNoInteractions(controller.userRepository);
     }
 }

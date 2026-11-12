@@ -38,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class MainControllerAdminPageTest {
 
     private static final String[] FORBIDDEN = {"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "th:utext"};
-    private static final String[] TABS = {"console", "credentials", "bindings", "orderTester", "journal", "modulation", "limits", "doctor"};
+    private static final String[] TABS = {"console", "credentials", "bindings", "users", "orderTester", "journal", "modulation", "limits", "doctor"};
 
     private MockMvc mvc;
 
@@ -120,7 +120,7 @@ class MainControllerAdminPageTest {
     @DisplayName("Scan statique : aucun innerHTML / outerHTML / insertAdjacentHTML / document.write / th:utext dans la page Admin")
     void noHtmlInjection() throws Exception {
         List<Resource> resources = adminResources();
-        assertEquals(10 + 9 + 1, resources.size(), "10 scripts + 9 fragments + la page : " + resources);
+        assertEquals(11 + 10 + 1, resources.size(), "11 scripts + 10 fragments + la page : " + resources);
         for (Resource r : resources) {
             String content = new String(r.getContentAsByteArray(), StandardCharsets.UTF_8);
             for (String forbidden : FORBIDDEN) {

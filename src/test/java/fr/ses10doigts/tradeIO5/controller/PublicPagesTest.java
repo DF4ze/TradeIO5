@@ -36,7 +36,12 @@ class PublicPagesTest {
         facade = mock(IAuthenticationFacade.class);
         MainController controller = new MainController();
         ReflectionTestUtils.setField(controller, "authenticationFacade", facade);
+        ReflectionTestUtils.setField(controller, "signupEnabled", true);
 
+        mvc = MockMvcBuilders.standaloneSetup(controller).setViewResolvers(newViewResolver()).build();
+    }
+
+    private static ThymeleafViewResolver newViewResolver() {
         ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
         resolver.setPrefix("templates/");
         resolver.setSuffix(".html");
@@ -47,7 +52,7 @@ class PublicPagesTest {
         ThymeleafViewResolver viewResolver = new ThymeleafViewResolver();
         viewResolver.setTemplateEngine(engine);
         viewResolver.setCharacterEncoding("UTF-8");
-        mvc = MockMvcBuilders.standaloneSetup(controller).setViewResolvers(viewResolver).build();
+        return viewResolver;
     }
 
     private String render(String url) throws Exception {
@@ -100,5 +105,19 @@ class PublicPagesTest {
         assertThat(render("/register?ok=true")).contains("Compte créé").doesNotContain("signupForm");
         assertThat(renderWithParam("/register", "exception", "Username is already taken!")).contains("Username is already taken!");
         assertThat(renderWithParam("/register", "signUpRequest1", "Passwords don't match")).contains("Passwords don&#39;t match");
+    }
+
+    @Test
+    @DisplayName("inscription fermée : liens d'inscription masqués, /register renvoie vers /login")
+    void signupClosed() throws Exception {
+        MainController closed = new MainController();
+        ReflectionTestUtils.setField(closed, "authenticationFacade", facade);
+        MockMvc closedMvc = MockMvcBuilders.standaloneSetup(closed).setViewResolvers(newViewResolver()).build();
+        when(facade.getConnectedUser()).thenReturn(null);
+        for (String url : new String[] { "/", "/login" }) {
+            String html = closedMvc.perform(get(url).accept(MediaType.TEXT_HTML)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+            assertThat(html).doesNotContain("/register");
+        }
+        closedMvc.perform(get("/register")).andExpect(status().is3xxRedirection());
     }
 }

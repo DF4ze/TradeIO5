@@ -5,11 +5,13 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import fr.ses10doigts.tradeIO5.security.model.User;
@@ -27,7 +29,17 @@ public class MainController {
     @Autowired
     private UserPreferencesService preferencesService;
 
+    /** Inscription publique ({@code tradeio.signup.enabled}) : fermée par défaut, les comptes sont créés par l'admin. */
+    @Value("${tradeio.signup.enabled:false}")
+    private boolean signupEnabled;
+
     private static final Logger	  logger = LoggerFactory.getLogger(MainController.class);
+
+    /** Permet aux gabarits publics de masquer les liens d'inscription quand elle est fermée. */
+    @ModelAttribute("signupEnabled")
+    public boolean signupEnabled() {
+		return signupEnabled;
+    }
 
     /** Page de présentation publique ; un utilisateur connecté est envoyé sur l'application ({@code /app}). */
     @GetMapping("/")
@@ -53,6 +65,9 @@ public class MainController {
      */
     @GetMapping("/register")
     public String register(Model model, @RequestParam Map<String, String> params) {
+		if (!signupEnabled) {
+		    return "redirect:/login";
+		}
 		if (isConnected()) {
 			return "redirect:/app";
 		}

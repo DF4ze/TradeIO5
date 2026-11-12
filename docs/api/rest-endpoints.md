@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-10
-empreinte: 377eb36cbd
+modifié_le: 2026-11-11
+empreinte: 5676526fa5
 ---
 # Endpoints REST
 
@@ -14,7 +14,7 @@ Vérifié le : 2026-11-07 (`controller/**`, dont `Expert*Controller`, `RainbowLi
 |---|---|---|---|
 | GET | `/` | public | Page de présentation (landing) ; utilisateur connecté ⇒ redirection `/app` |
 | GET | `/login` | public | Formulaire de login (connecté ⇒ `/app`) |
-| GET | `/register` | public | Formulaire d'inscription (connecté ⇒ `/app`) ; affiche `ok`, `exception` et les messages de validation reçus en paramètres de redirection |
+| GET | `/register` | public | Formulaire d'inscription (connecté ⇒ `/app` ; inscription fermée ⇒ `/login`) ; affiche `ok`, `exception` et les messages de validation reçus en paramètres de redirection |
 | GET | `/admin` | ADMIN | Page admin |
 
 ## Authentification (`AuthController`, `/api/auth`)
@@ -22,10 +22,27 @@ Vérifié le : 2026-11-07 (`controller/**`, dont `Expert*Controller`, `RainbowLi
 | Méthode | Chemin | Rôle | Description |
 |---|---|---|---|
 | POST | `/api/auth/signinForm` | public | Login formulaire, pose le cookie JWT, restaure l'owner si `archivedAt != null` |
-| POST | `/api/auth/signupForm` | public | Inscription formulaire ; le compte créé reçoit toujours `ROLE_USER` (rôles postés ignorés) |
+| POST | `/api/auth/signupForm` | public | Inscription formulaire, **fermée par défaut** (`tradeio.signup.enabled=false` ⇒ redirige vers `/login`, rien n'est créé) ; le compte créé reçoit toujours `ROLE_USER` (rôles postés ignorés) |
 | GET | `/api/auth/signoutForm` | public | Logout (nettoie le cookie JWT) |
 
 Les endpoints JSON (`/signin`, `/signup`, `/signout`) sont **commentés dans le code**, non actifs — seules les variantes `*Form` (POST formulaire, réponses `ModelAndView`) sont en service.
+
+## Utilisateurs et accès VPS (admin, `AdminUserAccessController`, `/api/admin/users`, `ROLE_ADMIN`)
+
+Erreurs au format `{"error": "..."}` (400, 404, 409, 502). Cf. [`../architecture/07-security.md`](../architecture/07-security.md).
+
+| Méthode | Chemin | Description |
+|---|---|---|
+| GET | `/api/admin/users` | Liste (id, nom), pour les sélecteurs |
+| POST | `/api/admin/users` | `{username, sshAccess}` : crée l'utilisateur (`ROLE_USER`, mot de passe généré renvoyé une seule fois) ; `sshAccess` ⇒ `PENDING_KEY` |
+| GET | `/api/admin/users/access` | Utilisateurs avec `enabled`, `sshStatus`, `sshMessage`, `sshUpdatedAt` |
+| POST | `/api/admin/users/{id}/ssh-key` | `{publicKey}` : crée le compte VPS (`ssh-ed25519`) |
+| POST | `/api/admin/users/{id}/ssh/sync` | « Réessayer » : aligne le VPS sur l'état applicatif |
+| PUT | `/api/admin/users/{id}/enabled` | `{enabled}` : (dés)active l'utilisateur et son accès VPS |
+| DELETE | `/api/admin/users/{id}` | Supprime l'accès VPS puis l'utilisateur |
+| GET | `/api/admin/users/ssh/reconcile` | Écarts app / VPS (orphelins, manquants, divergences, clés en attente) |
+| GET | `/api/admin/users/{id}/ssh/client-conf` | `tradeio.conf` prérempli (texte) |
+| GET | `/api/admin/users/{id}/ssh/client-package` | Zip : scripts de `tradeio.ssh.client-dir` + `tradeio.conf` du compte |
 
 ## Décision / scénarios (admin, `/api/admin/decision`)
 

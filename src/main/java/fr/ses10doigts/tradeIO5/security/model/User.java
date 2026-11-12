@@ -3,7 +3,10 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -70,4 +73,16 @@ public class User {
      * restauration à la reconnexion.
      */
     private Instant archivedAt;
+
+    /** Accès VPS (tunnel SSH) : état, dernier message d'erreur et date de dernière opération. Sans secret. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ssh_status", nullable = false, length = 16)
+    @Builder.Default
+    private SshAccessStatus sshStatus = SshAccessStatus.NONE;
+
+    @Column(name = "ssh_message", length = 255)
+    private String sshMessage;
+
+    @Column(name = "ssh_updated_at")
+    private Instant sshUpdatedAt;
 }

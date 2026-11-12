@@ -88,8 +88,9 @@ button, input, select { font: inherit; color: inherit; }
 }
 .tab-count[hidden] { display: none; }
 .tab-count[data-sev="crit"] { background: var(--down); color: #fff; }
+.tio-nav a.tab svg { flex: none; }
 .tio-nav a.tab .tab-count { position: absolute; top: 2px; right: 8px; }
-@media (min-width: 900px) { .tio-nav a.tab .tab-count { position: static; margin-left: auto; } }
+@media (min-width: 900px) { .tio-nav a.tab .tab-count { top: 50%; right: 12px; transform: translateY(-50%); } }
 @media (min-width: 900px) {
   .tio-main { margin-left: 236px; margin-right: 24px; max-width: none; padding: 26px 8px 40px; }
   .tio-main > * { max-width: 1120px; }

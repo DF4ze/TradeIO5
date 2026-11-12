@@ -59,6 +59,10 @@ public class AuthController {
     @Autowired
     JwtUtils jwtUtils;
 
+    /** Inscription publique ({@code tradeio.signup.enabled}) : fermée par défaut, les comptes sont créés par l'admin. */
+    @org.springframework.beans.factory.annotation.Value("${tradeio.signup.enabled:false}")
+    boolean signupEnabled;
+
     @Autowired
     DecisionScenarioRestoreService restoreService;
 
@@ -237,6 +241,10 @@ public class AuthController {
 
     @PostMapping("/signupForm")
     public ModelAndView registerUserForm(@Valid @ModelAttribute SignupRequest signUpRequest) {
+	if (!signupEnabled) {
+	    logger.warn("SIGNUP refusé : inscription publique fermée (tradeio.signup.enabled=false)");
+	    return new ModelAndView("redirect:/login");
+	}
 	logger.info("Entering SIGNUP");
 
 	ModelAndView mav = new ModelAndView("redirect:/register");
@@ -264,7 +272,8 @@ public class AuthController {
 	Set<Role> roles = new java.util.HashSet<>();
 	roleRepository.findByName(fr.ses10doigts.tradeIO5.security.model.ERole.ROLE_USER).ifPresent(roles::add);
 	User user = new User(null, signUpRequest.getUsername(), signUpRequest.getEmail(),
-			encoder.encode(signUpRequest.getPassword()), roles, true, null, null); // lastLogin = null, archivedAt = null à l'inscription
+			encoder.encode(signUpRequest.getPassword()), roles, true, null, null, // lastLogin = null, archivedAt = null à l'inscription
+			fr.ses10doigts.tradeIO5.security.model.SshAccessStatus.NONE, null, null);
 
 	userRepository.save(user);
 

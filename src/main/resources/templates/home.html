@@ -11,7 +11,7 @@
       <h1>Investissez régulièrement, intelligemment, sans y penser.</h1>
       <p class="lead">TradeIO automatise votre investissement programmé (DCA) sur plusieurs actifs et plusieurs plateformes. Chaque achat s'adapte aux conditions de marché, dans les limites d'exposition que vous fixez.</p>
       <div class="row">
-        <a class="btn btn--primary btn--lg" th:href="@{/register}">Créer mon compte</a>
+        <a class="btn btn--primary btn--lg" th:if="${signupEnabled}" th:href="@{/register}">Créer mon compte</a>
         <a class="btn btn--lg" th:href="@{/login}">Me connecter</a>
       </div>
       <p class="note">Accès ouvert à un cercle restreint pour le moment.</p>
@@ -100,7 +100,7 @@
   <section class="pub-cta card card--hero">
     <h2>Prêt à investir sans y penser ?</h2>
     <div class="row">
-      <a class="btn btn--primary btn--lg" th:href="@{/register}">Créer mon compte</a>
+      <a class="btn btn--primary btn--lg" th:if="${signupEnabled}" th:href="@{/register}">Créer mon compte</a>
       <a class="btn btn--lg" th:href="@{/login}">J'ai déjà un compte</a>
     </div>
   </section>

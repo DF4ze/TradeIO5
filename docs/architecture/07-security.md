@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-10
-empreinte: 1a40ef1b24
+modifié_le: 2026-11-11
+empreinte: dbcbc0ae14
 ---
 # Sécurité
 
@@ -60,6 +60,18 @@ Providers dont l'auth repose sur une paire que l'utilisateur enregistre chez l'e
 - **Régénération / révocation** : régénérer = nouvelle paire + nouvelle promotion (la credential active n'est remplacée qu'à la promotion, aucune coupure) ; la révocation de l'ancienne clé se fait chez l'exchange.
 - **Secrets** : clé privée chiffrée au repos, jamais dans un DTO, un log, une exception ni le journal (`CREDENTIAL_STORED`, payload `event` = `KEY_GENERATED|KEY_PROMOTED|KEY_CANCELLED|KEY_REFUSED|KEY_UNVERIFIED` + empreinte) ; clé publique non conservée après promotion ; sans `TRADEIO_MASTER_KEY` ⇒ 409.
 - **Endpoints** (authentifié, utilisateur connecté) : cf. [`../api/rest-endpoints.md`](../api/rest-endpoints.md).
+
+## Accès VPS des amis (tunnel SSH)
+
+`SshAccessService` (`service/ssh/`) gère le cycle de vie utilisateur + compte Linux `tio_<username>` ; décisions : [`../decisions/acces-amis-tunnel-ssh.md`](../decisions/acces-amis-tunnel-ssh.md), prérequis VPS et test : [`../operations/acces-amis-ssh.md`](../operations/acces-amis-ssh.md).
+
+- **Provisioner** : interface `SshAccessProvisioner` ; `ShellSshAccessProvisioner` (`tradeio.ssh.enabled=true`) appelle `sudo -n /usr/local/sbin/tradeio-user <cmd>` par `ProcessBuilder` en tableau d'arguments (jamais de shell), chemin absolu, timeout, sortie `ERREUR:` ⇒ exception métier ; `NoopSshAccessProvisioner` (défaut, dev/test) : état en mémoire, aucun sudo. Conflit (`add` sur compte existant) et compte inconnu sont détectés par un `list` préalable ; `del` d'un compte inconnu est un no-op.
+- **Validation avant appel** (`SshInputValidator`) : login `^[a-z][a-z0-9]{2,20}$` (username TradeIO borné à 20), clé `ssh-ed25519` une ligne. Les options de clé (`restrict`, `permitopen`) sont injectées par le helper, jamais par l'app.
+- **État** : `users.ssh_status` (`NONE`, `PENDING_KEY`, `ACTIVE`, `DISABLED`, `ERROR`), `ssh_message`, `ssh_updated_at`.
+- **Ordre** : création = app puis VPS ; désactivation/suppression = VPS d'abord. Échec VPS ⇒ `ERROR` + message, app cohérente (désactivation appliquée) ; suppression : rien n'est supprimé. « Réessayer » = `sync` (aligne le VPS sur l'état applicatif).
+- **Garde-fous** : `ROLE_ADMIN` strict (`AdminUserAccessController`), le compte créé est toujours `ROLE_USER`, refus sur son propre compte et sur `System`. Pas de CSRF (inchangé : cookie JWT). Le mot de passe généré n'est renvoyé qu'à la création ; aucun secret au journal.
+- **Audit** : `admin_action_log`, action `SSH_ACCESS`, cible `user:<login>` (événements CREATE, ADD, ENABLE, DISABLE, DELETE, SYNC, RECONCILE ; la clé publique peut figurer au payload).
+- **Inscription publique** : fermée par défaut (`tradeio.signup.enabled`) : `/register` redirige vers `/login`, `POST /api/auth/signupForm` ne crée rien, liens masqués.
 
 ## Accès propriétaire (Rainbow live)
 

@@ -31,7 +31,7 @@ Vérifié le : 2026-10-10 (`service/scheduler/**`).
 |---|---|---|---|
 | `tradeio.execution.mode` | `DRY_RUN` | `LIVE` | **`LIVE`** |
 | `tradeio.execution.live-unlocked` | `false` | `true` | **`true`** |
-| `tradeio.decision.orchestrator-cron` | `-` | `0 0 6 * * *` | **`0 0 6 * * *`** |
+| `tradeio.decision.orchestrator-cron` | `-` | `-` | **`-` (désactivé le 2026-11-12 ; fichier VPS à aligner)** |
 | `tradeio.rainbow-live.pass-2355-cron` | `-` | absent | **`0 55 23 * * *`** (UTC) |
 | `tradeio.execution.plan-cron` | `-` | absent | **`0 58 23 * * *`** (UTC) |
 | `tradeio.execution.run-cron` | `-` | absent | **`0 59 23 * * *`** (UTC) |

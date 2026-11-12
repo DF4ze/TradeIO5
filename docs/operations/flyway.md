@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-11
 modifié_le: 2026-11-11
-empreinte: 0916479793
+empreinte: 4c1725bf6f
 ---
 # Flyway et défauts d'initialisation
 
@@ -26,7 +26,7 @@ Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11) : `spring.f
 
 ## Restes legacy
 
-Les prod/dev existantes portent des restes du modèle d'avant les Affectations (colonnes `preset_id`, tables `rainbow_live_preset`, `rainbow_asset_strategy`…), hors `V1__init.sql` et tolérés par `validate`. Leur suppression est un `V2` à écrire **après** le retrait du code qui les lit (`AffectationMigrationService` lit `preset_id` : un V2 qui les supprimait avant a fait échouer la recette du 2026-11-11 avec `Unknown column 'preset_id'`). Liste et ordre : [`../known-gaps/nettoyages.md`](../known-gaps/nettoyages.md).
+Les prod/dev existantes portent des restes du modèle d'avant les Affectations (colonnes `preset_id`, tables `rainbow_live_preset`, `rainbow_asset_strategy`…), hors `V1__init.sql` et tolérés par `validate`. Leur suppression est une migration à écrire (`V3+`, `V2` est pris par `V2__user_ssh_access.sql`) **après** le retrait du code qui les lit (`AffectationMigrationService` lit `preset_id` : un V2 qui les supprimait avant a fait échouer la recette du 2026-11-11 avec `Unknown column 'preset_id'`). Liste et ordre : [`../known-gaps/nettoyages.md`](../known-gaps/nettoyages.md).
 
 ## Base locale (dev)
 

@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-10-03
 modifié_le: 2026-11-11
-empreinte: 6c505f72f5
+empreinte: 49aa581978
 ---
 # Configuration
 
@@ -25,6 +25,12 @@ Vérifié le : 2026-10-03 (`configuration/**`, `RainbowLiveDefaultPresets`).
 | `tradeio.openai.base-url` | — (requis) | Endpoint du client |
 | `tradeio.openai.model.{low,medium,high}` | — (chacun optionnel) | Mapping `LlmTier` → modèle concret ; fallback vers le niveau inférieur si celui demandé n'est pas configuré (`OpenAIService`) |
 | `tradeio.openai.pricing.<MODEL_NAME>.{input,output}` | — (optionnel) | Tarifs par million de tokens, pour `LlmCostCalculator` |
+| `tradeio.signup.enabled` | `false` | Inscription publique (`/register`, `POST /api/auth/signupForm`) ; fermée : les comptes sont créés par l'admin |
+| `tradeio.ssh.enabled` | `false` | `true` ⇒ provisioning réel des comptes tunnel via le helper root (VPS) ; sinon provisioner factice en mémoire. Détail : [`acces-amis-ssh.md`](acces-amis-ssh.md) |
+| `tradeio.ssh.helper-path` / `sudo` / `timeout-seconds` | `/usr/local/sbin/tradeio-user` / `true` / `10` | Appel `sudo -n <helper> <cmd>` (règle sudoers limitée à ce script) |
+| `tradeio.ssh.host` / `port` / `hostkey` | — / `22` / — | Valeurs du `tradeio.conf` fourni aux amis (`hostkey` = clé publique d'hôte `ssh-ed25519 AAAA…`) |
+| `tradeio.ssh.local-port` / `remote` / `url` | `18080` / `127.0.0.1:9003` / `http://127.0.0.1:18080/` | Idem, côté tunnel |
+| `tradeio.ssh.client-dir` | — | Dossier du VPS avec les scripts client zippés avec le `tradeio.conf` ; vide ⇒ pas de package |
 | `tradeio.media-watch.poll-cron` | `0 30 9,15,21,3 * * *` | Cron ingestion veille média |
 | `tradeio.media-watch.extraction-cron` | `0 45 9,15,21,3 * * *` | Cron extraction veille média |
 | `tradeio.etf-flow.historization-cron` | `0 0 7 * * *` | Cron historisation ETF flow |

@@ -2,7 +2,7 @@
 statut: index
 sujet: Table de routage de la documentation
 modifié_le: 2026-11-11
-empreinte: 0151e5b783
+empreinte: 14b381edb7
 ---
 # TradeIO-5 — Documentation
 
@@ -34,6 +34,7 @@ Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decis
 | [`decisions/flyway-defauts-presets.md`](decisions/flyway-defauts-presets.md) | Flyway, défauts, sauvegarde DB |
 | [`decisions/providers.md`](decisions/providers.md) | providers, Revolut X, monétisation |
 | [`decisions/recette.md`](decisions/recette.md) | recette avant prod, go prod, données nettoyées |
+| [`decisions/acces-amis-tunnel-ssh.md`](decisions/acces-amis-tunnel-ssh.md) | accès des amis (tunnel SSH), création de comptes par l'admin, inscription fermée |
 
 ## Architecture (état vérifié du code)
 | Doc | Lire si… |
@@ -66,6 +67,8 @@ Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decis
 | [`operations/configuration.md`](operations/configuration.md) | propriétés, secrets, environnement |
 | [`operations/flyway.md`](operations/flyway.md) | migrations (Flyway actif), défauts d'initialisation |
 | [`operations/recette.md`](operations/recette.md) | recette sur copie de prod (scripts `tools/recette/`), déploiement prod, retour arrière |
+| [`operations/acces-amis-ssh.md`](operations/acces-amis-ssh.md) | prérequis VPS (sudoers, scripts client) et test réel de l'accès des amis |
+| [`operations/dev-sync.md`](operations/dev-sync.md) | recopier la prod vers la base de dev (scripts `tools/dev-sync/`), anti-dérive |
 | [`operations/scheduled-jobs.md`](operations/scheduled-jobs.md) | jobs planifiés |
 
 ## Reste à faire (known-gaps)

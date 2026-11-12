@@ -23,7 +23,7 @@
   <div class="pub-actions">
     <button class="btn pub-theme" id="theme-toggle" type="button" aria-pressed="false" aria-label="Passer en thème clair"><span aria-hidden="true">◐</span></button>
     <a class="btn" th:href="@{/login}">Connexion</a>
-    <a class="btn btn--primary" th:href="@{/register}">Inscription</a>
+    <a class="btn btn--primary" th:if="${signupEnabled}" th:href="@{/register}">Inscription</a>
   </div>
 </header>
 <footer th:fragment="footer" class="pub-foot">

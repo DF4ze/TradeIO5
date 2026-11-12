@@ -37,6 +37,9 @@
     							<button type="button" class="nav-link" id="adm-tab-bindings" data-adm-tab="bindings" data-bs-target="#adm-pane-bindings" role="tab">Bindings</button>
     						</li>
     						<li class="nav-item" role="presentation">
+    							<button type="button" class="nav-link" id="adm-tab-users" data-adm-tab="users" data-bs-target="#adm-pane-users" role="tab">Utilisateurs</button>
+    						</li>
+    						<li class="nav-item" role="presentation">
     							<button type="button" class="nav-link" id="adm-tab-orderTester" data-adm-tab="orderTester" data-bs-target="#adm-pane-orderTester" role="tab">Testeur d'ordre</button>
     						</li>
     						<li class="nav-item" role="presentation">
@@ -58,6 +61,7 @@
     						<div th:replace="~{fragments/admin/providers :: providers}"></div>
     						<div th:replace="~{fragments/admin/credentials :: credentials}"></div>
     						<div th:replace="~{fragments/admin/bindings :: bindings}"></div>
+    						<div th:replace="~{fragments/admin/users :: users}"></div>
     						<div th:replace="~{fragments/admin/orderTester :: orderTester}"></div>
     						<div th:replace="~{fragments/admin/modulation :: modulation}"></div>
     						<div th:replace="~{fragments/admin/limits :: limits}"></div>
@@ -72,6 +76,7 @@
 <script th:src="@{/assets/js/admin/providers.js}"></script>
 <script th:src="@{/assets/js/admin/credentials.js}"></script>
 <script th:src="@{/assets/js/admin/bindings.js}"></script>
+<script th:src="@{/assets/js/admin/users.js}"></script>
 <script th:src="@{/assets/js/admin/orderTester.js}"></script>
 <script th:src="@{/assets/js/admin/modulation.js}"></script>
 <script th:src="@{/assets/js/admin/limits.js}"></script>

@@ -26,5 +26,7 @@ public enum AdminAction {
     /** Acquittement ou mise en sommeil d'une alarme du Docteur (cible {@code alarm:<id>}). */
     DOCTOR,
     /** Modification par un admin d'un preset SYSTEM de l'Espace Expert (cible {@code trend-preset:<id>} / {@code rainbow-preset:<id>}). */
-    PRESET
+    PRESET,
+    /** Accès VPS (tunnel SSH) d'un utilisateur : création, clé, (dés)activation, suppression (cible {@code user:<login>}). */
+    SSH_ACCESS
 }
