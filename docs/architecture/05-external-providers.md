@@ -66,6 +66,7 @@ Vérifié le : 2026-11-04 (`RevolutXRequests`, `RevolutX*` sous `service/connect
 - Soldes : `GET /1.0/balances`, disponible par devise, valeurs > 0.
 - Frais : `GET /1.0/configuration/fees/tiers` (signé, clé de lecture) : palier spot courant du compte (`current_tier`, volume 30 j), taux en fractions convertis en % du montant, identiques pour toutes les paires, cachés 5 min par clé API (`RevolutXTradingFeeProvider`) ; réponse sans palier spot ou illisible ⇒ `BalanceUnavailableException`, jamais supposés.
 - Remplissages : `GET /1.0/orders/historical` (états `filled,cancelled`, fenêtres de 30 jours, 365 jours par défaut, pagination `cursor`), puis par ordre exécuté `GET /1.0/orders/{id}` (frais total) et `GET /1.0/orders/fills/{id}` ; frais total porté par le premier remplissage. Plafond d'appels par lecture (`MAX_CALLS`) ; `orders/historical` coûte 1 jeton par jour de plage (100 jetons/s, 1000/min) : pause de 12 ms par jour de plage entre deux fenêtres, et chaque lecture de l'historique est rejouée après un 429 (`RevolutXRequests.getWithRetry`, 4 tentatives, pause croissante).
+- Limite de débit (429) : `getWithRetry` (lectures privées en rafale) et `publicGetWithRetry` (carnet public) réessaient 4 fois, pause 1 s x n° de tentative ; les autres appels échouent tout de suite.
 - Non fait : bougies (pas de `MarketDataApiClient` / `MarketDataSource.REVOLUT_X`), repli ticker du carnet, ajout à `ExchangeKeysService.SupportedExchange` (onboarding utilisateur).
 - Limites de débit : 1000 points / minute, `/trades` pèse 5 (espacement minimal entre appels).
 

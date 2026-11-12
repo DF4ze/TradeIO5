@@ -132,6 +132,11 @@ public final class RevolutXRequests {
         return reply;
     }
 
+    /** GET public avec les mêmes tentatives après 429 que {@link #getWithRetry} (carnet : Fee Test, plan d'ordres). */
+    public static Reply publicGetWithRetry(WebProvider provider, String path, String query) {
+        return retryOnRateLimit(() -> publicGet(provider, path, query), RATE_LIMIT_ATTEMPTS, RATE_LIMIT_PAUSE_MILLIS);
+    }
+
     /** GET privé signé. */
     public static Reply get(ApiCredential credential, String path, String query) {
         return send(HttpMethod.GET, credential, path, query, null);

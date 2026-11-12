@@ -40,7 +40,7 @@ public class RevolutXOrderBookClient implements OrderBookClient {
         }
         String query = "limit=" + Math.min(Math.max(depth, 1), MAX_LEVELS) + "&" + RevolutXInstrumentListClient.REGION_QUERY;
         try {
-            RevolutXRequests.Reply reply = RevolutXRequests.publicGet(provider, BOOK_PATH + instId.toUpperCase(), query);
+            RevolutXRequests.Reply reply = RevolutXRequests.publicGetWithRetry(provider, BOOK_PATH + instId.toUpperCase(), query);
             if (!reply.ok()) {
                 throw new InstrumentLookupException("Revolut X : carnet en erreur HTTP " + reply.status());
             }
