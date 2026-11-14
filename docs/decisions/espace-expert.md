@@ -4,7 +4,7 @@ sujet: espace-expert
 cree_le: 2026-11-10
 origine: memoire-claude-migree
 modifié_le: 2026-11-14
-empreinte: e1a57862c1
+empreinte: a2da88764f
 ---
 # espace-expert
 
@@ -23,3 +23,6 @@ Cadre, périmètre et sorties : [`../etudes/etude-optimisation-mode-autonome.md`
 - Test de parité : base locale = copie de la prod (`tools/dev-sync`, [`../operations/dev-sync.md`](../operations/dev-sync.md)), jamais de lecture directe de la prod.
 - Ordre de livraison : mono-actif d'abord (cœur + parité), multi-actifs ensuite.
 - Parité (2026-11-14) : acceptée si ≥ 95 % de jours identiques et tout écart résiduel expliqué ; rejeu au cours de décision enregistré par le live (23:55) ; période = du 1er run BTC de la base locale ; exposé par service + test + endpoint expert sans UI. Parité BTC acceptée (2026-11-14) à 18/19 jours identiques : l'écart du 28/10 vient de l'ancien moteur, qui ne se resynchronisait pas (ni reset ni rejeu) et restait bloqué sur d'anciennes décisions — bug corrigé depuis, état d'époque non reconstituable.
+- Rejeu multi-liens (2026-11-14) : un rejeu par wallet (sélectionnable, capital par wallet comme le live) ; tous les liens du wallet sont rejoués, y compris inactifs/en simulation (`liveSlots` ne filtre pas) ; actifs détenus sans lien = valorisés et figés (comptent dans l'exposition, jamais traités) ; DCA fixe de référence = base de chaque lien, cash commun ; période de chaque lien = de son 1er run, `C0` = cash du snapshot le plus ancien du wallet ; acceptation ≥ 95 % par lien et global.
+- Parité multi-liens, mesure du 2026-11-14 (wallet 1, BTC + ETH, du 11/10 au 13/11) : 28/37 jours-liens identiques, 0 écart inexpliqué ; BTC 18/19 (écart du 28/10 déjà accepté), ETH 10/18 (8 écarts consécutifs du 27/10 au 03/11, live NONE vs rejeu BUY ; tous les jours du 04/11 au 13/11 identiques). Aucun écart dû au cash commun, à la priorité ou à l'exposition inconnue ; cash jamais contraignant sur la période (aucun `INSUFFICIENT_CASH` testé). Règle : le verdict de l'endpoint n'est pas assoupli ; la parité se mesure sur la période où l'état moteur est reconstituable (`from=2026-11-04`). Confirmé le 2026-11-15 sur cette période : 19/19 jours-liens identiques (BTC 10/10, ETH 9/9), 0 écart, verdict ACCEPTÉ. Parité multi-liens acceptée (lot 2).
+

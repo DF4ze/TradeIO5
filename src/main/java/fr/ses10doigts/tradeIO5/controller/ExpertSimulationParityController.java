@@ -14,8 +14,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDate;
 
 /**
- * Parité du rejeu mono-actif avec la prod (lot 1 du simulateur complet, sans UI) : mode EXPERT requis, lecture seule.
- * Tous les paramètres sont facultatifs (défauts : lien BTC, du 1er run live à aujourd'hui, réglages du lien).
+ * Parité du rejeu avec la prod (simulateur complet, sans UI) : mode EXPERT requis, lecture seule. Tous les paramètres sont
+ * facultatifs : sans {@code bindingId}/{@code asset}, tous les liens du wallet ({@code walletId}, défaut : wallet du lien le plus
+ * prioritaire) sont rejoués avec cash et exposition communs ; avec l'un des deux, mono-lien. Période : du 1er run live de chaque
+ * lien à aujourd'hui ; réglages = ceux de l'utilisateur (journal live).
  */
 @RestController
 @RequestMapping("/api/expert/simulations/parity")
@@ -29,6 +31,7 @@ public class ExpertSimulationParityController {
     @GetMapping
     public ParityReport parity(@RequestParam(required = false) Long bindingId,
                                @RequestParam(required = false) String asset,
+                               @RequestParam(required = false) Long walletId,
                                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
                                @RequestParam(required = false) Double cash0,
@@ -40,7 +43,7 @@ public class ExpertSimulationParityController {
                                @RequestParam(required = false) Double power,
                                @RequestParam(required = false) Double bias,
                                @RequestParam(required = false) Double regulationMarginPct) {
-        return service.parity(guard.require().user(), new FullReplayService.Request(bindingId, asset, from, to, cash0, qty0,
-                baseAmount, bagPercent, exposureMin, exposureMax, power, bias, regulationMarginPct));
+        return service.parity(guard.require().user(), new FullReplayService.Request(bindingId, asset, walletId, from, to, cash0,
+                qty0, baseAmount, bagPercent, exposureMin, exposureMax, power, bias, regulationMarginPct));
     }
 }

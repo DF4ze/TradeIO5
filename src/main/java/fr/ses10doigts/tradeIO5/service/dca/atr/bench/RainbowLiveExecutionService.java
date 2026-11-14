@@ -457,9 +457,7 @@ public class RainbowLiveExecutionService {
     private List<LiveSlot> liveSlotsOf(User user, Counters counters) {
         try {
             return realPortfolioSource.liveSlots(user).stream()
-                    .sorted(Comparator.comparingInt(LiveSlot::priority)
-                            .thenComparingInt(slot -> RainbowLiveDefaultPresets.ASSETS.indexOf(slot.assetSymbol()))
-                            .thenComparing(LiveSlot::bindingId))
+                    .sorted(LiveSlot.SERVICE_ORDER)
                     .toList();
         } catch (Exception e) {
             counters.errors++;
