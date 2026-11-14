@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-08
-modifié_le: 2026-11-10
-empreinte: 4a3b4ecd29
+modifié_le: 2026-11-14
+empreinte: d595929b43
 ---
 # Espace Expert — paramétrage Trend / Rainbow par actif
 
@@ -48,6 +48,10 @@ Types : `TREND` (Trend seul), `RAINBOW` (un preset Rainbow sur le seul régime U
 **`ChartDto`** : une valeur par bougie rejouée — `d` (dates), `trend` (0 aucun, 1 UP, 2 DOWN), `active` (0/1), `cols` (colonnes de `RainbowReplayColumns.COLS`, mêmes noms que `replay-template.html` : o, h, l, c, bornes ATR, zones, ath, marqueurs achat / vente / Bull-Bear / moon, `pos` = taille du bag, `bagValue` = bag en $ (au prix de valorisation), `reserve`, `realized`, `potential`, `total`, `fixedGain`…), `wallet` (capital fermé : actif, stable, total ; nul pour TREND), `sets` (jeux rejoués).
 
 Pour une simulation `TREND`, `cols` contient en plus de `o,h,l,c` (noms distincts des colonnes Rainbow pour que le front distingue les deux types de graphique) : `tSma`, `tUp`, `tDn` (SMA et SMA ± k × ATR, `null` avant le warmup) ; `tReg` (régression après confirmation), `tRaw` (régression brute avant confirmation) et `tSmaReg` (SMA), codés 0 non défini, 1 UP, 2 DOWN, 3 RANGE ; `tScore` (score composite [-1, 1]) et `tSub0..2` (contribution des fenêtres courte / moyenne / longue = tanh(pente normalisée × échelle) × r², dont `tScore` est la moyenne) ; `tOlsS0..2` / `tOlsE0..2` (valeur de la droite des moindres carrés de chaque fenêtre à son début et à sa fin, pour la bougie considérée). `trendParams` (nul hors TREND) porte les fenêtres, `enter`, `exit`, `confirm`, `atrMultiplier` utilisés pour les seuils et les libellés.
+
+## Rejeu mono-actif fidèle à la prod (lot 1 du simulateur complet, sans UI)
+`FullReplayEngine` (pur, `service/expert/simulation/`) : Trend Mix → jeu Bull/Bear → pas Rainbow sur la position virtuelle → `LiveDemand` (vente = fraction × position tradable simulée) → `SizingCore` (même code que le live, cf. [`08d`](08d-rainbow-modulation.md)) → wallet fermé (cash, quantité, exposition au cours du jour). Capital fixé au départ, sans apport, sans frais ni minimum d'ordre. Sortie : série journalière + valeur finale + DCA fixe de même base. Il n'est pas encore un `SimulationType` (écran aux lots suivants).
+`FullReplayService` compare ce rejeu aux `RainbowLiveBindingRun` / `RainbowLiveRun` du lien (base locale = copie de la prod) : `GET /api/expert/simulations/parity` (mode EXPERT, tous paramètres facultatifs : lien BTC, du 1er run live à aujourd'hui, `C0` et position = snapshot du 1er run, réglages du lien). Candles = source du lien sans fallback, fenêtre D1 live (720 j) ; cours de décision = cours enregistré par le live (23:55). Deux exécutions : wallet recalé sur le snapshot live chaque jour (parité de la décision) et wallet en continu. Rapport `ParityReport` (JSON + `toMarkdown()`), écarts classés par cause (config, jeu/régime, signal, dimensionnement, jour manquant, inexpliqué). Acceptation : ≥ 95 % de jours identiques (même action, montant à 1 % près) et aucun écart inexpliqué. ATH de référence = ATH stocké en base (`rainbow_ath_reference`, à la veille de chaque jour, comme le live) ; la fenêtre D1 ne sert qu'à l'amorçage du moteur et de l'automate moon. Limites : mono-actif (cash/exposition des autres actifs du wallet non rejoués), réglages de modulation courants.
 
 ## Outil de rejeu `tools/rainbow-replay/`
 

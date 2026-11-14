@@ -268,7 +268,7 @@
   X.providerOptions = (asset) => [{ value: '', label: '— provider du preset —' }].concat(((asset && asset.providers) || []).map((p) => ({ value: p.provider, label: p.provider })));
 
   X.tabs = function (active) {
-    const keep = () => { const q = new URLSearchParams(); ['asset', 'provider'].forEach((k) => { if (X.param(k)) q.set(k, X.param(k)); }); const s = q.toString(); return s ? '?' + s : ''; };
+    const keep = () => { const q = new URLSearchParams(); ['asset', 'provider', 'regime'].forEach((k) => { if (X.param(k)) q.set(k, X.param(k)); }); const s = q.toString(); return s ? '?' + s : ''; };
     return h('nav', { class: 'xtabs', 'aria-label': 'Espace Expert' }, [['trend', 'Trend'], ['rainbow', 'Rainbow'], ['affectation', 'Affectation']].map(([k, l]) =>
       h('a', { class: 'xtab', href: '/app/expert/' + k + keep(), 'aria-current': k === active ? 'page' : null, onclick: (e) => { e.preventDefault(); if (k !== active) X.go('/app/expert/' + k + keep()); } }, l)));
   };

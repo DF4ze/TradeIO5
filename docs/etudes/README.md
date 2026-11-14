@@ -2,7 +2,7 @@
 statut: index
 sujet: Index des études actives
 modifié_le: 2026-11-14
-empreinte: ff563567a6
+empreinte: 25dd662168
 ---
 # Études (journal de conception daté)
 
@@ -21,6 +21,7 @@ empreinte: ff563567a6
 | [`etude-indicateur-trend-unifie.md`](etude-indicateur-trend-unifie.md) | Étude — Indicateur de Trend unifié (Régime + Force + Confiance + BOS) |  |
 | [`etude-liens-strategie-provider-actif.md`](etude-liens-strategie-provider-actif.md) | Étude — Liens stratégie / provider / actif (vocabulaire et modèle cible) |  |
 | [`etude-passerelle-actif-non-stable.md`](etude-passerelle-actif-non-stable.md) | Étude — Passerelle par actif non stable (PAXG sur Kraken), USDT exclu |  |
+| [`etude-optimisation-mode-autonome.md`](etude-optimisation-mode-autonome.md) | Étude — Optimiser TradeIO vers un mode Full Autonome (définition du bon paramétrage, rejeu intégral, méthode, agencement des briques) |  |
 | [`etude-protocole-calibrage-couches.md`](etude-protocole-calibrage-couches.md) | Étude — Protocole de calibrage Rainbow, attribution des pertes, couches de pilotage, gestion du risque |  |
 | [`etude-provider-revolutx.md`](etude-provider-revolutx.md) | Étude — Provider Revolut X : clés générées par utilisateur, candles, exécution |  |
 | [`etude-source-candles-provider-du-lien.md`](etude-source-candles-provider-du-lien.md) | Étude — Source des candles du Rainbow live : provider du lien, sans fallback silencieux |  |

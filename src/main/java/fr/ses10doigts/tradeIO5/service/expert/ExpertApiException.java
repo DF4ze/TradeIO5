@@ -19,6 +19,8 @@ public class ExpertApiException extends RuntimeException {
         PRESET_IN_USE(HttpStatus.CONFLICT),
         /** Simulation inexistante, expirée ou d'un autre utilisateur. */
         SIMULATION_NOT_FOUND(HttpStatus.NOT_FOUND),
+        /** Lien (binding) inexistant ou d'un autre utilisateur (parité du simulateur). */
+        BINDING_NOT_FOUND(HttpStatus.NOT_FOUND),
         SIMULATION_ALREADY_RUNNING(HttpStatus.CONFLICT),
         SIMULATION_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS),
         /** File d'attente des simulations saturée. */

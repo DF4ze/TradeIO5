@@ -28,4 +28,7 @@ public interface RainbowLiveBindingRunRepository extends JpaRepository<RainbowLi
 
     /** Runs de lien d'un utilisateur entre deux jours inclus, du plus récent au plus ancien (journal des décisions). */
     List<RainbowLiveBindingRun> findByBindingUserAndDayBetweenOrderByDayDesc(User user, LocalDate from, LocalDate to);
+
+    /** Runs d'un lien entre deux jours inclus, du plus ancien au plus récent (parité du simulateur). */
+    List<RainbowLiveBindingRun> findByBindingAndDayBetweenOrderByDayAsc(RainbowLiveBinding binding, LocalDate from, LocalDate to);
 }

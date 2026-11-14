@@ -8,7 +8,7 @@ import java.util.Map;
  * les actifs, une vente l'inverse). Chaque action acceptée met à jour {@code P} pour le lien suivant. Exposition <b>inconnue</b>
  * (prix manquant pour un actif détenu, {@code V = 0}) : aucune modulation de bande, jamais un 0 silencieux. Non thread-safe.
  */
-final class ExposureLedger {
+public final class ExposureLedger {
 
     private static final ExposureLedger UNKNOWN = new ExposureLedger(0.0, 0.0, false);
 
@@ -22,12 +22,12 @@ final class ExposureLedger {
         this.known = known;
     }
 
-    static ExposureLedger unknown() {
+    public static ExposureLedger unknown() {
         return UNKNOWN;
     }
 
     /** Valorise la lecture avec les clôtures de la passe ; inconnue si un actif détenu n'a pas de prix ou si {@code V = 0}. */
-    static ExposureLedger of(PortfolioReading reading, Map<String, Double> closes) {
+    public static ExposureLedger of(PortfolioReading reading, Map<String, Double> closes) {
         double assets = 0.0;
         for (Map.Entry<String, Double> position : reading.positions().entrySet()) {
             if (position.getValue() <= 0.0) {
@@ -43,30 +43,35 @@ final class ExposureLedger {
         return total > 0.0 ? new ExposureLedger(assets, total, true) : UNKNOWN;
     }
 
-    boolean isKnown() {
+    /** Exposition connue à partir de valeurs déjà calculées (simulation) ; inconnue si {@code totalValue <= 0}. */
+    public static ExposureLedger ofValues(double assetsValue, double totalValue) {
+        return totalValue > 0.0 ? new ExposureLedger(Math.max(0.0, assetsValue), totalValue, true) : UNKNOWN;
+    }
+
+    public boolean isKnown() {
         return known;
     }
 
-    double assetsValue() {
+    public double assetsValue() {
         return assetsValue;
     }
 
-    double totalValue() {
+    public double totalValue() {
         return totalValue;
     }
 
     /** Exposition en % de la valeur du portefeuille. */
-    double exposurePct() {
+    public double exposurePct() {
         return assetsValue / totalValue * 100.0;
     }
 
-    void applyBuy(double usd) {
+    public void applyBuy(double usd) {
         if (known) {
             assetsValue += usd;
         }
     }
 
-    void applySell(double usd) {
+    public void applySell(double usd) {
         if (known) {
             assetsValue = Math.max(0.0, assetsValue - usd);
         }

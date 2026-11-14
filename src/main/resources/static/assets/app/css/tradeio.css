@@ -562,3 +562,12 @@ details.fold > .fold-body { padding: 0 0 6px 48px; }
 .xmodal-box h2 { margin: 0; font-size: 17px; }
 .xmodal-foot { justify-content: flex-end; }
 @media (max-width: 700px) { .xc-body { min-width: 0; } .xgroup { padding: 10px; } }
+
+/* Espace Expert · Rainbow « Les 2 » : deux colonnes Bull / Bear (réglages empilés sous la sélection, sans séparateur) dès 1200 px */
+.xdual { display: grid; gap: var(--gap); grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 1200px) { .xdual { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.xdual > * { min-width: 0; }
+.xdual .xwork { grid-template-columns: minmax(0, 1fr); grid-template-areas: "sel" "side" "sim"; }
+.xdual .xwork-left { display: contents; }
+.xdual .xsplit, .xdual .xwide-only { display: none; }
+.xdual .xwork-side { position: static; max-height: none; overflow: visible; }

@@ -18,6 +18,9 @@ public interface RainbowLiveRunRepository extends JpaRepository<RainbowLiveRun, 
 
     List<RainbowLiveRun> findByAffectationOrderByDayAsc(AssetAffectation affectation);
 
+    /** Runs d'une Affectation entre deux jours inclus, du plus ancien au plus récent (parité du simulateur). */
+    List<RainbowLiveRun> findByAffectationAndDayBetweenOrderByDayAsc(AssetAffectation affectation, LocalDate from, LocalDate to);
+
     /** Supprime les runs d'un utilisateur pour un jour (recalcul forcé du jour : cf. {@code RainbowLiveRunService#discardDay}). */
     long deleteByUserAndDay(User user, LocalDate day);
 

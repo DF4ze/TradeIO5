@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-10
-empreinte: 072d17c9b5
+modifié_le: 2026-11-14
+empreinte: d246bce3f0
 ---
 # Rainbow live — Modulation (admin + utilisateur)
 
@@ -10,7 +10,7 @@ Suite de [`08-rainbow-live.md`](08-rainbow-live.md) (Rainbow DCA ATR live — Af
 
 ## Modulation : paramètres admin et réglages utilisateur
 
-**Principe : le Rainbow reste seul à acheter et vendre ; la modulation ne fait que changer les quantités qu'il demande** (aucun ordre de rééquilibrage). Signal (`LiveDemand`) et plan d'ordres inchangés : seul `LiveSizing` module, par lien. Roadmap : ../prompts/prompt-roadmap-modulation-bande-puissance.md *(supprimé)*.
+**Principe : le Rainbow reste seul à acheter et vendre ; la modulation ne fait que changer les quantités qu'il demande** (aucun ordre de rééquilibrage). Signal (`LiveDemand`) et plan d'ordres inchangés : seul le cœur partagé `SizingCore` module, par lien (`LiveSizing` = adaptateur qui écrit le bloc live). Roadmap : ../prompts/prompt-roadmap-modulation-bande-puissance.md *(supprimé)*.
 
 - **Constantes** : `service/modulation/ModulationDefaults` (défaut + bornes absolues incluses de chaque paramètre admin, valeurs neutres utilisateur 0 / 100 / 1 / 0) ; la base ne relève jamais une borne absolue.
 - **Paramètres admin globaux** : singleton `RainbowModulationControl` (`rainbow_modulation_control`, id 1, `updatedAt`, `updatedBy`) : `regulationMarginPct` (25, 5–50), `sellBoostMax` (2, 1–4), `biasMax` (0,5, 0–1), `powerMin`/`powerMax` (0,25/2, 0–3), `minBandWidthPts` (10, 5–50), `modulationProductMax` (2,5, 1–5), `autonomyDays` (90, 7–365). `RainbowModulationControlService.current()` relit la base à chaque appel (sans cache), ligne absente ⇒ défauts ; `update(Params, by)` valide chaque borne et impose `powerMin ≤ 1 ≤ powerMax` (`IllegalArgumentException`, rien écrit). `RainbowModulationControlInitializer` (`@Order(71)`) crée la ligne si absente, ne modifie jamais une ligne existante.
@@ -18,7 +18,10 @@ Suite de [`08-rainbow-live.md`](08-rainbow-live.md) (Rainbow DCA ATR live — Af
 - **Réglages utilisateur** : `UserTradingSettings.exposureMin|exposureMax|power|bias` (`Double` **nullables** : null ⇒ neutre 0 / 100 / 1 / 0). `UserTradingSettingsService` : `getModulationSettings` (stocké ou neutre), `setModulationSettings` (validé contre `current()` : `0 ≤ min < max ≤ 100`, largeur ≥ `minBandWidthPts`, puissance dans `[powerMin, powerMax]`, `|biais| ≤ biasMax` ; ne touche jamais `riskCursor`, qui vaut `DEFAULT_RISK_CURSOR` à la création de ligne), `effectiveSettings` (valeurs stockées **clampées** aux bornes admin courantes ; bande trop étroite élargie autour de son centre, décalée pour rester dans [0, 100] ; consommé à l'étape 2).
 - **API** : voir [`../api/rest-endpoints.md`](../api/rest-endpoints.md) (`/api/admin/rainbow-modulation`, `/api/user/modulation-settings`).
 
-### Moteur de modulation (`LiveSizing`, par lien)
+### Cœur partagé live / simulation (`SizingCore`)
+`SizingCore.decide(actif, LiveDemand, position tradable, CashLedger, LiveModulation)` : sans I/O, ni entité JPA, ni exchange ; renvoie `Decision` (action, montant, quantité, raison de blocage, journal de modulation). Le live l'appelle via `LiveSizing#apply` (qui écrit `RainbowLiveLiveBlock`), le rejeu mono-actif de l'Espace Expert (`FullReplayEngine`) l'appelle directement : une seule implémentation. `LiveModulation`, `ExposureLedger` (`ofValues` pour un wallet simulé) et `CashLedger` sont publics pour cet usage.
+
+### Moteur de modulation (`SizingCore` / `LiveModulation`, par lien)
 - **Marge de régulation réglable par l'utilisateur** : `UserTradingSettings.regulationMarginPct` (% de la largeur de bande, [5, 50], nul = défaut admin `regulationMarginPct` ; `effectiveSettings` la clampe) ; réglée dans Réglages → Modulation ; `LiveModulation` l'utilise à la place du défaut admin.
 - **Calcul pur** `service/modulation/ExposureModulator` : marges de régulation `m % × (max − min)` à l'intérieur de chaque borne, `s` linéaire clampé puis `l = s²(3 − 2s)` ; achat × `(1 − l_haute)(1 + (G − 1)·l_basse)`, vente × `(1 + (G − 1)·l_haute)(1 − l_basse)` (`G = sellBoostMax`). Marge haute seulement si `max < 100`, basse seulement si `min > 0` : la bande neutre [0, 100] ne module rien. Plafond dur en USD : achat ≤ `max·V − P`, vente ≤ `P − min·V` (plancher 0).
 - **Chaîne** (`LiveModulation`) : quantité du signal × `puissance·(1 ± biais)` × facteur de bande ; le produit par côté est plafonné à `modulationProductMax` ; puis plafond dur, puis les plafonds existants (cash du `CashLedger`, position tradable). Montant final = ce que lit le plan d'ordres. `effetRisque` (macro) = 1, pas encore branché.

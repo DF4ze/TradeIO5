@@ -25,12 +25,15 @@
 
   const settingsOf = (v) => { const c = JSON.parse(JSON.stringify(v)); delete c.name; delete c.referenceProvider; return JSON.stringify(c); };
 
-  X.presetScreen = function (cfg, root) {
-    const st = { assets: [], asset: null, provider: X.param('provider') || '', presets: [], header: null, baseline: null, form: null, range: { mode: '24m', from: null, to: null }, signal: 'UP' };
+  /** opts.regime ('UP' | 'DOWN') : instance figée sur un régime (liste filtrée, signal fixe) ; opts.embedded : retourne l'élément au lieu de monter la page. */
+  X.presetScreen = function (cfg, root, opts) {
+    opts = opts || {};
+    const rg = opts.regime || null, rgSuffix = rg ? '.' + rg : '';
+    const st = { assets: [], asset: null, provider: X.param('provider') || '', presets: [], header: null, baseline: null, form: null, range: { mode: '24m', from: null, to: null }, signal: rg || 'UP' };
     const selBox = h('div', { class: 'xgrid' }), presetBox = h('div', { class: 'stack' }), simBox = h('div', { class: 'stack' }), rangeBox = h('div');
     const url = (suffix) => API + '/' + cfg.kind + '-presets' + (suffix || '');
     const isDirty = () => !!(st.form && st.baseline && JSON.stringify(st.form.get()) !== JSON.stringify(st.baseline));
-    X.guard.dirty = isDirty;
+    const prevDirty = X.guard.dirty; X.guard.dirty = () => prevDirty() || isDirty();
 
     const assetInfo = () => st.assets.find((a) => a.symbol === st.asset) || null;
     const confirmDiscard = async () => !isDirty() || X.confirm('Modifications non enregistrées', ['Le brouillon en cours sera perdu.'], 'Abandonner', true);
@@ -54,12 +57,23 @@
     const simBtn = sim.mirrorButton();
     function refresh() { renderActions(); sim.touch(); }
 
+    // régime d'un preset : rôle de base (système) ou installation dans l'Affectation ; sinon nom « … Bull / Bear » ; sans indice : visible partout
+    function regimesOf(p) {
+      const set = new Set();
+      if (p.baseRole === 'RAINBOW_BULL') set.add('UP'); else if (p.baseRole === 'RAINBOW_BEAR') set.add('DOWN');
+      (p.usedBy || []).forEach((u) => { if (u.role === 'RAINBOW_UP') set.add('UP'); else if (u.role === 'RAINBOW_DOWN') set.add('DOWN'); });
+      if (!set.size) { if (/\bbull\b/i.test(p.name)) set.add('UP'); else if (/\bbear\b/i.test(p.name)) set.add('DOWN'); }
+      return set;
+    }
+    const visible = () => (rg ? st.presets.filter((p) => { const r = regimesOf(p); return !r.size || r.has(rg); }) : st.presets);
+
     // ---- chargement
     async function loadPresets(preferId) {
       st.presets = await X.presets(cfg.kind, st.asset);
       let id = preferId;
-      if (!id) { try { id = Number(g.localStorage.getItem('tio.expert.preset.' + cfg.kind + '.' + st.asset)); } catch (e) { id = null; } }
-      const found = st.presets.find((p) => p.id === id) || st.presets.find((p) => p.origin === 'SYSTEM') || st.presets[0];
+      if (!id) { try { id = Number(g.localStorage.getItem('tio.expert.preset.' + cfg.kind + '.' + st.asset + rgSuffix)); } catch (e) { id = null; } }
+      const list = visible();
+      const found = list.find((p) => p.id === id) || list.find((p) => p.origin === 'SYSTEM') || list[0];
       if (!found) { st.header = null; st.form = null; renderAll(); return; }
       await loadPreset(found.id);
     }
@@ -70,9 +84,9 @@
       const a = assetInfo();
       st.form = X.form(cfg.groups, st.baseline, { providers: ((a && a.providers) || []).map((p) => p.provider), onChange: refresh });
       st.form.setReadOnly(!st.header.editable);
-      try { g.localStorage.setItem('tio.expert.preset.' + cfg.kind + '.' + st.asset, String(id)); } catch (e) { /* ignoré */ }
+      try { g.localStorage.setItem('tio.expert.preset.' + cfg.kind + '.' + st.asset + rgSuffix, String(id)); } catch (e) { /* ignoré */ }
       const mem = X.memory.get(cfg.simType, st.asset, id);
-      if (mem) { st.range = mem.range || st.range; if (!X.param('provider') && mem.provider !== undefined) st.provider = mem.provider; if (mem.signal) st.signal = mem.signal; sim.setLabel('Relancer'); } else sim.setLabel('Simuler');
+      if (mem) { st.range = mem.range || st.range; if (!opts.ctx && !X.param('provider') && mem.provider !== undefined) st.provider = mem.provider; if (mem.signal && !rg) st.signal = mem.signal; sim.setLabel('Relancer'); } else sim.setLabel('Simuler');
       renderAll();
     }
     async function switchAsset(sym) {
@@ -89,20 +103,21 @@
     // ---- rendu
     function presetSelect() {
       const mk = (list) => list.map((p) => h('option', { value: String(p.id) }, p.name + ((p.usedBy || []).length ? ' · installé' : '')));
-      const sys = st.presets.filter((p) => p.origin === 'SYSTEM'), mine = st.presets.filter((p) => p.origin !== 'SYSTEM');
+      const vis = visible(), sys = vis.filter((p) => p.origin === 'SYSTEM'), mine = vis.filter((p) => p.origin !== 'SYSTEM');
       const sel = h('select', null, sys.length ? h('optgroup', { label: 'Système' }, mk(sys)) : null, mine.length ? h('optgroup', { label: 'Mes presets' }, mk(mine)) : null);
       sel.value = st.header ? String(st.header.id) : '';
       sel.addEventListener('change', () => switchPreset(sel.value));
-      return ui.field('Preset', sel, st.header && st.header.referenceProvider ? 'Provider de référence : ' + st.header.referenceProvider : null);
+      return ui.field(rg ? 'Preset ' + (rg === 'UP' ? 'Up (Bull)' : 'Down (Bear)') : 'Preset', sel, st.header && st.header.referenceProvider ? 'Provider de référence : ' + st.header.referenceProvider : null);
     }
     function renderSelectors() {
+      if (opts.ctx) { TIO.mount(selBox, [presetSelect()]); return; }   // actif / provider / régime : écran englobant
       const a = assetInfo();
       const nodes = [
         X.selectField('Actif', X.assetOptions(st.assets), st.asset, switchAsset),
         X.selectField('Provider', X.providerOptions(a), st.provider, (v) => { st.provider = v; X.setParam('provider', v); sim.touch(); }, 'Source des bougies de la simulation'),
         presetSelect(),
       ];
-      if (cfg.signal) nodes.push(X.selectField('Régime simulé', [{ value: 'UP', label: 'UP (Bull)' }, { value: 'DOWN', label: 'DOWN (Bear)' }], st.signal, (v) => { st.signal = v; sim.touch(); },
+      if (cfg.signal && !rg) nodes.push(X.selectField('Régime simulé', [{ value: 'UP', label: 'UP (Bull)' }, { value: 'DOWN', label: 'DOWN (Bear)' }], st.signal, (v) => { st.signal = v; sim.touch(); },
         'Le preset ne joue que sur ce régime du Trend de ton Affectation'));
       TIO.mount(selBox, nodes);
     }
@@ -206,14 +221,14 @@
     // ---- assemblage : graphique à gauche, réglages du preset à droite (largeur réglable), empilés sur écran étroit
     const SIDE_KEY = 'tio.expert.sidewidth', HIDE_KEY = 'tio.expert.sidehidden';
     const store = { get(k) { try { return g.localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { g.localStorage.setItem(k, v); } catch (e) { /* ignoré */ } } };
-    root.classList.add('tio-main--wide');
-    const sideCard = ui.card('Preset ' + cfg.title, presetBox);
+    if (root) root.classList.add('tio-main--wide');
+    const sideCard = ui.card('Preset ' + cfg.title + (rg ? (rg === 'UP' ? ' · Bull' : ' · Bear') : ''), presetBox);
     sideCard.classList.add('xwork-side');
     const split = h('div', { class: 'xsplit', role: 'separator', 'aria-orientation': 'vertical', tabindex: '0', title: 'Glisser pour redimensionner (double-clic : taille par défaut)' }, h('i'));
     const work = h('div', { class: 'xwork' });
     const toggle = h('button', { type: 'button', class: 'btn xwide-only' });
     function applySide() {
-      const hidden = store.get(HIDE_KEY) === '1', w = Number(store.get(SIDE_KEY));
+      const hidden = !opts.embedded && store.get(HIDE_KEY) === '1', w = Number(store.get(SIDE_KEY));
       work.classList.toggle('xwork--noside', hidden);
       if (w > 0) work.style.setProperty('--xside', w + 'px'); else work.style.removeProperty('--xside');
       toggle.textContent = hidden ? 'Afficher les réglages' : 'Masquer les réglages';
@@ -237,13 +252,17 @@
       setWidth(cur + (e.key === 'ArrowLeft' ? 24 : -24));
     });
     toggle.addEventListener('click', () => { store.set(HIDE_KEY, store.get(HIDE_KEY) === '1' ? '0' : '1'); applySide(); });
-    const selCard = ui.card('Sélection', selBox), simCard = ui.card('Simulation', h('div', { class: 'row' }, rangeBox, toggle), sim.el);
+    const selCard = ui.card(opts.ctx ? (rg === 'UP' ? 'Bull (Up)' : 'Bear (Down)') : 'Sélection', selBox), simCard = ui.card('Simulation', h('div', { class: 'row' }, rangeBox, toggle), sim.el);
     selCard.classList.add('xwork-sel'); simCard.classList.add('xwork-sim');
     TIO.mount(work, h('div', { class: 'xwork-left' }, selCard, simCard), sideCard, split);
     applySide();
-    TIO.mount(root, ui.pageHeader('Espace Expert', cfg.title), X.mobileNotice(), X.tabs(cfg.tab), work);
+    if (!opts.embedded) TIO.mount(root, ui.pageHeader('Espace Expert', cfg.title), X.mobileNotice(), X.tabs(cfg.tab), work);
     TIO.mount(presetBox, ui.loading(4));
     (async () => {
+      if (opts.ctx) {
+        try { st.assets = opts.ctx.assets; st.asset = opts.ctx.asset; st.provider = opts.ctx.provider; await loadPresets(); } catch (e) { TIO.mount(presetBox, ui.error(e, () => g.location.reload())); }
+        return;
+      }
       try {
         st.assets = await X.loadAssets();
         if (!st.assets.length) { TIO.mount(presetBox, ui.empty('Aucun actif', 'Aucun actif disponible.')); return; }
@@ -251,6 +270,52 @@
         X.setParam('asset', st.asset);
         await loadPresets();
       } catch (e) { TIO.mount(presetBox, ui.error(e, () => g.location.reload())); }
+    })();
+    work.setProvider = (v) => { st.provider = v; sim.touch(); };
+    work.setAsset = async (sym) => { st.asset = sym; try { await loadPresets(); } catch (e) { TIO.mount(presetBox, ui.error(e)); } };
+    return work;
+  };
+
+  /** Écran Rainbow par régime : sélection commune (actif, provider, régime simulé UP / DOWN / Les 2) puis, par régime, preset + formulaire + simulation.
+   *  « Les 2 » : deux colonnes (Up / Down), chacune avec son menu de preset. Paramètre d'URL « regime ». */
+  X.regimeScreen = function (cfg, root) {
+    const VIEWS = { up: ['UP'], down: ['DOWN'], both: ['UP', 'DOWN'] };
+    const ctx = { assets: [], asset: null, provider: X.param('provider') || '', view: VIEWS[X.param('regime')] ? X.param('regime') : 'up' };
+    let insts = [];
+    root.classList.add('tio-main--wide');
+    const selBox = h('div', { class: 'xgrid' }), body = h('div');
+    const assetInfo = () => ctx.assets.find((a) => a.symbol === ctx.asset) || null;
+    const confirmDiscard = async () => !X.guard.dirty() || X.confirm('Modifications non enregistrées', ['Le brouillon en cours sera perdu.'], 'Abandonner', true);
+    function paintSel() {
+      TIO.mount(selBox,
+        X.selectField('Actif', X.assetOptions(ctx.assets), ctx.asset, async (v) => {
+          if (!(await confirmDiscard())) { paintSel(); return; }
+          ctx.asset = v; X.setParam('asset', v);
+          if (!assetInfo() || !assetInfo().providers.some((p) => p.provider === ctx.provider)) { ctx.provider = ''; X.setParam('provider', ''); }
+          paintSel(); insts.forEach((i) => { i.setProvider(ctx.provider); i.setAsset(v); });
+        }),
+        X.selectField('Provider', X.providerOptions(assetInfo()), ctx.provider, (v) => { ctx.provider = v; X.setParam('provider', v); insts.forEach((i) => i.setProvider(v)); }, 'Source des bougies de la simulation'),
+        X.selectField('Régime simulé', [{ value: 'up', label: 'UP (Bull)' }, { value: 'down', label: 'DOWN (Bear)' }, { value: 'both', label: 'Les 2 (Bull et Bear)' }], ctx.view, async (v) => {
+          if (!(await confirmDiscard())) { paintSel(); return; }
+          ctx.view = v; X.setParam('regime', v); render();
+        }, 'Le preset ne joue que sur ce régime du Trend de ton Affectation'));
+    }
+    function render() {
+      X.guard.dirty = () => false;
+      insts = VIEWS[ctx.view].map((r) => X.presetScreen(cfg, null, { regime: r, embedded: true, ctx }));
+      TIO.mount(body, insts.length > 1 ? h('div', { class: 'xdual' }, insts) : insts);
+    }
+    TIO.mount(root, ui.pageHeader('Espace Expert', cfg.title), X.mobileNotice(), X.tabs(cfg.tab), ui.card('Sélection', selBox), body);
+    TIO.mount(body, ui.loading(4));
+    (async () => {
+      try {
+        ctx.assets = await X.loadAssets();
+        if (!ctx.assets.length) { TIO.mount(body, ui.empty('Aucun actif', 'Aucun actif disponible.')); return; }
+        ctx.asset = (X.param('asset') && ctx.assets.find((a) => a.symbol === X.param('asset'))) ? X.param('asset') : (ctx.assets.find((a) => a.simulable) || ctx.assets[0]).symbol;
+        X.setParam('asset', ctx.asset);
+        if (!assetInfo().providers.some((p) => p.provider === ctx.provider)) ctx.provider = '';
+        paintSel(); render();
+      } catch (e) { TIO.mount(body, ui.error(e, () => g.location.reload())); }
     })();
   };
 })(window);

@@ -16,31 +16,31 @@ import java.util.Map;
  * {@code modulationProductMax}, puis plafond dur de bande. Ne crée jamais d'action : le Rainbow reste seul à acheter et vendre,
  * ce calcul ne fait que moduler la quantité demandée. Produit le journal JSON de ce que chaque terme a valu.
  */
-final class LiveModulation {
+public final class LiveModulation {
 
     static final String STATUS_OK = "OK";
     static final String STATUS_UNKNOWN = "UNKNOWN";
     private static final double ROUNDING = 1e6;
 
     /** Quantités modulées (avant plafonds cash/position) et journal à compléter puis sérialiser. */
-    record Outcome(double buyAmount, double sellQty, Map<String, Object> journal) {
+    public record Outcome(double buyAmount, double sellQty, Map<String, Object> journal) {
     }
 
     private final ModulationSettings settings;
     private final RainbowModulationControl limits;
     private final ExposureLedger exposure;
 
-    LiveModulation(ModulationSettings settings, RainbowModulationControl limits, ExposureLedger exposure) {
+    public LiveModulation(ModulationSettings settings, RainbowModulationControl limits, ExposureLedger exposure) {
         this.settings = settings;
         this.limits = limits;
         this.exposure = exposure;
     }
 
-    ExposureLedger exposure() {
+    public ExposureLedger exposure() {
         return exposure;
     }
 
-    Outcome modulate(double signalBuyUsd, double signalSellQty, double close) {
+    public Outcome modulate(double signalBuyUsd, double signalSellQty, double close) {
         boolean known = exposure != null && exposure.isKnown();
         // marge choisie par l'utilisateur, sinon défaut admin
         double marginPct = settings.regulationMarginPct() != null ? settings.regulationMarginPct() : limits.getRegulationMarginPct().doubleValue();

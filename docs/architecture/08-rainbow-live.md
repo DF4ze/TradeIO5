@@ -1,12 +1,12 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-10
-empreinte: c827dba7d5
+modifié_le: 2026-11-14
+empreinte: 0761e2cc08
 ---
 # Rainbow DCA ATR live — Affectations, signal quotidien, liens (bindings), API REST
 
-Vérifié le : 2026-11-07 (`service/expert/*`, `controller/Expert*`, `model/dto/expert/ExpertDtos`, `service/market/instrument/*`, `service/connector/{instrument,fee,orderbook}`, `service/dca/atr/binding/BindingPathQuoteService`, `model/entity/dca/bench/*`, `repository/dca/bench/*`, `service/dca/atr/bench/{AssetAffectationService,ExpertBasePresetService,AffectationConfigResolver,AffectationMigrationService,RainbowLiveRunService,RainbowLiveBindingRunService,RainbowLiveExecutionService,RainbowTrendLiveService,RainbowLiveQueryService,RainbowLiveDefaultPresets,RealPortfolioSource,LiveSizing,CashLedger}`, `model/dto/dca/bench/RainbowLiveDtos`, `service/scheduler/RainbowLivePass2355Job`, `configuration/initializer/{ExpertBasePresetInitializer,AffectationMigrationInitializer}`, `controller/RainbowLive{,Admin}Controller`, `controller/RainbowLiveControllerAdvice`, `templates/userPage.html`, `templates/fragments/rainbowLive.html`, `static/assets/js/rainbow-live.js`, `static/assets/css/rainbow-live.css`).
+Vérifié le : 2026-11-07 (`service/expert/*`, `controller/Expert*`, `model/dto/expert/ExpertDtos`, `service/market/instrument/*`, `service/connector/{instrument,fee,orderbook}`, `service/dca/atr/binding/BindingPathQuoteService`, `model/entity/dca/bench/*`, `repository/dca/bench/*`, `service/dca/atr/bench/{AssetAffectationService,ExpertBasePresetService,AffectationConfigResolver,AffectationMigrationService,RainbowLiveRunService,RainbowLiveBindingRunService,RainbowLiveExecutionService,RainbowTrendLiveService,SizingCore,RainbowLiveQueryService,RainbowLiveDefaultPresets,RealPortfolioSource,LiveSizing,CashLedger}`, `model/dto/dca/bench/RainbowLiveDtos`, `service/scheduler/RainbowLivePass2355Job`, `configuration/initializer/{ExpertBasePresetInitializer,AffectationMigrationInitializer}`, `controller/RainbowLive{,Admin}Controller`, `controller/RainbowLiveControllerAdvice`, `templates/userPage.html`, `templates/fragments/rainbowLive.html`, `static/assets/js/rainbow-live.js`, `static/assets/css/rainbow-live.css`).
 
 Périmètre : persistance + moteur câblé + **une passe quotidienne à 23:55 UTC** (job désactivé par défaut) + déclenchement admin + API REST utilisateur (Affectations, liens, wallet réel) + écrans `/app/**`. La passe calcule le **signal** de chaque Affectation jouée (référencée par au moins un lien non archivé), le dimensionne sur le **portefeuille réel en lecture seule** (par lien) et alimente le plan d'ordres ([`10-execution-plan.md`](10-execution-plan.md)). Aucun appel exchange hors lecture de marché, lecture des soldes (`RealPortfolioSource`) et exécution réelle verrouillée (test de garde `RainbowLiveNoExchangeDependencyTest`). Le moteur pur reste `service/dca/atr/RainbowAtrEngine` (cf. [`04-market-data.md`](04-market-data.md)).
 
