@@ -17,6 +17,7 @@ import fr.ses10doigts.tradeIO5.model.entity.execution.PlanBlockReason;
 import fr.ses10doigts.tradeIO5.model.entity.execution.PlanStatus;
 import fr.ses10doigts.tradeIO5.model.entity.execution.StepSide;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
+import fr.ses10doigts.tradeIO5.service.connector.fee.TestFees;
 import fr.ses10doigts.tradeIO5.service.connector.fee.TradingFeeProvider;
 import fr.ses10doigts.tradeIO5.service.connector.orderbook.OrderBookClient;
 import fr.ses10doigts.tradeIO5.service.currency.AssetGroupService;
@@ -60,6 +61,7 @@ class OrderPlannerTest {
     private final ApiCredential credential = ApiCredential.builder().id(1L).webProvider(okx).apiKey("k").secretKey("s")
             .passphrase("p").enabled(true).build();
     private OrderPlanner planner;
+    private fr.ses10doigts.tradeIO5.service.connector.fee.TradingFeeService feeService;
 
     private static BigDecimal d(String value) {
         return new BigDecimal(value);
@@ -86,7 +88,7 @@ class OrderPlannerTest {
         when(books.fetchBook(any(), eq("PAXG-BTC"), anyInt())).thenReturn(book("0.07995", "0.08005"));
         when(books.fetchBook(any(), eq("PAXG-ETH"), anyInt())).thenReturn(book("1.3300", "1.3340"));
         when(catalog.liveInstruments(okx)).thenReturn(okxInstruments());
-        planner = new OrderPlanner(catalog, List.of(fees), List.of(books), groups, new PathFinder(new FeeTest()), new FeeTest(),
+        planner = new OrderPlanner(catalog, (feeService = TestFees.service(fees)), List.of(books), groups, new PathFinder(new FeeTest()), new FeeTest(),
                 new ExecutionSettings(), "");
     }
 
@@ -281,6 +283,7 @@ class OrderPlannerTest {
         assertTrue(asset(warn, "PAXG").warning().contains("seuil d'alerte"), asset(warn, "PAXG").warning());
         assertEquals(FeeTestLevel.WARNING, warn.feeTestLevel());
 
+        feeService.clear();
         when(fees.getFeeRate(any(), anyString())).thenReturn(new FeeRate(d("0.5"), d("1")));
         PlanDraft red = planner.plan(List.of(buy("PAXG", 0, "100", cash("1000"))));
         assertEquals(AssetPlanOutcome.OK, asset(red, "PAXG").outcome());

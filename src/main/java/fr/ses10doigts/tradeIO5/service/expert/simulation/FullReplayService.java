@@ -13,6 +13,8 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveRun;
 import fr.ses10doigts.tradeIO5.model.entity.modulation.RainbowModulationControl;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowAthReferenceRepository;
+import fr.ses10doigts.tradeIO5.repository.execution.RainbowLiveOrderPlanRepository;
+import fr.ses10doigts.tradeIO5.service.market.instrument.FeeTest;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRunRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository;
@@ -85,7 +87,15 @@ public class FullReplayService {
      */
     public record Request(Long bindingId, String asset, Long walletId, LocalDate from, LocalDate to, Double cash0, Double qty0,
                           Double baseAmount, Double bagPercent, Double exposureMin, Double exposureMax, Double power,
-                          Double bias, Double regulationMarginPct) {
+                          Double bias, Double regulationMarginPct, boolean withCosts) {
+
+        /** Sans rejeu des coûts (aucun appel réseau). */
+        public Request(Long bindingId, String asset, Long walletId, LocalDate from, LocalDate to, Double cash0, Double qty0,
+                       Double baseAmount, Double bagPercent, Double exposureMin, Double exposureMax, Double power, Double bias,
+                       Double regulationMarginPct) {
+            this(bindingId, asset, walletId, from, to, cash0, qty0, baseAmount, bagPercent, exposureMin, exposureMax, power, bias,
+                    regulationMarginPct, false);
+        }
     }
 
     private final RainbowLiveBindingRepository bindingRepository;
@@ -97,6 +107,9 @@ public class FullReplayService {
     private final DomainClock clock;
     private final UserTradingSettingsService settingsService;
     private final RainbowModulationControlService modulationControl;
+    private final ReplayScheduleBuilder scheduleBuilder;
+    private final RainbowLiveOrderPlanRepository planRepository;
+    private final FeeTest feeTest;
 
     /** Données d'un lien nécessaires au rejeu et à la comparaison. */
     private record LinkData(RainbowLiveBinding binding, LiveSlot slot, List<RainbowLiveBindingRun> runs,
@@ -107,7 +120,7 @@ public class FullReplayService {
     @Transactional(readOnly = true)
     public ParityReport parity(User user, Request request) {
         Request req = request == null
-                ? new Request(null, null, null, null, null, null, null, null, null, null, null, null, null, null) : request;
+                ? new Request(null, null, null, null, null, null, null, null, null, null, null, null, null, null, false) : request;
         List<RainbowLiveBinding> bindings = resolveBindings(user, req);
         boolean mono = bindings.size() == 1;
         List<String> notes = new ArrayList<>();
@@ -202,8 +215,88 @@ public class FullReplayService {
         }
         log.info("Parité rejeu wallet={} ({} lien(s)) : {}/{} jours-liens identiques (décision), {} inexpliqués", walletId,
                 links.size(), totalPinned.matching(), totalPinned.compared(), totalPinned.unexplained());
+        ParityReport.CostReport costReport = req.withCosts()
+                ? costReport(user, links, engineLinks, cash0, settings, limits, settingsByDay, pinned, notes) : null;
         return new ParityReport(walletId, firstDay, lastDay, cash0, totalPinned, totalFree, pinnedResult.finalValue(),
-                pinnedResult.fixedFinalValue(), ACCEPTANCE_PCT, accepted, reports, rows, causes, notes);
+                pinnedResult.fixedFinalValue(), ACCEPTANCE_PCT, accepted, reports, rows, causes, notes, costReport);
+    }
+
+    private static final String CAUSE_COST_BAREME = "coût ≠ plan : frais / carnets d'époque ≠ barème actuel (frais actuels appliqués à toute la période)";
+    private static final String CAUSE_CARRY_STATE = "carry/outcome ≠ plan : état de carry d'époque, minimum du lien ou base_amount modifiés depuis";
+
+    /**
+     * Rejeu avec coûts (frais, minimum d'ordre, carry) du wallet, recalé comme la parité de décision, comparé aux plans d'ordres
+     * enregistrés. Seul appel réseau : le barème figé, construit avant la boucle. Échec (frais / carnet indisponibles) : note, pas
+     * de coûts (jamais de coût supposé).
+     */
+    private ParityReport.CostReport costReport(User user, List<LinkData> links, List<MultiLinkReplayEngine.Link> engineLinks,
+                                               double cash0, ModulationSettings settings, RainbowModulationControl limits,
+                                               Map<LocalDate, ModulationSettings> settingsByDay,
+                                               Map<LocalDate, MultiLinkReplayEngine.Pin> pinned, List<String> notes) {
+        try {
+            RainbowLiveBinding first = links.getFirst().binding();
+            var wallet = first.getWallet();
+            double ref = links.stream().flatMap(l -> l.runs().stream()).map(r -> nz(r.getLive().getActionAmountUsdc()))
+                    .max(Double::compare).orElse(0.0);
+            OrderReplay.Schedule schedule = scheduleBuilder.build(wallet.getWebProviderCode(), wallet.getCredential(),
+                    links.stream().map(l -> l.slot().assetSymbol()).toList(), java.math.BigDecimal.valueOf(ref > 0 ? ref : 100.0));
+            Map<Long, Double> minBuy = new HashMap<>();
+            Map<Long, String> route = new HashMap<>();
+            for (LinkData l : links) {
+                if (l.binding().getMinBuyUsd() != null) {
+                    minBuy.put(l.slot().bindingId(), l.binding().getMinBuyUsd());
+                }
+                if (l.binding().getPreferredRoute() != null) {
+                    route.put(l.slot().bindingId(), l.binding().getPreferredRoute());
+                }
+            }
+            MultiLinkReplayEngine.Result costed = MultiLinkReplayEngine.run(new MultiLinkReplayEngine.Input(engineLinks, cash0,
+                    settings, limits, settingsByDay, pinned, Map.of(), Map.of(),
+                    new MultiLinkReplayEngine.Costs(new OrderReplay(schedule, feeTest), minBuy, route)));
+            List<ParityReport.Row> rows = new ArrayList<>();
+            int plans = 0;
+            int outcomeOk = 0;
+            int carryOk = 0;
+            int costDiff = 0;
+            Map<LocalDate, java.util.Map<String, fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderPlanAsset>> byDay = new HashMap<>();
+            for (MultiLinkReplayEngine.CostDay c : costed.costDays()) {
+                var planAsset = byDay.computeIfAbsent(c.day(), d -> planRepository.findFirstByUserAndDayOrderByRevisionDesc(user, d)
+                        .map(p -> p.getAssets().stream().collect(java.util.stream.Collectors.toMap(
+                                fr.ses10doigts.tradeIO5.model.entity.execution.RainbowLiveOrderPlanAsset::getAssetSymbol,
+                                a -> a, (x, y) -> x))).orElse(Map.of())).get(c.asset());
+                if (planAsset == null) {
+                    continue;
+                }
+                plans++;
+                String planOutcome = planAsset.getOutcome() == fr.ses10doigts.tradeIO5.model.entity.execution.AssetPlanOutcome.BLOCKED
+                        && planAsset.getBlockReason() != null ? planAsset.getBlockReason().name() : planAsset.getOutcome().name();
+                boolean sameOutcome = planOutcome.equals(c.outcome());
+                boolean sameCarry = Math.abs(nz(planAsset.getCarryOutUsd() == null ? null : planAsset.getCarryOutUsd().doubleValue())
+                        - c.carryOut()) <= AMOUNT_TOLERANCE;
+                boolean sameCost = planAsset.getCostPct() == null || !c.outcome().equals("OK")
+                        || Math.abs(planAsset.getCostPct().doubleValue() - c.costPct()) <= 0.05;
+                outcomeOk += sameOutcome ? 1 : 0;
+                carryOk += sameCarry ? 1 : 0;
+                costDiff += sameCost ? 0 : 1;
+                if (!sameOutcome || !sameCarry || !sameCost) {
+                    rows.add(new ParityReport.Row(c.bindingId(), c.asset(), c.day(),
+                            planOutcome + " carry " + planAsset.getCarryOutUsd() + " coût " + planAsset.getCostPct() + " %",
+                            c.outcome() + " carry " + String.format(Locale.ROOT, "%.2f", c.carryOut()) + " coût "
+                                    + String.format(Locale.ROOT, "%.4f", c.costPct()) + " %",
+                            !sameOutcome || !sameCarry ? CAUSE_CARRY_STATE : CAUSE_COST_BAREME));
+                }
+            }
+            if (plans == 0) {
+                notes.add("Coûts : aucun plan d'ordres enregistré sur la période (ExecutionPlanJob désactivé ?) : comparaison aux plans "
+                        + "impossible ; devis du jour et tests chiffrés seulement.");
+            }
+            return new ParityReport.CostReport(costed.finalValue(), costed.fixedFinalValue(), costed.totalCostUsdc(),
+                    costed.fixedTotalCostUsdc(), plans, outcomeOk, carryOk, costDiff, rows, schedule.warnings(), costed.costDays());
+        } catch (RuntimeException e) {
+            log.warn("Rejeu des coûts impossible : {}", e.getMessage());
+            notes.add("Coûts non rejoués (frais ou carnet indisponibles, aucun coût supposé) : " + e.getMessage());
+            return null;
+        }
     }
 
     /** Charge candles, config, ATH stocké, ré-amorçages et position initiale d'un lien. */

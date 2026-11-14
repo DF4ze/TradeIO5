@@ -178,8 +178,6 @@ class RevolutXReadersTest {
         assertEquals(0, BigDecimal.ZERO.compareTo(rate.makerPct()));
         assertEquals(0, new BigDecimal("0.09").compareTo(rate.takerPct()));
         assertEquals("/api/1.0/configuration/fees/tiers", received.getFirst().path());
-        provider.getFeeRate(cred(true), "ETH-USDC");
-        assertEquals(1, received.size());
     }
 
     @Test

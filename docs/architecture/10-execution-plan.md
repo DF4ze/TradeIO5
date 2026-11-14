@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-10-12
-modifié_le: 2026-11-11
-empreinte: fe11b843d5
+modifié_le: 2026-11-14
+empreinte: 2a9e260ff9
 ---
 # Plan d'ordres dry-run (lot B, étape b)
 
@@ -46,7 +46,7 @@ Par user (une transaction par user) : bindings par `priority` + bloc live du `Ra
 
 ## Planner (`OrderPlanner`, `service/execution/plan`)
 
-Pas de persistance, pas d'écriture, aucune dépendance à un port d'ordre ; lectures de (a) seulement (catalogue en base, frais du compte en cache, carnet public lu une fois par instrument et par plan : `ExchangeLegMarketSource`).
+Pas de persistance, pas d'écriture, aucune dépendance à un port d'ordre ; lectures de (a) seulement (catalogue en base, frais du compte via `TradingFeeService` (cache 24 h), carnet public lu une fois par instrument et par plan : `ExchangeLegMarketSource`).
 
 - **Bilan virtuel** par wallet et par membre du groupe USD (USDC seul), initialisé du cash du snapshot, parcouru par `priority` croissante comme `CashLedger`. Les ventes ne créditent pas le bilan du jour. Le **stock en transit** actif du wallet (`TransitStock`) compte comme source d'achat et est déduit de la position du lien portant la même devise ; il entre dans les entrées et le hash du plan.
 - **Achat** : `PathFinder` (source = cash USDC + stock en transit, cible = l'actif) donne les routes ; la route choisie est de coût brut minimal parmi les intermédiaires choisis (BTC), ex æquo : moins de jambes. Route ETH chiffrée et affichée, jamais choisie automatiquement. **Route imposée** : si le lien porte `preferredRoute` (choix de l'utilisateur à l'onboarding), `PathFinder` ne retient que cette route (même via un intermédiaire affiché seulement) ; indisponible ⇒ `NO_PATH` (achat bloqué, jamais de route de remplacement). Jambes dimensionnées en séquence sur le **net reçu** de la précédente (frais déduits), `sz` arrondi au `lotSz`, `minSz`/`costMin` contrôlés. Ordres : `LIMIT_IOC`, prix plafond = prix de référence ± tolérance, arrondi au tick (BUY ↑, SELL ↓). Un stock en transit pour la cible est terminé (jambe 2, `BUY actif-intermédiaire`) avant tout nouvel achat ; à la vente, un stock de sens `SELL` est terminé par `SELL intermédiaire-USDC` en tête du plan de vente.
@@ -77,3 +77,7 @@ Pas de persistance, pas d'écriture, aucune dépendance à un port d'ordre ; lec
 ## Garde-fous (tests)
 
 `ExecutionPlanArchitectureTest` (ni port / client d'ordre ni `ProviderApiService` en dépendance transitive du plan, du job et des endpoints ; aucune méthode `placeOrder/newOrder/createOrder/cancelOrder/submit`), `ExecutionOrderArchitectureTest`, `ConnectorNoOrderMethodTest` et `RainbowLiveNoExchangeDependencyTest` inchangés, `OrderPlanServiceTest` (mode `LIVE` refusé sans déverrouillage), `ExecutionPlanControllersSecurityTest` (sécurité par méthode active).
+
+
+## Partie pure partagée avec le simulateur
+`OrderCore` (`service/execution/plan`, pur, sans port d'ordre) porte ce que le plan d'ordres et le rejeu du simulateur partagent : mise effective (jour + `carry_in`), contrôle de l'achat minimum du lien, règle de carry sortant, motif de blocage d'un devis d'achat (`NO_PATH` / `INSUFFICIENT_FUNDS_AFTER_FEES` / `NOT_TRADABLE_WITHOUT_FIAT` / `BELOW_MIN`), route de vente (`X>USDC` ou `X>BTC>USDC`), net reçu d'un achat et net encaissé d'une vente (dernière jambe). `OrderPlanner` et `OrderReplay` l'appellent : une seule implémentation.

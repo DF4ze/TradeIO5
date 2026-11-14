@@ -132,8 +132,6 @@ class OneTradingReadersTest {
         FeeRate rate = provider.getFeeRate(cred(), "BTC-USDC");
         assertEquals(0, new BigDecimal("0.1").compareTo(rate.makerPct()));
         assertEquals(0, new BigDecimal("0.2").compareTo(rate.takerPct()));
-        provider.getFeeRate(cred(), "ETH-USDC");
-        assertEquals(1, received.size());
         assertEquals("Bearer ot-key", received.getFirst().auth());
         status = 401;
         assertThrows(CredentialRejectedException.class, () -> new OneTradingTradingFeeProvider(clock, Duration.ZERO).getFeeRate(cred(), "BTC-USDC"));

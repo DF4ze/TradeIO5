@@ -163,8 +163,6 @@ class GateEuReadersTest {
         assertEquals(0, new BigDecimal("0.2").compareTo(rate.makerPct()));
         assertEquals(0, new BigDecimal("0.25").compareTo(rate.takerPct()));
         assertEquals("currency_pair=BTC_EUR", received.getFirst().query());
-        provider.getFeeRate(cred(), "BTC-EUR");
-        assertEquals(1, received.size());
         routes.put("/api/v4/wallet/fee", "{\"maker_fee\":\"abc\",\"taker_fee\":\"0.1\"}");
         assertThrows(BalanceUnavailableException.class, () -> new GateEuTradingFeeProvider(clock, Duration.ZERO).getFeeRate(cred(), "ETH-EUR"));
     }

@@ -18,6 +18,7 @@ import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceUnavailableException;
 import fr.ses10doigts.tradeIO5.service.connector.balance.CredentialRejectedException;
 import fr.ses10doigts.tradeIO5.service.connector.balance.ReadOnlyBalanceReader;
+import fr.ses10doigts.tradeIO5.service.connector.fee.TestFees;
 import fr.ses10doigts.tradeIO5.service.connector.fee.TradingFeeProvider;
 import fr.ses10doigts.tradeIO5.service.connector.instrument.InstrumentLookupException;
 import fr.ses10doigts.tradeIO5.service.connector.orderbook.OrderBookClient;
@@ -52,6 +53,7 @@ class BindingPathQuoteServiceTest {
     private final RainbowLiveBindingService bindingService = mock(RainbowLiveBindingService.class);
     private final ReadOnlyBalanceReader reader = mock(ReadOnlyBalanceReader.class);
     private final TradingFeeProvider fees = mock(TradingFeeProvider.class);
+    private fr.ses10doigts.tradeIO5.service.connector.fee.TradingFeeService feeService;
     private final OrderBookClient books = mock(OrderBookClient.class);
     private final InstrumentCatalog catalog = mock(InstrumentCatalog.class);
     private final AssetGroupService groups = mock(AssetGroupService.class);
@@ -81,7 +83,7 @@ class BindingPathQuoteServiceTest {
         when(books.getProviderCode()).thenReturn(WebProviderCode.OKX);
         when(catalog.supports(WebProviderCode.OKX)).thenReturn(true);
         when(groups.members(AssetGroup.USD)).thenReturn(List.of("USDC"));
-        service = new BindingPathQuoteService(bindingService, List.of(reader), List.of(fees), List.of(books), catalog,
+        service = new BindingPathQuoteService(bindingService, List.of(reader), (feeService = TestFees.service(fees)), List.of(books), catalog,
                 groups, new PathFinder(new FeeTest()), new FeeTest(), "");
         ApiCredential credential = ApiCredential.builder().id(1L).webProvider(okx).apiKey("k").secretKey("s")
                 .passphrase("p").enabled(true).build();
@@ -132,6 +134,7 @@ class BindingPathQuoteServiceTest {
         assertEquals(FeeTestLevel.WARNING, warn.quote().feeTestLevel());
         assertTrue(warn.warning().contains("0.35 %") && warn.warning().contains("seuil d'alerte (0.2 %)"), warn.warning());
 
+        feeService.clear();
         when(fees.getFeeRate(any(), anyString())).thenReturn(new FeeRate(d("0.5"), d("1")));
         BindingPathQuoteService.Result red = service.quote(alice, 5L, d("1000"));
         assertEquals(FeeTestLevel.RED, red.quote().feeTestLevel());
@@ -158,7 +161,7 @@ class BindingPathQuoteServiceTest {
         when(books.fetchBook(any(), org.mockito.ArgumentMatchers.eq("PAXG-BTC"), anyInt())).thenReturn(book("0.07995", "0.08005", "1000", PathEstimation.BOOK));
         when(books.fetchBook(any(), org.mockito.ArgumentMatchers.eq("ETH-USDC"), anyInt())).thenReturn(book("2999.5", "3000.5", "1000", PathEstimation.BOOK));
         when(books.fetchBook(any(), org.mockito.ArgumentMatchers.eq("PAXG-ETH"), anyInt())).thenReturn(book("1.3300", "1.3340", "1000", PathEstimation.BOOK));
-        service = new BindingPathQuoteService(bindingService, List.of(krakenReader), List.of(fees), List.of(books), catalog,
+        service = new BindingPathQuoteService(bindingService, List.of(krakenReader), (feeService = TestFees.service(fees)), List.of(books), catalog,
                 groups, new PathFinder(new FeeTest()), new FeeTest(), "");
 
         BindingPathQuoteService.Result result = service.quote(alice, 5L, d("100"));
@@ -256,7 +259,7 @@ class BindingPathQuoteServiceTest {
     @Test
     @DisplayName("Exchange sans frais/carnet mais avec un chemin : PathQuoteUnavailableException (pas de frais supposé)")
     void feesUnsupported() {
-        service = new BindingPathQuoteService(bindingService, List.of(reader), List.of(), List.of(), catalog, groups,
+        service = new BindingPathQuoteService(bindingService, List.of(reader), TestFees.service(), List.of(), catalog, groups,
                 new PathFinder(new FeeTest()), new FeeTest(), "");
         assertThrows(PathQuoteUnavailableException.class, () -> service.quote(alice, 5L, d("100")));
     }
@@ -278,7 +281,7 @@ class BindingPathQuoteServiceTest {
     @Test
     @DisplayName("Nœuds interdits configurables (propriété) : USDC interdit => plus de chemin via USDC")
     void forbiddenNodesConfigurable() {
-        service = new BindingPathQuoteService(bindingService, List.of(reader), List.of(fees), List.of(books), catalog,
+        service = new BindingPathQuoteService(bindingService, List.of(reader), (feeService = TestFees.service(fees)), List.of(books), catalog,
                 groups, new PathFinder(new FeeTest()), new FeeTest(), "usd, eur ,USDC");
 
         assertEquals(PathStatus.NO_PATH, service.quote(alice, 5L, d("100")).quote().status());

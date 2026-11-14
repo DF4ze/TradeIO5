@@ -7,22 +7,18 @@ import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.service.connector.balance.BalanceUnavailableException;
 import fr.ses10doigts.tradeIO5.service.connector.fee.TradingFeeProvider;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
-import fr.ses10doigts.tradeIO5.service.market.instrument.ExecutionDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Frais réels Gate EU du compte : {@code GET /wallet/fee?currency_pair=BTC_EUR} ({@code /spot/fee} est déprécié), champs
  * {@code maker_fee} / {@code taker_fee}. La doc ne donne pas l'unité : lus comme des <b>fractions</b> du montant
  * ({@code "0.002"} = 0,2 %), donc convertis en % ({@code × 100}) ; hypothèse à confirmer sur une réponse réelle. Champ absent ou
- * illisible => {@link BalanceUnavailableException}, jamais de frais supposé. Cache mémoire {@link ExecutionDefaults#FEE_CACHE_TTL}
+ * illisible => {@link BalanceUnavailableException}, jamais de frais supposé. Pas de cache ici (voir {@code TradingFeeService}, 24 h)
  * par (clé, paire), échecs non cachés.
  */
 @Slf4j
@@ -32,13 +28,8 @@ public class GateEuTradingFeeProvider implements TradingFeeProvider {
     static final String FEE_PATH = "/wallet/fee?currency_pair=";
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
     private static final Duration MIN_INTERVAL = Duration.ofMillis(500);
-
-    private record Cached(FeeRate rate, Instant fetchedAt) {
-    }
-
     private final DomainClock clock;
     private final long minIntervalNanos;
-    private final Map<String, Cached> cache = new ConcurrentHashMap<>();
     private long lastCallNanos;
 
     @Autowired
@@ -61,15 +52,8 @@ public class GateEuTradingFeeProvider implements TradingFeeProvider {
     public FeeRate getFeeRate(ApiCredential credential, String instId) {
         GateEuRequests.requireComplete(credential);
         String pair = GateEuRequests.nativePair(instId);
-        String key = (credential.getId() != null ? credential.getId() : credential.getApiKey()) + "/" + pair;
-        Instant now = clock.now();
-        Cached cached = cache.get(key);
-        if (cached != null && cached.fetchedAt().plus(ExecutionDefaults.FEE_CACHE_TTL).isAfter(now)) {
-            return cached.rate();
-        }
         throttle();
         FeeRate rate = parse(GateEuRequests.get(credential, FEE_PATH + pair));
-        cache.put(key, new Cached(rate, now));
         log.debug("📦 [GATE_EU] frais lus pour {} : maker={}% taker={}%", pair, rate.makerPct(), rate.takerPct());
         return rate;
     }

@@ -11,33 +11,29 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Frais Revolut X : {@code GET /1.0/configuration/fees/tiers} (signé, clé de lecture) renvoie, par type de produit, la grille de paliers
  * et le palier courant du compte ({@code current_tier}, fonction du volume sur 30 jours). On lit le produit {@code spot}. Les taux de
  * l'API sont des fractions ({@code 0.0009} = 0,09 %), convertis en % du montant. Le tarif est le même pour toutes les paires : le résultat
- * est mis en cache {@link #TTL} par clé API (limite 100 requêtes/minute). Réponse absente, sans {@code spot}, sans palier courant ou
+ * est mis en cache par {@code TradingFeeService} (limite 100 requêtes/minute). Réponse absente, sans {@code spot}, sans palier courant ou
  * illisible => {@link BalanceUnavailableException} (Fee Test indisponible), jamais de frais supposé.
  */
 @Component
 public class RevolutXTradingFeeProvider implements TradingFeeProvider {
 
     static final String TIERS_PATH = "/1.0/configuration/fees/tiers";
-    static final Duration TTL = Duration.ofMinutes(5);
     private static final String SPOT = "spot";
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
-
-    private record Cached(FeeRate rate, Instant fetchedAt) {
-    }
-
     private final DomainClock clock;
-    private final Map<String, Cached> cache = new ConcurrentHashMap<>();
 
     public RevolutXTradingFeeProvider(DomainClock clock) {
         this.clock = clock;
+    }
+
+    @Override
+    public boolean accountWide() {
+        return true;
     }
 
     @Override
@@ -48,14 +44,8 @@ public class RevolutXTradingFeeProvider implements TradingFeeProvider {
     @Override
     public FeeRate getFeeRate(ApiCredential credential, String instId) {
         RevolutXRequests.requireComplete(credential);
-        Instant now = clock.now();
-        Cached cached = cache.get(credential.getApiKey());
-        if (cached != null && now.isBefore(cached.fetchedAt().plus(TTL))) {
-            return cached.rate();
-        }
         JsonNode root = RevolutXRequests.requireJson(RevolutXRequests.get(credential, TIERS_PATH, null), "grille de frais");
         FeeRate rate = spotRate(RevolutXRequests.dataOf(root));
-        cache.put(credential.getApiKey(), new Cached(rate, now));
         return rate;
     }
 

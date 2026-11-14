@@ -116,18 +116,11 @@ class OkxTradingFeeProviderTest {
     }
 
     @Test
-    @DisplayName("Cache 24 h sur DomainClock : pas de 2e appel, puis nouvel appel après expiration")
+    @DisplayName("Pas de cache dans le provider (TradingFeeService, 24 h) : chaque appel va au réseau")
     void cache() {
         provider.getFeeRate(credential(), "PAXG-USDT");
         provider.getFeeRate(credential(), "PAXG-USDT");
-        assertEquals(1, requests.size());
-
-        provider.getFeeRate(credential(), "BTC-USDT");
-        assertEquals(2, requests.size());
-
-        clock.advance(Duration.ofHours(25));
-        provider.getFeeRate(credential(), "PAXG-USDT");
-        assertEquals(3, requests.size());
+        assertEquals(2, requests.size()); // pas de cache ici : TradingFeeService (24 h)
     }
 
     @Test

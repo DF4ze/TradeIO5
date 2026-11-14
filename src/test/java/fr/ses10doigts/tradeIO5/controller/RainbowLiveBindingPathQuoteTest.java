@@ -22,6 +22,7 @@ import fr.ses10doigts.tradeIO5.security.repository.UserRepository;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.connector.balance.CredentialRejectedException;
 import fr.ses10doigts.tradeIO5.service.connector.balance.ReadOnlyBalanceReader;
+import fr.ses10doigts.tradeIO5.service.connector.fee.TestFees;
 import fr.ses10doigts.tradeIO5.service.connector.fee.TradingFeeProvider;
 import fr.ses10doigts.tradeIO5.service.connector.orderbook.OrderBookClient;
 import fr.ses10doigts.tradeIO5.service.currency.AssetGroupService;
@@ -139,7 +140,7 @@ class RainbowLiveBindingPathQuoteTest {
                 List.of(new OrderBookLevel(new BigDecimal("99.9"), new BigDecimal("1000"))),
                 List.of(new OrderBookLevel(new BigDecimal("100.1"), new BigDecimal("1000")))), PathEstimation.BOOK));
 
-        BindingPathQuoteService quoteService = new BindingPathQuoteService(bindingService, List.of(reader), List.of(fees),
+        BindingPathQuoteService quoteService = new BindingPathQuoteService(bindingService, List.of(reader), TestFees.service(fees),
                 List.of(books), catalog, groups, new PathFinder(new FeeTest()), new FeeTest(), "");
         as(alice);
         mvc = MockMvcBuilders.standaloneSetup(new RainbowLiveBindingController(bindingService, quoteService, facade))

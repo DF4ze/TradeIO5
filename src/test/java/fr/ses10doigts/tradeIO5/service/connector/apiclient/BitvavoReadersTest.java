@@ -155,8 +155,6 @@ class BitvavoReadersTest {
         FeeRate rate = provider.getFeeRate(cred(), "BTC-EUR");
         assertEquals(0, new BigDecimal("0.25").compareTo(rate.takerPct()));
         assertEquals(0, new BigDecimal("0.15").compareTo(rate.makerPct()));
-        provider.getFeeRate(cred(), "ETH-EUR");
-        assertEquals(1, received.size());
         FeeRate nested = BitvavoTradingFeeProvider.parse(new BitvavoRequests.Reply(200, "{\"fees\":{\"taker\":\"0.002\",\"maker\":\"0.001\"}}"));
         assertEquals(0, new BigDecimal("0.2").compareTo(nested.takerPct()));
         assertThrows(BalanceUnavailableException.class, () -> BitvavoTradingFeeProvider.parse(new BitvavoRequests.Reply(200, "{}")));

@@ -42,8 +42,9 @@ public class ExpertSimulationParityController {
                                @RequestParam(required = false) Double exposureMax,
                                @RequestParam(required = false) Double power,
                                @RequestParam(required = false) Double bias,
-                               @RequestParam(required = false) Double regulationMarginPct) {
+                               @RequestParam(required = false) Double regulationMarginPct,
+                               @RequestParam(required = false, defaultValue = "false") boolean withCosts) {
         return service.parity(guard.require().user(), new FullReplayService.Request(bindingId, asset, walletId, from, to, cash0,
-                qty0, baseAmount, bagPercent, exposureMin, exposureMax, power, bias, regulationMarginPct));
+                qty0, baseAmount, bagPercent, exposureMin, exposureMax, power, bias, regulationMarginPct, withCosts));
     }
 }

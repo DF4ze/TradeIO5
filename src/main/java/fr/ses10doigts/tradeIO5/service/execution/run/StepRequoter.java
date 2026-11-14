@@ -8,7 +8,7 @@ import fr.ses10doigts.tradeIO5.model.entity.currency.AssetGroup;
 import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
 import fr.ses10doigts.tradeIO5.model.entity.execution.StepSide;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
-import fr.ses10doigts.tradeIO5.service.connector.fee.TradingFeeProvider;
+import fr.ses10doigts.tradeIO5.service.connector.fee.TradingFeeService;
 import fr.ses10doigts.tradeIO5.service.connector.orderbook.OrderBookClient;
 import fr.ses10doigts.tradeIO5.service.currency.AssetGroupService;
 import fr.ses10doigts.tradeIO5.service.execution.ExchangeLegMarketSource;
@@ -24,7 +24,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Re-devis d'une jambe juste avant son envoi : frais réels du compte + carnet public lu <b>à neuf</b> (une instance de
+ * Re-devis d'une jambe juste avant son envoi : frais réels du compte (cache 24 h de {@link TradingFeeService}, strict) + carnet public lu <b>à neuf</b> (une instance de
  * {@link ExchangeLegMarketSource} par appel), via la clé Read du wallet. Lecture seule, aucun ordre.
  */
 @Component
@@ -36,12 +36,12 @@ public class StepRequoter {
     public record Requote(BigDecimal costPct, BigDecimal mid, BigDecimal refPrice) {
     }
 
-    private final Map<WebProviderCode, TradingFeeProvider> feeProviders;
+    private final TradingFeeService feeService;
     private final Map<WebProviderCode, OrderBookClient> bookClients;
     private final AssetGroupService groups;
 
-    public StepRequoter(List<TradingFeeProvider> feeProviders, List<OrderBookClient> bookClients, AssetGroupService groups) {
-        this.feeProviders = feeProviders.stream().collect(Collectors.toMap(TradingFeeProvider::getProviderCode, Function.identity()));
+    public StepRequoter(TradingFeeService feeService, List<OrderBookClient> bookClients, AssetGroupService groups) {
+        this.feeService = feeService;
         this.bookClients = bookClients.stream().collect(Collectors.toMap(OrderBookClient::getProviderCode, Function.identity()));
         this.groups = groups;
     }
@@ -55,7 +55,7 @@ public class StepRequoter {
     public Requote requote(WebProviderCode provider, ApiCredential readCredential, InstrumentInfo instrument, StepSide side,
                            BigDecimal sz, BigDecimal notional) {
         ExchangeLegMarketSource source = new ExchangeLegMarketSource(provider, readCredential,
-                new HashSet<>(groups.members(AssetGroup.USD)), feeProviders.get(provider), bookClients.get(provider));
+                new HashSet<>(groups.members(AssetGroup.USD)), feeService.forProvider(provider), bookClients.get(provider));
         LegSide legSide = side == StepSide.BUY ? LegSide.BUY : LegSide.SELL;
         LegMarket market = source.market(instrument, legSide, notional)
                 .orElseThrow(() -> new IllegalStateException("Carnet trop peu profond pour " + instrument.instId()));

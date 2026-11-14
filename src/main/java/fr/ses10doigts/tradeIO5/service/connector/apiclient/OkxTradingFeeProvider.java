@@ -13,9 +13,6 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Frais réels OKX du compte : {@code GET /api/v5/account/trade-fee?instType=SPOT&instId=...} (clé Read, signature
@@ -24,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * OKX renvoie des taux <b>signés</b> (négatif = frais payé, positif = rebate) : {@code maker}/{@code taker} pour les
  * paires USDT et {@code makerUSDC}/{@code takerUSDC} pour les paires cotées en USDC. Normalisés en {@link FeeRate}
  * (% du montant, positif = coût). Un champ absent ou illisible lève {@link BalanceUnavailableException} : jamais de
- * frais supposé. Cache mémoire 24 h sur {@link DomainClock} (échecs non cachés) ; throttle simple entre deux appels
+ * frais supposé. Pas de cache ici ({@code TradingFeeService}, 24 h) ; throttle simple entre deux appels
  * réseau (limite OKX : 5 requêtes / 2 s).
  */
 @Slf4j
@@ -32,21 +29,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class OkxTradingFeeProvider implements TradingFeeProvider {
 
     static final String TRADE_FEE_PATH = "/api/v5/account/trade-fee";
-
-    private static final Duration CACHE_TTL = Duration.ofHours(24);
     private static final Duration MIN_INTERVAL = Duration.ofMillis(500);
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
     private static final String USDC = "USDC";
-
-    private record CacheKey(Object credential, String instId) {
-    }
-
-    private record Cached(FeeRate rate, Instant fetchedAt) {
-    }
-
     private final DomainClock clock;
     private final long minIntervalNanos;
-    private final Map<CacheKey, Cached> cache = new ConcurrentHashMap<>();
     private long lastCallNanos;
 
     @Autowired
@@ -68,16 +55,9 @@ public class OkxTradingFeeProvider implements TradingFeeProvider {
     @Override
     public FeeRate getFeeRate(ApiCredential credential, String instId) {
         OkxSignedRequests.requireComplete(credential);
-        CacheKey key = new CacheKey(credential.getId() != null ? credential.getId() : credential.getApiKey(), instId);
-        Instant now = clock.now();
-        Cached cached = cache.get(key);
-        if (cached != null && cached.fetchedAt().plus(CACHE_TTL).isAfter(now)) {
-            return cached.rate();
-        }
         throttle();
         String body = OkxSignedRequests.signedGet(clock, credential, TRADE_FEE_PATH + "?instType=SPOT&instId=" + instId);
         FeeRate rate = parse(body, instId);
-        cache.put(key, new Cached(rate, now));
         log.info("📦 [OKX] frais du compte lus pour {}", instId);
         log.debug("OKX frais {} : maker={}% taker={}%", instId, rate.makerPct(), rate.takerPct());
         return rate;

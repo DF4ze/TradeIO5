@@ -4,7 +4,7 @@ sujet: espace-expert
 cree_le: 2026-11-10
 origine: memoire-claude-migree
 modifié_le: 2026-11-14
-empreinte: a2da88764f
+empreinte: c55a667e15
 ---
 # espace-expert
 
@@ -17,7 +17,8 @@ empreinte: a2da88764f
 ## Simulateur complet (2026-11-14)
 Cadre, périmètre et sorties : [`../etudes/etude-optimisation-mode-autonome.md`](../etudes/etude-optimisation-mode-autonome.md) §10 ; prompts de réalisation par lot : [`../etudes/prompt-simulateur-complet.md`](../etudes/prompt-simulateur-complet.md).
 - Plafond de drawdown par profil (défauts) : Prudent −15 %, Équilibré −25 %, Dynamique −40 %, Full −60 %. Premier lot : mesure et signalement seulement.
-- Cache global des frais : durée de vie 24 h ; consommé par le simulateur et par l'ajout d'un lien.
+- Cache global des frais : durée de vie 24 h, **persisté en base** ; consommé par le plan d'ordres, le devis, l'ajout d'un lien, le re-devis d'exécution et le simulateur. Frais périmés + exchange injoignable : acceptés avec avertissement pour les estimations (simulateur, devis, onboarding), refusés pour le plan d'ordres et le re-devis. Re-devis d'exécution : cache 24 h conservé. Pas d'action admin « rafraîchir les frais » pour l'instant.
+- Rejeu avec coûts : spread / slippage = un carnet public actuel par instrument lu au lancement (estimation signalée) ; plafonds d'exécution (30 USD / ordre, 100 USD / jour) **ignorés** dans le simulateur (ils bornent l'exécution, pas le plan).
 - Source des candles du rejeu = celle du lien (comme le live, pas de fallback silencieux).
 - Capital de départ par défaut = valeur du wallet réel de l'utilisateur (cash USDC + actifs au prix), modifiable avant lancement.
 - Test de parité : base locale = copie de la prod (`tools/dev-sync`, [`../operations/dev-sync.md`](../operations/dev-sync.md)), jamais de lecture directe de la prod.

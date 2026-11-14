@@ -11,6 +11,11 @@ public interface TradingFeeProvider {
 
     WebProviderCode getProviderCode();
 
+    /** Vrai si le palier de frais vaut pour tout le compte (clé de cache = credential seul, instrument ignoré). */
+    default boolean accountWide() {
+        return false;
+    }
+
     /**
      * @return frais maker/taker en % du montant, signés comme un coût (positif = payé, négatif = rebate)
      * @throws fr.ses10doigts.tradeIO5.service.connector.balance.CredentialRejectedException clé rejetée par l'exchange

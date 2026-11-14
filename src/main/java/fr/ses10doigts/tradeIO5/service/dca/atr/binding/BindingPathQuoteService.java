@@ -13,7 +13,7 @@ import fr.ses10doigts.tradeIO5.model.entity.exchange.ApiCredential;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.connector.balance.ReadOnlyBalanceReader;
-import fr.ses10doigts.tradeIO5.service.connector.fee.TradingFeeProvider;
+import fr.ses10doigts.tradeIO5.service.connector.fee.TradingFeeService;
 import fr.ses10doigts.tradeIO5.service.connector.orderbook.OrderBookClient;
 import fr.ses10doigts.tradeIO5.service.currency.AssetGroupService;
 import fr.ses10doigts.tradeIO5.service.execution.ExchangeLegMarketSource;
@@ -51,7 +51,7 @@ public class BindingPathQuoteService {
 
     private final RainbowLiveBindingService bindingService;
     private final Map<WebProviderCode, ReadOnlyBalanceReader> readers;
-    private final Map<WebProviderCode, TradingFeeProvider> feeProviders;
+    private final TradingFeeService feeService;
     private final Map<WebProviderCode, OrderBookClient> bookClients;
     private final InstrumentCatalog catalog;
     private final AssetGroupService groupService;
@@ -60,13 +60,13 @@ public class BindingPathQuoteService {
     private final Set<String> forbiddenNodes;
 
     public BindingPathQuoteService(RainbowLiveBindingService bindingService, List<ReadOnlyBalanceReader> readers,
-                                   List<TradingFeeProvider> feeProviders, List<OrderBookClient> bookClients,
+                                   TradingFeeService feeService, List<OrderBookClient> bookClients,
                                    InstrumentCatalog catalog, AssetGroupService groupService, PathFinder pathFinder,
                                    FeeTest feeTest,
                                    @Value("${" + ExecutionDefaults.FORBIDDEN_NODES_PROPERTY + ":}") String forbiddenNodes) {
         this.bindingService = bindingService;
         this.readers = readers.stream().collect(Collectors.toMap(ReadOnlyBalanceReader::getProviderCode, Function.identity()));
-        this.feeProviders = feeProviders.stream().collect(Collectors.toMap(TradingFeeProvider::getProviderCode, Function.identity()));
+        this.feeService = feeService;
         this.bookClients = bookClients.stream().collect(Collectors.toMap(OrderBookClient::getProviderCode, Function.identity()));
         this.catalog = catalog;
         this.groupService = groupService;
@@ -145,9 +145,14 @@ public class BindingPathQuoteService {
 
         PathFinder.Request request = new PathFinder.Request(instruments, forbiddenNodes, sources, assetSymbol,
                 amount, ExecutionDefaults.MAX_PATH_DEPTH, displayOnlyIntermediaries(), preferredRoute);
+        Set<String> staleFees = new java.util.TreeSet<>();
         PathQuote quote = pathFinder.find(request, new ExchangeLegMarketSource(provider, credential, new HashSet<>(stables), instruments,
-                feeProviders.get(provider), bookClients.get(provider)));
+                feeService.lenient(provider, staleFees::add), bookClients.get(provider)));
         String warning = warning(quote, provider, sources, instruments);
+        if (!staleFees.isEmpty()) {
+            String stale = "Frais du compte de plus de 24 h (exchange injoignable) sur " + String.join(", ", staleFees);
+            warning = warning == null ? stale : warning + " ; " + stale;
+        }
         log.info("Devis chemin {} actif={} montant={} : {} coût={}% Fee Test={}", origin, assetSymbol,
                 amount, quote.status(), quote.totalCostPct(), quote.feeTestLevel());
         return new Result(quote, warning);

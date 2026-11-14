@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-10-27
 modifié_le: 2026-11-14
-empreinte: da8243fbf9
+empreinte: 111e012c21
 ---
 # Providers de données externes
 
@@ -64,7 +64,7 @@ Vérifié le : 2026-11-04 (`RevolutXRequests`, `RevolutX*` sous `service/connect
 - Paires (`GET /1.0/public/configuration/pairs?region=EEA`, public) : `base_step` ⇒ lot, `quote_step` ⇒ tick (hypothèse), `min_order_size` ⇒ minimum base, `min_order_size_quote` ⇒ minimum notionnel, `status=active` ⇒ vivant. Code interne `BASE-QUOTE` = symbole Revolut X.
 - Carnet (`GET /2.0/public/order-book/{symbol}?limit=<=192&region=EEA`, public) : schéma v2 non documenté, lecture tolérante (`data.asks/bids` ou racine ; `p|price`, `q|quantity|amount`).
 - Soldes : `GET /1.0/balances`, disponible par devise, valeurs > 0.
-- Frais : `GET /1.0/configuration/fees/tiers` (signé, clé de lecture) : palier spot courant du compte (`current_tier`, volume 30 j), taux en fractions convertis en % du montant, identiques pour toutes les paires, cachés 5 min par clé API (`RevolutXTradingFeeProvider`) ; réponse sans palier spot ou illisible ⇒ `BalanceUnavailableException`, jamais supposés.
+- Frais : `GET /1.0/configuration/fees/tiers` (signé, clé de lecture) : palier spot courant du compte (`current_tier`, volume 30 j), taux en fractions convertis en % du montant, identiques pour toutes les paires, mis en cache 24 h par credential par `TradingFeeService` (`RevolutXTradingFeeProvider` = récupération seule) ; réponse sans palier spot ou illisible ⇒ `BalanceUnavailableException`, jamais supposés.
 - Remplissages : `GET /1.0/orders/historical` (états `filled,cancelled`, fenêtres de 30 jours, 365 jours par défaut, pagination `cursor`), puis par ordre exécuté `GET /1.0/orders/{id}` (frais total) et `GET /1.0/orders/fills/{id}` ; frais total porté par le premier remplissage. Plafond d'appels par lecture (`MAX_CALLS`) ; `orders/historical` coûte 1 jeton par jour de plage (100 jetons/s, 1000/min) : pause de 12 ms par jour de plage entre deux fenêtres, et chaque lecture de l'historique est rejouée après un 429 (`RevolutXRequests.getWithRetry`, 4 tentatives, pause croissante).
 - Limite de débit (429) : `getWithRetry` (lectures privées en rafale) et `publicGetWithRetry` (carnet public) réessaient 4 fois, pause 1 s x n° de tentative ; les autres appels échouent tout de suite.
 - Non fait : bougies (pas de `MarketDataApiClient` / `MarketDataSource.REVOLUT_X`), repli ticker du carnet, ajout à `ExchangeKeysService.SupportedExchange` (onboarding utilisateur).
@@ -79,7 +79,7 @@ Vérifié le : 2026-11-04 (`GateEuRequests`, `GateEu*` sous `service/connector/a
 - Paires (`GET /spot/currency_pairs`, public) : `trade_status=tradable` ⇒ live, `amount_precision` ⇒ lot, `precision` ⇒ tick, `min_base_amount` / `min_quote_amount` ⇒ minimums. Paire native `BASE_QUOTE`.
 - Carnet (`GET /spot/order_book?currency_pair=&limit=<=100`, public) : niveaux `[prix, quantité]`.
 - Soldes : `GET /spot/accounts`, `available` par devise, valeurs > 0.
-- Frais : `GET /wallet/fee?currency_pair=` (`maker_fee` / `taker_fee` en fraction ⇒ ×100), cache TTL.
+- Frais : `GET /wallet/fee?currency_pair=` (`maker_fee` / `taker_fee` en fraction ⇒ ×100) ; cache 24 h par `TradingFeeService`.
 - Remplissages : `GET /spot/my_trades` (fenêtres de 30 jours, depuis 2024-01-01 par défaut, pages de 1000, plafond d'appels).
 - Non fait : bougies (pas de `MarketDataApiClient` / `MarketDataSource.GATE_EU`).
 

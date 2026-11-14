@@ -27,7 +27,8 @@ import java.util.TreeSet;
  * créditent PAS le cash le jour même, chaque action acceptée met à jour l'exposition ({@code P}) du lien suivant ({@code V} constant).
  * Le wallet n'est mis à jour qu'une fois tous les liens du jour décidés. Exposition valorisée aux cours des demandes du jour ; un actif
  * détenu sans prix ce jour-là ⇒ exposition inconnue (règle de {@link ExposureLedger#of}). Mono-lien = cas particulier
- * ({@link FullReplayEngine} délègue ici). Sans frais, minimum d'ordre ni carry (lots suivants).
+ * ({@link FullReplayEngine} délègue ici). Avec {@link Costs} : frais / spread / slippage, minimum d'ordre du lien et carry via {@link OrderReplay} (même calcul de route
+ * que le plan d'ordres) ; sans : comportement des lots 1-2 (ni frais, ni minimum, ni carry).
  */
 public final class MultiLinkReplayEngine {
 
@@ -57,7 +58,28 @@ public final class MultiLinkReplayEngine {
      */
     public record Input(List<Link> links, double cash0, ModulationSettings settings, RainbowModulationControl limits,
                         Map<LocalDate, ModulationSettings> settingsByDay, Map<LocalDate, Pin> pinned,
-                        Map<String, Double> frozenQty, Map<String, Map<LocalDate, Double>> frozenCloses) {
+                        Map<String, Double> frozenQty, Map<String, Map<LocalDate, Double>> frozenCloses, Costs costs) {
+
+        /** Sans coûts (lots 1-2). */
+        public Input(List<Link> links, double cash0, ModulationSettings settings, RainbowModulationControl limits,
+                     Map<LocalDate, ModulationSettings> settingsByDay, Map<LocalDate, Pin> pinned,
+                     Map<String, Double> frozenQty, Map<String, Map<LocalDate, Double>> frozenCloses) {
+            this(links, cash0, settings, limits, settingsByDay, pinned, frozenQty, frozenCloses, null);
+        }
+    }
+
+    /** Coûts : calcul d'ordre, achat minimum et route imposée par lien ({@code bindingId}). */
+    public record Costs(OrderReplay orders, Map<Long, Double> minBuyUsd, Map<Long, String> preferredRoute) {
+    }
+
+    /**
+     * Ordre réellement passé par un lien un jour donné (avec coûts) : {@code outcome} du plan ({@code OK}, {@code BELOW_MIN} ou
+     * blocage), mise effective (jour + carry), carry entrant / sortant, route, coût % et USDC, niveau Fee Test, cash et quantité
+     * réellement échangés, frais cumulés sur la période.
+     */
+    public record CostDay(Long bindingId, String asset, LocalDate day, String outcome, double effectiveAmount, double carryIn,
+                          double carryOut, String route, double costPct, double costUsdc, String feeTestLevel, double cashDelta,
+                          double qtyDelta, double cumulativeCostUsdc) {
     }
 
     /**
@@ -78,7 +100,8 @@ public final class MultiLinkReplayEngine {
     }
 
     public record Result(List<LinkDay> linkDays, List<WalletDay> walletDays, double cash0, Map<String, Double> qty0,
-                         double finalValue, double fixedFinalValue) {
+                         double finalValue, double fixedFinalValue, List<CostDay> costDays, double totalCostUsdc,
+                         double fixedTotalCostUsdc) {
     }
 
     public static Result run(Input in) {
@@ -108,6 +131,12 @@ public final class MultiLinkReplayEngine {
         Map<String, Double> lastPrice = new HashMap<>();
         List<LinkDay> linkDays = new ArrayList<>();
         List<WalletDay> walletDays = new ArrayList<>();
+        List<CostDay> costDays = new ArrayList<>();
+        Map<Long, Double> carry = new HashMap<>();
+        Map<Long, Double> lastBase = new HashMap<>();
+        double totalCost = 0.0;
+        double fixedCost = 0.0;
+        Costs costs = in.costs();
 
         for (LocalDate day : days) {
             Pin pin = in.pinned().get(day);
@@ -166,26 +195,74 @@ public final class MultiLinkReplayEngine {
                 audit.put(id, new double[]{reservedBefore, tradable});
             }
             // wallet mis à jour une fois tous les liens du jour décidés
+            double cashLeft = cash; // cash utilisable par les achats du jour (les ventes ne créditent pas le jour même)
+            double soldCash = 0.0;
             for (Link link : links) {
                 SizingCore.Decision d = decisions.get(link.slot().bindingId());
                 if (d == null) {
                     continue;
                 }
                 String asset = link.slot().assetSymbol();
-                if (d.action() == RainbowLiveAction.BUY) {
-                    cash -= d.amountUsdc();
-                    qty.merge(asset, d.quantity(), Double::sum);
-                } else if (d.action() == RainbowLiveAction.SELL) {
-                    cash += d.amountUsdc();
-                    qty.put(asset, Math.max(0.0, qty.getOrDefault(asset, 0.0) - d.quantity()));
+                if (costs == null) {
+                    if (d.action() == RainbowLiveAction.BUY) {
+                        cash -= d.amountUsdc();
+                        qty.merge(asset, d.quantity(), Double::sum);
+                    } else if (d.action() == RainbowLiveAction.SELL) {
+                        cash += d.amountUsdc();
+                        qty.put(asset, Math.max(0.0, qty.getOrDefault(asset, 0.0) - d.quantity()));
+                    }
+                    continue;
+                }
+                Long id = link.slot().bindingId();
+                LinkSignalReplay.Prepared p = prepared.get(id);
+                double carryIn = carry.getOrDefault(id, 0.0);
+                Double prevBase = lastBase.put(id, p.fixedBase());
+                if (prevBase != null && Math.abs(prevBase - p.fixedBase()) > EPSILON) {
+                    carryIn = 0.0; // base_amount du preset changé : carry remis à zéro (comme le live)
+                }
+                OrderReplay.Executed e = costs.orders().execute(new OrderReplay.Request(asset, d.action(),
+                        d.amountUsdc() == null ? 0.0 : d.amountUsdc(), d.quantity() == null ? 0.0 : d.quantity(), carryIn,
+                        cashLeft, costs.minBuyUsd().get(id), costs.preferredRoute().get(id), closes));
+                if (d.action() == RainbowLiveAction.BUY || d.action() == RainbowLiveAction.SELL) {
+                    carry.put(id, e.carryOut());
+                } else {
+                    carry.put(id, carryIn);
+                }
+                if (e.executed()) {
+                    if (d.action() == RainbowLiveAction.BUY) {
+                        cash += e.cashDelta();
+                        cashLeft += e.cashDelta();
+                        qty.merge(asset, e.qtyDelta(), Double::sum);
+                    } else {
+                        soldCash += e.cashDelta();
+                        qty.put(asset, Math.max(0.0, qty.getOrDefault(asset, 0.0) + e.qtyDelta()));
+                    }
+                    totalCost += e.costUsdc();
+                }
+                if (d.action() == RainbowLiveAction.BUY || d.action() == RainbowLiveAction.SELL) {
+                    costDays.add(new CostDay(id, asset, day, e.outcome(), e.effectiveAmount(), carryIn, e.carryOut(), e.route(),
+                            e.costPct(), e.executed() ? e.costUsdc() : 0.0,
+                            e.feeTestLevel() == null ? null : e.feeTestLevel().name(), e.cashDelta(), e.qtyDelta(), totalCost));
                 }
             }
+            cash += soldCash;
             // DCA fixe de référence : base de chaque lien sur ses barres actives, cash commun, tout-ou-rien, même ordre de service
             for (Link link : links) {
                 LinkSignalReplay.Prepared p = prepared.get(link.slot().bindingId());
                 if (p != null && p.active() && fixedCash + EPSILON >= p.fixedBase()) {
-                    fixedCash -= p.fixedBase();
-                    fixedQty.merge(link.slot().assetSymbol(), p.fixedBase() / p.price(), Double::sum);
+                    if (costs == null) {
+                        fixedCash -= p.fixedBase();
+                        fixedQty.merge(link.slot().assetSymbol(), p.fixedBase() / p.price(), Double::sum);
+                    } else { // mêmes frais / minimum d'ordre que la stratégie, sans carry
+                        OrderReplay.Executed fe = costs.orders().execute(new OrderReplay.Request(link.slot().assetSymbol(),
+                                RainbowLiveAction.BUY, p.fixedBase(), 0.0, 0.0, fixedCash, null,
+                                costs.preferredRoute().get(link.slot().bindingId()), closes));
+                        if (fe.executed()) {
+                            fixedCash += fe.cashDelta();
+                            fixedQty.merge(link.slot().assetSymbol(), fe.qtyDelta(), Double::sum);
+                            fixedCost += fe.costUsdc();
+                        }
+                    }
                 }
             }
             prepared.forEach((id, p) -> lastPrice.put(assetOf(links, id), p.price()));
@@ -229,7 +306,7 @@ public final class MultiLinkReplayEngine {
         }
         double finalValue = walletDays.isEmpty() ? in.cash0() : walletDays.getLast().totalValue();
         double fixedFinal = walletDays.isEmpty() ? in.cash0() : walletDays.getLast().fixedValue();
-        return new Result(linkDays, walletDays, in.cash0(), qty0, finalValue, fixedFinal);
+        return new Result(linkDays, walletDays, in.cash0(), qty0, finalValue, fixedFinal, costDays, totalCost, fixedCost);
     }
 
     private static String assetOf(List<Link> links, Long id) {

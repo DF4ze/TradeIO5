@@ -12,7 +12,27 @@ import java.util.Map;
  */
 public record ParityReport(Long walletId, LocalDate from, LocalDate to, double cash0, Stats pinned, Stats free,
                            double finalValue, double fixedFinalValue, double acceptancePct, boolean accepted,
-                           List<LinkReport> links, List<Row> mismatches, Map<String, Integer> causes, List<String> notes) {
+                           List<LinkReport> links, List<Row> mismatches, Map<String, Integer> causes, List<String> notes,
+                           CostReport costs) {
+
+    /** Sans rejeu des coûts. */
+    public ParityReport(Long walletId, LocalDate from, LocalDate to, double cash0, Stats pinned, Stats free,
+                        double finalValue, double fixedFinalValue, double acceptancePct, boolean accepted,
+                        List<LinkReport> links, List<Row> mismatches, Map<String, Integer> causes, List<String> notes) {
+        this(walletId, from, to, cash0, pinned, free, finalValue, fixedFinalValue, acceptancePct, accepted, links, mismatches,
+                causes, notes, null);
+    }
+
+    /**
+     * Rejeu avec frais, minimum d'ordre et carry (wallet recalé sur les snapshots, comme {@code pinned}) : valeurs finales nettes
+     * de frais (stratégie, DCA fixe avec les mêmes frais), frais cumulés (USDC), détail par jour et lien, et comparaison aux plans
+     * d'ordres enregistrés : {@code plans} jours-liens comparés, {@code outcomeMatching} / {@code carryMatching} identiques,
+     * écarts classés par cause ; coûts (%) ≠ plan : frais et carnets d'époque ≠ barème actuel (cause explicite, jamais masquée).
+     */
+    public record CostReport(double finalValue, double fixedFinalValue, double totalCostUsdc, double fixedTotalCostUsdc,
+                             int plans, int outcomeMatching, int carryMatching, int costDiffering, List<Row> mismatches,
+                             List<String> warnings, List<MultiLinkReplayEngine.CostDay> days) {
+    }
 
     /** Un écart : lien, jour, attendu (live), obtenu (rejeu), cause probable. */
     public record Row(Long bindingId, String asset, LocalDate day, String expected, String got, String cause) {
@@ -65,6 +85,18 @@ public record ParityReport(Long walletId, LocalDate from, LocalDate to, double c
         for (Row row : mismatches) {
             sb.append("| ").append(row.day()).append(" | ").append(row.asset()).append(" | ").append(row.expected()).append(" | ")
                     .append(row.got()).append(" | ").append(row.cause()).append(" |\n");
+        }
+        if (costs != null) {
+            sb.append("\n## Coûts (frais, minimum d'ordre, carry)\n- Valeur finale nette de frais : ").append(fmt(costs.finalValue()))
+                    .append(" (DCA fixe, mêmes frais : ").append(fmt(costs.fixedFinalValue())).append(")\n- Frais cumulés : ")
+                    .append(fmt(costs.totalCostUsdc())).append(" USDC (DCA fixe : ").append(fmt(costs.fixedTotalCostUsdc()))
+                    .append(")\n- Plans comparés : ").append(costs.plans()).append(", outcome identique ").append(costs.outcomeMatching())
+                    .append(", carry identique ").append(costs.carryMatching()).append(", coût ≠ ").append(costs.costDiffering()).append('\n');
+            costs.warnings().forEach(w -> sb.append("> ").append(w).append('\n'));
+            for (Row row : costs.mismatches()) {
+                sb.append("| ").append(row.day()).append(" | ").append(row.asset()).append(" | ").append(row.expected()).append(" | ")
+                        .append(row.got()).append(" | ").append(row.cause()).append(" |\n");
+            }
         }
         return sb.toString();
     }

@@ -101,4 +101,33 @@ class MultiLinkReplayEngineTest {
         assertEquals(3.0, eth.qtyBefore(), 1e-9);
         assertTrue(eth.cashReservedBefore() >= 10.0 - 1e-9);
     }
+
+    @Test
+    @DisplayName("Avec coûts : cash débité = ce qui est exécuté, quantité nette de frais, frais cumulés ; DCA fixe avec les mêmes frais")
+    void withCosts() {
+        java.util.Map<String, OrderReplay.Quote> quotes = java.util.Map.of("BTC-USDC",
+                new OrderReplay.Quote(new java.math.BigDecimal("0.5"), new java.math.BigDecimal("0.05"), java.math.BigDecimal.ZERO));
+        OrderReplay orders = new OrderReplay(new OrderReplay.Schedule(java.util.List.of(new fr.ses10doigts.tradeIO5.model.dto.execution.InstrumentInfo(
+                "BTC-USDC", "BTC", "USDC", new java.math.BigDecimal("0.00001"), new java.math.BigDecimal("0.00001"), new java.math.BigDecimal("0.01"))),
+                java.util.Set.of("USDC"), java.util.Set.of("EUR", "USDT"), quotes, Map.of(), java.util.List.of()),
+                new fr.ses10doigts.tradeIO5.service.market.instrument.FeeTest());
+        MultiLinkReplayEngine.Costs costs = new MultiLinkReplayEngine.Costs(orders, Map.of(1L, 1e9), Map.of());
+        MultiLinkReplayEngine.Result free = run(1e9, List.of(link(1, "BTC", 1)));
+        MultiLinkReplayEngine.Result paid = MultiLinkReplayEngine.run(new MultiLinkReplayEngine.Input(List.of(link(1, "BTC", 1)), 1e9,
+                ModulationSettings.neutral(), LIMITS, Map.of(), Map.of(), Map.of(), Map.of(), costs));
+        // minimum énorme : tout achat est reporté (BELOW_MIN), carry cumulé, aucun débit ni quantité
+        assertTrue(paid.costDays().stream().allMatch(c -> !c.outcome().equals("OK") || c.cashDelta() > 0));
+        assertEquals(1e9, paid.walletDays().getLast().cash(), 1e-6);
+        assertEquals(0.0, paid.walletDays().getLast().qty().getOrDefault("BTC", 0.0), 1e-12);
+        assertTrue(paid.costDays().stream().anyMatch(c -> c.outcome().equals("BELOW_MIN") && c.carryOut() > 0));
+        MultiLinkReplayEngine.Costs fees = new MultiLinkReplayEngine.Costs(orders, Map.of(), Map.of());
+        MultiLinkReplayEngine.Result withFees = MultiLinkReplayEngine.run(new MultiLinkReplayEngine.Input(List.of(link(1, "BTC", 1)), 1e9,
+                ModulationSettings.neutral(), LIMITS, Map.of(), Map.of(), Map.of(), Map.of(), fees));
+        assertTrue(withFees.totalCostUsdc() > 0);
+        assertTrue(withFees.fixedTotalCostUsdc() > 0);
+        assertTrue(withFees.walletDays().getLast().qty().get("BTC") < free.walletDays().getLast().qty().get("BTC") + 1e-12,
+                "quantité nette de frais <= quantité sans frais");
+        assertEquals(0.0, free.totalCostUsdc());
+        assertTrue(withFees.costDays().stream().filter(c -> c.outcome().equals("OK")).allMatch(c -> c.costPct() > 0.5));
+    }
 }

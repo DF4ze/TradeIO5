@@ -17,7 +17,7 @@ import fr.ses10doigts.tradeIO5.model.entity.execution.PlanBlockReason;
 import fr.ses10doigts.tradeIO5.model.entity.execution.PlanStatus;
 import fr.ses10doigts.tradeIO5.model.entity.execution.StepSide;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
-import fr.ses10doigts.tradeIO5.service.connector.fee.TradingFeeProvider;
+import fr.ses10doigts.tradeIO5.service.connector.fee.TradingFeeService;
 import fr.ses10doigts.tradeIO5.service.connector.orderbook.OrderBookClient;
 import fr.ses10doigts.tradeIO5.service.currency.AssetGroupService;
 import fr.ses10doigts.tradeIO5.service.execution.ExchangeLegMarketSource;
@@ -71,7 +71,7 @@ public class OrderPlanner {
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 
     private final InstrumentCatalog catalog;
-    private final Map<WebProviderCode, TradingFeeProvider> feeProviders;
+    private final TradingFeeService feeService;
     private final Map<WebProviderCode, OrderBookClient> bookClients;
     private final AssetGroupService groupService;
     private final PathFinder pathFinder;
@@ -80,11 +80,11 @@ public class OrderPlanner {
     private final Set<String> forbiddenNodes;
 
     @Autowired
-    public OrderPlanner(InstrumentCatalog catalog, List<TradingFeeProvider> feeProviders, List<OrderBookClient> bookClients,
+    public OrderPlanner(InstrumentCatalog catalog, TradingFeeService feeService, List<OrderBookClient> bookClients,
                         AssetGroupService groupService, PathFinder pathFinder, FeeTest feeTest, ExecutionSettings settings,
                         @Value("${" + ExecutionDefaults.FORBIDDEN_NODES_PROPERTY + ":}") String forbiddenNodes) {
         this.catalog = catalog;
-        this.feeProviders = feeProviders.stream().collect(Collectors.toMap(TradingFeeProvider::getProviderCode, Function.identity()));
+        this.feeService = feeService;
         this.bookClients = bookClients.stream().collect(Collectors.toMap(OrderBookClient::getProviderCode, Function.identity()));
         this.groupService = groupService;
         this.pathFinder = pathFinder;
@@ -141,20 +141,14 @@ public class OrderPlanner {
      * achat passé le consomme ; tout autre cas (vente, désactivé, rien à faire, autre blocage) laisse le carry inchangé.
      */
     private static PlanDraft.AssetDraft withCarry(AssetInput in, PlanDraft.AssetDraft draft) {
-        BigDecimal carryIn = in.carryInUsd();
         boolean buy = in.action() == RainbowLiveAction.BUY;
-        if (buy && draft.outcome() == AssetPlanOutcome.OK) {
-            return draft.withCarry(carryIn, BigDecimal.ZERO);
-        }
-        if (buy && draft.outcome() == AssetPlanOutcome.BLOCKED && draft.blockReason() == PlanBlockReason.BELOW_MIN) {
-            return draft.withCarry(carryIn, effectiveAmount(in));
-        }
-        return draft.withCarry(carryIn, carryIn);
+        return draft.withCarry(in.carryInUsd(), OrderCore.carryOut(buy, draft.outcome(), draft.blockReason(), in.carryInUsd(),
+                OrderCore.effectiveAmount(in.amountUsd() == null ? BigDecimal.ZERO : in.amountUsd(), in.carryInUsd())));
     }
 
     /** Mise du jour + carry entrant. */
     private static BigDecimal effectiveAmount(AssetInput in) {
-        return in.amountUsd().add(in.carryInUsd());
+        return OrderCore.effectiveAmount(in.amountUsd(), in.carryInUsd());
     }
 
     private PlanDraft.AssetDraft planAsset(AssetInput in, Map<Long, WalletContext> contexts,
@@ -188,7 +182,7 @@ public class OrderPlanner {
         Set<String> stables = Set.copyOf(members);
         List<InstrumentInfo> instruments = catalog.liveInstruments(in.credential().getWebProvider());
         ExchangeLegMarketSource market = new ExchangeLegMarketSource(in.provider(), in.credential(), stables, instruments,
-                feeProviders.get(in.provider()), bookClients.get(in.provider()));
+                feeService.forProvider(in.provider()), bookClients.get(in.provider()));
         return new WalletContext(instruments, stables, market, cash);
     }
 
@@ -199,7 +193,7 @@ public class OrderPlanner {
             return draft(in, AssetPlanOutcome.NO_ACTION, null, null, null, null, List.of());
         }
         BigDecimal amount = effectiveAmount(in);
-        if (in.minBuyUsd() != null && amount.compareTo(in.minBuyUsd()) < 0) { // sous l'achat minimum de l'utilisateur : reporté (carry)
+        if (OrderCore.belowUserMin(amount, in.minBuyUsd())) { // sous l'achat minimum de l'utilisateur : reporté (carry)
             return draft(in, AssetPlanOutcome.BLOCKED, PlanBlockReason.BELOW_MIN, null, null,
                     "Sous votre achat minimum (" + pct(in.minBuyUsd()) + " $) : reporté, cumulé jusqu'au minimum", List.of());
         }
@@ -210,17 +204,9 @@ public class OrderPlanner {
         Map<String, BigDecimal> sources = new HashMap<>(ctx.virtual);
         PathQuote quote = pathFinder.find(new PathFinder.Request(ctx.instruments, forbiddenNodes, sources, in.assetSymbol(), amount,
                 ExecutionDefaults.MAX_PATH_DEPTH, displayOnlyIntermediaries(), in.preferredRoute()), ctx.market);
-        if (quote.status() == PathStatus.NO_PATH) {
-            PlanBlockReason reason = sources.values().stream().noneMatch(b -> b.signum() > 0)
-                    ? PlanBlockReason.INSUFFICIENT_FUNDS_AFTER_FEES
-                    : noRoute(in.assetSymbol(), ctx) ? PlanBlockReason.NOT_TRADABLE_WITHOUT_FIAT : PlanBlockReason.NO_PATH;
-            return blocked(in, reason);
-        }
-        if (quote.underfunded()) {
-            return blocked(in, PlanBlockReason.INSUFFICIENT_FUNDS_AFTER_FEES);
-        }
-        if (quote.status() == PathStatus.BELOW_MIN) {
-            return blocked(in, PlanBlockReason.BELOW_MIN);
+        PlanBlockReason block = OrderCore.buyBlock(quote, sources, in.assetSymbol(), ctx.instruments, ctx.stables, forbiddenNodes);
+        if (block != null) {
+            return blocked(in, block);
         }
         FeeTestLevel level = quote.feeTestLevel();
         for (int i = 0; i < quote.legs().size(); i++) {
@@ -297,17 +283,6 @@ public class OrderPlanner {
                 .collect(Collectors.toUnmodifiableSet());
     }
 
-    /** Vrai si l'actif n'a aucune paire exploitable (cotée en stable, ou en intermédiaire choisi lui-même coté en stable). */
-    private boolean noRoute(String asset, WalletContext ctx) {
-        return ctx.instruments.stream().noneMatch(i -> i.base().equals(asset) && !forbiddenNodes.contains(i.quote())
-                && (ctx.stables.contains(i.quote()) || viaChosenIntermediary(i.quote(), ctx)));
-    }
-
-    private boolean viaChosenIntermediary(String quote, WalletContext ctx) {
-        return ExecutionDefaults.CHOSEN_INTERMEDIARIES.contains(quote) && ctx.instruments.stream()
-                .anyMatch(i -> i.base().equals(quote) && ctx.stables.contains(i.quote()) && !forbiddenNodes.contains(i.quote()));
-    }
-
     // ------------------------------------------------------------------ vente
 
     private PlanDraft.AssetDraft planSell(AssetInput in, WalletContext ctx) {
@@ -319,29 +294,12 @@ public class OrderPlanner {
         List<PlanDraft.StepDraft> transitSteps = new ArrayList<>();
         List<String> transitNotes = new ArrayList<>();
         finishTransitLegs(in, ctx, transitSteps, transitNotes);
-        List<InstrumentInfo> direct = ctx.instruments.stream()
-                .filter(i -> i.base().equals(in.assetSymbol()) && ctx.stables.contains(i.quote()) && !forbiddenNodes.contains(i.quote()))
-                .sorted(Comparator.comparing(InstrumentInfo::instId)).toList();
-
-        List<SellRoute> routes = new ArrayList<>();
-        for (InstrumentInfo pair : direct) {
-            Optional<LegMarket> market = ctx.market.market(pair, LegSide.SELL, notionalUsd);
-            if (market.isPresent()) {
-                BigDecimal sz = PathFinder.roundToStep(qty, pair.lotSz(), RoundingMode.DOWN);
-                routes.add(new SellRoute(List.of(PathFinder.legOfSize(pair, LegSide.SELL, market.get(), sz)), market.get().estimation()));
-            }
+        OrderCore.SellOutcome outcome = OrderCore.sellRoute(ctx.instruments, ctx.byId, ctx.stables, forbiddenNodes, ctx.market,
+                in.assetSymbol(), qty, notionalUsd);
+        if (outcome.route().isEmpty()) {
+            return blocked(in, outcome.emptyReason());
         }
-        if (direct.isEmpty()) {
-            for (String intermediary : ExecutionDefaults.CHOSEN_INTERMEDIARIES.stream().sorted().toList()) {
-                sellViaIntermediary(in, ctx, qty, notionalUsd, intermediary).ifPresent(routes::add);
-            }
-        }
-        if (routes.isEmpty()) {
-            return blocked(in, direct.isEmpty() && noRoute(in.assetSymbol(), ctx) ? PlanBlockReason.NOT_TRADABLE_WITHOUT_FIAT
-                    : PlanBlockReason.NO_PATH);
-        }
-        SellRoute best = routes.stream().min(Comparator.comparing(SellRoute::costPct)
-                .thenComparingInt(r -> r.legs().size())).orElseThrow();
+        OrderCore.SellRoute best = outcome.route().get();
         if (best.legs().stream().anyMatch(PathLeg::belowMin)) {
             return blocked(in, PlanBlockReason.BELOW_MIN);
         }
@@ -361,47 +319,6 @@ public class OrderPlanner {
                 best.legs().stream().map(PathLeg::instId).collect(Collectors.joining(">")), cost, level);
         return new PlanDraft.AssetDraft(in.assetSymbol(), in.priority(), in.walletId(), in.action(), AssetPlanOutcome.OK, null,
                 cost, level, warnings(level, cost, best.estimation(), extra), steps);
-    }
-
-    /** Une route de vente : jambes dans l'ordre et estimation la moins fiable. */
-    private record SellRoute(List<PathLeg> legs, PathEstimation estimation) {
-        BigDecimal costPct() {
-            return legs.stream().map(PathLeg::costPct).reduce(BigDecimal.ZERO, BigDecimal::add);
-        }
-    }
-
-    /**
-     * Vente {@code actif -> intermédiaire -> stable} (l'intermédiaire n'est jamais conservé) : jambe 1 {@code SELL actif-I} sur la
-     * quantité, jambe 2 {@code SELL I-stable} dimensionnée sur le reçu net de la jambe 1 (⌊⌋ au lot).
-     */
-    private Optional<SellRoute> sellViaIntermediary(AssetInput in, WalletContext ctx, BigDecimal qty, BigDecimal notionalUsd,
-                                                    String intermediary) {
-        InstrumentInfo first = ctx.byId.get(in.assetSymbol() + "-" + intermediary);
-        Optional<InstrumentInfo> second = ctx.instruments.stream()
-                .filter(i -> i.base().equals(intermediary) && ctx.stables.contains(i.quote()) && !forbiddenNodes.contains(i.quote()))
-                .min(Comparator.comparing(InstrumentInfo::instId));
-        Optional<BigDecimal> intermediaryUsd = ctx.market.usdPrice(intermediary);
-        if (first == null || second.isEmpty() || intermediaryUsd.isEmpty()) {
-            return Optional.empty();
-        }
-        Optional<LegMarket> market1 = ctx.market.market(first, LegSide.SELL, notionalUsd.divide(intermediaryUsd.get(), AMOUNT_SCALE,
-                RoundingMode.HALF_UP));
-        if (market1.isEmpty()) {
-            return Optional.empty();
-        }
-        BigDecimal sz1 = PathFinder.roundToStep(qty, first.lotSz(), RoundingMode.DOWN);
-        PathLeg leg1 = PathFinder.legOfSize(first, LegSide.SELL, market1.get(), sz1);
-        BigDecimal net1 = sz1.multiply(market1.get().bid())
-                .multiply(BigDecimal.ONE.subtract(market1.get().feePct().divide(HUNDRED, AMOUNT_SCALE, RoundingMode.HALF_UP)));
-        BigDecimal sz2 = PathFinder.roundToStep(net1, second.get().lotSz(), RoundingMode.DOWN);
-        Optional<LegMarket> market2 = ctx.market.market(second.get(), LegSide.SELL, net1.multiply(intermediaryUsd.get()));
-        if (market2.isEmpty()) {
-            return Optional.empty();
-        }
-        PathLeg leg2 = PathFinder.legOfSize(second.get(), LegSide.SELL, market2.get(), sz2);
-        PathEstimation estimation = market1.get().estimation() == PathEstimation.TICKER || market2.get().estimation() == PathEstimation.TICKER
-                ? PathEstimation.TICKER : PathEstimation.BOOK;
-        return Optional.of(new SellRoute(List.of(leg1, leg2), estimation));
     }
 
     // ------------------------------------------------------------------ communs

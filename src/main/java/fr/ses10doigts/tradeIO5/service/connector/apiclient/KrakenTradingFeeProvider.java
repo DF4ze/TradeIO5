@@ -17,17 +17,15 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Frais réels Kraken du compte : {@code POST /0/private/TradeVolume} avec {@code pair=<nativePair>} et {@code fee-info=true}
  * (clé Read, signature partagée via {@link KrakenSignedRequests}). {@code fees} = taker, {@code fees_maker} = maker, déjà en
  * <b>% du montant</b> ({@code "0.2600"} = 0,26 %), positifs = coût. La paire est lue au catalogue ({@code nativePair}), repli
  * {@link KrakenAssetNames#fallbackPair}. Un champ absent ou illisible lève {@link BalanceUnavailableException} : jamais de
- * frais supposé. Cache mémoire {@link ExecutionDefaults#FEE_CACHE_TTL} par (clé, instrument), échecs non cachés ; throttle
+ * frais supposé. Pas de cache ici ({@code TradingFeeService}, 24 h) ; throttle
  * simple entre deux appels réseau (compteur d'appels privés Kraken).
  */
 @Slf4j
@@ -38,17 +36,9 @@ public class KrakenTradingFeeProvider implements TradingFeeProvider {
 
     private static final Duration MIN_INTERVAL = Duration.ofSeconds(1);
     private static final ObjectMapper MAPPER = new ObjectMapper();
-
-    private record CacheKey(Object credential, String instId) {
-    }
-
-    private record Cached(FeeRate rate, Instant fetchedAt) {
-    }
-
     private final DomainClock clock;
     private final InstrumentCatalog catalog;
     private final long minIntervalNanos;
-    private final Map<CacheKey, Cached> cache = new ConcurrentHashMap<>();
     private long lastCallNanos;
 
     @Autowired
@@ -71,18 +61,11 @@ public class KrakenTradingFeeProvider implements TradingFeeProvider {
     @Override
     public FeeRate getFeeRate(ApiCredential credential, String instId) {
         KrakenSignedRequests.requireComplete(credential);
-        CacheKey key = new CacheKey(credential.getId() != null ? credential.getId() : credential.getApiKey(), instId);
-        Instant now = clock.now();
-        Cached cached = cache.get(key);
-        if (cached != null && cached.fetchedAt().plus(ExecutionDefaults.FEE_CACHE_TTL).isAfter(now)) {
-            return cached.rate();
-        }
         String pair = catalog.nativePair(WebProviderCode.KRAKEN, instId).orElseGet(() -> KrakenAssetNames.fallbackPair(instId));
         throttle();
         String body = KrakenSignedRequests.privatePost(clock, credential, TRADE_VOLUME_METHOD,
                 Map.of("pair", pair, "fee-info", "true"));
         FeeRate rate = parse(body);
-        cache.put(key, new Cached(rate, now));
         log.debug("📦 [KRAKEN] frais du compte lus pour {} : maker={}% taker={}%", instId, rate.makerPct(), rate.takerPct());
         return rate;
     }
