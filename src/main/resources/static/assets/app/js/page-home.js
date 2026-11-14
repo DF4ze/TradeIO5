@@ -156,7 +156,7 @@
 
   const DONUT_MIN_PCT = 0.1;   // sous ce poids dans le patrimoine, l'actif n'est pas affiché dans l'exposition
   function donutCard() {
-    const card = ui.widget('Exposition', holdings, (hold) => {
+    const card = ui.widget('Exposition', () => Promise.all([holdings(), TIO.safe(settings(), null)]), ([hold, m]) => {
       const priced = hold.assets.filter((l) => TIO.isNum(l.value) && l.value > 0 && hold.total > 0 && l.value / hold.total * 100 >= DONUT_MIN_PCT);
       if (!priced.length) return ui.empty('Aucune position valorisée', 'La répartition apparaît dès qu\'un solde est lisible.');
       const assets = priced.filter((l) => !l.stable), stables = priced.filter((l) => l.stable);
@@ -166,7 +166,15 @@
       const legend = h('div', { class: 'stack', style: { flex: '1 1 180px' } }, segments.map((s) => h('div', { class: 'row' },
         h('i', { class: 'dot', style: { '--c': s.color } }), h('span', { class: 'num' }, s.label), h('span', { class: 'grow' }),
         h('span', { class: 'num muted' }, F.pct(s.value / hold.total * 100, 1)))));
-      return h('div', { class: 'donut-wrap' }, donut, legend);
+      const lim = m && m.settings && TIO.isNum(m.settings.exposureMin) && TIO.isNum(m.settings.exposureMax) ? m.settings : null;
+      const cur = TIO.isNum(hold.exposurePct) ? hold.exposurePct : undefined;
+      // limites en lecture seule (mêmes curseurs que Réglages > Modulation), repère = exposition actuelle
+      const lrow = (label, v, name) => h('div', { class: 'stack' }, h('div', { class: 'row row--between' }, h('span', { class: 'lbl muted' }, label), h('span', { class: 'num' }, F.pct(v, 0))),
+        ui.slider({ min: 0, max: 100, step: 1, value: v, marker: cur, label: name, disabled: true }).el);
+      const limits = lim ? h('div', { class: 'stack' },
+        h('div', { class: 'row row--between small muted' }, h('span', null, 'Limites'), h('span', null, cur === undefined ? '' : 'repère = exposition actuelle ' + F.pct(cur, 0))),
+        lrow('Exposition minimale', lim.exposureMin, 'Exposition minimale'), lrow('Exposition maximale', lim.exposureMax, 'Exposition maximale')) : null;
+      return [h('div', { class: 'donut-wrap' }, donut, legend), limits];
     });
     onSelect(card);
     return card;

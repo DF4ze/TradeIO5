@@ -1,8 +1,8 @@
 ---
 statut: gap
 vérifié_le: 2026-09-12
-modifié_le: 2026-10-13
-empreinte: f3bf1e52c0
+modifié_le: 2026-11-14
+empreinte: e6de3d9142
 ---
 # Le trou décision → ordre réel
 
@@ -31,6 +31,7 @@ TradeIO5 calcule des signaux et produit des `Decision`/`ActionStep` en base. Les
 4. **La quantité d'un `ActionStep` est un placeholder constant** (`BigDecimal.ONE`, `PLACEHOLDER_QUANTITY` dans `DefaultMarketScenario`) — pas de règle de sizing réelle (proportionnelle au solde disponible, plafonnée par `maxAllocationPerAsset`, respectant `minCashReserve`). La formule de traduction `RiskProfile` → fraction de portefeuille reste une question ouverte, non tranchée avec Clem au 2026-08-10.
 5. **Aucun composant n'émet `ACTION_STEP_EXECUTED`/`ACTION_STEP_FAILED`.** Personne ne transforme un `ActionStep` validé en ordre : l'exécuteur ne traite que les plans du bench Rainbow. Le cycle de vie de `Decision` reste un stub d'état.
 6. **Le scheduler de génération continue de décisions (`DecisionOrchestratorJob`) reste désactivé par défaut**, volontairement, pour ne pas brancher un déclenchement automatique sur une mécanique de sizing/exécution encore incomplète (voir [`operations/scheduled-jobs.md`](../operations/scheduled-jobs.md)).
+7. **Le cycle `DecisionOrchestrator` plante sur données incomplètes, et le D1 Tree est trop court.** `MacroMarketOpinion` n'émet aucun `OpinionEvent` quand DXY/SP500/NASDAQ manquent (ex. Twelve Data 429) => `TreeAnalysisException` qui avorte `runCycle`. `TrendConfirmationStrategy` (LINEAR_REGRESSION période 30) échoue en D1 : `getDatasetForAsset` resample le Bucket H1 (~500 bougies ≈ 20 D1). Pistes : event neutre/low-confidence côté Macro (ou catch par opinion dans `runCycle`) ; D1 Tree via `getDailyDatasetForAsset` (chemin natif, 720 j). Le cron est désactivé (`orchestrator-cron=-`, repo ; fichier VPS à aligner). Le Rainbow n'est pas concerné.
 
 ## Ordre de priorité proposé (tel qu'arrêté avec Clem au 2026-08-10, statut à reconfirmer)
 

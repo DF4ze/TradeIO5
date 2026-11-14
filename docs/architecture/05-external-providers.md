@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-10-27
-modifié_le: 2026-11-10
-empreinte: c539bc125b
+modifié_le: 2026-11-14
+empreinte: da8243fbf9
 ---
 # Providers de données externes
 

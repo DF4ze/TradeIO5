@@ -3,8 +3,8 @@ statut: decision
 sujet: modulation-exposition-puissance
 cree_le: 2026-11-10
 origine: memoire-claude-migree
-modifié_le: 2026-11-10
-empreinte: 5e379ce842
+modifié_le: 2026-11-14
+empreinte: aba7d10319
 ---
 # modulation-exposition-puissance
 
@@ -12,7 +12,12 @@ empreinte: 5e379ce842
 
 - Bande d'exposition min/max ; marge m = 25 % de la largeur de bande.
 - Puissance 0.25–2 ; biais β ±0.5 ; G=2 (réglable admin).
-- Aucun ordre REBALANCE. Modulateur loggé en JSON.
+- Retour dans la bande (2026-11-14, remplace « aucun ordre REBALANCE » ; non codé, cf. [étude](../etudes/etude-protocole-calibrage-couches.md) §5) : hors bande, deux mécanismes cumulés, à la vente comme à l'achat (sens inverse).
+  - **A** bornes du Rainbow décalées selon le dépassement (le Rainbow déclenche plus tôt de lui-même).
+  - **C** retour demandé par l'utilisateur au changement de bande, deux modes : **immédiat**, ou **prix limite X** (« à ce prix, je dois être revenu dans l'exposition demandée » : paliers à mesure que le prix va vers X ; s'il s'arrête avant, le reste du bag / du cash est gardé).
+  - Pas d'échéance en jours : contraire au principe (on garde tant que la perte maximale acceptée n'est pas atteinte).
+  - X vient de l'utilisateur au moment où il modifie sa bande : saisi en prix ou en % de mouvement (une tolérance, comme un slippage sur sa demande). **0 % = régulation immédiate** (le mode immédiat n'est que ce cas).
+- Modulateur loggé en JSON.
 - baseAmount côté user.
 - Modulation ATH à extraire en paramètre user (étude en attente, 2026-11-09).
 - 2 curseurs distincts (2026-10-13) : exposition (actif vs stable) et puissance (amount achats ET ventes). Le curseur statique seul est remis en question (wallet doit "vivre").

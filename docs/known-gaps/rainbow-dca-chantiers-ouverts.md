@@ -1,8 +1,8 @@
 ---
 statut: gap
 vérifié_le: 2026-10-11
-modifié_le: 2026-11-11
-empreinte: 74828b918e
+modifié_le: 2026-11-14
+empreinte: ff45c9cb04
 ---
 # Rainbow DCA ATR — chantiers ouverts
 
@@ -37,7 +37,7 @@ Reste : les constantes du Trend Mix ont été réglées à la main sur BTC et se
 
 ## 3. Bande d'exposition, puissance et biais
 
-Implémenté (étapes 1–2, 2026-10-13) ; écrans et onboarding restent à faire. Design : l'utilisateur fixe une **bande** `[min, max]` d'exposition (actifs ÷ total), modulation des achats/ventes Rainbow uniquement dans les marges près des bornes (hors bande : achat ramené à 0 ou vente accentuée, **jamais d'ordre de rééquilibrage** : seul le Rainbow déclenche) ; **puissance** (un scalaire sur le montant) et **biais** achat/vente ; journal des modulateurs à chaque action ; paramètres globaux réglables par l'admin. Détail : [spec V1 §2, §4–§7](../etudes/spec-rainbow-v1-trend-global-exposition-risque-macro.md). S'applique dans `LiveSizing`, par lien. Un achat et une vente simultanés sur la même bougie sont aujourd'hui impossibles (la vente l'emporte).
+Implémenté (étapes 1–2, 2026-10-13) ; écrans et onboarding restent à faire. Design : l'utilisateur fixe une **bande** `[min, max]` d'exposition (actifs ÷ total), modulation des achats/ventes Rainbow uniquement dans les marges près des bornes (hors bande : achat ramené à 0 ou vente accentuée, **jamais d'ordre de rééquilibrage** : seul le Rainbow déclenche) ; **puissance** (un scalaire sur le montant) et **biais** achat/vente ; journal des modulateurs à chaque action ; paramètres globaux réglables par l'admin. Détail : [spec V1 §2, §4–§7](../etudes/spec-rainbow-v1-trend-global-exposition-risque-macro.md). S'applique dans `LiveSizing`, par lien. **À faire** : retour dans la bande (bornes décalées + retour demandé par l'utilisateur, immédiat ou au prix limite), décidé le 2026-11-14, cf. [`decisions/modulation-exposition-puissance.md`](../decisions/modulation-exposition-puissance.md) ; d'ici là, sans signal de vente l'exposition ne redescend pas. Un achat et une vente simultanés sur la même bougie sont aujourd'hui impossibles (la vente l'emporte).
 
 ## 4. Risque macro
 
