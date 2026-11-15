@@ -159,7 +159,7 @@ public class PathFinder {
         PathQuote quote = new PathQuote(belowMin ? PathStatus.BELOW_MIN : PathStatus.OK, p.candidate().source(),
                 request.target(), request.amount(), p.legs(), p.totalCostPct(), feeTest.level(p.totalCostPct()),
                 p.estimation(), !funded, p.routeKey(), routes);
-        log.debug("PathFinder {} <- {} : {} jambes, coût {}%, {}", request.target(), quote.source(), p.legs().size(),
+        log.trace("PathFinder {} <- {} : {} jambes, coût {}%, {}", request.target(), quote.source(), p.legs().size(),
                 p.totalCostPct(), quote.status());
         return quote;
     }

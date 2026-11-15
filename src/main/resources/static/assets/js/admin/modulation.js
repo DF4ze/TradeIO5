@@ -47,7 +47,24 @@
       what: 'N\'influence PAS les ordres. Sert uniquement à proposer le montant de base à l\'onboarding : cash du wallet ÷ nombre de liens ÷ (jours × multiplicateur moyen du preset).',
       up: 'Montant de base proposé plus petit : le cash est étalé sur plus longtemps.',
       down: 'Montant de base proposé plus grand : le cash dure moins longtemps.',
-      example: '90 jours avec 3 000 USD de cash, 3 liens et multiplicateur moyen 1 : environ 11 USD de base par lien et par jour.' }
+      example: '90 jours avec 3 000 USD de cash, 3 liens et multiplicateur moyen 1 : environ 11 USD de base par lien et par jour.' },
+    { key: 'drawdownCapPrudentPct', label: 'Plafond de drawdown · Prudent (%)', step: '1',
+      what: 'N\'influence PAS les ordres. Perte maximale tolérée du wallet (depuis son plus haut) pour le profil Prudent : le simulateur signale un dépassement. Valeur négative.',
+      up: 'Plafond moins large (plus proche de 0) : le profil est plus souvent signalé comme dépassé.',
+      down: 'Plafond plus large : plus de baisse tolérée. Doit rester ≥ au plafond Équilibré (Prudent le plus serré).',
+      example: '−15 % : un wallet qui passe de 1 000 à 840 USDC depuis son plus haut dépasse le plafond.' },
+    { key: 'drawdownCapBalancedPct', label: 'Plafond de drawdown · Équilibré (%)', step: '1',
+      what: 'Plafond de drawdown du profil Équilibré (signalement du simulateur uniquement). Valeur négative.',
+      up: 'Plafond plus serré : plus de dépassements signalés.', down: 'Plafond plus large. Doit rester entre Prudent et Dynamique.',
+      example: '−25 % : 1 000 → 750 USDC est exactement au plafond (respecté).' },
+    { key: 'drawdownCapDynamicPct', label: 'Plafond de drawdown · Dynamique (%)', step: '1',
+      what: 'Plafond de drawdown du profil Dynamique (signalement du simulateur uniquement). Valeur négative.',
+      up: 'Plafond plus serré : plus de dépassements signalés.', down: 'Plafond plus large. Doit rester entre Équilibré et Full.',
+      example: '−40 % : 1 000 → 600 USDC est exactement au plafond.' },
+    { key: 'drawdownCapFullPct', label: 'Plafond de drawdown · Full (%)', step: '1',
+      what: 'Plafond de drawdown du profil Full (signalement du simulateur uniquement). Valeur négative, le plus large des quatre.',
+      up: 'Plafond plus serré : plus de dépassements signalés.', down: 'Plafond plus large (min −100 %). Doit rester ≤ Dynamique.',
+      example: '−60 % : 1 000 → 400 USDC est exactement au plafond.' }
   ];
 
   let params = {};

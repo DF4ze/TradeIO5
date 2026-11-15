@@ -105,6 +105,11 @@ public class AppPageController {
         return prefs != null && prefs.displayMode() == DisplayMode.EXPERT;
     }
 
+    @GetMapping("/app/expert/simulateur")
+    public String expertSimulateur(Model model) {
+        return expertPage(model, "expert-simulateur", "Espace Expert · Simulateur");
+    }
+
     private String expertPage(Model model, String page, String title) {
         return isExpert() ? page(model, page, title) : "redirect:/app";
     }

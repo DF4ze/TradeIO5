@@ -7,6 +7,7 @@ import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertSimulationDtos.SimulationD
 import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertSimulationDtos.SimulationErrorDto;
 import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertSimulationDtos.SimulationRequest;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
+import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.MarketDataProviderLimits;
 import fr.ses10doigts.tradeIO5.service.expert.ExpertApiException;
@@ -57,13 +58,25 @@ public class ExpertSimulationService {
     private final DomainClock clock;
     private final ExpertAssets assets;
     private final ThreadPoolExecutor executor;
+    private final FullSimulationService full;
+    private final EpisodeResultStore episodeStore;
 
     private final ConcurrentMap<String, SimulationRecord> records = new ConcurrentHashMap<>();
     private final Map<Long, ArrayDeque<Instant>> submissions = new HashMap<>();
     private final Object bookkeeping = new Object();
 
+    /** Sans simulateur complet (types TREND / RAINBOW / AFFECTATION seulement). */
     public ExpertSimulationService(SimulationRequestResolver resolver, DailyDataLoader loader, SimulationEligibility eligibility,
                                    ExpertSimulationSettings settings, DomainClock clock, ExpertAssets assets) {
+        this(resolver, loader, eligibility, settings, clock, assets, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ExpertSimulationService(SimulationRequestResolver resolver, DailyDataLoader loader, SimulationEligibility eligibility,
+                                   ExpertSimulationSettings settings, DomainClock clock, ExpertAssets assets,
+                                   FullSimulationService full, EpisodeResultStore episodeStore) {
+        this.full = full;
+        this.episodeStore = episodeStore;
         this.resolver = resolver;
         this.loader = loader;
         this.eligibility = eligibility;
@@ -89,6 +102,9 @@ public class ExpertSimulationService {
     /** Valide et met en file ; renvoie l'identifiant (le calcul se poursuit en tâche de fond). */
     public SimulationCreatedDto startSimulation(ExpertContext ctx, SimulationRequest request) {
         SimulationType type = parseType(request.type());
+        if (type == SimulationType.FULL) {
+            return startFull(ctx, request);
+        }
         String asset = assets.requireAsset(request.assetSymbol());
         MarketDataSource requested = parseSource(request.provider());
         ResolvedSimulation resolved = resolver.resolve(ctx, type, asset, request);
@@ -97,23 +113,42 @@ public class ExpertSimulationService {
             throw insufficient(resolved.requiredPoints(), preferred == null ? 0 : MarketDataProviderLimits.maxD1Candles(preferred),
                     preferred == null ? null : preferred.name());
         }
+        return enqueue(ctx.user().getId(), type, asset, record -> run(record, resolved, request, preferred));
+    }
 
+    /** Simulateur complet : validation synchrone du wallet entier, puis calcul asynchrone avec les mêmes garde-fous. */
+    private SimulationCreatedDto startFull(ExpertContext ctx, SimulationRequest request) {
+        if (full == null) {
+            throw new IllegalStateException("Simulateur complet indisponible");
+        }
+        FullSimulationService.Plan plan = full.resolve(ctx, request.full());
+        User user = ctx.user();
+        return enqueue(user.getId(), SimulationType.FULL, FullSimulationService.WHOLE_WALLET, record -> runFull(record, plan, user));
+    }
+
+    /** Garde-fous communs : une simulation active par utilisateur, débit, remplacement par (type, actif), plafond, file bornée. */
+    private SimulationCreatedDto enqueue(Long owner, SimulationType type, String asset, java.util.function.Consumer<SimulationRecord> task) {
         SimulationRecord record;
         synchronized (bookkeeping) {
             Instant now = clock.now();
             purgeExpired(now);
-            Long owner = ctx.user().getId();
             if (records.values().stream().anyMatch(r -> r.ownerId.equals(owner) && r.state().isActive())) {
                 throw new ExpertApiException(ExpertApiException.Code.SIMULATION_ALREADY_RUNNING,
                         "Une simulation est déjà en cours : attendez son résultat ou libérez-la");
             }
             rateLimit(owner, now);
-            records.values().removeIf(r -> r.ownerId.equals(owner) && r.type == type && r.assetSymbol.equals(asset));
+            records.values().removeIf(r -> {
+                boolean same = r.ownerId.equals(owner) && r.type == type && r.assetSymbol.equals(asset);
+                if (same) {
+                    release(r);
+                }
+                return same;
+            });
             evictOldest(owner);
             record = new SimulationRecord(UUID.randomUUID().toString(), owner, type, asset, now);
             records.put(record.id, record);
             try {
-                executor.execute(() -> run(record, resolved, request, preferred));
+                executor.execute(() -> task.accept(record));
             } catch (RejectedExecutionException e) {
                 records.remove(record.id);
                 throw new ExpertApiException(ExpertApiException.Code.SIMULATION_BUSY, "Trop de simulations en attente : réessayez plus tard");
@@ -134,6 +169,7 @@ public class ExpertSimulationService {
         SimulationRecord record = find(ctx, id);
         record.cancel();
         records.remove(record.id);
+        release(record);
     }
 
     // ---------------------------------------------------------------- calcul
@@ -179,6 +215,33 @@ public class ExpertSimulationService {
         }
     }
 
+    private void runFull(SimulationRecord record, FullSimulationService.Plan plan, User user) {
+        try {
+            var outcome = full.compute(user, plan, new FullSimulationService.Hooks(record::loading, record::computing, record::cancelled));
+            if (outcome != null && !record.cancelled()) {
+                record.done(outcome, clock.now());
+            }
+        } catch (ExpertApiException e) {
+            record.fail(new SimulationErrorDto(e.getCode().name(), e.getMessage(), e.getDetails()), clock.now());
+        } catch (ExpertValidationException e) {
+            record.fail(new SimulationErrorDto("VALIDATION", e.getMessage(), e.getFields()), clock.now());
+        } catch (NoProviderAvailableException e) {
+            log.warn("Simulation complète {} : aucune donnée : {}", record.id, e.getMessage());
+            record.fail(new SimulationErrorDto("DATA_UNAVAILABLE", "Aucun provider ne sert les bougies d'un lien : " + e.getMessage(), null),
+                    clock.now());
+        } catch (RuntimeException e) {
+            log.error("Simulation complète {} en échec", record.id, e);
+            record.fail(new SimulationErrorDto("INTERNAL", "Simulation en échec", null), clock.now());
+        }
+    }
+
+    /** Libère le rejeu d'épisodes rattaché au résultat d'une simulation complète (même durée de vie que la simulation). */
+    private void release(SimulationRecord r) {
+        if (episodeStore != null && r.fullResult() != null && r.fullResult().episodes() != null) {
+            episodeStore.release(r.ownerId, r.fullResult().episodes().resultId());
+        }
+    }
+
     /** Bougies chronologiques sans la bougie du jour (UTC) encore ouverte. */
     private List<MarketData> closedCandles(DailyDataset daily) {
         Instant today = clock.now().truncatedTo(java.time.temporal.ChronoUnit.DAYS);
@@ -218,14 +281,23 @@ public class ExpertSimulationService {
     }
 
     private void purgeExpired(Instant now) {
-        records.values().removeIf(r -> r.finishedAt() != null && !r.finishedAt().plus(settings.resultTtl()).isAfter(now));
+        records.values().removeIf(r -> {
+            boolean expired = r.finishedAt() != null && !r.finishedAt().plus(settings.resultTtl()).isAfter(now);
+            if (expired) {
+                release(r);
+            }
+            return expired;
+        });
     }
 
     /** Libère le(s) plus ancien(s) résultat(s) de l'utilisateur pour tenir sous le plafond (la nouvelle simulation compte). */
     private void evictOldest(Long owner) {
         while (records.values().stream().filter(r -> r.ownerId.equals(owner)).count() >= settings.maxResultsPerUser()) {
             records.values().stream().filter(r -> r.ownerId.equals(owner)).min(Comparator.comparing(r -> r.createdAt))
-                    .ifPresent(r -> records.remove(r.id));
+                    .ifPresent(r -> {
+                        records.remove(r.id);
+                        release(r);
+                    });
         }
     }
 
@@ -240,7 +312,7 @@ public class ExpertSimulationService {
     private SimulationDto dto(SimulationRecord r) {
         Instant finished = r.finishedAt();
         return new SimulationDto(r.id, r.type.name(), r.assetSymbol, r.state().name(), r.progress(), r.createdAt, finished,
-                finished == null ? null : finished.plus(settings.resultTtl()), r.error(), r.result());
+                finished == null ? null : finished.plus(settings.resultTtl()), r.error(), r.result(), r.fullResult());
     }
 
     private static SimulationType parseType(String type) {

@@ -23,12 +23,27 @@ public class RainbowModulationControlService {
     /** Jeu complet des paramètres admin (un PUT remplace tout). */
     public record Params(BigDecimal regulationMarginPct, BigDecimal sellBoostMax, BigDecimal biasMax, BigDecimal powerMin,
                          BigDecimal powerMax, BigDecimal minBandWidthPts, BigDecimal modulationProductMax,
-                         Integer autonomyDays) {
+                         Integer autonomyDays, BigDecimal drawdownCapPrudentPct, BigDecimal drawdownCapBalancedPct,
+                         BigDecimal drawdownCapDynamicPct, BigDecimal drawdownCapFullPct) {
+
+        /** Jeu sans plafonds de drawdown : ceux-ci prennent leurs défauts (usage Java ; un PUT JSON doit les fournir). */
+        public Params(BigDecimal regulationMarginPct, BigDecimal sellBoostMax, BigDecimal biasMax, BigDecimal powerMin,
+                      BigDecimal powerMax, BigDecimal minBandWidthPts, BigDecimal modulationProductMax, Integer autonomyDays) {
+            this(regulationMarginPct, sellBoostMax, biasMax, powerMin, powerMax, minBandWidthPts, modulationProductMax,
+                    autonomyDays, defaultOf(ModulationDefaults.DRAWDOWN_CAP_PRUDENT_PCT),
+                    defaultOf(ModulationDefaults.DRAWDOWN_CAP_BALANCED_PCT), defaultOf(ModulationDefaults.DRAWDOWN_CAP_DYNAMIC_PCT),
+                    defaultOf(ModulationDefaults.DRAWDOWN_CAP_FULL_PCT));
+        }
+
+        private static BigDecimal defaultOf(String name) {
+            return ModulationDefaults.limit(name).defaultValue();
+        }
 
         public static Params of(RainbowModulationControl c) {
             return new Params(c.getRegulationMarginPct(), c.getSellBoostMax(), c.getBiasMax(), c.getPowerMin(),
                     c.getPowerMax(), c.getMinBandWidthPts(), c.getModulationProductMax(),
-                    c.getAutonomyDays());
+                    c.getAutonomyDays(), c.getDrawdownCapPrudentPct(), c.getDrawdownCapBalancedPct(),
+                    c.getDrawdownCapDynamicPct(), c.getDrawdownCapFullPct());
         }
     }
 
@@ -55,6 +70,10 @@ public class RainbowModulationControlService {
         control.setMinBandWidthPts(params.minBandWidthPts());
         control.setModulationProductMax(params.modulationProductMax());
         control.setAutonomyDays(params.autonomyDays());
+        control.setDrawdownCapPrudentPct(params.drawdownCapPrudentPct());
+        control.setDrawdownCapBalancedPct(params.drawdownCapBalancedPct());
+        control.setDrawdownCapDynamicPct(params.drawdownCapDynamicPct());
+        control.setDrawdownCapFullPct(params.drawdownCapFullPct());
         control.setUpdatedAt(clock.now());
         control.setUpdatedBy(by);
         RainbowModulationControl saved = repository.save(control);
@@ -77,6 +96,17 @@ public class RainbowModulationControlService {
             throw new IllegalArgumentException(ModulationDefaults.AUTONOMY_DAYS + " est obligatoire");
         }
         check(ModulationDefaults.AUTONOMY_DAYS, BigDecimal.valueOf(p.autonomyDays()));
+        check(ModulationDefaults.DRAWDOWN_CAP_PRUDENT_PCT, p.drawdownCapPrudentPct());
+        check(ModulationDefaults.DRAWDOWN_CAP_BALANCED_PCT, p.drawdownCapBalancedPct());
+        check(ModulationDefaults.DRAWDOWN_CAP_DYNAMIC_PCT, p.drawdownCapDynamicPct());
+        check(ModulationDefaults.DRAWDOWN_CAP_FULL_PCT, p.drawdownCapFullPct());
+        if (p.drawdownCapPrudentPct().compareTo(p.drawdownCapBalancedPct()) < 0
+                || p.drawdownCapBalancedPct().compareTo(p.drawdownCapDynamicPct()) < 0
+                || p.drawdownCapDynamicPct().compareTo(p.drawdownCapFullPct()) < 0) {
+            throw new IllegalArgumentException("Plafonds de drawdown : Prudent ≤ Équilibré ≤ Dynamique ≤ Full en amplitude requis, reçu "
+                    + p.drawdownCapPrudentPct().toPlainString() + " / " + p.drawdownCapBalancedPct().toPlainString() + " / "
+                    + p.drawdownCapDynamicPct().toPlainString() + " / " + p.drawdownCapFullPct().toPlainString());
+        }
         if (p.powerMin().compareTo(BigDecimal.ONE) > 0 || p.powerMax().compareTo(BigDecimal.ONE) < 0) {
             throw new IllegalArgumentException("powerMin ≤ 1 ≤ powerMax requis, reçu " + p.powerMin() + " / " + p.powerMax());
         }

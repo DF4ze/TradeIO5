@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-10
-empreinte: 6f0c38fa27
+modifié_le: 2026-11-15
+empreinte: 68fa43f941
 ---
 # Endpoints REST — Rainbow live (bindings, wallet, décisions, modulation, run)
 
@@ -67,8 +67,8 @@ Les réglages module les quantités des achats/ventes du Rainbow (cf. [`../archi
 |---|---|---|---|
 | GET | `/api/admin/limits` | ADMIN | `{parameters{maxOrderMultiplier, maxDayMultiplier, absoluteMaxOrderUsd, absoluteMaxDayUsd, feeWarnPct, feeRedPct : {value, defaultValue, max}}, updatedAt, updatedBy}` |
 | PUT | `/api/admin/limits` | ADMIN | Corps = jeu complet des 6 valeurs ⇒ même forme que le GET ; valeur absente, ≤ 0 ou au-delà du maximum, jour < ordre, avertissement > bloquant ⇒ 400 `{error}` ; journal `LIMITS` |
-| GET | `/api/admin/rainbow-modulation` | ADMIN | `{parameters{<nom>{value, defaultValue, min, max}}, updatedAt, updatedBy}` (8 paramètres, bornes absolues incluses) |
-| PUT | `/api/admin/rainbow-modulation` | ADMIN | Corps = jeu complet `{regulationMarginPct, sellBoostMax, biasMax, powerMin, powerMax, minBandWidthPts, modulationProductMax, autonomyDays}` ⇒ même forme que le GET ; hors bornes ou `powerMin ≤ 1 ≤ powerMax` violé ⇒ 400 `{error}` ; journal `MODULATION` |
-| GET | `/api/user/modulation-settings` | authentifié | `{settings{exposureMin, exposureMax, power, bias, regulationMarginPct} (stockés ou neutres 0/100/1/0 ; `regulationMarginPct` nul = défaut admin), limits{minBandWidthPts, powerMin, powerMax, biasMax, marginDefaultPct (défaut admin), marginMinPct, marginMaxPct (5–50)}}` |
+| GET | `/api/admin/rainbow-modulation` | ADMIN | `{parameters{<nom>{value, defaultValue, min, max}}, updatedAt, updatedBy}` (12 paramètres dont les 4 plafonds de drawdown `drawdownCap{Prudent,Balanced,Dynamic,Full}Pct`, bornes absolues incluses) |
+| PUT | `/api/admin/rainbow-modulation` | ADMIN | Corps = jeu complet `{regulationMarginPct, sellBoostMax, biasMax, powerMin, powerMax, minBandWidthPts, modulationProductMax, autonomyDays, drawdownCapPrudentPct, drawdownCapBalancedPct, drawdownCapDynamicPct, drawdownCapFullPct}` (plafonds en % négatifs, ordre Prudent ≤ Équilibré ≤ Dynamique ≤ Full en amplitude) ⇒ même forme que le GET ; hors bornes ou `powerMin ≤ 1 ≤ powerMax` violé ⇒ 400 `{error}` ; journal `MODULATION` |
+| GET | `/api/user/modulation-settings` | authentifié | `{settings{exposureMin, exposureMax, power, bias, regulationMarginPct} (stockés ou neutres 0/100/1/0 ; `regulationMarginPct` nul = défaut admin), limits{drawdownCapsPct{PRUDENT, BALANCED, DYNAMIC, FULL}, minBandWidthPts, powerMin, powerMax, biasMax, marginDefaultPct (défaut admin), marginMinPct, marginMaxPct (5–50)}}` |
 | PUT | `/api/user/modulation-settings` | authentifié | Corps `{exposureMin, exposureMax, power, bias, regulationMarginPct?}` (les quatre premiers obligatoires ; la marge de régulation, en % de la largeur de bande dans [5, 50], est facultative : absente = inchangée) ⇒ même forme que le GET ; validation contre les limites admin courantes, 400 `{error}` sinon ; `riskCursor` inchangé. Pris en compte à la passe suivante (valeurs clampées aux bornes admin à ce moment-là) |
 

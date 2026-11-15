@@ -32,6 +32,11 @@ public final class ModulationDefaults {
     public static final String MIN_BAND_WIDTH_PTS = "minBandWidthPts";
     public static final String MODULATION_PRODUCT_MAX = "modulationProductMax";
     public static final String AUTONOMY_DAYS = "autonomyDays";
+    /** Plafonds de drawdown du wallet par profil de départ, en % (négatifs) ; signalement du simulateur, aucun effet sur les ordres. */
+    public static final String DRAWDOWN_CAP_PRUDENT_PCT = "drawdownCapPrudentPct";
+    public static final String DRAWDOWN_CAP_BALANCED_PCT = "drawdownCapBalancedPct";
+    public static final String DRAWDOWN_CAP_DYNAMIC_PCT = "drawdownCapDynamicPct";
+    public static final String DRAWDOWN_CAP_FULL_PCT = "drawdownCapFullPct";
 
     /** Paramètres admin dans l'ordre d'affichage : nom => défaut + bornes absolues. */
     public static final Map<String, Limit> LIMITS;
@@ -46,6 +51,10 @@ public final class ModulationDefaults {
         limits.put(MIN_BAND_WIDTH_PTS, Limit.of("10", "5", "50"));
         limits.put(MODULATION_PRODUCT_MAX, Limit.of("2.5", "1", "5"));
         limits.put(AUTONOMY_DAYS, Limit.of("90", "7", "365"));
+        limits.put(DRAWDOWN_CAP_PRUDENT_PCT, Limit.of("-15", "-100", "0"));
+        limits.put(DRAWDOWN_CAP_BALANCED_PCT, Limit.of("-25", "-100", "0"));
+        limits.put(DRAWDOWN_CAP_DYNAMIC_PCT, Limit.of("-40", "-100", "0"));
+        limits.put(DRAWDOWN_CAP_FULL_PCT, Limit.of("-60", "-100", "0"));
         LIMITS = Collections.unmodifiableMap(limits);
     }
 

@@ -2,6 +2,7 @@ package fr.ses10doigts.tradeIO5.service.expert.simulation;
 
 import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertSimulationDtos.SimulationErrorDto;
 import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertSimulationDtos.SimulationResultDto;
+import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.FullSimulationResultDto;
 
 import java.time.Instant;
 
@@ -21,6 +22,7 @@ final class SimulationRecord {
     private volatile double progress;
     private volatile Instant finishedAt;
     private volatile SimulationResultDto result;
+    private volatile FullSimulationResultDto fullResult;
     private volatile SimulationErrorDto error;
     private volatile boolean cancelled;
 
@@ -48,6 +50,11 @@ final class SimulationRecord {
         return result;
     }
 
+    /** Résultat du simulateur complet (type FULL) ; nul pour les autres types. */
+    FullSimulationResultDto fullResult() {
+        return fullResult;
+    }
+
     SimulationErrorDto error() {
         return error;
     }
@@ -72,6 +79,13 @@ final class SimulationRecord {
 
     void done(SimulationResultDto outcome, Instant now) {
         result = outcome;
+        progress = 1.0;
+        finishedAt = now;
+        state = SimulationState.DONE;
+    }
+
+    void done(FullSimulationResultDto outcome, Instant now) {
+        fullResult = outcome;
         progress = 1.0;
         finishedAt = now;
         state = SimulationState.DONE;

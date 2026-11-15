@@ -21,7 +21,7 @@
   const byId = (id) => Object.entries(ASSETS).find(([, a]) => a.id === Number(id));
 
   let prefs = { theme: 'DARK', displayMode: 'SIMPLE', startingProfile: 'BALANCED', alertsDisabled: [], caps: { maxOrderUsd: null, maxDayUsd: null, absoluteMaxOrderUsd: 30, absoluteMaxDayUsd: 100 }, warnings: [] };
-  let modulation = { profile: 'BALANCED', settings: { exposureMin: 5, exposureMax: 95, power: 1, bias: 0, regulationMarginPct: null }, limits: { minBandWidthPts: 10, powerMin: 0.5, powerMax: 2, biasMax: 0.5, marginDefaultPct: 25, marginMinPct: 5, marginMaxPct: 50 } };
+  let modulation = { profile: 'BALANCED', settings: { exposureMin: 5, exposureMax: 95, power: 1, bias: 0, regulationMarginPct: null }, limits: { minBandWidthPts: 10, powerMin: 0.5, powerMax: 2, biasMax: 0.5, marginDefaultPct: 25, marginMinPct: 5, marginMaxPct: 50, drawdownCapsPct: { PRUDENT: -15, BALANCED: -25, DYNAMIC: -40, FULL: -60 } } };
 
   function summary(period) {
     const n = { '7d': 7, '30d': 30, '90d': 90, '1y': 365, all: 200 }[period] || 30;

@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.model.entity.modulation;
 
+import fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile;
 import fr.ses10doigts.tradeIO5.service.modulation.ModulationDefaults;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -12,6 +13,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.EnumMap;
+import java.util.Map;
 import java.time.Instant;
 
 /**
@@ -61,6 +64,19 @@ public class RainbowModulationControl {
     @Column(nullable = false)
     private int autonomyDays;
 
+    /** Plafonds de drawdown du wallet par profil de départ, en % négatifs (signalement du simulateur, aucun effet sur les ordres). */
+    @Column(nullable = false, precision = 10, scale = 4)
+    private BigDecimal drawdownCapPrudentPct;
+
+    @Column(nullable = false, precision = 10, scale = 4)
+    private BigDecimal drawdownCapBalancedPct;
+
+    @Column(nullable = false, precision = 10, scale = 4)
+    private BigDecimal drawdownCapDynamicPct;
+
+    @Column(nullable = false, precision = 10, scale = 4)
+    private BigDecimal drawdownCapFullPct;
+
     @Column(nullable = false)
     private Instant updatedAt;
 
@@ -78,7 +94,21 @@ public class RainbowModulationControl {
                 .minBandWidthPts(def(ModulationDefaults.MIN_BAND_WIDTH_PTS))
                 .modulationProductMax(def(ModulationDefaults.MODULATION_PRODUCT_MAX))
                 .autonomyDays(def(ModulationDefaults.AUTONOMY_DAYS).intValueExact())
+                .drawdownCapPrudentPct(def(ModulationDefaults.DRAWDOWN_CAP_PRUDENT_PCT))
+                .drawdownCapBalancedPct(def(ModulationDefaults.DRAWDOWN_CAP_BALANCED_PCT))
+                .drawdownCapDynamicPct(def(ModulationDefaults.DRAWDOWN_CAP_DYNAMIC_PCT))
+                .drawdownCapFullPct(def(ModulationDefaults.DRAWDOWN_CAP_FULL_PCT))
                 .updatedAt(now).updatedBy(by).build();
+    }
+
+    /** Plafonds de drawdown (en % négatifs) des 4 profils choisissables, dans l'ordre Prudent → Full ; {@code CUSTOM} n'en a pas. */
+    public Map<StartingProfile, BigDecimal> drawdownCaps() {
+        Map<StartingProfile, BigDecimal> caps = new EnumMap<>(StartingProfile.class);
+        caps.put(StartingProfile.PRUDENT, drawdownCapPrudentPct);
+        caps.put(StartingProfile.BALANCED, drawdownCapBalancedPct);
+        caps.put(StartingProfile.DYNAMIC, drawdownCapDynamicPct);
+        caps.put(StartingProfile.FULL, drawdownCapFullPct);
+        return caps;
     }
 
     private static BigDecimal def(String name) {

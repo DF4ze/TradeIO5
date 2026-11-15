@@ -48,6 +48,10 @@ public class AdminModulationService {
         view.put(ModulationDefaults.MIN_BAND_WIDTH_PTS, p.minBandWidthPts().doubleValue());
         view.put(ModulationDefaults.MODULATION_PRODUCT_MAX, p.modulationProductMax().doubleValue());
         view.put(ModulationDefaults.AUTONOMY_DAYS, p.autonomyDays());
+        view.put(ModulationDefaults.DRAWDOWN_CAP_PRUDENT_PCT, p.drawdownCapPrudentPct().doubleValue());
+        view.put(ModulationDefaults.DRAWDOWN_CAP_BALANCED_PCT, p.drawdownCapBalancedPct().doubleValue());
+        view.put(ModulationDefaults.DRAWDOWN_CAP_DYNAMIC_PCT, p.drawdownCapDynamicPct().doubleValue());
+        view.put(ModulationDefaults.DRAWDOWN_CAP_FULL_PCT, p.drawdownCapFullPct().doubleValue());
         return view;
     }
 }

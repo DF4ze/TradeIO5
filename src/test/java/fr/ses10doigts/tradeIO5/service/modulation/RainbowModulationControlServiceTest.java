@@ -175,4 +175,31 @@ class RainbowModulationControlServiceTest {
         rejected(new Params(null, d.sellBoostMax(), d.biasMax(), d.powerMin(), d.powerMax(), d.minBandWidthPts(),
                 d.modulationProductMax(), d.autonomyDays()));
     }
+
+    private static Params caps(String prudent, String balanced, String dynamic, String full) {
+        Params d = defaults();
+        return new Params(d.regulationMarginPct(), d.sellBoostMax(), d.biasMax(), d.powerMin(), d.powerMax(), d.minBandWidthPts(),
+                d.modulationProductMax(), d.autonomyDays(), bd(prudent), bd(balanced), bd(dynamic), bd(full));
+    }
+
+    @Test
+    @DisplayName("Plafonds de drawdown : défauts -15/-25/-40/-60, bornes [-100 ; 0] incluses, ordre Prudent ≤ Équilibré ≤ Dynamique ≤ Full")
+    void drawdownCaps() {
+        Params d = defaults();
+        assertEquals(0, bd("-15").compareTo(d.drawdownCapPrudentPct()));
+        assertEquals(0, bd("-25").compareTo(d.drawdownCapBalancedPct()));
+        assertEquals(0, bd("-40").compareTo(d.drawdownCapDynamicPct()));
+        assertEquals(0, bd("-60").compareTo(d.drawdownCapFullPct()));
+        accepted(caps("-100", "-100", "-100", "-100"));
+        accepted(caps("0", "0", "0", "0"));
+        accepted(caps("-10", "-10", "-10", "-10"));
+        rejected(caps("-15", "-25", "-40", "-100.01"));
+        rejected(caps("-15", "-25", "-40", "0.01"));
+        rejected(caps("-30", "-25", "-40", "-60"));
+        rejected(caps("-15", "-45", "-40", "-60"));
+        rejected(caps("-15", "-25", "-70", "-60"));
+        rejected(new Params(d.regulationMarginPct(), d.sellBoostMax(), d.biasMax(), d.powerMin(), d.powerMax(), d.minBandWidthPts(),
+                d.modulationProductMax(), d.autonomyDays(), null, d.drawdownCapBalancedPct(), d.drawdownCapDynamicPct(),
+                d.drawdownCapFullPct()));
+    }
 }

@@ -39,7 +39,7 @@
     const confirmDiscard = async () => !isDirty() || X.confirm('Modifications non enregistrées', ['Le brouillon en cours sera perdu.'], 'Abandonner', true);
 
     // ---- simulation
-    const sim = X.simPanel({
+    const simReal = opts.noSim ? null : X.simPanel({
       type: cfg.simType, kind: cfg.kind,
       build() {
         if (!st.header || !st.form) return null;
@@ -54,6 +54,8 @@
       onDone: () => X.memory.set(cfg.simType, st.asset, st.header.id, { provider: st.provider, range: st.range, signal: st.signal }),
     });
 
+    // opts.noSim : la simulation (une seule, mixant Up et Down) est portée par l'écran englobant ; opts.onChange prévient de toute entrée modifiée
+    const sim = simReal || { touch: () => { if (opts.onChange) opts.onChange(); }, mirrorButton: () => opts.mirrorButton(), setLabel() {}, setEnabled() {} };
     const simBtn = sim.mirrorButton();
     function refresh() { renderActions(); sim.touch(); }
 
@@ -222,10 +224,10 @@
     const SIDE_KEY = 'tio.expert.sidewidth', HIDE_KEY = 'tio.expert.sidehidden';
     const store = { get(k) { try { return g.localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { g.localStorage.setItem(k, v); } catch (e) { /* ignoré */ } } };
     if (root) root.classList.add('tio-main--wide');
-    const sideCard = ui.card('Preset ' + cfg.title + (rg ? (rg === 'UP' ? ' · Bull' : ' · Bear') : ''), presetBox);
+    const sideCard = ui.card('Preset ' + cfg.title + (rg ? (rg === 'UP' ? ' · Bull' : ' · Bear') : ''), ...(opts.noSim ? [selBox] : []), presetBox);
     sideCard.classList.add('xwork-side');
     const split = h('div', { class: 'xsplit', role: 'separator', 'aria-orientation': 'vertical', tabindex: '0', title: 'Glisser pour redimensionner (double-clic : taille par défaut)' }, h('i'));
-    const work = h('div', { class: 'xwork' });
+    const work = h('div', { class: opts.noSim ? 'stack' : 'xwork' });
     const toggle = h('button', { type: 'button', class: 'btn xwide-only' });
     function applySide() {
       const hidden = !opts.embedded && store.get(HIDE_KEY) === '1', w = Number(store.get(SIDE_KEY));
@@ -252,9 +254,12 @@
       setWidth(cur + (e.key === 'ArrowLeft' ? 24 : -24));
     });
     toggle.addEventListener('click', () => { store.set(HIDE_KEY, store.get(HIDE_KEY) === '1' ? '0' : '1'); applySide(); });
-    const selCard = ui.card(opts.ctx ? (rg === 'UP' ? 'Bull (Up)' : 'Bear (Down)') : 'Sélection', selBox), simCard = ui.card('Simulation', h('div', { class: 'row' }, rangeBox, toggle), sim.el);
-    selCard.classList.add('xwork-sel'); simCard.classList.add('xwork-sim');
-    TIO.mount(work, h('div', { class: 'xwork-left' }, selCard, simCard), sideCard, split);
+    if (opts.noSim) TIO.mount(work, sideCard);
+    else {
+      const selCard = ui.card(opts.ctx ? (rg === 'UP' ? 'Bull (Up)' : 'Bear (Down)') : 'Sélection', selBox), simCard = ui.card('Simulation', h('div', { class: 'row' }, rangeBox, toggle), sim.el);
+      selCard.classList.add('xwork-sel'); simCard.classList.add('xwork-sim');
+      TIO.mount(work, h('div', { class: 'xwork-left' }, selCard, simCard), sideCard, split);
+    }
     applySide();
     if (!opts.embedded) TIO.mount(root, ui.pageHeader('Espace Expert', cfg.title), X.mobileNotice(), X.tabs(cfg.tab), work);
     TIO.mount(presetBox, ui.loading(4));
@@ -271,6 +276,7 @@
         await loadPresets();
       } catch (e) { TIO.mount(presetBox, ui.error(e, () => g.location.reload())); }
     })();
+    work.simRef = () => (st.header && st.form ? (isDirty() ? { draft: cfg.draftOf(st.form.get()) } : { id: st.header.id }) : null);
     work.setProvider = (v) => { st.provider = v; sim.touch(); };
     work.setAsset = async (sym) => { st.asset = sym; try { await loadPresets(); } catch (e) { TIO.mount(presetBox, ui.error(e)); } };
     return work;
@@ -282,6 +288,7 @@
     const VIEWS = { up: ['UP'], down: ['DOWN'], both: ['UP', 'DOWN'] };
     const ctx = { assets: [], asset: null, provider: X.param('provider') || '', view: VIEWS[X.param('regime')] ? X.param('regime') : 'up' };
     let insts = [];
+    ctx.range = { mode: '24m', from: null, to: null };
     root.classList.add('tio-main--wide');
     const selBox = h('div', { class: 'xgrid' }), body = h('div');
     const assetInfo = () => ctx.assets.find((a) => a.symbol === ctx.asset) || null;
@@ -302,8 +309,28 @@
     }
     function render() {
       X.guard.dirty = () => false;
-      insts = VIEWS[ctx.view].map((r) => X.presetScreen(cfg, null, { regime: r, embedded: true, ctx }));
-      TIO.mount(body, insts.length > 1 ? h('div', { class: 'xdual' }, insts) : insts);
+      if (ctx.view !== 'both') {
+        insts = VIEWS[ctx.view].map((r) => X.presetScreen(cfg, null, { regime: r, embedded: true, ctx }));
+        TIO.mount(body, insts);
+        return;
+      }
+      // Les 2 : une seule simulation (type AFFECTATION, preset Up + preset Down) et un seul graphique ; deux blocs de réglages (Up puis Down)
+      const rangeBox = h('div');
+      const sim = X.simPanel({
+        type: 'AFFECTATION', kind: 'affectation',
+        build() {
+          const refs = insts.map((i) => i.simRef());
+          if (refs.some((r) => !r)) return null;
+          const rp = X.rangeParams(ctx.range);
+          const bodyReq = { type: 'AFFECTATION', assetSymbol: ctx.asset, provider: ctx.provider || null, from: rp.from, to: rp.to, rainbowUp: refs[0], rainbowDown: refs[1] };
+          return { body: bodyReq, key: JSON.stringify(bodyReq) };
+        },
+      });
+      insts = VIEWS.both.map((r) => X.presetScreen(cfg, null, { regime: r, embedded: true, ctx, noSim: true, onChange: () => sim.touch(), mirrorButton: () => sim.mirrorButton() }));
+      TIO.mount(rangeBox, X.rangeControl(ctx.range, () => sim.touch()));
+      const side = h('div', { class: 'xwork-side stack' }, insts);
+      const left = h('div', { class: 'xwork-left' }, ui.card('Simulation Bull + Bear', rangeBox, sim.el));
+      TIO.mount(body, h('div', { class: 'xwork xwork--mix' }, left, side, h('div', { class: 'xsplit', 'aria-hidden': 'true' }, h('i'))));
     }
     TIO.mount(root, ui.pageHeader('Espace Expert', cfg.title), X.mobileNotice(), X.tabs(cfg.tab), ui.card('Sélection', selBox), body);
     TIO.mount(body, ui.loading(4));

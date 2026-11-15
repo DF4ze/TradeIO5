@@ -9,6 +9,15 @@
   const profileLabel = (p) => (p === 'CUSTOM' ? 'Custom' : (PROFILES.find((x) => x.value === p) || {}).label || F.dash);
   const fail = (e) => TIO.toast(e.message, true);
 
+  /** Plafonds de drawdown par profil (réglage admin) : repère de risque du simulateur, aucun effet sur les ordres. */
+  function capsNote(state) {
+    const caps = state.drawdownCaps; if (!caps) return null;
+    const cur = state.profile && caps[state.profile];
+    return h('div', { class: 'note' }, 'Plafond de drawdown du wallet (repère du simulateur, aucun effet sur les ordres) : '
+      + PROFILES.map((p) => p.label + ' ' + F.pct(caps[p.value], 0)).join(' · ')
+      + (TIO.isNum(cur) ? ' — votre profil : ' + F.pct(cur, 0) + '.' : '.'));
+  }
+
   /** Profil de départ ; Custom n'est pas un choix : on y bascule dès qu'un paramètre de modulation est modifié. */
   function profileCard(state) {
     const holder = h('div', { class: 'stack' });
@@ -24,7 +33,8 @@
       TIO.mount(holder, [seg,
         custom ? h('div', { class: 'row' }, ui.chip(state.preview && cur !== 'CUSTOM' ? 'Custom (non enregistré)' : 'Custom', 'accent'),
           h('span', { class: 'muted small' }, 'Modulation modifiée à la main. Choisir un profil remplace la bande d\'exposition (puissance, biais et marge sont conservés).')) : null,
-        h('div', { class: 'note' }, PROFILES.map((p) => p.label + ' : ' + p.desc.toLowerCase()).join(' · '))]);
+        h('div', { class: 'note' }, PROFILES.map((p) => p.label + ' : ' + p.desc.toLowerCase()).join(' · ')),
+        capsNote(state)]);
     };
     state.paintProfile = paint;
     paint();
@@ -34,6 +44,7 @@
   function modulationCard(state) {
     const card = ui.widget('Modulation', () => TIO.get(MOD), (m) => {
       const L = m.limits, S = m.settings;
+      state.drawdownCaps = L.drawdownCapsPct; state.paintProfile();
       const cur = { min: S.exposureMin, max: S.exposureMax, power: S.power, bias: S.bias, margin: TIO.isNum(S.regulationMarginPct) ? S.regulationMarginPct : L.marginDefaultPct };
       const base = Object.assign({}, cur);
       state.profile = m.profile || state.profile;

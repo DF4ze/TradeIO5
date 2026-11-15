@@ -50,6 +50,10 @@ public class AdminModulationController {
             values.put(ModulationDefaults.MIN_BAND_WIDTH_PTS, c.getMinBandWidthPts());
             values.put(ModulationDefaults.MODULATION_PRODUCT_MAX, c.getModulationProductMax());
             values.put(ModulationDefaults.AUTONOMY_DAYS, c.getAutonomyDays());
+            values.put(ModulationDefaults.DRAWDOWN_CAP_PRUDENT_PCT, c.getDrawdownCapPrudentPct());
+            values.put(ModulationDefaults.DRAWDOWN_CAP_BALANCED_PCT, c.getDrawdownCapBalancedPct());
+            values.put(ModulationDefaults.DRAWDOWN_CAP_DYNAMIC_PCT, c.getDrawdownCapDynamicPct());
+            values.put(ModulationDefaults.DRAWDOWN_CAP_FULL_PCT, c.getDrawdownCapFullPct());
             Map<String, ParameterDto> parameters = new LinkedHashMap<>();
             values.forEach((name, value) -> {
                 ModulationDefaults.Limit limit = ModulationDefaults.limit(name);

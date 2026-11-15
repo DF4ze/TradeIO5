@@ -49,6 +49,14 @@ public class EpisodeResultStore {
         return s == null || !s.ownerId().equals(ownerId) ? null : s;
     }
 
+    /** Libère le rejeu de l'utilisateur (sans effet s'il est inconnu, expiré ou d'un autre utilisateur). */
+    public void release(Long ownerId, String id) {
+        Stored s = id == null ? null : store.get(id);
+        if (s != null && s.ownerId().equals(ownerId)) {
+            store.remove(id);
+        }
+    }
+
     private void purge(Instant now) {
         store.values().removeIf(s -> !s.createdAt().plus(settings.resultTtl()).isAfter(now));
     }

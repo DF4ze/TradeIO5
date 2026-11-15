@@ -7,5 +7,7 @@ public enum SimulationType {
     /** Un preset Rainbow sur un seul régime (UP ou DOWN) d'un Trend de référence ; hors régime, la barre est inactive. */
     RAINBOW,
     /** Trend + Rainbow UP + Rainbow DOWN : chaque barre active joue le jeu de son régime. */
-    AFFECTATION
+    AFFECTATION,
+    /** Simulateur complet : tous les liens d'un wallet rejoués ensemble (cash et exposition communs, frais), rejeu libre sur bougies D1. */
+    FULL
 }

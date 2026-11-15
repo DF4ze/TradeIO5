@@ -62,6 +62,7 @@ public class SimulationRequestResolver {
                     SimulationEligibility.requiredPoints(trend.params(), null, null), trend.provider());
             case RAINBOW -> rainbow(ctx, asset, request, affectation, trend);
             case AFFECTATION -> affectation(ctx, asset, request, affectation, trend);
+            case FULL -> throw new IllegalArgumentException("type FULL : résolu par FullSimulationService (wallet entier)");
         };
     }
 

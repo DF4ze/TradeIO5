@@ -2,7 +2,7 @@
 statut: journal
 sujet: Prompts du chantier « simulateur complet » — cadre commun, ordre des lots
 modifié_le: 2026-11-15
-empreinte: d74c89c364
+empreinte: 7800a9654b
 ---
 # Prompt — Simulateur complet de TradeIO-5 : cadre commun
 
@@ -15,7 +15,7 @@ Prompts d'implémentation, **à supprimer une fois le chantier livré** (les dé
 | 3 | [`prompt-simulateur-lot3-frais.md`](prompt-simulateur-lot3-frais.md) | cache global des frais (24 h) + frais, minimum d'ordre et carry dans le rejeu |
 | 4 | [`prompt-simulateur-lot4-episodes-gain.md`](prompt-simulateur-lot4-episodes-gain.md) | timeline des épisodes + répartition du gain (exposition / timing / frais) |
 | 5 | [`prompt-simulateur-lot5-ecran-expert.md`](prompt-simulateur-lot5-ecran-expert.md) | type de simulation libre (bougies D1) + écran Expert (graphiques, épisodes, répartition du gain) |
-| 6 | à écrire | drawdown max par profil (mesure + signalement) |
+| 6 | [`prompt-simulateur-lot6-drawdown-profil.md`](prompt-simulateur-lot6-drawdown-profil.md) | drawdown max du wallet, plafond par profil (réglage), signalement des dépassements |
 
 ## Contexte (valable pour tous les lots)
 

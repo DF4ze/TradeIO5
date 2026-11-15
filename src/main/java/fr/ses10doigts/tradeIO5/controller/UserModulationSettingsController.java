@@ -7,7 +7,9 @@ import fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile;
 import fr.ses10doigts.tradeIO5.model.entity.user.UserModulationHistory;
 import fr.ses10doigts.tradeIO5.service.UserModulationService;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
 import fr.ses10doigts.tradeIO5.service.modulation.ModulationDefaults;
@@ -44,12 +46,14 @@ public class UserModulationSettingsController {
 
     /** Limites admin en vigueur applicables aux réglages utilisateur. */
     public record LimitsDto(double minBandWidthPts, double powerMin, double powerMax, double biasMax, double marginDefaultPct,
-                            double marginMinPct, double marginMaxPct) {
+                            double marginMinPct, double marginMaxPct, Map<String, Double> drawdownCapsPct) {
         static LimitsDto of(RainbowModulationControl c) {
             var margin = ModulationDefaults.LIMITS.get(ModulationDefaults.REGULATION_MARGIN_PCT);
+            Map<String, Double> caps = new LinkedHashMap<>();
+            c.drawdownCaps().forEach((profile, cap) -> caps.put(profile.name(), cap.doubleValue()));
             return new LimitsDto(c.getMinBandWidthPts().doubleValue(), c.getPowerMin().doubleValue(),
                     c.getPowerMax().doubleValue(), c.getBiasMax().doubleValue(), c.getRegulationMarginPct().doubleValue(),
-                    margin.min().doubleValue(), margin.max().doubleValue());
+                    margin.min().doubleValue(), margin.max().doubleValue(), caps);
         }
     }
 

@@ -1,8 +1,8 @@
 ---
 statut: journal
 sujet: Optimiser TradeIO vers un mode Full Autonome — définition du bon paramétrage, instrument de mesure, méthode, agencement des briques
-modifié_le: 2026-11-14
-empreinte: 02575de365
+modifié_le: 2026-11-15
+empreinte: 58b9f55d6f
 ---
 # Étude — Optimiser TradeIO vers un mode « Full Autonome »
 
@@ -166,7 +166,7 @@ Garde-fous communs : tout changement automatique est borné, journalisé, réver
 
 ## 10. Décisions de Clem (2026-11-14)
 
-- **Objectif** : valeur finale maximale du wallet sous plafond de drawdown — validé. Valeur du drawdown maximal : à fixer.
+- **Objectif** : valeur finale maximale du wallet sous plafond de drawdown — validé. Plafonds par profil fixés : voir [`../decisions/espace-expert.md`](../decisions/espace-expert.md).
 - **Référence principale** : DCA fixe de même budget (le HODL à exposition constante reste affiché en lecture secondaire).
 - **Capital du bench** : capital de départ seul, sans apports.
 - **Premier chantier** : le simulateur complet (rejeu intégral, §3).

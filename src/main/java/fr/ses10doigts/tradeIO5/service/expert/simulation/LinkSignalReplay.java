@@ -97,7 +97,7 @@ public final class LinkSignalReplay {
         Double override = cfg.priceOverride().get(day);
         double price = override != null && override > 0 ? override : dayClose;
         if (i > cfg.startIdx() && cfg.rebootstrapDays().contains(day)) {
-            int es = Math.min(firstIndexOnOrAfter(ds, day.minusMonths(cfg.windowMonths())), i);
+            int es = Math.min(ReplayDays.firstIndexOnOrAfter(ds, day.minusMonths(cfg.windowMonths())), i);
             RainbowAtrReplay.Result reboot = RainbowAtrReplay.runFull(ds, sets, setOfBar, es, i - 1);
             state = reboot.finalState();
             virtual = reboot.finalPosition();
@@ -172,15 +172,5 @@ public final class LinkSignalReplay {
         }
         return RainbowAtrStrategy.step(state, RainbowAtrBand.of(close, sma, atr, set.tuning()), high, ath, position, set.tuning(),
                 set.globals(), active);
-    }
-
-    private static int firstIndexOnOrAfter(RainbowAtrDataset ds, LocalDate from) {
-        long fromMillis = from.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
-        for (int k = 0; k < ds.size(); k++) {
-            if (ds.time(k) >= fromMillis) {
-                return k;
-            }
-        }
-        return ds.size();
     }
 }

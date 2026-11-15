@@ -130,4 +130,23 @@ class MultiLinkReplayEngineTest {
         assertEquals(0.0, free.totalCostUsdc());
         assertTrue(withFees.costDays().stream().filter(c -> c.outcome().equals("OK")).allMatch(c -> c.costPct() > 0.5));
     }
+
+    @Test
+    @DisplayName("Plafonds de drawdown : décisions et valeurs du rejeu identiques quelle que soit leur valeur")
+    void drawdownCapsDoNotAffectReplay() {
+        RainbowModulationControl tight = RainbowModulationControl.defaults(Instant.EPOCH, null);
+        tight.setDrawdownCapPrudentPct(new java.math.BigDecimal("-1"));
+        tight.setDrawdownCapBalancedPct(new java.math.BigDecimal("-1"));
+        tight.setDrawdownCapDynamicPct(new java.math.BigDecimal("-1"));
+        tight.setDrawdownCapFullPct(new java.math.BigDecimal("-1"));
+        MultiLinkReplayEngine.Result a = run(1e6, List.of(link(1, "BTC", 1)));
+        MultiLinkReplayEngine.Result b = MultiLinkReplayEngine.run(new MultiLinkReplayEngine.Input(List.of(link(1, "BTC", 1)), 1e6,
+                ModulationSettings.neutral(), tight, Map.of(), Map.of(), Map.of(), Map.of()));
+        assertEquals(a.linkDays().size(), b.linkDays().size());
+        for (int i = 0; i < a.linkDays().size(); i++) {
+            assertEquals(a.linkDays().get(i).action(), b.linkDays().get(i).action(), "jour " + i);
+            assertEquals(a.linkDays().get(i).amountUsdc(), b.linkDays().get(i).amountUsdc(), "jour " + i);
+        }
+        assertEquals(a.finalValue(), b.finalValue());
+    }
 }

@@ -26,7 +26,9 @@ public class ExpertApiException extends RuntimeException {
         /** File d'attente des simulations saturée. */
         SIMULATION_BUSY(HttpStatus.TOO_MANY_REQUESTS),
         /** Historique insuffisant pour les réglages demandés (points requis / disponibles dans les détails). */
-        ELIGIBILITY_INSUFFICIENT(HttpStatus.UNPROCESSABLE_ENTITY);
+        ELIGIBILITY_INSUFFICIENT(HttpStatus.UNPROCESSABLE_ENTITY),
+        /** Bougies D1 du lien servies par un autre provider que sa source (pas de fallback silencieux du simulateur complet). */
+        SIMULATION_DATA_SUBSTITUTED(HttpStatus.UNPROCESSABLE_ENTITY);
 
         private final HttpStatus status;
 

@@ -563,11 +563,18 @@ details.fold > .fold-body { padding: 0 0 6px 48px; }
 .xmodal-foot { justify-content: flex-end; }
 @media (max-width: 700px) { .xc-body { min-width: 0; } .xgroup { padding: 10px; } }
 
-/* Espace Expert · Rainbow « Les 2 » : deux colonnes Bull / Bear (réglages empilés sous la sélection, sans séparateur) dès 1200 px */
-.xdual { display: grid; gap: var(--gap); grid-template-columns: minmax(0, 1fr); align-items: start; }
-@media (min-width: 1200px) { .xdual { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.xdual > * { min-width: 0; }
-.xdual .xwork { grid-template-columns: minmax(0, 1fr); grid-template-areas: "sel" "side" "sim"; }
-.xdual .xwork-left { display: contents; }
-.xdual .xsplit, .xdual .xwide-only { display: none; }
-.xdual .xwork-side { position: static; max-height: none; overflow: visible; }
+/* Espace Expert · Rainbow « Les 2 » : une simulation à gauche, les deux blocs de réglages (Up, Down) empilés à droite */
+.xwork--mix .xsplit { pointer-events: none; }
+
+/* Espace Expert · Simulateur (expert-sim-chart.js) : panneaux synchronisés et piste d'épisodes colorée par PnL */
+.xsim { display: flex; flex-direction: column; gap: 8px; }
+.xsim__panel[hidden] { display: none; }
+.xsim__title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-bottom: 2px; }
+.xsim__body { width: 100%; }
+.xsim__info { margin-left: 6px; }
+.xsim__track { position: relative; height: 28px; overflow: hidden; border-radius: 6px; background: rgba(128, 128, 128, .10); border: 1px solid var(--line); }
+.xsim__seg { position: absolute; top: 2px; bottom: 2px; border-radius: 3px; cursor: pointer; box-sizing: border-box; border: 1px solid transparent; }
+.xsim__seg.is-hl, .xsim__seg:hover { border-color: var(--text); }
+.xsim__row { cursor: pointer; }
+.xsim__row.is-hl, .tbl tr.is-hl { background: rgba(128, 128, 128, .16); }
+.xsim__details > summary { cursor: pointer; padding: 4px 0; }

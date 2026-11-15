@@ -140,6 +140,21 @@ public class UserTradingSettingsService {
         return Math.clamp(marginPct, limit.min().doubleValue(), limit.max().doubleValue());
     }
 
+    /**
+     * Valide des réglages de modulation (surcharges d'une simulation) contre les bornes admin courantes, sans rien écrire ;
+     * {@link IllegalArgumentException} sinon (même contrôle que {@link #setModulationSettings}).
+     */
+    public void validateModulation(double exposureMin, double exposureMax, double power, double bias, Double regulationMarginPct) {
+        validate(modulationControl.current(), exposureMin, exposureMax, power, bias);
+        if (regulationMarginPct != null) {
+            var limit = ModulationDefaults.LIMITS.get(ModulationDefaults.REGULATION_MARGIN_PCT);
+            if (!Double.isFinite(regulationMarginPct) || !limit.contains(java.math.BigDecimal.valueOf(regulationMarginPct))) {
+                throw new IllegalArgumentException("Marge de régulation dans [" + limit.min() + ", " + limit.max() + "] % requise, reçu "
+                        + regulationMarginPct);
+            }
+        }
+    }
+
     private static ModulationSettings storedOrNeutral(UserTradingSettings s) {
         return new ModulationSettings(
                 s.getExposureMin() == null ? ModulationDefaults.NEUTRAL_EXPOSURE_MIN : s.getExposureMin(),

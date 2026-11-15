@@ -76,6 +76,8 @@
       case 'SIMULATION_ALREADY_RUNNING': return 'Une simulation est déjà en cours : attendez sa fin.';
       case 'SIMULATION_RATE_LIMITED': return 'Trop de simulations rapprochées : patientez un instant.';
       case 'SIMULATION_BUSY': return 'File de simulations saturée : réessayez dans un moment.';
+      case 'SIMULATION_DATA_SUBSTITUTED': return 'Bougies d’un autre provider que celui du lien : simulation refusée (données non fiables).';
+      case 'SIMULATION_NOT_FOUND': return 'Résultat expiré : relancez la simulation.';
       case 'EXPERT_MODE_REQUIRED': return "L'Espace Expert exige le mode d'affichage Expert (Réglages utilisateur).";
       case 'PRESET_SYSTEM_READ_ONLY': return 'Preset système : dupliquez-le pour l’adapter.';
       case 'VALIDATION': return 'Réglages invalides : voir les champs signalés.';
@@ -269,7 +271,7 @@
 
   X.tabs = function (active) {
     const keep = () => { const q = new URLSearchParams(); ['asset', 'provider', 'regime'].forEach((k) => { if (X.param(k)) q.set(k, X.param(k)); }); const s = q.toString(); return s ? '?' + s : ''; };
-    return h('nav', { class: 'xtabs', 'aria-label': 'Espace Expert' }, [['trend', 'Trend'], ['rainbow', 'Rainbow'], ['affectation', 'Affectation']].map(([k, l]) =>
+    return h('nav', { class: 'xtabs', 'aria-label': 'Espace Expert' }, [['trend', 'Trend'], ['rainbow', 'Rainbow'], ['affectation', 'Affectation'], ['simulateur', 'Simulateur']].map(([k, l]) =>
       h('a', { class: 'xtab', href: '/app/expert/' + k + keep(), 'aria-current': k === active ? 'page' : null, onclick: (e) => { e.preventDefault(); if (k !== active) X.go('/app/expert/' + k + keep()); } }, l)));
   };
   X.mobileNotice = () => h('div', { class: 'banner banner--warn xmobile', role: 'note' }, "Vue incomplète sur téléphone : l'Espace Expert se lit et se règle mieux sur un PC.");
@@ -312,7 +314,7 @@
         for (;;) {
           if (stop) return;
           const sim = await X.req('GET', API + '/simulations/' + id);
-          if (sim.state === 'DONE') { cb.onDone(sim.result); return; }
+          if (sim.state === 'DONE') { cb.onDone(sim.fullResult || sim.result); return; }
           if (sim.state === 'FAILED' || sim.state === 'CANCELLED') {
             const er = sim.error;
             cb.onError(er ? new XError(422, { error: er.message, code: er.code, details: er.details }) : new XError(500, { error: 'Simulation interrompue' }));

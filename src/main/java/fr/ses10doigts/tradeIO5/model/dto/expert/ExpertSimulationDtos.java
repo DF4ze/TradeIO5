@@ -34,13 +34,19 @@ public final class ExpertSimulationDtos {
     /**
      * Demande de simulation. {@code type} : TREND | RAINBOW | AFFECTATION. {@code provider} : source tentée en premier (défaut :
      * provider de référence du preset, sinon défauts de l'actif). {@code from} / {@code to} : plage (défaut : 24 derniers mois).
-     * TREND : {@code trend}. RAINBOW : {@code rainbow} + {@code signal} (UP | DOWN) + {@code trend} de référence. AFFECTATION :
+     * FULL : {@code full} seul (wallet entier, voir {@link FullSimulationDtos}). TREND : {@code trend}. RAINBOW : {@code rainbow} + {@code signal} (UP | DOWN) + {@code trend} de référence. AFFECTATION :
      * {@code trend}, {@code rainbowUp}, {@code rainbowDown}. Toute référence omise prend celle de l'Affectation de l'utilisateur,
      * à défaut le preset système de base.
      */
     public record SimulationRequest(String type, String assetSymbol, String provider, LocalDate from, LocalDate to,
                                     TrendRef trend, RainbowRef rainbow, String signal, RainbowRef rainbowUp,
-                                    RainbowRef rainbowDown) {
+                                    RainbowRef rainbowDown, FullSimulationDtos.FullRequest full) {
+
+        /** Types TREND / RAINBOW / AFFECTATION (sans simulateur complet). */
+        public SimulationRequest(String type, String assetSymbol, String provider, LocalDate from, LocalDate to, TrendRef trend,
+                                 RainbowRef rainbow, String signal, RainbowRef rainbowUp, RainbowRef rainbowDown) {
+            this(type, assetSymbol, provider, from, to, trend, rainbow, signal, rainbowUp, rainbowDown, null);
+        }
     }
 
     public record SimulationCreatedDto(String id, String state) {
@@ -51,7 +57,14 @@ public final class ExpertSimulationDtos {
 
     /** État d'une simulation : progression ({@code 0..1}) puis résultat ({@code DONE}) ou erreur ({@code FAILED}). */
     public record SimulationDto(String id, String type, String assetSymbol, String state, double progress, Instant createdAt,
-                                Instant finishedAt, Instant expiresAt, SimulationErrorDto error, SimulationResultDto result) {
+                                Instant finishedAt, Instant expiresAt, SimulationErrorDto error, SimulationResultDto result,
+                                FullSimulationDtos.FullSimulationResultDto fullResult) {
+
+        /** Types TREND / RAINBOW / AFFECTATION (sans résultat du simulateur complet). */
+        public SimulationDto(String id, String type, String assetSymbol, String state, double progress, Instant createdAt,
+                             Instant finishedAt, Instant expiresAt, SimulationErrorDto error, SimulationResultDto result) {
+            this(id, type, assetSymbol, state, progress, createdAt, finishedAt, expiresAt, error, result, null);
+        }
     }
 
     /** Éligibilité d'un provider : {@code available} = bougies D1 déjà en cache, {@code maxDepth} = profondeur servable (nul = illimitée). */

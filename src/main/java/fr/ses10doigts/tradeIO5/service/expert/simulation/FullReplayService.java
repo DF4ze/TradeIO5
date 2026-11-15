@@ -15,7 +15,6 @@ import fr.ses10doigts.tradeIO5.model.entity.modulation.RainbowModulationControl;
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowAthReferenceRepository;
 import fr.ses10doigts.tradeIO5.repository.execution.RainbowLiveOrderPlanRepository;
-import fr.ses10doigts.tradeIO5.service.market.instrument.FeeTest;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRunRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository;
@@ -39,7 +38,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -108,9 +106,8 @@ public class FullReplayService {
     private final DomainClock clock;
     private final UserTradingSettingsService settingsService;
     private final RainbowModulationControlService modulationControl;
-    private final ReplayScheduleBuilder scheduleBuilder;
+    private final ReplayCostsFactory costsFactory;
     private final RainbowLiveOrderPlanRepository planRepository;
-    private final FeeTest feeTest;
     private final EpisodeResultStore episodeStore;
 
     /** Données d'un lien nécessaires au rejeu et à la comparaison. */
@@ -263,7 +260,7 @@ public class FullReplayService {
                                                Map<LocalDate, ModulationSettings> settingsByDay,
                                                Map<LocalDate, MultiLinkReplayEngine.Pin> pinned, List<String> notes) {
         try {
-            BuiltCosts built = buildCosts(links);
+            ReplayCostsFactory.Built built = buildCosts(links);
             OrderReplay.Schedule schedule = built.schedule();
             MultiLinkReplayEngine.Result costed = MultiLinkReplayEngine.run(new MultiLinkReplayEngine.Input(engineLinks, cash0,
                     settings, limits, settingsByDay, pinned, Map.of(), Map.of(), built.costs()));
@@ -335,21 +332,7 @@ public class FullReplayService {
                 su.settings(), su.limits(), su.settingsByDay(), Map.of(), Map.of(), Map.of(), costs));
         notes.add("Rejeu libre (wallet simulé en continu) " + (costs == null ? "sans" : "avec") + " frais ; PnL au prix moyen pondéré, "
                 + "position d'ouverture valorisée au cours du 1er jour de la plage ; actifs détenus sans lien exclus.");
-        Map<String, Map<LocalDate, Double>> expo = new HashMap<>();
-        for (MultiLinkReplayEngine.WalletDay w : result.walletDays()) {
-            w.value().forEach((asset, v) -> expo.computeIfAbsent(asset, k -> new HashMap<>())
-                    .put(w.day(), w.totalValue() > 0 ? 100.0 * v / w.totalValue() : null));
-        }
-        Map<Long, List<MultiLinkReplayEngine.TradeDay>> byLink = new java.util.LinkedHashMap<>();
-        result.trades().forEach(t -> byLink.computeIfAbsent(t.bindingId(), k -> new ArrayList<>()).add(t));
-        List<EpisodeTimeline.AssetSeries> series = new ArrayList<>();
-        for (MultiLinkReplayEngine.Link link : su.engineLinks()) {
-            List<MultiLinkReplayEngine.TradeDay> days = byLink.getOrDefault(link.slot().bindingId(), List.of());
-            if (!days.isEmpty()) {
-                series.add(new EpisodeTimeline.AssetSeries(link.slot().assetSymbol(), days, link.qty0(),
-                        expo.getOrDefault(link.slot().assetSymbol(), Map.of())));
-            }
-        }
+        List<EpisodeTimeline.AssetSeries> series = EpisodeSeries.build(result, su.engineLinks());
         LocalDate first = result.walletDays().isEmpty() ? su.firstDay() : result.walletDays().getFirst().day();
         LocalDate last = result.walletDays().isEmpty() ? su.lastDay() : result.walletDays().getLast().day();
         EpisodeResultStore.Stored stored = episodeStore.put(user.getId(), series, first, last, notes);
@@ -370,34 +353,17 @@ public class FullReplayService {
         return report(stored, f, t);
     }
 
-    private static EpisodeDtos.EpisodeReportDto report(EpisodeResultStore.Stored stored, LocalDate from, LocalDate to) {
+    static EpisodeDtos.EpisodeReportDto report(EpisodeResultStore.Stored stored, LocalDate from, LocalDate to) {
         EpisodeTimeline.Report r = EpisodeTimeline.compute(stored.series(), from, to);
         return new EpisodeDtos.EpisodeReportDto(stored.id(), from, to, r.episodes(), r.aggregates(), r.gain(), r.pnlTotal(),
                 stored.notes());
     }
 
-    /** Barème figé et paramètres d'ordre (minimum, route) des liens : seul appel réseau du rejeu avec coûts. */
-    private record BuiltCosts(MultiLinkReplayEngine.Costs costs, OrderReplay.Schedule schedule) {
-    }
-
-    private BuiltCosts buildCosts(List<LinkData> links) {
-        RainbowLiveBinding first = links.getFirst().binding();
-        var wallet = first.getWallet();
+    /** Barème figé et paramètres d'ordre des liens : seul appel réseau du rejeu avec coûts ({@link ReplayCostsFactory}). */
+    private ReplayCostsFactory.Built buildCosts(List<LinkData> links) {
         double ref = links.stream().flatMap(l -> l.runs().stream()).map(r -> nz(r.getLive().getActionAmountUsdc()))
                 .max(Double::compare).orElse(0.0);
-        OrderReplay.Schedule schedule = scheduleBuilder.build(wallet.getWebProviderCode(), wallet.getCredential(),
-                links.stream().map(l -> l.slot().assetSymbol()).toList(), java.math.BigDecimal.valueOf(ref > 0 ? ref : 100.0));
-        Map<Long, Double> minBuy = new HashMap<>();
-        Map<Long, String> route = new HashMap<>();
-        for (LinkData l : links) {
-            if (l.binding().getMinBuyUsd() != null) {
-                minBuy.put(l.slot().bindingId(), l.binding().getMinBuyUsd());
-            }
-            if (l.binding().getPreferredRoute() != null) {
-                route.put(l.slot().bindingId(), l.binding().getPreferredRoute());
-            }
-        }
-        return new BuiltCosts(new MultiLinkReplayEngine.Costs(new OrderReplay(schedule, feeTest), minBuy, route), schedule);
+        return costsFactory.build(links.stream().map(LinkData::binding).toList(), ref);
     }
 
     /** Charge candles, config, ATH stocké, ré-amorçages et position initiale d'un lien. */
@@ -432,15 +398,15 @@ public class FullReplayService {
         }
         List<MarketData> candles = daily.dataset().getMarketDatas();
         RainbowAtrDataset ds = RainbowAtrDataset.fromMarketData(candles);
-        int startIdx = indexOfDay(ds, firstDay);
-        int endIdx = lastIndexOnOrBefore(ds, lastDay);
+        int startIdx = ReplayDays.indexOfDay(ds, firstDay);
+        int endIdx = ReplayDays.lastIndexOnOrBefore(ds, lastDay);
         if (startIdx < 0 || endIdx < startIdx) {
             throw new IllegalStateException("Bougie D1 du " + firstDay + " absente de la fenêtre chargée (" + candles.size()
                     + " bougies, source " + source + ") pour " + asset + " : période hors fenêtre de "
                     + RainbowLiveDefaultPresets.D1_LOOKBACK_CANDLES + " jours");
         }
         int windowMonths = configResolver.analysisWindowMonths(affectation);
-        int engineStart = Math.min(firstIndexOnOrAfter(ds, firstDay.minusMonths(windowMonths)), startIdx);
+        int engineStart = Math.min(ReplayDays.firstIndexOnOrAfter(ds, firstDay.minusMonths(windowMonths)), startIdx);
         // ATH de référence = celui stocké en base (L3 du live), jour par jour ; jour sans ligne => ATH de la fenêtre D1
         Map<LocalDate, AthReference> athByDay = new HashMap<>();
         for (LocalDate d = firstDay; !d.isAfter(lastDay); d = d.plusDays(1)) {
@@ -640,39 +606,6 @@ public class FullReplayService {
             throw new ExpertApiException(ExpertApiException.Code.BINDING_NOT_FOUND, "Aucun lien pour le wallet #" + walletId);
         }
         return inWallet;
-    }
-
-    private static int indexOfDay(RainbowAtrDataset ds, LocalDate day) {
-        for (int i = 0; i < ds.size(); i++) {
-            if (dayOf(ds.time(i)).equals(day)) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private static int lastIndexOnOrBefore(RainbowAtrDataset ds, LocalDate day) {
-        int last = -1;
-        for (int i = 0; i < ds.size(); i++) {
-            if (!dayOf(ds.time(i)).isAfter(day)) {
-                last = i;
-            }
-        }
-        return last;
-    }
-
-    private static int firstIndexOnOrAfter(RainbowAtrDataset ds, LocalDate from) {
-        long fromMillis = from.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
-        for (int i = 0; i < ds.size(); i++) {
-            if (ds.time(i) >= fromMillis) {
-                return i;
-            }
-        }
-        return ds.size();
-    }
-
-    private static LocalDate dayOf(long millis) {
-        return Instant.ofEpochMilli(millis).atOffset(ZoneOffset.UTC).toLocalDate();
     }
 
     private static double nz(Double v) {
