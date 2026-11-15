@@ -4,6 +4,8 @@ import fr.ses10doigts.tradeIO5.model.entity.doctor.DoctorStatus;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -27,6 +29,7 @@ public class DoctorService {
     private final List<DoctorCheck> checks;
     private final AlarmService alarmService;
     private final DomainClock clock;
+    private final Environment environment;
 
     private volatile DoctorReport last;
 
@@ -34,9 +37,13 @@ public class DoctorService {
     public synchronized DoctorReport runAll() {
         List<DoctorReport.Entry> entries = new ArrayList<>();
         Set<String> evaluated = new HashSet<>();
+        boolean recette = environment.acceptsProfiles(Profiles.of(DoctorDefaults.RECETTE_PROFILE));
         for (DoctorCheck check : checks) {
             try {
                 for (CheckResult r : check.run()) {
+                    if (recette && ignoredInRecette(check.id(), r.subject())) {
+                        continue;
+                    }
                     entries.add(entry(check, r.subject(), r.status(), r.message()));
                 }
                 evaluated.add(check.id());
@@ -55,6 +62,11 @@ public class DoctorService {
         last = report;
         log.debug("Docteur : passe terminée, pire statut {} ({} verdict(s))", report.worst(), entries.size());
         return report;
+    }
+
+    /** En recette, certains verdicts sont la norme (crons coupés, clé maître absente, ERROR des smoke tests) : pas d'alarme. */
+    static boolean ignoredInRecette(String checkId, String subject) {
+        return DoctorDefaults.RECETTE_IGNORED.contains(checkId) || DoctorDefaults.RECETTE_IGNORED.contains(checkId + ":" + subject);
     }
 
     /** Dernier rapport ; lance une première passe s'il n'y en a pas encore. */

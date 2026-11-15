@@ -34,7 +34,7 @@ Un contrôle qui lève une exception produit un WARN sujet `_contrôle`. Seuils 
 - Les alarmes résolues et les `job_run` sont purgés après 90 jours (`JobRunPurgeJob`).
 
 ## Exécution
-`DoctorJob` (premier passage 60 s après le démarrage, puis toutes les 5 min) appelle `DoctorService.runAll` (synchronisé). Propriétés : `tradeio.doctor.interval-ms`, `tradeio.doctor.initial-delay-ms`, `tradeio.doctor.purge-cron`, `tradeio.doctor.expected-jobs`. Les profils sans crons (dev) doivent surcharger `expected-jobs`.
+`DoctorJob` (premier passage 60 s après le démarrage, puis toutes les 5 min) appelle `DoctorService.runAll` (synchronisé). Propriétés : `tradeio.doctor.interval-ms`, `tradeio.doctor.initial-delay-ms`, `tradeio.doctor.purge-cron`, `tradeio.doctor.expected-jobs`. Les profils sans crons (dev) doivent surcharger `expected-jobs`. **Profil `recette`** : `DoctorService` ignore, sans verdict ni alarme, `JOB_SCHEDULE` (crons coupés), `EXECUTION_STATE:master-key` (clé maître absente) et `LOG_ERRORS` (ERROR attendues : clé maître, 401 des smoke tests ; la recette surveille son journal elle-même) — `DoctorDefaults.RECETTE_IGNORED`. Les autres contrôles restent actifs.
 
 ## API et interface
 Endpoints `/api/admin/doctor/*` : [`api/rest-endpoints.md`](../api/rest-endpoints.md). Ack et report journalisés (`AdminAction.DOCTOR`, cible `alarm:<id>`).

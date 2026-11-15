@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-11
 modifié_le: 2026-11-15
-empreinte: c3304101b0
+empreinte: 07f5524e2e
 ---
 # Flyway et défauts d'initialisation
 
@@ -10,7 +10,7 @@ Vérifié le : 2026-11-11 (`pom.xml`, `application.properties`, `db/migration/`,
 
 ## État
 
-Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11) : `spring.flyway.enabled=true`, `baseline-on-migrate=true`, `baseline-version=1` (`application.properties`), `spring.jpa.hibernate.ddl-auto=validate` (`application-dev/prod.properties`, gitignorés ; le fichier externe `/home/oklm/TradeIO/application-prod.properties` prime en prod). Les tests gardent `spring.flyway.enabled=false` (H2 `create-drop`).
+Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11 ; prod à la version **V4** depuis le 2026-11-15) : `spring.flyway.enabled=true`, `baseline-on-migrate=true`, `baseline-version=1` (`application.properties`), `spring.jpa.hibernate.ddl-auto=validate` (`application-dev/prod.properties`, gitignorés ; le fichier externe `/home/oklm/TradeIO/application-prod.properties` prime en prod). Les tests gardent `spring.flyway.enabled=false` (H2 `create-drop`).
 
 - Base **vide** : Flyway applique `V1__init.sql` puis les migrations suivantes.
 - Base **existante sans historique** (issue de `ddl-auto=update`) : baseline à V1 (aucune exécution de V1), puis migrations `V2+`. Le schéma de ces bases correspondait à V1 au 2026-11-11, aux restes legacy près (ci-dessous).

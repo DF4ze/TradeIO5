@@ -53,7 +53,7 @@ public class JobScheduleCheck implements DoctorCheck {
 
     @Override
     public String id() {
-        return "JOB_SCHEDULE";
+        return DoctorDefaults.JOB_SCHEDULE_CHECK;
     }
 
     @Override

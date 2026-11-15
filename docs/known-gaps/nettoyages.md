@@ -1,8 +1,8 @@
 ---
 statut: gap
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-14
-empreinte: f8141cd009
+modifié_le: 2026-11-15
+empreinte: da3056d88e
 ---
 # Nettoyages à prévoir
 
@@ -24,4 +24,4 @@ Vérifié le : 2026-11-07. Points de nettoyage / purge **non faits**, à regroup
   - noms hérités dans les DTO et le JS qui désignent maintenant l'Affectation (ex. `PresetEventDto`, `presetBeforeName`, endpoint `/preset-events`, tables `rainbow_live_preset_event`) : à renommer avec leur migration.
 - **Simulations Espace Expert** : persistance et liste des simulations, clarification de `maxHorizonDays` dans `GET /api/expert/assets` : voir [`../etudes/etude-espace-expert.md`](../etudes/etude-espace-expert.md).
 - **Rappel avant le chantier legacy** : sauvegarde de la base (la migration des Affectations est déjà constatée sur le VPS).
-- **Procédure du chantier legacy (Flyway actif)** : 1) retirer le code legacy (`AffectationMigrationService`, `AffectationMigrationInitializer`, entités/repositories `legacy/*`), qui lit `preset_id` et `rainbow_live_preset` ; 2) écrire un `V<n>__nettoyage_legacy.sql` (`V4` ou suivant ; `V2`/`V3` sont pris) idempotent (colonnes `preset_id` avec leurs FK et uniques d'abord, puis tables) ; 3) répéter en recette sur copie de prod ([`../operations/recette.md`](../operations/recette.md)) puis déployer. Ne jamais inverser 1) et 2) : constaté en recette le 2026-11-11 (`Unknown column 'preset_id'`).
+- **Procédure du chantier legacy (Flyway actif)** : 1) retirer le code legacy (`AffectationMigrationService`, `AffectationMigrationInitializer`, entités/repositories `legacy/*`), qui lit `preset_id` et `rainbow_live_preset` ; 2) écrire un `V<n>__nettoyage_legacy.sql` (`V5` ou suivant ; `V2` à `V4` sont pris et appliqués en prod) idempotent (colonnes `preset_id` avec leurs FK et uniques d'abord, puis tables) ; 3) nouveau dump prod vérifié, puis répéter en recette sur copie de prod ([`../operations/recette.md`](../operations/recette.md)) puis déployer. Ne jamais inverser 1) et 2) : constaté en recette le 2026-11-11 (`Unknown column 'preset_id'`).

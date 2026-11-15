@@ -64,4 +64,16 @@ class KrakenFillReaderLedgerTest {
         assertFalse(rec.get("ledger-M1"));   // même montant mais autre heure : manuel
         assertFalse(rec.get("ledger-M2"));
     }
+
+    @Test
+    void ventesDuCarnetNeSontPasReimporteesDepuisLeLedger() {
+        ImportedFill book = new ImportedFill("STLNKDW-TBHYV-BMBFHY", "OXXX", null, "PAXG", "USDC", TradeSide.SELL,
+                new BigDecimal("3830.0979"), new BigDecimal("0.05243839"), new BigDecimal("1.60675"), "USDC", Instant.parse("2026-11-14T19:08:08Z"));
+        List<ImportedFill> ledger = KrakenFillReader.toFills(List.of(
+                at("TZAHZ5", "spend", "PAXG", "-0.05243839", "0", "2026-11-14T19:08:08Z"), at("TZAHZ5", "receive", "USDC", "200.84", "1.60675", "2026-11-14T19:08:08Z"),
+                at("OTHER", "spend", "PAXG", "-0.01", "0", "2026-11-14T21:00:00Z"), at("OTHER", "receive", "USDC", "38.3", "0.3", "2026-11-14T21:00:00Z")));
+        List<ImportedFill> kept = KrakenFillReader.withoutBookTrades(ledger, List.of(book));
+        assertEquals(1, kept.size());
+        assertEquals("ledger-OTHER", kept.getFirst().tradeId());
+    }
 }

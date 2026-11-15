@@ -7,6 +7,7 @@ import fr.ses10doigts.tradeIO5.service.market.FixedDomainClock;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.mock.env.MockEnvironment;
 
 import java.time.Instant;
 import java.util.List;
@@ -50,7 +51,7 @@ class DoctorServiceTest {
     void isolatesFailingCheck() {
         AlarmService alarms = mock(AlarmService.class);
         DoctorService doctor = new DoctorService(List.of(broken("B"), check("G", List.of(CheckResult.ok("x", "ok")))),
-                alarms, new FixedDomainClock(NOW));
+                alarms, new FixedDomainClock(NOW), new MockEnvironment());
 
         DoctorReport report = doctor.runAll();
 
@@ -71,11 +72,11 @@ class DoctorServiceTest {
     void worstStatus() {
         AlarmService alarms = mock(AlarmService.class);
         assertEquals(DoctorStatus.OK, new DoctorService(List.of(check("A", List.of(CheckResult.ok("s", "")))), alarms,
-                new FixedDomainClock(NOW)).runAll().worst());
+                new FixedDomainClock(NOW), new MockEnvironment()).runAll().worst());
         assertEquals(DoctorStatus.UNKNOWN, new DoctorService(List.of(check("A", List.of(CheckResult.ok("s", ""),
-                CheckResult.unknown("t", "")))), alarms, new FixedDomainClock(NOW)).runAll().worst());
+                CheckResult.unknown("t", "")))), alarms, new FixedDomainClock(NOW), new MockEnvironment()).runAll().worst());
         assertEquals(DoctorStatus.CRIT, new DoctorService(List.of(check("A", List.of(CheckResult.warn("s", ""),
-                CheckResult.crit("t", ""), CheckResult.unknown("u", "")))), alarms, new FixedDomainClock(NOW)).runAll().worst());
+                CheckResult.crit("t", ""), CheckResult.unknown("u", "")))), alarms, new FixedDomainClock(NOW), new MockEnvironment()).runAll().worst());
     }
 
     @Test
@@ -83,9 +84,32 @@ class DoctorServiceTest {
     void reportCaches() {
         AlarmService alarms = mock(AlarmService.class);
         DoctorService doctor = new DoctorService(List.of(check("A", List.of(CheckResult.ok("s", "")))), alarms,
-                new FixedDomainClock(NOW));
+                new FixedDomainClock(NOW), new MockEnvironment());
         DoctorReport first = doctor.report();
         assertSame(first, doctor.report());
         verify(alarms, times(1)).reconcile(any(), any());
+    }
+
+    private static MockEnvironment recetteEnv() {
+        MockEnvironment env = new MockEnvironment();
+        env.setActiveProfiles("recette");
+        return env;
+    }
+
+    @Test
+    @DisplayName("profil recette : crons coupés, clé maître absente et ERROR attendues ne font pas d'alarme ; le reste est conservé")
+    void recetteIgnoresExpectedVerdicts() {
+        AlarmService alarms = mock(AlarmService.class);
+        List<DoctorCheck> checks = List.of(
+                check("JOB_SCHEDULE", List.of(CheckResult.crit("ExecutionJob", "cron désactivé"))),
+                check("LOG_ERRORS", List.of(CheckResult.warn("ERROR", "5 log(s)"))),
+                check("EXECUTION_STATE", List.of(CheckResult.warn("master-key", "absente"), CheckResult.warn("kill-switch", "levé"))));
+
+        DoctorReport recette = new DoctorService(checks, alarms, new FixedDomainClock(NOW),
+                recetteEnv()).runAll();
+        assertEquals(1, recette.results().size());
+        assertEquals("kill-switch", recette.results().getFirst().subject());
+
+        assertEquals(4, new DoctorService(checks, alarms, new FixedDomainClock(NOW), new MockEnvironment()).runAll().results().size());
     }
 }

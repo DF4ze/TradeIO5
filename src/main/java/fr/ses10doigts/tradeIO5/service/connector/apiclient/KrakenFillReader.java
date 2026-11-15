@@ -70,7 +70,7 @@ public class KrakenFillReader implements ExchangeFillReader {
         });
         try {
             Instant ledgerSince = since == null ? null : java.util.Collections.min(List.of(since, clock.now().minus(LEDGER_MIN_WINDOW)));
-            out.addAll(fetchLedgerFills(credential, ledgerSince));
+            out.addAll(withoutBookTrades(fetchLedgerFills(credential, ledgerSince), List.copyOf(out)));
         } catch (CredentialRejectedException e) {
             log.warn("Kraken : Ledgers refusé ({}) : achats faits via l'interface non importés — ajouter la permission « Query ledger entries » à la clé de lecture", e.getMessage());
         }
@@ -96,6 +96,21 @@ public class KrakenFillReader implements ExchangeFillReader {
         log.info("Kraken Ledgers : {} écriture(s) spend/receive lues, {} achat(s)/vente(s) appariés (autres ignorés : crypto/crypto ou orphelins)",
                 entries.size(), fills.size());
         return fills;
+    }
+
+    /** Écart d'heure toléré entre un trade du carnet et son écriture de Ledger. */
+    private static final long LEDGER_DUP_SECONDS = 5;
+    private static final BigDecimal LEDGER_DUP_QTY_TOLERANCE = new BigDecimal("0.0001");
+
+    /**
+     * Écarte les fills du Ledger déjà présents dans {@code TradesHistory} : un ordre du carnet (limit, market) apparaît dans les deux
+     * sources avec des identifiants différents ({@code txid} / {@code refid}) => même paire, même sens, même heure (± 5 s) et même
+     * quantité (± 0,01 %). Package-private (tests).
+     */
+    static List<ImportedFill> withoutBookTrades(List<ImportedFill> ledger, List<ImportedFill> book) {
+        return ledger.stream().filter(l -> book.stream().noneMatch(b -> b.base().equals(l.base()) && b.side() == l.side()
+                && Math.abs(b.ts().getEpochSecond() - l.ts().getEpochSecond()) <= LEDGER_DUP_SECONDS
+                && b.sz().subtract(l.sz()).abs().compareTo(b.sz().multiply(LEDGER_DUP_QTY_TOLERANCE)) <= 0)).toList();
     }
 
     /** Écriture du Ledger Kraken ({@code amount} signé, {@code fee} positif, dans la devise {@code asset}). */

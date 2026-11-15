@@ -20,6 +20,12 @@ public final class DoctorDefaults {
     public static final String EXPECTED_JOBS_DEFAULT = DoctorDefaults.JOB_RAINBOW_PASS + "," + DoctorDefaults.JOB_EXECUTION_PLAN + ","
             + DoctorDefaults.JOB_EXECUTION;
 
+    public static final String JOB_SCHEDULE_CHECK = "JOB_SCHEDULE";
+    /** Profil de la recette (copie de la prod sans cron ni clé maître, cf. {@code docs/operations/recette.md}). */
+    public static final String RECETTE_PROFILE = "recette";
+    /** Verdicts normaux en recette (crons coupés, clé maître absente, ERROR attendues) : ignorés, sans alarme. Forme {@code checkId} ou {@code checkId:sujet}. */
+    public static final java.util.Set<String> RECETTE_IGNORED = java.util.Set.of(JOB_SCHEDULE_CHECK, "LOG_ERRORS", "EXECUTION_STATE:master-key");
+
     // --- Seuils (globaux)
     /** Tolérance entre l'échéance du cron et le démarrage tracé du job. */
     public static final int JOB_START_SLACK_SECONDS = 60;
