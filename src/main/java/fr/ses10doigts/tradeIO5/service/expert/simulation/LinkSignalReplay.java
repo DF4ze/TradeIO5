@@ -49,7 +49,7 @@ public final class LinkSignalReplay {
     /** Le jour préparé : demande du signal et éléments d'audit. */
     public record Prepared(LocalDate day, int index, double price, double dayClose, String setName, String regime, double virtualPosition,
                     LiveDemand demand, RainbowLiveAction wantedAction, double wantedAmountUsdc, boolean active,
-                    double fixedBase) {
+                    double fixedBase, int zone) {
     }
 
     private final Config cfg;
@@ -147,7 +147,7 @@ public final class LinkSignalReplay {
         pendingNextVirtual = nextVirtual;
         pendingIdx = i;
         return new Prepared(day, i, price, dayClose, decSet.name(), decRegime == null ? null : decRegime.name(), virtual, demand,
-                wanted, wantedAmount, active, fixedBase);
+                wanted, wantedAmount, active, fixedBase, signal.zone());
     }
 
     /** Avance l'état du lien à la bougie finale du jour préparé. */

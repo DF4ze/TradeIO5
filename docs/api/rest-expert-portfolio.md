@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-11
-empreinte: c7330f6978
+modifié_le: 2026-11-15
+empreinte: dc6d8b7ee6
 ---
 # Endpoints REST — Espace Expert, patrimoine, préférences
 
@@ -66,6 +66,8 @@ Calcul asynchrone en mémoire (aucune table) : `QUEUED → LOADING_DATA → COMP
 | POST | `/api/expert/simulations` | 202 `{id, state}`. Corps `{type (TREND\|RAINBOW\|AFFECTATION), assetSymbol, provider?, from?, to?, trend?, rainbow?, signal?, rainbowUp?, rainbowDown?}` ; `trend` / `rainbow` / `rainbowUp` / `rainbowDown` = `{id}` ou `{draft}` (brouillon non enregistré, validé comme un preset). Défauts : Trend et jeux de l'Affectation de l'utilisateur ; plage = 24 derniers mois jusqu'à la dernière bougie fermée ; `provider` = provider de référence du preset. RAINBOW : `signal` UP\|DOWN (régime joué, défaut = slot de l'Affectation où le preset est installé) |
 | GET | `/api/expert/simulations/{id}` | 200 `{id, type, assetSymbol, state, progress, createdAt, finishedAt, expiresAt, error?, result?}`. Un échec asynchrone est un 200 avec `state = FAILED` et `error {code, message, details}` |
 | DELETE | `/api/expert/simulations/{id}` | 204, libère (annule si en cours) |
+| GET | `/api/expert/simulations/episodes` | Timeline des épisodes + répartition du gain du rejeu complet (`ExpertSimulationEpisodesController`, sans UI). Mêmes paramètres facultatifs que `/parity` (`bindingId`, `asset`, `walletId`, `from`, `to`, `cash0`, `qty0`, `baseAmount`, `bagPercent`, `exposureMin`, `exposureMax`, `power`, `bias`, `regulationMarginPct`, `withCosts`). 200 `EpisodeReportDto {resultId, from, to, episodes[], aggregates[], gain {total, assets[]}, pnlTotal, notes[]}` ; séries gardées en mémoire (TTL 30 min) |
+| GET | `/api/expert/simulations/episodes/{resultId}` | Recalcul sur la sous-plage `from` / `to` (facultatives) du rejeu conservé, sans rejeu ; inconnu / expiré / autre utilisateur ⇒ erreur. Détail : [`../architecture/13-espace-expert.md`](../architecture/13-espace-expert.md) |
 
 `result` : `meta` (type, actif, provider demandé / utilisé / symbole, `substituted`, plage effective, libellés, `warnings`), `eligibility`, `phases` / `switches` (régimes sur la plage), `trendMetrics`, `chart` (séries par bougie : `d`, `trend` 0/1 UP/2 DOWN/3 RANGE, `active` 0/1, `cols` aux noms de `replay-template.html` = `RainbowReplayColumns.COLS` dont `pos` (taille du bag) et `reserve`, `wallet {capital, asset, stable, total}`, `sets`), `lines` (14 lignes du tableau pine : index, clé, libellé, valeur ou texte, unité). TREND : `cols` = o/h/l/c, pas de wallet ni de lignes.
 

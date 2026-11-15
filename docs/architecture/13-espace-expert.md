@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-08
-modifié_le: 2026-11-14
-empreinte: 21f1ea574f
+modifié_le: 2026-11-15
+empreinte: 3c3cf9d2bd
 ---
 # Espace Expert — paramétrage Trend / Rainbow par actif
 
@@ -66,6 +66,13 @@ Deux exécutions : wallet recalé sur les snapshots du jour (cash, quantité de 
 - **DCA fixe de référence** : mêmes frais / minimum de l'exchange, sans carry. Exposition valorisée aux clôtures ; la position nette de frais alimente le lendemain.
 - **Sorties** (`Result.costDays`, `totalCostUsdc`, `fixedTotalCostUsdc`) : par jour et lien : outcome, mise effective, `carry_in` / `carry_out`, route, coût % et USDC, niveau Fee Test, cash et quantité échangés, frais cumulés ; la courbe du wallet est nette de frais.
 - **Parité** : `GET /api/expert/simulations/parity?withCosts=true` ajoute `ParityReport.costs` (valeurs finales nettes de frais, frais cumulés, comparaison aux plans d'ordres enregistrés `rainbow_live_order_plan_asset` : outcome, `carry_out`, coût % ; écart de coût classé « frais / carnets d'époque ≠ barème actuel »). Sans plan en base sur la période : note explicite, pas de comparaison. Frais ou carnet indisponibles : note, aucun coût supposé.
+
+### Timeline des épisodes et répartition du gain (lot 4)
+`EpisodeTimeline` (fonction pure, `service/expert/simulation/`) calcule, par actif, à partir de `MultiLinkReplayEngine.Result#trades` (`TradeDay` : zone Rainbow du jour, régime — nul = barre inactive —, cours, quantité / cash / coût échangés par la stratégie **et** par le DCA fixe) :
+- **Épisodes** : un par suite de jours à même (régime, zone) — changement de zone ou bascule Bull/Bear = nouvel épisode ; barres inactives = épisodes `INACTIF` ; aucune fusion ni durée minimale. Plage `[from, to]` : épisodes tronqués aux bords. Par épisode : actif, régime, zone (`-1` hors bornes, 0 extrême bas, 1 X2, 2 X1, 3 X0,5, 4 pas d'achat, 5 extrême haut), dates, acheté / vendu (USDC, qté), prix de revient moyen de fin, PnL réalisé / latent / total, exposition de début / fin (% du wallet), répartition du gain. Agrégat par (régime, zone).
+- **PnL** (prix moyen pondéré, frais inclus, cf. `decisions/definition-pnl.md`) : prix de revient de la position d'ouverture = cours du 1er jour de la plage ; achat = cash réellement payé ; vente au prix de revient moyen courant. PnL d'un épisode = variation de (réalisé cumulé + latent) ; zone neutre ⇒ variation du latent. Invariant : Σ PnL des épisodes de tous les actifs = variation de valeur du wallet sur la plage (ouverture valorisée au cours du 1er jour ; actifs détenus sans lien exclus).
+- **Répartition du gain** de l'écart stratégie − DCA fixe, exactement additive par jour donc par épisode : `exposition = d̄·ΔP` ; `timing = (d_{t−1} − d̄)·ΔP + écart d'exécution` (cash + Δq·P + coût, stratégie − référence) ; `frais = −(coût stratégie − coût référence)`. `d = qté stratégie − qté référence`, `d̄` = moyenne de `d_{t−1}` sur la plage. Sur deux sous-plages, les frais s'additionnent ; le partage exposition / timing et le PnL dépendent de l'ouverture et de `d̄` de chaque plage.
+- **Accès sans UI** (`ExpertSimulationEpisodesController`, mode EXPERT) : `GET /api/expert/simulations/episodes` rejoue le wallet en continu (mêmes paramètres facultatifs que la parité, `withCosts`), garde les séries en mémoire (`EpisodeResultStore`, TTL et plafond par utilisateur des simulations, rien de persisté) et renvoie `EpisodeReportDto` avec `resultId` ; `GET /api/expert/simulations/episodes/{resultId}?from&to` recalcule sur la sous-plage sans rejeu. Un lien par actif supposé.
 
 ## Outil de rejeu `tools/rainbow-replay/`
 

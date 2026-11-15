@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.expert.simulation;
 
+import fr.ses10doigts.tradeIO5.model.dto.expert.EpisodeDtos;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.LiveBlockReason;
@@ -110,6 +111,7 @@ public class FullReplayService {
     private final ReplayScheduleBuilder scheduleBuilder;
     private final RainbowLiveOrderPlanRepository planRepository;
     private final FeeTest feeTest;
+    private final EpisodeResultStore episodeStore;
 
     /** Données d'un lien nécessaires au rejeu et à la comparaison. */
     private record LinkData(RainbowLiveBinding binding, LiveSlot slot, List<RainbowLiveBindingRun> runs,
@@ -117,8 +119,14 @@ public class FullReplayService {
                             MarketDataSource source, LinkSignalReplay.Config signal, double qty0, String currentHash) {
     }
 
-    @Transactional(readOnly = true)
-    public ParityReport parity(User user, Request request) {
+    /** Contexte d'un rejeu du wallet : liens chargés, réglages, cash de départ (partagé parité / épisodes). */
+    private record Setup(Request req, List<String> notes, List<LinkData> links, LocalDate from, LocalDate to,
+                         ModulationSettings settings, boolean overridden, RainbowModulationControl limits, Long walletId,
+                         LocalDate firstDay, LocalDate lastDay, double cash0, Map<LocalDate, ModulationSettings> settingsByDay,
+                         List<MultiLinkReplayEngine.Link> engineLinks, int bindingCount) {
+    }
+
+    private Setup setup(User user, Request request) {
         Request req = request == null
                 ? new Request(null, null, null, null, null, null, null, null, null, null, null, null, null, null, false) : request;
         List<RainbowLiveBinding> bindings = resolveBindings(user, req);
@@ -168,10 +176,31 @@ public class FullReplayService {
         List<RainbowLiveBindingRun> allRuns = links.stream().flatMap(l -> l.runs().stream())
                 .sorted(Comparator.comparing(RainbowLiveBindingRun::getDay)).toList();
         Map<LocalDate, ModulationSettings> settingsByDay = overridden ? Map.of() : recordedSettings(allRuns, settings);
-        Map<LocalDate, MultiLinkReplayEngine.Pin> pinned = pins(links);
-
         List<MultiLinkReplayEngine.Link> engineLinks = links.stream()
                 .map(l -> new MultiLinkReplayEngine.Link(l.slot(), l.signal(), l.qty0())).toList();
+        return new Setup(req, notes, links, from, to, settings, overridden, limits, walletId, firstDay, lastDay, cash0,
+                settingsByDay, engineLinks, bindings.size());
+    }
+
+    @Transactional(readOnly = true)
+    public ParityReport parity(User user, Request request) {
+        Setup su = setup(user, request);
+        Request req = su.req();
+        List<String> notes = su.notes();
+        List<LinkData> links = su.links();
+        LocalDate from = su.from();
+        LocalDate to = su.to();
+        ModulationSettings settings = su.settings();
+        boolean overridden = su.overridden();
+        RainbowModulationControl limits = su.limits();
+        Long walletId = su.walletId();
+        LocalDate firstDay = su.firstDay();
+        LocalDate lastDay = su.lastDay();
+        double cash0 = su.cash0();
+        Map<LocalDate, ModulationSettings> settingsByDay = su.settingsByDay();
+        Map<LocalDate, MultiLinkReplayEngine.Pin> pinned = pins(links);
+        List<MultiLinkReplayEngine.Link> engineLinks = su.engineLinks();
+        int bindingCount = su.bindingCount();
         MultiLinkReplayEngine.Result free = MultiLinkReplayEngine.run(new MultiLinkReplayEngine.Input(engineLinks, cash0, settings,
                 limits, settingsByDay, Map.of(), Map.of(), Map.of()));
         MultiLinkReplayEngine.Result pinnedResult = MultiLinkReplayEngine.run(new MultiLinkReplayEngine.Input(engineLinks, cash0,
@@ -209,7 +238,7 @@ public class FullReplayService {
         notes.add("Période par lien (1er → dernier run) ; wallet recalé sur les snapshots du jour : cash, quantité de chaque actif, "
                 + "cash déjà réservé par les liens servis avant. Actifs détenus sans lien : non reconstituables depuis les snapshots "
                 + "(exposition rejouée sur les seuls liens du wallet).");
-        if (links.size() < bindings.size() || bindings.size() < bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(user)
+        if (links.size() < bindingCount || bindingCount < bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(user)
                 .stream().filter(b -> b.getWallet().getId().equals(walletId)).count()) {
             notes.add("Rejeu partiel : tous les liens du wallet ne sont pas rejoués (lien demandé seul ou sans run).");
         }
@@ -234,25 +263,10 @@ public class FullReplayService {
                                                Map<LocalDate, ModulationSettings> settingsByDay,
                                                Map<LocalDate, MultiLinkReplayEngine.Pin> pinned, List<String> notes) {
         try {
-            RainbowLiveBinding first = links.getFirst().binding();
-            var wallet = first.getWallet();
-            double ref = links.stream().flatMap(l -> l.runs().stream()).map(r -> nz(r.getLive().getActionAmountUsdc()))
-                    .max(Double::compare).orElse(0.0);
-            OrderReplay.Schedule schedule = scheduleBuilder.build(wallet.getWebProviderCode(), wallet.getCredential(),
-                    links.stream().map(l -> l.slot().assetSymbol()).toList(), java.math.BigDecimal.valueOf(ref > 0 ? ref : 100.0));
-            Map<Long, Double> minBuy = new HashMap<>();
-            Map<Long, String> route = new HashMap<>();
-            for (LinkData l : links) {
-                if (l.binding().getMinBuyUsd() != null) {
-                    minBuy.put(l.slot().bindingId(), l.binding().getMinBuyUsd());
-                }
-                if (l.binding().getPreferredRoute() != null) {
-                    route.put(l.slot().bindingId(), l.binding().getPreferredRoute());
-                }
-            }
+            BuiltCosts built = buildCosts(links);
+            OrderReplay.Schedule schedule = built.schedule();
             MultiLinkReplayEngine.Result costed = MultiLinkReplayEngine.run(new MultiLinkReplayEngine.Input(engineLinks, cash0,
-                    settings, limits, settingsByDay, pinned, Map.of(), Map.of(),
-                    new MultiLinkReplayEngine.Costs(new OrderReplay(schedule, feeTest), minBuy, route)));
+                    settings, limits, settingsByDay, pinned, Map.of(), Map.of(), built.costs()));
             List<ParityReport.Row> rows = new ArrayList<>();
             int plans = 0;
             int outcomeOk = 0;
@@ -297,6 +311,93 @@ public class FullReplayService {
             notes.add("Coûts non rejoués (frais ou carnet indisponibles, aucun coût supposé) : " + e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Timeline des épisodes et répartition du gain (simulateur complet, lot 4) : rejeu LIBRE (wallet simulé en continu, comme le
+     * rejeu de décision) du wallet, avec coûts si demandé, conservé en mémoire pour recalcul sur sous-plage ({@link #episodesOf}).
+     * Rejeu sur la période des runs live ; {@code from}/{@code to} de la requête bornent la période rejouée.
+     */
+    @Transactional(readOnly = true)
+    public EpisodeDtos.EpisodeReportDto episodes(User user, Request request) {
+        Setup su = setup(user, request);
+        List<String> notes = new ArrayList<>(su.notes());
+        MultiLinkReplayEngine.Costs costs = null;
+        if (su.req().withCosts()) {
+            try {
+                costs = buildCosts(su.links()).costs();
+            } catch (RuntimeException e) {
+                log.warn("Rejeu des coûts impossible : {}", e.getMessage());
+                notes.add("Coûts non rejoués (frais ou carnet indisponibles, aucun coût supposé) : " + e.getMessage());
+            }
+        }
+        MultiLinkReplayEngine.Result result = MultiLinkReplayEngine.run(new MultiLinkReplayEngine.Input(su.engineLinks(), su.cash0(),
+                su.settings(), su.limits(), su.settingsByDay(), Map.of(), Map.of(), Map.of(), costs));
+        notes.add("Rejeu libre (wallet simulé en continu) " + (costs == null ? "sans" : "avec") + " frais ; PnL au prix moyen pondéré, "
+                + "position d'ouverture valorisée au cours du 1er jour de la plage ; actifs détenus sans lien exclus.");
+        Map<String, Map<LocalDate, Double>> expo = new HashMap<>();
+        for (MultiLinkReplayEngine.WalletDay w : result.walletDays()) {
+            w.value().forEach((asset, v) -> expo.computeIfAbsent(asset, k -> new HashMap<>())
+                    .put(w.day(), w.totalValue() > 0 ? 100.0 * v / w.totalValue() : null));
+        }
+        Map<Long, List<MultiLinkReplayEngine.TradeDay>> byLink = new java.util.LinkedHashMap<>();
+        result.trades().forEach(t -> byLink.computeIfAbsent(t.bindingId(), k -> new ArrayList<>()).add(t));
+        List<EpisodeTimeline.AssetSeries> series = new ArrayList<>();
+        for (MultiLinkReplayEngine.Link link : su.engineLinks()) {
+            List<MultiLinkReplayEngine.TradeDay> days = byLink.getOrDefault(link.slot().bindingId(), List.of());
+            if (!days.isEmpty()) {
+                series.add(new EpisodeTimeline.AssetSeries(link.slot().assetSymbol(), days, link.qty0(),
+                        expo.getOrDefault(link.slot().assetSymbol(), Map.of())));
+            }
+        }
+        LocalDate first = result.walletDays().isEmpty() ? su.firstDay() : result.walletDays().getFirst().day();
+        LocalDate last = result.walletDays().isEmpty() ? su.lastDay() : result.walletDays().getLast().day();
+        EpisodeResultStore.Stored stored = episodeStore.put(user.getId(), series, first, last, notes);
+        return report(stored, first, last);
+    }
+
+    /** Recalcul sur sous-plage d'un rejeu conservé en mémoire (TTL 30 min), sans rejeu ; bornes nulles = plage du rejeu. */
+    public EpisodeDtos.EpisodeReportDto episodesOf(User user, String resultId, LocalDate from, LocalDate to) {
+        EpisodeResultStore.Stored stored = episodeStore.get(user.getId(), resultId);
+        if (stored == null) {
+            throw new IllegalArgumentException("Rejeu introuvable ou expiré : " + resultId + " (relancer /episodes)");
+        }
+        LocalDate f = from == null || from.isBefore(stored.from()) ? stored.from() : from;
+        LocalDate t = to == null || to.isAfter(stored.to()) ? stored.to() : to;
+        if (f.isAfter(t)) {
+            throw new IllegalArgumentException("plage vide : from " + from + " après to " + to);
+        }
+        return report(stored, f, t);
+    }
+
+    private static EpisodeDtos.EpisodeReportDto report(EpisodeResultStore.Stored stored, LocalDate from, LocalDate to) {
+        EpisodeTimeline.Report r = EpisodeTimeline.compute(stored.series(), from, to);
+        return new EpisodeDtos.EpisodeReportDto(stored.id(), from, to, r.episodes(), r.aggregates(), r.gain(), r.pnlTotal(),
+                stored.notes());
+    }
+
+    /** Barème figé et paramètres d'ordre (minimum, route) des liens : seul appel réseau du rejeu avec coûts. */
+    private record BuiltCosts(MultiLinkReplayEngine.Costs costs, OrderReplay.Schedule schedule) {
+    }
+
+    private BuiltCosts buildCosts(List<LinkData> links) {
+        RainbowLiveBinding first = links.getFirst().binding();
+        var wallet = first.getWallet();
+        double ref = links.stream().flatMap(l -> l.runs().stream()).map(r -> nz(r.getLive().getActionAmountUsdc()))
+                .max(Double::compare).orElse(0.0);
+        OrderReplay.Schedule schedule = scheduleBuilder.build(wallet.getWebProviderCode(), wallet.getCredential(),
+                links.stream().map(l -> l.slot().assetSymbol()).toList(), java.math.BigDecimal.valueOf(ref > 0 ? ref : 100.0));
+        Map<Long, Double> minBuy = new HashMap<>();
+        Map<Long, String> route = new HashMap<>();
+        for (LinkData l : links) {
+            if (l.binding().getMinBuyUsd() != null) {
+                minBuy.put(l.slot().bindingId(), l.binding().getMinBuyUsd());
+            }
+            if (l.binding().getPreferredRoute() != null) {
+                route.put(l.slot().bindingId(), l.binding().getPreferredRoute());
+            }
+        }
+        return new BuiltCosts(new MultiLinkReplayEngine.Costs(new OrderReplay(schedule, feeTest), minBuy, route), schedule);
     }
 
     /** Charge candles, config, ATH stocké, ré-amorçages et position initiale d'un lien. */

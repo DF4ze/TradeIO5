@@ -1,8 +1,8 @@
 ---
 statut: journal
 sujet: Prompts du chantier « simulateur complet » — cadre commun, ordre des lots
-modifié_le: 2026-11-14
-empreinte: 2dec8e5e84
+modifié_le: 2026-11-15
+empreinte: d74c89c364
 ---
 # Prompt — Simulateur complet de TradeIO-5 : cadre commun
 
@@ -13,7 +13,9 @@ Prompts d'implémentation, **à supprimer une fois le chantier livré** (les dé
 | 1 | [`prompt-simulateur-lot1-coeur-parite.md`](prompt-simulateur-lot1-coeur-parite.md) | cœur partagé live/simu + rejeu mono-actif (BTC) + parité prod |
 | 2 | [`prompt-simulateur-lot2-cash-commun.md`](prompt-simulateur-lot2-cash-commun.md) | multi-actifs, cash et exposition communs, parité par wallet |
 | 3 | [`prompt-simulateur-lot3-frais.md`](prompt-simulateur-lot3-frais.md) | cache global des frais (24 h) + frais, minimum d'ordre et carry dans le rejeu |
-| 4 à 6 | à écrire | timeline des épisodes + répartition du gain ; écran Expert ; drawdown par profil |
+| 4 | [`prompt-simulateur-lot4-episodes-gain.md`](prompt-simulateur-lot4-episodes-gain.md) | timeline des épisodes + répartition du gain (exposition / timing / frais) |
+| 5 | [`prompt-simulateur-lot5-ecran-expert.md`](prompt-simulateur-lot5-ecran-expert.md) | type de simulation libre (bougies D1) + écran Expert (graphiques, épisodes, répartition du gain) |
+| 6 | à écrire | drawdown max par profil (mesure + signalement) |
 
 ## Contexte (valable pour tous les lots)
 

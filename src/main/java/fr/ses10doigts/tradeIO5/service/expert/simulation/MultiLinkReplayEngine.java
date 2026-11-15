@@ -99,9 +99,18 @@ public final class MultiLinkReplayEngine {
                             double totalValue, double fixedCash, Map<String, Double> fixedQty, double fixedValue) {
     }
 
+    /**
+     * Échange réellement effectué par un lien un jour donné (net de frais), pour la stratégie ({@code qtyDelta}/{@code cashDelta}/
+     * {@code costUsdc}) et pour le DCA fixe de référence ({@code fixed*}) ; {@code zone} = zone Rainbow du jour (-1 : bornes non
+     * calculables), {@code regime} = null pour une barre inactive. Sert à la timeline des épisodes ({@link EpisodeTimeline}).
+     */
+    public record TradeDay(Long bindingId, String asset, LocalDate day, int zone, String regime, double price, double qtyDelta,
+                           double cashDelta, double costUsdc, double fixedQtyDelta, double fixedCashDelta, double fixedCostUsdc) {
+    }
+
     public record Result(List<LinkDay> linkDays, List<WalletDay> walletDays, double cash0, Map<String, Double> qty0,
                          double finalValue, double fixedFinalValue, List<CostDay> costDays, double totalCostUsdc,
-                         double fixedTotalCostUsdc) {
+                         double fixedTotalCostUsdc, List<TradeDay> trades) {
     }
 
     public static Result run(Input in) {
@@ -132,6 +141,7 @@ public final class MultiLinkReplayEngine {
         List<LinkDay> linkDays = new ArrayList<>();
         List<WalletDay> walletDays = new ArrayList<>();
         List<CostDay> costDays = new ArrayList<>();
+        List<TradeDay> trades = new ArrayList<>();
         Map<Long, Double> carry = new HashMap<>();
         Map<Long, Double> lastBase = new HashMap<>();
         double totalCost = 0.0;
@@ -195,6 +205,7 @@ public final class MultiLinkReplayEngine {
                 audit.put(id, new double[]{reservedBefore, tradable});
             }
             // wallet mis à jour une fois tous les liens du jour décidés
+            Map<Long, double[]> tradeOf = new HashMap<>(); // {qtyDelta, cashDelta, cost, fQty, fCash, fCost}
             double cashLeft = cash; // cash utilisable par les achats du jour (les ventes ne créditent pas le jour même)
             double soldCash = 0.0;
             for (Link link : links) {
@@ -204,12 +215,18 @@ public final class MultiLinkReplayEngine {
                 }
                 String asset = link.slot().assetSymbol();
                 if (costs == null) {
+                    double[] t = tradeOf.computeIfAbsent(link.slot().bindingId(), k -> new double[6]);
                     if (d.action() == RainbowLiveAction.BUY) {
                         cash -= d.amountUsdc();
                         qty.merge(asset, d.quantity(), Double::sum);
+                        t[0] = d.quantity();
+                        t[1] = -d.amountUsdc();
                     } else if (d.action() == RainbowLiveAction.SELL) {
+                        double before = qty.getOrDefault(asset, 0.0);
                         cash += d.amountUsdc();
-                        qty.put(asset, Math.max(0.0, qty.getOrDefault(asset, 0.0) - d.quantity()));
+                        qty.put(asset, Math.max(0.0, before - d.quantity()));
+                        t[0] = qty.get(asset) - before;
+                        t[1] = d.amountUsdc();
                     }
                     continue;
                 }
@@ -229,13 +246,19 @@ public final class MultiLinkReplayEngine {
                     carry.put(id, carryIn);
                 }
                 if (e.executed()) {
+                    double[] t = tradeOf.computeIfAbsent(id, k -> new double[6]);
+                    t[1] = e.cashDelta();
+                    t[2] = e.costUsdc();
                     if (d.action() == RainbowLiveAction.BUY) {
+                        t[0] = e.qtyDelta();
                         cash += e.cashDelta();
                         cashLeft += e.cashDelta();
                         qty.merge(asset, e.qtyDelta(), Double::sum);
                     } else {
+                        double before = qty.getOrDefault(asset, 0.0);
                         soldCash += e.cashDelta();
-                        qty.put(asset, Math.max(0.0, qty.getOrDefault(asset, 0.0) + e.qtyDelta()));
+                        qty.put(asset, Math.max(0.0, before + e.qtyDelta()));
+                        t[0] = qty.get(asset) - before;
                     }
                     totalCost += e.costUsdc();
                 }
@@ -250,9 +273,12 @@ public final class MultiLinkReplayEngine {
             for (Link link : links) {
                 LinkSignalReplay.Prepared p = prepared.get(link.slot().bindingId());
                 if (p != null && p.active() && fixedCash + EPSILON >= p.fixedBase()) {
+                    double[] t = tradeOf.computeIfAbsent(link.slot().bindingId(), k -> new double[6]);
                     if (costs == null) {
                         fixedCash -= p.fixedBase();
                         fixedQty.merge(link.slot().assetSymbol(), p.fixedBase() / p.price(), Double::sum);
+                        t[3] = p.fixedBase() / p.price();
+                        t[4] = -p.fixedBase();
                     } else { // mêmes frais / minimum d'ordre que la stratégie, sans carry
                         OrderReplay.Executed fe = costs.orders().execute(new OrderReplay.Request(link.slot().assetSymbol(),
                                 RainbowLiveAction.BUY, p.fixedBase(), 0.0, 0.0, fixedCash, null,
@@ -261,6 +287,9 @@ public final class MultiLinkReplayEngine {
                             fixedCash += fe.cashDelta();
                             fixedQty.merge(link.slot().assetSymbol(), fe.qtyDelta(), Double::sum);
                             fixedCost += fe.costUsdc();
+                            t[3] = fe.qtyDelta();
+                            t[4] = fe.cashDelta();
+                            t[5] = fe.costUsdc();
                         }
                     }
                 }
@@ -297,6 +326,9 @@ public final class MultiLinkReplayEngine {
                         qtyBefore.getOrDefault(asset, 0.0), a[0], a[1], p.virtualPosition(), d.action(), d.blockReason(),
                         d.amountUsdc(), d.quantity(), p.wantedAction(), p.wantedAmountUsdc(), cash, qty.getOrDefault(asset, 0.0),
                         value.getOrDefault(asset, 0.0), total, d.journal()));
+                double[] t = tradeOf.getOrDefault(id, new double[6]);
+                trades.add(new TradeDay(id, asset, day, p.zone(), p.active() ? p.regime() : null, p.price(), t[0], t[1], t[2],
+                        t[3], t[4], t[5]));
             }
             walletDays.add(new WalletDay(day, cash, new LinkedHashMap<>(qty), value, assets, total, fixedCash,
                     new LinkedHashMap<>(fixedQty), fixedCash + fixedAssets));
@@ -306,7 +338,7 @@ public final class MultiLinkReplayEngine {
         }
         double finalValue = walletDays.isEmpty() ? in.cash0() : walletDays.getLast().totalValue();
         double fixedFinal = walletDays.isEmpty() ? in.cash0() : walletDays.getLast().fixedValue();
-        return new Result(linkDays, walletDays, in.cash0(), qty0, finalValue, fixedFinal, costDays, totalCost, fixedCost);
+        return new Result(linkDays, walletDays, in.cash0(), qty0, finalValue, fixedFinal, costDays, totalCost, fixedCost, trades);
     }
 
     private static String assetOf(List<Link> links, Long id) {

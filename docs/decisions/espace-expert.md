@@ -3,8 +3,8 @@ statut: decision
 sujet: espace-expert
 cree_le: 2026-11-10
 origine: memoire-claude-migree
-modifié_le: 2026-11-14
-empreinte: c55a667e15
+modifié_le: 2026-11-15
+empreinte: 1da1b4c5e0
 ---
 # espace-expert
 
@@ -26,4 +26,4 @@ Cadre, périmètre et sorties : [`../etudes/etude-optimisation-mode-autonome.md`
 - Parité (2026-11-14) : acceptée si ≥ 95 % de jours identiques et tout écart résiduel expliqué ; rejeu au cours de décision enregistré par le live (23:55) ; période = du 1er run BTC de la base locale ; exposé par service + test + endpoint expert sans UI. Parité BTC acceptée (2026-11-14) à 18/19 jours identiques : l'écart du 28/10 vient de l'ancien moteur, qui ne se resynchronisait pas (ni reset ni rejeu) et restait bloqué sur d'anciennes décisions — bug corrigé depuis, état d'époque non reconstituable.
 - Rejeu multi-liens (2026-11-14) : un rejeu par wallet (sélectionnable, capital par wallet comme le live) ; tous les liens du wallet sont rejoués, y compris inactifs/en simulation (`liveSlots` ne filtre pas) ; actifs détenus sans lien = valorisés et figés (comptent dans l'exposition, jamais traités) ; DCA fixe de référence = base de chaque lien, cash commun ; période de chaque lien = de son 1er run, `C0` = cash du snapshot le plus ancien du wallet ; acceptation ≥ 95 % par lien et global.
 - Parité multi-liens, mesure du 2026-11-14 (wallet 1, BTC + ETH, du 11/10 au 13/11) : 28/37 jours-liens identiques, 0 écart inexpliqué ; BTC 18/19 (écart du 28/10 déjà accepté), ETH 10/18 (8 écarts consécutifs du 27/10 au 03/11, live NONE vs rejeu BUY ; tous les jours du 04/11 au 13/11 identiques). Aucun écart dû au cash commun, à la priorité ou à l'exposition inconnue ; cash jamais contraignant sur la période (aucun `INSUFFICIENT_CASH` testé). Règle : le verdict de l'endpoint n'est pas assoupli ; la parité se mesure sur la période où l'état moteur est reconstituable (`from=2026-11-04`). Confirmé le 2026-11-15 sur cette période : 19/19 jours-liens identiques (BTC 10/10, ETH 9/9), 0 écart, verdict ACCEPTÉ. Parité multi-liens acceptée (lot 2).
-
+- Timeline des épisodes et répartition du gain (2026-11-15, lot 4) : répartition = exposition (exposition moyenne × mouvement) / timing (exposition au bon moment + écart d'exécution) / frais, exactement additive ; prix de revient de la position d'ouverture = cours du 1er jour de la plage (latent nul au départ) ; barres inactives = épisodes « inactif » ; aucune fusion ni durée minimale ; recalcul serveur sur la plage visible depuis le résultat en mémoire (TTL 30 min) ; endpoint dédié sans UI dans ce lot.

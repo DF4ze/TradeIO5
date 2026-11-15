@@ -1,8 +1,8 @@
 ---
 statut: journal
 sujet: Protocole de calibrage Rainbow, attribution des pertes, couches portefeuille/macro, risque
-modifié_le: 2026-11-14
-empreinte: 80e02cf9a3
+modifié_le: 2026-11-15
+empreinte: 5567e5a908
 ---
 # Étude — Protocole de calibrage Rainbow, attribution des pertes, couches de pilotage, gestion du risque
 
@@ -51,7 +51,7 @@ Précisions décidées (2026-11-14) :
 - **Forme** : piste d'épisodes sous le graphique, colorée par PnL, plus un tableau repliable (détail des épisodes, agrégat par zone × régime).
 - **Types de simulation** : `RAINBOW` (un seul régime, celui du Trend de référence) et `AFFECTATION` (les deux régimes, issus de l'assemblage Trend + Rainbow : aucune Trend à choisir sur cette page).
 
-À spécifier : épisode à cheval sur le bord de la plage ; définition exacte du PnL d'un épisode sans achat ni vente (zone neutre).
+Précisé et implémenté (lot 4, 2026-11-15) : épisode tronqué à la plage ; PnL d'un épisode = variation de (réalisé + latent) au prix moyen, donc zone neutre = variation du latent ; définitions exactes dans [`13-espace-expert.md`](../architecture/13-espace-expert.md).
 
 Pour chaque poste, dans l'ordre : un paramètre existant le règle-t-il ? → faut-il un nouveau paramètre ? → relève-t-il de L2 / L3 ?
 
