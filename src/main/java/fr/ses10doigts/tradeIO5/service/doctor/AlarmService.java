@@ -21,7 +21,7 @@ import java.util.Set;
 /**
  * Cycle de vie des alarmes. {@link #reconcile} compare chaque passe du Docteur à l'état persistant : un défaut ouvre ou met à
  * jour l'alarme, un retour à OK la résout ; {@code UNKNOWN} ne touche à rien (pas de donnée pour juger). L'acquittement et la
- * mise en sommeil masquent sans résoudre ; l'alarme se rouvre si la gravité monte ou si le sommeil expire.
+ * mise en sommeil masquent sans résoudre ; l'alarme se rouvre si la gravité monte ou si le sommeil expire. Un défaut qui revient moins de {@link DoctorDefaults#ALARM_REOPEN_WINDOW_HOURS} h après sa résolution rouvre la même ligne (pas de doublon).
  */
 @Slf4j
 @Service
@@ -61,6 +61,22 @@ public class AlarmService {
     private void upsert(DoctorReport.Entry entry, Instant now) {
         Optional<Alarm> existing = alarms.findFirstByAlarmKeyAndStateNotOrderByIdDesc(entry.alarmKey(), AlarmState.RESOLVED);
         if (existing.isEmpty()) {
+            Optional<Alarm> recent = alarms.findFirstByAlarmKeyAndStateAndResolvedAtAfterOrderByIdDesc(entry.alarmKey(),
+                    AlarmState.RESOLVED, now.minus(Duration.ofHours(DoctorDefaults.ALARM_REOPEN_WINDOW_HOURS)));
+            if (recent.isPresent()) {
+                // Défaut revenu peu après sa résolution (ex. tampon de logs vidé au redémarrage) : même ligne, pas de doublon.
+                Alarm alarm = recent.get();
+                alarm.setState(AlarmState.ACTIVE);
+                alarm.setResolvedAt(null);
+                alarm.setSnoozeUntil(null);
+                alarm.setSeverity(entry.status());
+                alarm.setMessage(cut(entry.message()));
+                alarm.setLastSeen(now);
+                alarm.setOccurrences(alarm.getOccurrences() + 1);
+                alarms.save(alarm);
+                log.info("Docteur : alarme rouverte {} (résolue depuis < {} h)", alarm.getAlarmKey(), DoctorDefaults.ALARM_REOPEN_WINDOW_HOURS);
+                return;
+            }
             alarms.save(Alarm.builder().alarmKey(entry.alarmKey()).checkId(entry.checkId()).subject(entry.subject())
                     .family(entry.family()).impact(entry.impact()).severity(entry.status()).state(AlarmState.ACTIVE)
                     .message(cut(entry.message())).firstSeen(now).lastSeen(now).occurrences(1).build());

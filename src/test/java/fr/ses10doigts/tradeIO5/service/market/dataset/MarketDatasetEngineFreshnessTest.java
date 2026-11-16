@@ -118,7 +118,7 @@ class MarketDatasetEngineFreshnessTest {
         Instant t = Instant.parse("2026-10-08T10:05:00Z");
         get(TimeFrame.D1, 20, t);
         MarketDataset h1 = get(TimeFrame.H1, 10, t.plus(10, ChronoUnit.MINUTES));
-        get(TimeFrame.W1, 4, t.plus(20, ChronoUnit.MINUTES));
+        get(TimeFrame.W1, 2, t.plus(20, ChronoUnit.MINUTES)); // 14 j < profondeur D1 x20 (pas d'approfondissement)
 
         assertEquals(1, provider.loadLimits.size());
         assertEquals(10, h1.getMarketDatas().size());
@@ -135,6 +135,23 @@ class MarketDatasetEngineFreshnessTest {
         assertEquals(2, provider.loadLimits.size());
         assertTrue(provider.loadLimits.getLast() > 600, "limit=" + provider.loadLimits.getLast());
         assertTrue(d1.getMarketDatas().size() >= 30, "size=" + d1.getMarketDatas().size());
+    }
+
+    @Test
+    @DisplayName("Régression 2026-11-16 : H1 x500 puis D1 x60 dans la MÊME bougie H1 (cron 06h) -> le D1 est approfondi, pas figé à ~20 bougies")
+    void deeperRequestWithinSameBaseCandleDeepensBucket() {
+        Instant t = Instant.parse("2026-11-16T06:00:00Z");
+        get(TimeFrame.H1, 500, t);
+        MarketDataset d1 = get(TimeFrame.D1, 60, t.plusSeconds(1));
+
+        assertEquals(2, provider.loadLimits.size());
+        assertTrue(provider.loadLimits.getLast() > 1000, "limit=" + provider.loadLimits.getLast());
+        assertTrue(d1.getMarketDatas().size() >= 60, "size=" + d1.getMarketDatas().size());
+
+        // ensuite, plus de refetch dans la même bougie H1
+        get(TimeFrame.D1, 60, t.plusSeconds(2));
+        get(TimeFrame.H1, 500, t.plusSeconds(3));
+        assertEquals(2, provider.loadLimits.size());
     }
 
     /* ===== scénario ===== */

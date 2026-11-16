@@ -2,14 +2,14 @@
 statut: decision
 sujet: recette
 cree_le: 2026-11-11
-modifié_le: 2026-11-11
-empreinte: bc75ba9efd
+modifié_le: 2026-11-16
+empreinte: e573657608
 ---
 # recette
 
 > Décisions de Clem (tranchées). Ne pas re-questionner sans demande explicite. Le « comment c'est fait » est dans [`../operations/recette.md`](../operations/recette.md).
 
-- Toute mise en prod passe d'abord par la recette : copie de la prod sur le VPS (même machine, 2ᵉ service, port 9004, base `tradeio5_recette`), jar démarré en profil `recette`, migrations Flyway constatées, logs et base surveillés.
+- **La recette n'est obligatoire que s'il y a modification de DB (migration Flyway). Sinon elle n'est pas nécessaire, sauf demande explicite de Clem** (déploiement via `deploy-prod.sh <jar> --go --sans-recette`, refusé par le script si le jar contient une migration plus récente que la prod). Quand la recette s'applique : elle passe d'abord par : copie de la prod sur le VPS (même machine, 2ᵉ service, port 9004, base `tradeio5_recette`), jar démarré en profil `recette`, migrations Flyway constatées, logs et base surveillés.
 - Aucun `ALTER` à la main, ni en recette ni en prod : tout schéma passe par Flyway. Le déploiement prod = changer le jar.
 - Un maximum de scripts : le LLM lance et lit des rapports ; il ne rejoue pas la procédure à la main.
 - Problème en recette : il remonte à Clem pour choisir la solution (pas de correctif de fond décidé seul).

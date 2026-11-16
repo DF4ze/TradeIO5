@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Déploiement prod. NE SE LANCE QUE SUR « GO » EXPLICITE de Clem. Usage (VPS, root, via ssh-gateway runAsUser root) :
-#   deploy-prod.sh <jar> --go
-# Garde-fous : refuse sans tampon « recette OK » (même sha256 de jar, < 24 h) ; backup de la base avant tout ;
+#   deploy-prod.sh <jar> --go [--sans-recette]
+# Garde-fous : refuse sans tampon « recette OK » (même sha256 de jar, < 24 h), SAUF avec --sans-recette (changement
+# sans modification de DB : refusé si le jar contient une migration Flyway plus récente que la prod) ; backup de la base avant tout ;
 # retour automatique au jar précédent si le démarrage échoue. Procédure : docs/operations/recette.md
 set -uo pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 . "$HERE/lib.sh"
 
-JAR=${1:-}; GO=${2:-}
+JAR=${1:-}; GO=${2:-}; SANS_RECETTE=0; [ "${3:-}" = "--sans-recette" ] && SANS_RECETTE=1
 [ -f "$JAR" ] && [ "$GO" = "--go" ] || { echo "usage: $0 <jar> --go (go explicite requis)" >&2; exit 2; }
 [ "$(id -u)" -eq 0 ] || { echo "À lancer en root (systemctl)." >&2; exit 2; }
 JAR=$(readlink -f "$JAR"); JAR_SHA=$(sha "$JAR")
@@ -39,12 +40,21 @@ rollback() {
 }
 
 section "1. Garde-fous"
-if [ -f "$OKFILE" ]; then
+if [ "$SANS_RECETTE" -eq 1 ]; then
+  check warn "déploiement SANS recette (aucune modification de DB déclarée)" "garde-fou : aucune migration Flyway nouvelle dans le jar"
+elif [ -f "$OKFILE" ]; then
   AGE=$(( $(date +%s) - $(cat "$OKFILE") ))
   [ "$AGE" -lt 86400 ] && check ok "recette OK pour ce jar" "il y a $((AGE/60)) min" || { check ko "tampon de recette trop ancien (> 24 h)" "relancer la recette"; finish; }
 else check ko "aucune recette OK pour ce jar (sha256 ${JAR_SHA:0:16})" "lancer tools/recette/recette.sh d'abord"; finish; fi
 [ -f "$PROD_PROPS" ] && check ok "application-prod.properties présent" || { check ko "application-prod.properties introuvable"; finish; }
 db_load "$PROD_PROPS" PDB "jdbc:mysql://localhost:3306/tradeio5" || { check ko "properties prod illisibles"; finish; }
+if [ "$SANS_RECETTE" -eq 1 ]; then
+  JAR_MIG=$(unzip -Z1 "$JAR" 2>/dev/null | sed -nE 's#.*db/migration/V([0-9]+)__.*#\1#p' | sort -n | tail -1)
+  PROD_MIG=$(mysql_as PDB -N "$PDB_NAME" -e "SELECT IFNULL(MAX(CAST(version AS UNSIGNED)),0) FROM flyway_schema_history WHERE success=1" 2>/dev/null || echo "?")
+  if [ -z "$JAR_MIG" ] || [ "$PROD_MIG" = "?" ]; then check ko "--sans-recette : versions Flyway illisibles" "jar=${JAR_MIG:-?} prod=$PROD_MIG"; finish
+  elif [ "$JAR_MIG" -gt "$PROD_MIG" ]; then check ko "--sans-recette refusé : migration V$JAR_MIG > prod V$PROD_MIG" "modification de DB => recette obligatoire"; finish
+  else check ok "aucune migration nouvelle" "jar V$JAR_MIG, prod V$PROD_MIG"; fi
+fi
 PREV_TARGET=$(readlink -f "$LINK" 2>/dev/null || true)
 [ -n "$PREV_TARGET" ] && check ok "jar actuel" "$PREV_TARGET" || check warn "lien $LINK absent : pas de retour arrière automatique"
 

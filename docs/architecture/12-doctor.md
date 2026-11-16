@@ -1,7 +1,7 @@
 ---
 statut: courant
-modifié_le: 2026-11-11
-empreinte: a23b681a9b
+modifié_le: 2026-11-16
+empreinte: 13d98b5f8d
 ---
 # Docteur — diagnostic et alarmes (Admin)
 
@@ -16,7 +16,7 @@ Un contrôle est une sonde pure qui renvoie un `CheckResult` (sujet, statut OK/U
 | Id | Vérifie |
 |---|---|
 | `JOB_SCHEDULE` | Pour chaque job attendu : cron présent et valide, dernier `job_run` présent, pas en retard (> 10 min après le dernier tir théorique + 60 s), pas PARTIAL (WARN) / FAILED (CRIT). Aucun run enregistré ⇒ UNKNOWN |
-| `EXECUTION_STATE` | Mode, clé maître, kill switch (levé > 6 h ⇒ WARN) |
+| `EXECUTION_STATE` | Mode, clé maître, kill switch (levé = état normal en LIVE ; WARN « levé > N h » seulement si `tradeio.doctor.kill-switch-lifted-warn-hours` > 0, défaut 0 = désactivé) |
 | `PLAN_PROBLEMS` | Plans des 3 derniers jours en erreur / bloqués > 30 min |
 | `TRANSIT_STOCK` | Stocks de transit non résolus depuis > 12 h |
 | `KEY_REJECTED` | Clés à paire générée (Revolut X) refusées par l'exchange : sonde réelle de chaque credential active (`ProviderKeyPairSupport.verify`) au plus toutes les 60 min (`KEY_PROBE_INTERVAL_MINUTES`) ; refus (401/403) ⇒ CRIT, exchange injoignable ⇒ verdict précédent conservé ; credential désactivée ou supprimée ⇒ alarme résolue |
@@ -30,11 +30,12 @@ Un contrôle qui lève une exception produit un WARN sujet `_contrôle`. Seuils 
 `AlarmService.reconcile` après chaque passe. Clé = `checkId:subject`. États ACTIVE / ACKED / RESOLVED.
 - WARN/CRIT ⇒ crée ou met à jour (`lastSeen`, `occurrences`).
 - OK, ou sujet disparu d'un contrôle évalué ⇒ RESOLVED. UNKNOWN ne crée ni ne résout.
+- Défaut revenu < 24 h après sa résolution (`ALARM_REOPEN_WINDOW_HOURS`, ex. tampon de logs vidé au redémarrage) ⇒ **même alarme rouverte** (`occurrences` cumulées), pas de nouvelle ligne ; au-delà ⇒ nouvelle alarme.
 - Acquitter / reporter (1–720 h) masque sans résoudre ; réouverture si la gravité monte ou à l'échéance du report.
 - Les alarmes résolues et les `job_run` sont purgés après 90 jours (`JobRunPurgeJob`).
 
 ## Exécution
-`DoctorJob` (premier passage 60 s après le démarrage, puis toutes les 5 min) appelle `DoctorService.runAll` (synchronisé). Propriétés : `tradeio.doctor.interval-ms`, `tradeio.doctor.initial-delay-ms`, `tradeio.doctor.purge-cron`, `tradeio.doctor.expected-jobs`. Les profils sans crons (dev) doivent surcharger `expected-jobs`. **Profil `recette`** : `DoctorService` ignore, sans verdict ni alarme, `JOB_SCHEDULE` (crons coupés), `EXECUTION_STATE:master-key` (clé maître absente) et `LOG_ERRORS` (ERROR attendues : clé maître, 401 des smoke tests ; la recette surveille son journal elle-même) — `DoctorDefaults.RECETTE_IGNORED`. Les autres contrôles restent actifs.
+`DoctorJob` (premier passage 60 s après le démarrage, puis toutes les 5 min) appelle `DoctorService.runAll` (synchronisé). Propriétés : `tradeio.doctor.interval-ms`, `tradeio.doctor.kill-switch-lifted-warn-hours`, `tradeio.doctor.initial-delay-ms`, `tradeio.doctor.purge-cron`, `tradeio.doctor.expected-jobs`. Les profils sans crons (dev) doivent surcharger `expected-jobs`. **Profil `recette`** : `DoctorService` ignore, sans verdict ni alarme, `JOB_SCHEDULE` (crons coupés), `EXECUTION_STATE:master-key` (clé maître absente) et `LOG_ERRORS` (ERROR attendues : clé maître, 401 des smoke tests ; la recette surveille son journal elle-même) — `DoctorDefaults.RECETTE_IGNORED`. Les autres contrôles restent actifs.
 
 ## API et interface
 Endpoints `/api/admin/doctor/*` : [`api/rest-endpoints.md`](../api/rest-endpoints.md). Ack et report journalisés (`AdminAction.DOCTOR`, cible `alarm:<id>`).

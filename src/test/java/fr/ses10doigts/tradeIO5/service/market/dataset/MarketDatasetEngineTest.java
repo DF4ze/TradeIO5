@@ -162,6 +162,8 @@ class MarketDatasetEngineTest {
         when(cache.getState(BucketKey.from(request))).thenReturn(state);
         // dernier fetch dans la bougie de base (H1) en cours => frais
         when(state.getLastUpdate()).thenReturn(now);
+        when(state.getBucket()).thenReturn(new Bucket(TimeFrame.H1, 10));
+        when(state.getFetchedDepth()).thenReturn(100); // profondeur déjà couverte
         when(state.getHasDataGap()).thenReturn(Map.of());
 
         MarketDataset snapshot = mock(MarketDataset.class);
@@ -180,6 +182,7 @@ class MarketDatasetEngineTest {
         when(cache.getState(BucketKey.from(request))).thenReturn(state);
         when(state.getLastUpdate()).thenReturn(now);
         when(state.getBucket()).thenReturn(new Bucket(TimeFrame.H1, 10));
+        when(state.getFetchedDepth()).thenReturn(100); // profondeur déjà couverte
 
         Map<Instant, Integer> gaps = new ConcurrentHashMap<>();
         gaps.put(now.minusSeconds(300), 10);

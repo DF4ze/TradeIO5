@@ -87,14 +87,36 @@ class AlarmServiceTest {
     }
 
     @Test
-    @DisplayName("retour à OK : résolue ; une récidive ouvre une NOUVELLE alarme")
-    void resolvedThenRecurrence() {
+    @DisplayName("retour à OK : résolue ; une récidive < 24 h rouvre la MÊME alarme (pas de doublon)")
+    void recurrenceWithinWindowReopensSameAlarm() {
         pass(Set.of("C"), entry("C", "s", DoctorStatus.CRIT, "m"));
         Long first = all().getFirst().getId();
         pass(Set.of("C"), entry("C", "s", DoctorStatus.OK, "ok"));
         assertEquals(AlarmState.RESOLVED, repository.findById(first).orElseThrow().getState());
 
+        clock.advance(Duration.ofHours(3));
         pass(Set.of("C"), entry("C", "s", DoctorStatus.CRIT, "encore"));
+
+        assertEquals(1, all().size());
+        Alarm reopened = all().getFirst();
+        assertEquals(first, reopened.getId());
+        assertEquals(AlarmState.ACTIVE, reopened.getState());
+        assertNull(reopened.getResolvedAt());
+        assertEquals(2, reopened.getOccurrences());
+        assertEquals("encore", reopened.getMessage());
+        assertEquals(T0, reopened.getFirstSeen());
+    }
+
+    @Test
+    @DisplayName("une récidive plus de 24 h après la résolution ouvre une NOUVELLE alarme")
+    void recurrenceAfterWindowOpensNewAlarm() {
+        pass(Set.of("C"), entry("C", "s", DoctorStatus.CRIT, "m"));
+        Long first = all().getFirst().getId();
+        pass(Set.of("C"), entry("C", "s", DoctorStatus.OK, "ok"));
+
+        clock.advance(Duration.ofHours(DoctorDefaults.ALARM_REOPEN_WINDOW_HOURS + 1));
+        pass(Set.of("C"), entry("C", "s", DoctorStatus.CRIT, "encore"));
+
         assertEquals(2, all().size());
         Alarm open = repository.findFirstByAlarmKeyAndStateNotOrderByIdDesc("C:s", AlarmState.RESOLVED).orElseThrow();
         assertNotEquals(first, open.getId());

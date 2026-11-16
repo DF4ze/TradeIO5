@@ -8,7 +8,7 @@ import fr.ses10doigts.tradeIO5.service.doctor.CheckResult;
 import fr.ses10doigts.tradeIO5.service.doctor.DoctorCheck;
 import fr.ses10doigts.tradeIO5.service.doctor.DoctorDefaults;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -16,17 +16,24 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * État global de l'exécution (C1–C2) : kill switch (levé trop longtemps = oubli probable) et cohérence mode / verrou LIVE /
+ * État global de l'exécution (C1–C2) : kill switch (WARN « levé trop longtemps » optionnel, désactivé par défaut) et cohérence mode / verrou LIVE /
  * clé maître (sans clé maître, aucune credential n'est lisible).
  */
 @Component
-@RequiredArgsConstructor
 public class ExecutionStateCheck implements DoctorCheck {
 
     private static final String MODE_LIVE = "LIVE";
 
     private final AdminStateService stateService;
     private final DomainClock clock;
+    private final int killSwitchLiftedWarnHours;
+
+    public ExecutionStateCheck(AdminStateService stateService, DomainClock clock,
+                               @Value(DoctorDefaults.KILL_SWITCH_LIFTED_WARN_HOURS) int killSwitchLiftedWarnHours) {
+        this.stateService = stateService;
+        this.clock = clock;
+        this.killSwitchLiftedWarnHours = killSwitchLiftedWarnHours;
+    }
 
     @Override
     public String id() {
@@ -61,9 +68,10 @@ public class ExecutionStateCheck implements DoctorCheck {
         }
         Instant since = state.killSwitchUpdatedAt();
         String by = state.killSwitchUpdatedBy() == null ? "?" : state.killSwitchUpdatedBy();
-        if (since != null && Duration.between(since, clock.now()).toHours() >= DoctorDefaults.KILL_SWITCH_LIFTED_WARN_HOURS) {
+        if (killSwitchLiftedWarnHours > 0 && since != null
+                && Duration.between(since, clock.now()).toHours() >= killSwitchLiftedWarnHours) {
             return CheckResult.warn("kill-switch", "levé depuis " + since + " par " + by + " (> "
-                    + DoctorDefaults.KILL_SWITCH_LIFTED_WARN_HOURS + " h) : les ordres sont autorisés");
+                    + killSwitchLiftedWarnHours + " h) : les ordres sont autorisés");
         }
         return CheckResult.ok("kill-switch", "levé (par " + by + (since == null ? "" : ", depuis " + since) + ") : ordres autorisés");
     }

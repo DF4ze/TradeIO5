@@ -14,6 +14,9 @@ public interface AlarmRepository extends JpaRepository<Alarm, Long> {
     /** Alarme non résolue (ACTIVE ou ACKED) portant cette clé, la plus récente. */
     Optional<Alarm> findFirstByAlarmKeyAndStateNotOrderByIdDesc(String alarmKey, AlarmState excluded);
 
+    /** Dernière alarme résolue portant cette clé (pour la rouvrir si le défaut revient peu après). */
+    Optional<Alarm> findFirstByAlarmKeyAndStateAndResolvedAtAfterOrderByIdDesc(String alarmKey, AlarmState state, Instant after);
+
     List<Alarm> findByCheckIdAndStateNot(String checkId, AlarmState excluded);
 
     List<Alarm> findByStateInOrderByLastSeenDesc(Collection<AlarmState> states);

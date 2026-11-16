@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-11
-modifié_le: 2026-11-11
-empreinte: f23050becc
+modifié_le: 2026-11-16
+empreinte: 71e369704c
 ---
 # Recette et déploiement prod
 
@@ -47,6 +47,9 @@ Template versionné : `src/main/resources/application-recette.properties.templat
 2. Lancer en arrière-plan (l'appel gateway coupe à ~80 s) : `cd /home/oklm/TradeIO-recette && nohup tools/recette/recette.sh <jar> > recette-run.out 2>&1 &` puis lire `reports/latest.md` dans un appel séparé (~1 min 30).
 3. KO : corriger dans le dépôt, reconstruire, relancer (le script recrée la copie à chaque run).
 4. OK **et** « go » de Clem : `deploy-prod.sh <jar> --go` (voir ci-dessous).
+
+## Sans recette (aucune modification de DB)
+Décision : [`../decisions/recette.md`](../decisions/recette.md). `deploy-prod.sh <jar> --go --sans-recette` saute le tampon de recette ; il **refuse** si le jar contient une migration Flyway de version supérieure à la dernière appliquée en prod. Dump, bascule, contrôles et retour arrière automatique restent identiques. Toujours sur « go » de Clem.
 
 ## Déploiement prod (après recette OK + « go »)
 

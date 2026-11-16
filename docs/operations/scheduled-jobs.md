@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-10-10
-modifié_le: 2026-11-14
-empreinte: f9a515b466
+modifié_le: 2026-11-16
+empreinte: 51d618fd28
 ---
 # Jobs planifiés
 
@@ -31,7 +31,7 @@ Vérifié le : 2026-10-10 (`service/scheduler/**`).
 |---|---|---|---|
 | `tradeio.execution.mode` | `DRY_RUN` | `LIVE` | **`LIVE`** |
 | `tradeio.execution.live-unlocked` | `false` | `true` | **`true`** |
-| `tradeio.decision.orchestrator-cron` | `-` | `-` | **`-` (désactivé le 2026-11-12 ; fichier VPS à aligner)** |
+| `tradeio.decision.orchestrator-cron` | `-` | `-` | **`-`** (fichier VPS aligné le 2026-11-16 ; actif au prochain redémarrage) |
 | `tradeio.rainbow-live.pass-2355-cron` | `-` | absent | **`0 55 23 * * *`** (UTC) |
 | `tradeio.execution.plan-cron` | `-` | absent | **`0 58 23 * * *`** (UTC) |
 | `tradeio.execution.run-cron` | `-` | absent | **`0 59 23 * * *`** (UTC) |

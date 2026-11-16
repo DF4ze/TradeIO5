@@ -37,8 +37,10 @@ public final class DoctorDefaults {
     public static final int PLAN_STUCK_MINUTES = 30;
     /** Stock intermédiaire en transit au-delà de ce délai = anormal. */
     public static final int TRANSIT_STOCK_MAX_HOURS = 12;
-    /** Kill switch laissé levé au-delà de ce délai = probable oubli. */
-    public static final int KILL_SWITCH_LIFTED_WARN_HOURS = 6;
+    /** Kill switch laissé levé au-delà de ce délai (heures) = WARN ; {@code 0} (défaut) = jamais : levé est l'état normal en LIVE. */
+    public static final String KILL_SWITCH_LIFTED_WARN_HOURS = "${tradeio.doctor.kill-switch-lifted-warn-hours:0}";
+    /** Une alarme résolue depuis moins de ce délai (heures) est rouverte (même ligne) plutôt que recréée. */
+    public static final int ALARM_REOPEN_WINDOW_HOURS = 24;
     public static final long DB_SLOW_MS = 1000;
     /** Espace disque libre (pourcentage) : en dessous, WARN puis CRIT. */
     public static final int DISK_WARN_FREE_PCT = 15;

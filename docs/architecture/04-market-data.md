@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-10
-modifié_le: 2026-11-10
-empreinte: 7fe55eaf40
+modifié_le: 2026-11-16
+empreinte: c7ab1faa4e
 ---
 # Données de marché (candles)
 
@@ -17,7 +17,7 @@ Vérifié le : 2026-11-10 (client `RevolutXMarketDataApiClient` ; 2026-10-27 : b
 
 - **Un `Bucket` par flux** (`BucketKey` = symbole + source + param ; **pas le TF demandé**), singleton en mémoire dans `MarketDatasetCache`, sans TTL ; perdu au redémarrage (rechargé depuis le cache DB des candles). Il stocke toujours du H1 (ring buffer `BASE_MAX_ITEMS` = 100 000) et agrège à la volée vers D1/W1… : tous les TF demandés d'un même symbole/source partagent le même Bucket, la même fraîcheur (`lastUpdate`) et la même profondeur (`fetchedDepth`).
 - **Quand refetcher** (`shouldFetch`, sources live) : dès que le dernier fetch est antérieur au début de la bougie H1 en cours (`lastUpdate < floor(endTime, H1)`), au plus un refetch par bougie H1 et par flux, quel que soit le TF demandé. Le run Rainbow de 23:55 voit ainsi la H1 de 23:00, pas celle du dernier appel de 04:00. `lastUpdate` n'est modifié que par un vrai refetch (`merge`), jamais par un comblement de trou.
-- **Fetch complet vs incrémental** : `MarketDatasetState.fetchedDepth` mémorise la plus grande profondeur (en H1) déjà demandée en fetch complet. Tant qu'une requête n'en demande pas plus, le refetch est incrémental (H1 écoulées depuis la dernière stockée + 2). Une requête plus profonde déclenche un fetch complet dont l'historique plus ancien est inséré par `Bucket.fill`.
+- **Fetch complet vs incrémental** : `MarketDatasetState.fetchedDepth` mémorise la plus grande profondeur (en H1) déjà demandée en fetch complet. Tant qu'une requête n'en demande pas plus, le refetch est incrémental (H1 écoulées depuis la dernière stockée + 2). Une requête plus profonde déclenche un fetch complet dont l'historique plus ancien est inséré par `Bucket.fill`. Cette profondeur est testée aussi dans `shouldFetch` (sources live) : une requête plus profonde que `fetchedDepth` approfondit le Bucket **même dans la bougie H1 déjà rafraîchie** par un autre TF (ex. cron 06:00 : H1 ×500 puis D1 ×60 ⇒ D1 ×60 ≈ 1 440 H1 ; sans cela le D1 agrégé n'aurait que ~20 bougies).
 - **`Bucket.append`** : règle forward-only conservée, mais une bougie de même timestamp que la dernière la **remplace** (la H1 en cours, stockée partielle, est mise à jour/finalisée au refetch suivant) ; une bougie plus ancienne est ignorée en `debug` (chevauchement normal, plus d'`ERROR`). `Bucket.fill` insère les bougies absentes (historique plus ancien, trous) sans écraser l'existant ni dépasser la dernière.
 - **Trous (`hasDataGap`)** : enregistrés uniquement vers l'avant (saut > 1 bougie entre la dernière connue et une entrante, clé = première bougie après le trou, valeur = nb manquantes). Chaque trou est tenté **une seule fois** par `fillMissingData` (retiré avant l'appel provider) via `Manager.fillGap` → `Bucket.fill`.
 - Tests de non-régression : `MarketDatasetEngineFreshnessTest` (D1 qui avance jour après jour, bougie partielle finalisée, historique étendu, refetch incrémental).

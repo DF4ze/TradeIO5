@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-11
-empreinte: 04fc1e10ee
+modifié_le: 2026-11-15
+empreinte: 8577100321
 ---
 # Exécution réelle des ordres (back-end, page utilisateur, page Admin)
 

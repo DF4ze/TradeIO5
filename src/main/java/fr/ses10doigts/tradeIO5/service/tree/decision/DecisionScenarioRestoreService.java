@@ -117,6 +117,7 @@ public class DecisionScenarioRestoreService {
                 .min(Instant::compareTo)
                 .orElse(Instant.EPOCH);
 
+        List<String> ignoredWithoutScenarioId = new ArrayList<>();
         Map<String, List<ScenarioEvent>> eventsByScenarioId = eventRepository.findByTimestampAfter(referenceInstant).stream()
                 .filter(e -> e.getType() == EventType.SCENARIO)
                 .map(this::deserializeScenarioEvent)
@@ -132,12 +133,19 @@ public class DecisionScenarioRestoreService {
                 // les échecs de désérialisation.
                 .filter(e -> {
                     if (e.getScenarioId() == null) {
-                        log.warn("DecisionScenarioRestoreService: ScenarioEvent sans scenarioId ignoré (id={})", e.getId());
+                        ignoredWithoutScenarioId.add(e.getId());
                         return false;
                     }
                     return true;
                 })
                 .collect(Collectors.groupingBy(ScenarioEvent::getScenarioId));
+        // Un seul WARN récapitulatif (et non un par ligne) : ces lignes legacy se retrouvent à chaque
+        // démarrage et saturaient le compteur de logs du Docteur (LOG_ERRORS:WARN, seuil 50).
+        if (!ignoredWithoutScenarioId.isEmpty()) {
+            log.warn("DecisionScenarioRestoreService: {} ScenarioEvent sans scenarioId ignoré(s) (ex. id={}) ; détail en DEBUG",
+                    ignoredWithoutScenarioId.size(), ignoredWithoutScenarioId.getFirst());
+            ignoredWithoutScenarioId.forEach(id -> log.debug("DecisionScenarioRestoreService: ScenarioEvent sans scenarioId ignoré (id={})", id));
+        }
 
         List<MarketScenario> restored = new ArrayList<>();
         Set<ScenarioKey> claimedKeys = new HashSet<>();

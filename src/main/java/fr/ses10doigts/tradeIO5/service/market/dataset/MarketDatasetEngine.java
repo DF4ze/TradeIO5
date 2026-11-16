@@ -307,13 +307,7 @@ public class MarketDatasetEngine {
             throw new IllegalArgumentException("Limit TimeFrame must be >= Base TimeFrame");
         }
 
-        // conversion des limites en BaseTimeFrame si nécessaire
-        int limit = request.lookBack() == 0 ? Bucket.BASE_MAX_ITEMS : request.lookBack();
-
-        log.debug("Initial Limit : {} in {} TF", limit, request.timeFrame());
-        if (request.timeFrame() != baseTimeFrame) {
-            limit = convertLimitToBaseTimeFrame(limit, request.timeFrame(), baseTimeFrame, request.endTime());
-        }
+        int limit = requiredBaseLimit(request, baseTimeFrame);
 
         // Garde-fou : la capacité du Bucket (BASE_MAX_ITEMS, cf. Bucket.java) est dimensionnée
         // pour couvrir tous les lookbacks réalistes. Si une requête la dépasse malgré tout, on ne
@@ -394,6 +388,16 @@ public class MarketDatasetEngine {
         }
     }
 
+    /** Nombre de bougies de base (H1) nécessaires pour couvrir le lookBack demandé au TF de la requête. */
+    private int requiredBaseLimit(MarketDatasetRequest request, TimeFrame baseTimeFrame) {
+        int limit = request.lookBack() == 0 ? Bucket.BASE_MAX_ITEMS : request.lookBack();
+        log.debug("Initial Limit : {} in {} TF", limit, request.timeFrame());
+        if (request.timeFrame() != baseTimeFrame) {
+            limit = convertLimitToBaseTimeFrame(limit, request.timeFrame(), baseTimeFrame, request.endTime());
+        }
+        return limit;
+    }
+
     /** Bougies de base à redemander : celles écoulées depuis la dernière stockée + elle-même + marge. */
     private int incrementalLimit(Bucket bucket, TimeFrame baseTimeFrame, Instant endTime, int fullLimit) {
         long missing = Duration.between(bucket.peekLast().getTimestamp(), endTime).getSeconds() / stepSeconds(baseTimeFrame);
@@ -414,6 +418,18 @@ public class MarketDatasetEngine {
         }
 
         if (isLiveSource(request.source())) {
+            // Profondeur : le Bucket (H1) est partagé par tous les TF d'un même flux. Si un TF plus
+            // large (ex: D1 x500 = ~12000 H1) arrive après un TF court qui a déjà rafraîchi le Bucket
+            // (ex: H1 x500), la fraîcheur seule ne suffit pas : sans approfondissement le D1 agrégé
+            // n'aurait que ~20 bougies (incident Trend D1 "size too short for period 30", 2026-11-16).
+            int requiredDepth = requiredBaseLimit(request, state.getBucket().getBaseTimeFrame());
+            if (state.getFetchedDepth() < requiredDepth) {
+                log.info("Bucket {} : profondeur {} < {} {} requis pour {} -> approfondissement",
+                        request.symbol(), state.getFetchedDepth(), requiredDepth,
+                        state.getBucket().getBaseTimeFrame(), request.timeFrame());
+                return true;
+            }
+
             // Frais tant que le dernier fetch date de la bougie de base en cours (ou plus récent) :
             // chaque nouvelle bougie de base déclenche un refetch, quel que soit le TF demandé
             // (la bougie D1 d'un bench à 23h55 doit voir la H1 de 23h, pas celle de 04h).
