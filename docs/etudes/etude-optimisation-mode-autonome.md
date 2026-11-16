@@ -1,8 +1,8 @@
 ---
 statut: journal
 sujet: Optimiser TradeIO vers un mode Full Autonome — définition du bon paramétrage, instrument de mesure, méthode, agencement des briques
-modifié_le: 2026-11-15
-empreinte: 58b9f55d6f
+modifié_le: 2026-11-16
+empreinte: 375d7d5e87
 ---
 # Étude — Optimiser TradeIO vers un mode « Full Autonome »
 
@@ -174,3 +174,25 @@ Garde-fous communs : tout changement automatique est borné, journalisé, réver
   - Périmètre : les liens réels de l'utilisateur (affectations, bande, puissance, biais), modifiables avant de lancer ; cash commun.
   - Frais : taux réels par exchange et par route. Ils sont longs à récupérer et changent rarement ⇒ **cache global** des frais, réutilisable par les autres écrans (ajout d'un lien notamment).
 - **Drawdown maximal réglable par profil** : c'est la « prise de risque » que Clem veut introduire. Premier lot : le simulateur le mesure et signale un dépassement, sans effet sur les ordres.
+
+## 11. Moteur d'optimisation automatique (analyse du 2026-11-16)
+Décisions : [`../decisions/fil-rouge-dca-automatisation.md`](../decisions/fil-rouge-dca-automatisation.md).
+
+**Manques du simulateur FULL pour ce besoin** : modulation L2 constante sur la plage (aucun pilotage dans le temps) ; aucune couche de recherche ; aucun rejeu du processus de ré-optimisation ; ATH encore dans le preset.
+
+**Tension** : « presets qui gagnent actuellement » = peu de données récentes (12–24 mois ≈ 1–2 phases) ⇒ risque max de surapprentissage. Réponse : score pondéré multi-fenêtres ancrées (récente ×3, 24 mois ×2, historique ×1) + veto sur la pire fenêtre ; centre du plateau, pas le maximum ; dérive bornée (rayon δ autour du preset en place, interpolation, hystérésis, promotion si gain > 2σ des perturbations).
+
+| Module | Optimise | Cadence | Sortie |
+|---|---|---|---|
+| A. PresetOptimizer (L1) | Rainbow Bull/Bear **par actif**, Trend figée | tous les X jours | challenger `RainbowPreset` SYSTEM |
+| B. PolicyOptimizer (L2) | paramètres d'une politique de pilotage | après A | politique évaluée sur l'état du wallet utilisateur |
+| C. Orchestrateur | champion / challenger, bornes, journal | cron | promotion auto-bornée ou refus tracé |
+
+- **Politique L2** = fonction (régime, exposition, écart à la cible, PnL / drawdown) → (bande, puissance, biais, amplitude ATH). ~10–14 paramètres ; jamais une trajectoire optimisée jour par jour (oracle). Presets calibrés sur wallet de référence normalisé (partagés par tous les users) ; la politique, elle, lit le wallet de l'utilisateur. Plafonds de drawdown par profil = contraintes de l'objectif (§2).
+- **Recherche** : tri par sensibilité (6–12 paramètres libres, reste gelé) → Sobol / tirage quasi aléatoire → successive halving → raffinement du plateau. Bousculades : date de départ ±30 j, provider, voisins ±1 cran. Frais simplifiés pendant la recherche, `OrderReplay` complet sur les finalistes. Moteur pur Java, hors pool UI.
+- **Preuve** : walk-forward **imbriqué** (à chaque date T : optimiser sur ≤ T, déployer sur [T, T+X], enchaîner) comparé à un preset statique. Coûteux : demander avant de lancer. Le shadow prod (champion / challenger) n'est qu'un garde-fou anti-catastrophe (trop peu de trades en D1).
+- **Garde-fous** : aucune donnée > J-1 ; plafond ATH × zone dans le bench ; comptage des essais ; bornes dures sur toute valeur promue ; tout changement journalisé et réversible.
+
+**Ordre** : (1) hook de politique dynamique dans `MultiLinkReplayEngine` + test H0 avec 2–3 règles manuelles ; (2) ATH détaché du preset en réglage utilisateur plafonné ; (3) moteur de recherche headless (sensibilité → Sobol / halving, sortie JSON) ; (4) PolicyOptimizer ; (5) PresetOptimizer + walk-forward imbriqué ; (6) orchestrateur auto-borné + cron.
+
+**Ouvert** : valeur de X (cadence) ; bornes δ de dérive ; forme exacte de la politique (règles par régime vs fonction continue) ; budget de calcul du walk-forward imbriqué.

@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-15
-empreinte: 89e06c6e74
+modifié_le: 2026-11-16
+empreinte: 4dedb50653
 ---
 # Application utilisateur `/app` (front)
 

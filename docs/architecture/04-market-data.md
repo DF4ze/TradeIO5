@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-10
 modifié_le: 2026-11-16
-empreinte: c7ab1faa4e
+empreinte: ab91d3006d
 ---
 # Données de marché (candles)
 

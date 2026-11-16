@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-08
-modifié_le: 2026-11-15
-empreinte: d9af635f88
+modifié_le: 2026-11-16
+empreinte: cf7b9dc756
 ---
 # Espace Expert — paramétrage Trend / Rainbow par actif
 
