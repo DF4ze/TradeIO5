@@ -7,6 +7,7 @@ import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.PolicyCompare
 import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.PolicyRunDto;
 import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.PolicySpec;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
+import fr.ses10doigts.tradeIO5.service.dca.atr.AthCap;
 import fr.ses10doigts.tradeIO5.service.expert.ExpertApiException;
 import fr.ses10doigts.tradeIO5.service.expert.ExpertContext;
 import fr.ses10doigts.tradeIO5.service.expert.ExpertValidationException;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,7 +29,9 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Comparaison de politiques de modulation sur un même wallet / plage / capital (mode EXPERT) : un chargement des bougies, puis un
  * rejeu {@code CONSTANT} (référence) et un par politique demandée (max {@value #MAX_POLICIES}). Synchrone, un seul calcul à la fois
- * par utilisateur ; sans frais par défaut. Aucune écriture, aucun ordre.
+ * par utilisateur ; sans frais par défaut. Chaque variante peut porter son propre plafond de mise ATH ({@code athCap} de la
+ * {@link PolicySpec}), à défaut celui de la demande ({@code full.athCap}) ; la référence {@code CONSTANT} utilise celui de la demande.
+ * Aucune écriture, aucun ordre.
  */
 @Slf4j
 @Service
@@ -56,11 +60,23 @@ public class PolicyCompareService {
         List<ModulationPolicy> policies = new ArrayList<>();
         policies.add(ModulationPolicies.from(new PolicySpec(ModulationPolicies.CONSTANT, Map.of())));
         specs.forEach(spec -> policies.add(ModulationPolicies.from(spec)));
+        List<AthCap> caps = new ArrayList<>();
+        Map<String, String> capErrors = new LinkedHashMap<>();
+        for (int i = 0; i < specs.size(); i++) {
+            try {
+                caps.add(AthCapResolver.resolve(specs.get(i).athCap(), "policies[" + i + "].athCap"));
+            } catch (ExpertValidationException e) {
+                capErrors.putAll(e.getFields());
+            }
+        }
+        if (!capErrors.isEmpty()) {
+            throw new ExpertValidationException(capErrors);
+        }
         FullRequest base = request.full() == null ? new FullRequest(null, null, null, null, null, null, null, null, null, false, null, null)
                 : request.full();
         if (base.withCosts() == null) {
             base = new FullRequest(base.walletId(), base.from(), base.to(), base.cash0(), base.exposureMin(), base.exposureMax(),
-                    base.power(), base.bias(), base.regulationMarginPct(), false, base.links(), null);
+                    base.power(), base.bias(), base.regulationMarginPct(), false, base.links(), null, base.athCap());
         }
         Long owner = ctx.user().getId();
         if (!running.add(owner)) {
@@ -71,9 +87,9 @@ public class PolicyCompareService {
             FullSimulationService.Plan plan = full.resolve(ctx, base);
             FullSimulationService.Loaded data = full.load(ctx.user(), plan, NO_HOOKS);
             List<PolicyRunDto> runs = new ArrayList<>();
-            runs.add(run(data, plan, policies.getFirst(), new PolicySpec(ModulationPolicies.CONSTANT, Map.of())));
+            runs.add(run(data, plan, policies.getFirst(), new PolicySpec(ModulationPolicies.CONSTANT, Map.of()), plan.athCap()));
             for (int i = 0; i < specs.size(); i++) {
-                runs.add(run(data, plan, policies.get(i + 1), specs.get(i)));
+                runs.add(run(data, plan, policies.get(i + 1), specs.get(i), specs.get(i).athCap() == null ? plan.athCap() : caps.get(i)));
             }
             return new PolicyCompareDto(plan.walletId(), plan.from(), plan.to(), data.cash0(),
                     data.costs() != null, runs, new ArrayList<>(data.warnings()));
@@ -82,9 +98,10 @@ public class PolicyCompareService {
         }
     }
 
-    private PolicyRunDto run(FullSimulationService.Loaded data, FullSimulationService.Plan plan, ModulationPolicy policy, PolicySpec spec) {
+    private PolicyRunDto run(FullSimulationService.Loaded data, FullSimulationService.Plan plan, ModulationPolicy policy, PolicySpec spec,
+                             AthCap athCap) {
         long t0 = System.nanoTime();
-        MultiLinkReplayEngine.Result r = full.run(data, plan.settings(), policy);
+        MultiLinkReplayEngine.Result r = full.run(data, plan.settings(), policy, athCap);
         long ms = (System.nanoTime() - t0) / 1_000_000L;
         if (r.walletDays().isEmpty()) {
             throw new ExpertValidationException("from", "aucun jour rejouable dans la plage (SMA / ATR pas encore définis)");
@@ -100,8 +117,10 @@ public class PolicyCompareService {
         long belowMin = r.costDays().stream().filter(x -> "BELOW_MIN".equals(x.outcome())).count();
         double fin = r.finalValue();
         double fix = r.fixedFinalValue();
-        log.info("Comparaison de politiques : {} => {} USDC (DCA fixe {}), {} ms", policy.label(), Math.round(fin), Math.round(fix), ms);
+        log.info("Comparaison de politiques : {} / plafond {} => {} USDC (DCA fixe {}), {} ms", policy.label(),
+                athCap == null ? "aucun" : athCap.label(), Math.round(fin), Math.round(fix), ms);
         return new PolicyRunDto(policy.label(), spec, fin, fix, fin - fix, fix > EPSILON ? 100.0 * (fin - fix) / fix : null, maxDd,
-                avgExposure, gain, blocked, belowMin, ms);
+                avgExposure, gain, blocked, belowMin, ms, athCap == null ? null : athCap.label(), r.stakeStats().maxStakeMultiple(),
+                r.stakeStats().maxFinalStakeMultiple(), r.stakeStats().cappedBuys());
     }
 }

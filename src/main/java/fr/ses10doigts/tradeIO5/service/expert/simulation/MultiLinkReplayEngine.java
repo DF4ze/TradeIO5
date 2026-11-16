@@ -4,6 +4,7 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.LiveBlockReason;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.modulation.RainbowModulationControl;
+import fr.ses10doigts.tradeIO5.service.dca.atr.AthCap;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService.ModulationSettings;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.CashLedger;
@@ -63,11 +64,20 @@ public final class MultiLinkReplayEngine {
      * @param frozenQty    actifs détenus SANS lien : valorisés (exposition) mais jamais traités
      * @param frozenCloses cours par actif gelé et par jour ; jour sans cours ⇒ exposition inconnue (comme le live)
      * @param policy       politique de modulation dans le temps ; {@code null} ⇒ réglages du jour inchangés
+     * @param athCap       plafond de mise ATH, global à l'utilisateur : transmis à tous les liens ; {@code null} ⇒ aucun (live)
      */
     public record Input(List<Link> links, double cash0, ModulationSettings settings, RainbowModulationControl limits,
                         Map<LocalDate, ModulationSettings> settingsByDay, Map<LocalDate, Pin> pinned,
                         Map<String, Double> frozenQty, Map<String, Map<LocalDate, Double>> frozenCloses, Costs costs,
-                        ModulationPolicy policy) {
+                        ModulationPolicy policy, AthCap athCap) {
+
+        /** Sans plafond ATH. */
+        public Input(List<Link> links, double cash0, ModulationSettings settings, RainbowModulationControl limits,
+                     Map<LocalDate, ModulationSettings> settingsByDay, Map<LocalDate, Pin> pinned,
+                     Map<String, Double> frozenQty, Map<String, Map<LocalDate, Double>> frozenCloses, Costs costs,
+                     ModulationPolicy policy) {
+            this(links, cash0, settings, limits, settingsByDay, pinned, frozenQty, frozenCloses, costs, policy, null);
+        }
 
         /** Sans politique. */
         public Input(List<Link> links, double cash0, ModulationSettings settings, RainbowModulationControl limits,
@@ -132,10 +142,19 @@ public final class MultiLinkReplayEngine {
     public record PolicyDay(LocalDate day, ModulationSettings applied, Double exposurePct, double drawdownPct) {
     }
 
+    /**
+     * Mises d'achat sur la plage : {@code maxStakeMultiple} = max des achats du signal / base AVANT modulation (après plafond ATH),
+     * {@code maxFinalStakeMultiple} = max des achats réellement décidés / base APRÈS modulation, {@code cappedBuys} = achats du signal
+     * réduits par le plafond ATH.
+     */
+    public record StakeStats(double maxStakeMultiple, double maxFinalStakeMultiple, long cappedBuys) {
+    }
+
     /** {@code policyDays} : un élément par jour rejoué avec politique ; vide sans politique. */
     public record Result(List<LinkDay> linkDays, List<WalletDay> walletDays, double cash0, Map<String, Double> qty0,
                          double finalValue, double fixedFinalValue, List<CostDay> costDays, double totalCostUsdc,
-                         double fixedTotalCostUsdc, List<TradeDay> trades, List<SignalDay> signals, List<PolicyDay> policyDays) {
+                         double fixedTotalCostUsdc, List<TradeDay> trades, List<SignalDay> signals, List<PolicyDay> policyDays,
+                         StakeStats stakeStats) {
     }
 
     /** Régime courant d'un actif et nombre de jours consécutifs dans ce régime (compteur de {@link DayState}). */
@@ -151,7 +170,7 @@ public final class MultiLinkReplayEngine {
         Map<String, Double> fixedQty = new LinkedHashMap<>();
         for (Link link : links) {
             Long id = link.slot().bindingId();
-            LinkSignalReplay replay = new LinkSignalReplay(link.signal());
+            LinkSignalReplay replay = new LinkSignalReplay(in.athCap() == null ? link.signal() : link.signal().withAthCap(in.athCap()));
             replays.put(id, replay);
             Map<LocalDate, Integer> byDay = new HashMap<>();
             for (int i = link.signal().startIdx(); i <= link.signal().endIdx(); i++) {
@@ -181,6 +200,9 @@ public final class MultiLinkReplayEngine {
         double totalCost = 0.0;
         double fixedCost = 0.0;
         Costs costs = in.costs();
+        double maxStake = 0.0;
+        double maxFinalStake = 0.0;
+        long cappedBuys = 0;
 
         for (LocalDate day : days) {
             Pin pin = in.pinned().get(day);
@@ -363,6 +385,11 @@ public final class MultiLinkReplayEngine {
                 SizingCore.Decision d = decisions.get(id);
                 String asset = link.slot().assetSymbol();
                 double[] a = audit.get(id);
+                maxStake = Math.max(maxStake, p.stakeMultiple());
+                cappedBuys += p.buyCapped() ? 1 : 0;
+                if (d.action() == RainbowLiveAction.BUY && d.amountUsdc() != null && p.demand().baseAmount() > 0) {
+                    maxFinalStake = Math.max(maxFinalStake, d.amountUsdc() / p.demand().baseAmount());
+                }
                 linkDays.add(new LinkDay(id, asset, day, p.index(), p.price(), p.dayClose(), p.setName(), p.regime(), cashBefore,
                         qtyBefore.getOrDefault(asset, 0.0), a[0], a[1], p.virtualPosition(), d.action(), d.blockReason(),
                         d.amountUsdc(), d.quantity(), p.wantedAction(), p.wantedAmountUsdc(), cash, qty.getOrDefault(asset, 0.0),
@@ -381,7 +408,7 @@ public final class MultiLinkReplayEngine {
         double finalValue = walletDays.isEmpty() ? in.cash0() : walletDays.getLast().totalValue();
         double fixedFinal = walletDays.isEmpty() ? in.cash0() : walletDays.getLast().fixedValue();
         return new Result(linkDays, walletDays, in.cash0(), qty0, finalValue, fixedFinal, costDays, totalCost, fixedCost, trades, signals,
-                policyDays);
+                policyDays, new StakeStats(maxStake, maxFinalStake, cappedBuys));
     }
 
     /**

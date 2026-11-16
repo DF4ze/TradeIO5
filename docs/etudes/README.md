@@ -2,7 +2,7 @@
 statut: index
 sujet: Index des études actives
 modifié_le: 2026-11-16
-empreinte: cf97ac1643
+empreinte: afd5deac2a
 ---
 # Études (journal de conception daté)
 
@@ -22,6 +22,7 @@ empreinte: cf97ac1643
 | [`etude-liens-strategie-provider-actif.md`](etude-liens-strategie-provider-actif.md) | Étude — Liens stratégie / provider / actif (vocabulaire et modèle cible) |  |
 | [`etude-passerelle-actif-non-stable.md`](etude-passerelle-actif-non-stable.md) | Étude — Passerelle par actif non stable (PAXG sur Kraken), USDT exclu |  |
 | [`etude-optimisation-mode-autonome.md`](etude-optimisation-mode-autonome.md) | Étude — Optimiser TradeIO vers un mode Full Autonome (définition du bon paramétrage, rejeu intégral, méthode, agencement des briques) |  |
+| [`etude-plafond-ath-mesure.md`](etude-plafond-ath-mesure.md) | Mesure du plafond de mise ATH utilisateur (étape 2) : tableau complet BTC, ETH, PAXG |  |
 | [`etude-protocole-calibrage-couches.md`](etude-protocole-calibrage-couches.md) | Étude — Protocole de calibrage Rainbow, attribution des pertes, couches de pilotage, gestion du risque |  |
 | [`roadmap-moteur-optimisation.md`](roadmap-moteur-optimisation.md) | Roadmap — moteur d'optimisation automatique (presets par actif + politique de pilotage utilisateur) |  |
 | [`etude-provider-revolutx.md`](etude-provider-revolutx.md) | Étude — Provider Revolut X : clés générées par utilisateur, candles, exécution |  |

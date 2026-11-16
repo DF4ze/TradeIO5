@@ -3,8 +3,8 @@ statut: decision
 sujet: modulation-exposition-puissance
 cree_le: 2026-11-10
 origine: memoire-claude-migree
-modifié_le: 2026-11-14
-empreinte: aba7d10319
+modifié_le: 2026-11-16
+empreinte: feb8b14a74
 ---
 # modulation-exposition-puissance
 
@@ -19,5 +19,5 @@ empreinte: aba7d10319
   - X vient de l'utilisateur au moment où il modifie sa bande : saisi en prix ou en % de mouvement (une tolérance, comme un slippage sur sa demande). **0 % = régulation immédiate** (le mode immédiat n'est que ce cas).
 - Modulateur loggé en JSON.
 - baseAmount côté user.
-- Modulation ATH à extraire en paramètre user (étude en attente, 2026-11-09).
+- Modulation ATH détachée du preset (2026-11-16) : **plafond de mise** utilisateur, global à tous ses liens ; achat : mise (facteur ATH × multiplicateur de zone) ≤ k × base ; vente : facteur ATH de vente plafonné de même ; valeurs de départ par profil de risque (Prudent, Équilibré, Dynamique, Full), réglées par l'admin comme les plafonds de drawdown. Les paramètres ATH du preset restent le signal ; le plafond s'applique par-dessus. Rejeu d'abord, live ensuite ([roadmap](../etudes/roadmap-moteur-optimisation.md)).
 - 2 curseurs distincts (2026-10-13) : exposition (actif vs stable) et puissance (amount achats ET ventes). Le curseur statique seul est remis en question (wallet doit "vivre").

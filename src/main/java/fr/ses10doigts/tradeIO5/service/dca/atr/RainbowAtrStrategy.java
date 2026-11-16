@@ -26,7 +26,9 @@ package fr.ses10doigts.tradeIO5.service.dca.atr;
  *       (×multTriggered) ; sinon zone EXTREME_BAS arme ; sinon multiplicateur de zone ;</li>
  *   <li>décrément du cooldown.</li>
  * </ol>
- * Facteurs ATH : neutralisés (1.0) pendant le mode moon ; calculés sur l'ATH bougie du jour incluse.
+ * Facteurs ATH : neutralisés (1.0) pendant le mode moon ; calculés sur l'ATH bougie du jour incluse. Plafond utilisateur
+ * optionnel ({@link AthCap}, rejeu Expert) : facteur de vente plafonné ici, multiplicateur d'achat plafonné par
+ * {@link ReferenceSizer} ; le signal garde les facteurs bruts du preset.
  */
 public final class RainbowAtrStrategy {
 
@@ -55,9 +57,15 @@ public final class RainbowAtrStrategy {
      */
     public static StepResult step(RainbowAtrState state, RainbowAtrBand band, double high, AthReference ath,
                                   double position, RainbowAtrTuning t, RainbowAtrGlobals g, boolean allowNewEntries) {
+        return step(state, band, high, ath, position, t, g, allowNewEntries, null);
+    }
+
+    /** @param athCap plafond utilisateur de la mise ATH (rejeu Expert) ; {@code null} = aucun plafond (live). */
+    public static StepResult step(RainbowAtrState state, RainbowAtrBand band, double high, AthReference ath,
+                                  double position, RainbowAtrTuning t, RainbowAtrGlobals g, boolean allowNewEntries, AthCap athCap) {
         double cl = band.close();
         RainbowMoon.Step ms = RainbowMoon.advance(state.moon(), g.moonOn(), g.moonTrailingStopPct(), cl, high, ath.value(), allowNewEntries);
-        return stepWithMoon(state, band, ms, ath.includingToday(high), position, t, g, allowNewEntries);
+        return stepWithMoon(state, band, ms, ath.includingToday(high), position, t, g, allowNewEntries, athCap);
     }
 
     /** Variante pour une bougie sans bornes : avance seulement l'automate moon. */
@@ -80,6 +88,12 @@ public final class RainbowAtrStrategy {
 
     static StepResult stepWithMoon(RainbowAtrState s, RainbowAtrBand band, RainbowMoon.Step ms, double athToday,
                                    double pos, RainbowAtrTuning t, RainbowAtrGlobals g, boolean allowNew) {
+        return stepWithMoon(s, band, ms, athToday, pos, t, g, allowNew, null);
+    }
+
+    /** {@code athCap} : plafond du facteur ATH de vente (le plafond d'achat s'applique au dimensionnement, {@link ReferenceSizer}). */
+    static StepResult stepWithMoon(RainbowAtrState s, RainbowAtrBand band, RainbowMoon.Step ms, double athToday,
+                                   double pos, RainbowAtrTuning t, RainbowAtrGlobals g, boolean allowNew, AthCap athCap) {
         double cl = band.close();
         int zone = band.zone();
         double eb = band.down2();
@@ -143,7 +157,7 @@ public final class RainbowAtrStrategy {
                 case FIXED_DELAY -> sellArmedDays >= t.fixedDelayDays();
             };
             if (trig) {
-                double requested = pos * Math.min(1.0, t.sellFraction() * sellAthFac);
+                double requested = pos * Math.min(1.0, t.sellFraction() * AthCap.effectiveSellFactor(athCap, sellAthFac));
                 double sellable = Math.max(pos - reserve, 0.0);
                 double sellQty = Math.min(requested, sellable);
                 if (sellQty > 0) {

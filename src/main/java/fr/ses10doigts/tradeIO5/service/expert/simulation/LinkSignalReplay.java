@@ -2,6 +2,7 @@ package fr.ses10doigts.tradeIO5.service.expert.simulation;
 
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
+import fr.ses10doigts.tradeIO5.service.dca.atr.AthCap;
 import fr.ses10doigts.tradeIO5.service.dca.atr.AthReference;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrBand;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrDataset;
@@ -39,17 +40,35 @@ public final class LinkSignalReplay {
 
     private static final double EPSILON = 1e-9;
 
-    /** Paramètres du signal d'un lien. */
+    /** Paramètres du signal d'un lien ; {@code athCap} : plafond utilisateur de la mise ATH ({@code null} = aucun, comportement du live). */
     public record Config(RainbowAtrDataset ds, List<MarketData> candles, TrendMixCalculator.Params trend, RangeMapping range,
                   RainbowAtrParamSet[] sets, int engineStart, int startIdx, int endIdx, Double linkBaseAmount,
                   Map<LocalDate, Double> priceOverride, Map<LocalDate, AthReference> athBefore, Set<LocalDate> rebootstrapDays,
-                  int windowMonths) {
+                  int windowMonths, AthCap athCap) {
+
+        /** Sans plafond ATH. */
+        public Config(RainbowAtrDataset ds, List<MarketData> candles, TrendMixCalculator.Params trend, RangeMapping range,
+                      RainbowAtrParamSet[] sets, int engineStart, int startIdx, int endIdx, Double linkBaseAmount,
+                      Map<LocalDate, Double> priceOverride, Map<LocalDate, AthReference> athBefore, Set<LocalDate> rebootstrapDays,
+                      int windowMonths) {
+            this(ds, candles, trend, range, sets, engineStart, startIdx, endIdx, linkBaseAmount, priceOverride, athBefore,
+                    rebootstrapDays, windowMonths, null);
+        }
+
+        /** Même configuration avec le plafond donné. */
+        public Config withAthCap(AthCap cap) {
+            return new Config(ds, candles, trend, range, sets, engineStart, startIdx, endIdx, linkBaseAmount, priceOverride,
+                    athBefore, rebootstrapDays, windowMonths, cap);
+        }
     }
 
-    /** Le jour préparé : demande du signal et éléments d'audit. */
+    /**
+     * Le jour préparé : demande du signal et éléments d'audit. {@code stakeMultiple} = achat du signal / base AVANT modulation (après
+     * plafond ATH éventuel, 0 sans achat), {@code buyCapped} = le plafond d'achat a réduit la mise du jour.
+     */
     public record Prepared(LocalDate day, int index, double price, double dayClose, String setName, String regime, double virtualPosition,
                     LiveDemand demand, RainbowLiveAction wantedAction, double wantedAmountUsdc, boolean active,
-                    double fixedBase, int zone, Audit audit) {
+                    double fixedBase, int zone, Audit audit, double stakeMultiple, boolean buyCapped) {
     }
 
     /**
@@ -77,7 +96,7 @@ public final class LinkSignalReplay {
         TrendMixCalculator.Params tp = cfg.trend();
         this.regime = TrendMixCalculator.compute(cfg.candles(), ds.sma(tp.smaPeriod()), ds.atr(tp.atrPeriod()), tp).regime();
         this.setOfBar = RainbowSetSelector.select(regime, cfg.range());
-        RainbowAtrReplay.Result boot = RainbowAtrReplay.runFull(ds, cfg.sets(), setOfBar, cfg.engineStart(), cfg.startIdx() - 1);
+        RainbowAtrReplay.Result boot = RainbowAtrReplay.runFull(ds, cfg.sets(), setOfBar, cfg.engineStart(), cfg.startIdx() - 1, cfg.athCap());
         this.state = boot.finalState();
         this.virtual = boot.finalPosition();
         AthReference a = cfg.engineStart() > 0
@@ -106,15 +125,15 @@ public final class LinkSignalReplay {
         double price = override != null && override > 0 ? override : dayClose;
         if (i > cfg.startIdx() && cfg.rebootstrapDays().contains(day)) {
             int es = Math.min(ReplayDays.firstIndexOnOrAfter(ds, day.minusMonths(cfg.windowMonths())), i);
-            RainbowAtrReplay.Result reboot = RainbowAtrReplay.runFull(ds, sets, setOfBar, es, i - 1);
+            RainbowAtrReplay.Result reboot = RainbowAtrReplay.runFull(ds, sets, setOfBar, es, i - 1, cfg.athCap());
             state = reboot.finalState();
             virtual = reboot.finalPosition();
         }
         AthReference stepAth = cfg.athBefore().getOrDefault(day, ath);
 
         // ÉTAT : avance sur la bougie FINALE (le live rejoue la veille sur la bougie clôturée : état, position virtuelle)
-        RainbowAtrStrategy.StepResult step = stepOn(ds, i, set, dayClose, high, state, stepAth, virtual, active);
-        Sizer.Order finalOrder = new ReferenceSizer(BigDecimal.valueOf(set.globals().baseAmount()))
+        RainbowAtrStrategy.StepResult step = stepOn(ds, i, set, dayClose, high, state, stepAth, virtual, active, cfg.athCap());
+        Sizer.Order finalOrder = new ReferenceSizer(BigDecimal.valueOf(set.globals().baseAmount()), cfg.athCap())
                 .size(step.signal(), BigDecimal.valueOf(dayClose), BigDecimal.valueOf(virtual));
         double nextVirtual = Math.max(0.0, virtual - finalOrder.sellQuantity().doubleValue()
                 + finalOrder.buyAmount().doubleValue() / dayClose);
@@ -140,11 +159,11 @@ public final class LinkSignalReplay {
             decRegime = preg[i];
             decData = pds;
             decClose = override;
-            decStep = stepOn(pds, i, decSet, override, pds.high(i), state, stepAth, virtual, active);
+            decStep = stepOn(pds, i, decSet, override, pds.high(i), state, stepAth, virtual, active, cfg.athCap());
         }
         RainbowSignal signal = decStep.signal();
         double base = decSet.globals().baseAmount();
-        ReferenceSizer sizer = new ReferenceSizer(BigDecimal.valueOf(base));
+        ReferenceSizer sizer = new ReferenceSizer(BigDecimal.valueOf(base), cfg.athCap());
         Sizer.Order order = sizer.size(signal, BigDecimal.valueOf(price), BigDecimal.valueOf(virtual));
         LiveDemand demand = new LiveDemand(order.buyAmount().doubleValue(),
                 tradable -> sizer.size(signal, BigDecimal.valueOf(price), BigDecimal.valueOf(tradable)).sellQuantity().doubleValue(),
@@ -155,13 +174,16 @@ public final class LinkSignalReplay {
         double wantedAmount = wanted == RainbowLiveAction.SELL ? wantedSell * price : order.buyAmount().doubleValue();
         double fixedBase = cfg.linkBaseAmount() != null && cfg.linkBaseAmount() > 0 ? cfg.linkBaseAmount() : base;
 
+        boolean buyCapped = order.buyAmount().signum() > 0
+                && AthCap.buyCapped(cfg.athCap(), signal.buyAthFactor() * signal.multZone());
+        double stakeMultiple = base > 0 ? order.buyAmount().doubleValue() / base : 0.0;
         Audit audit = new Audit(bandOf(decData, i, decSet, decClose), stepAth.includingToday(decData.high(i)),
                 step.state().reserveQty(), signal);
         pendingStep = step;
         pendingNextVirtual = nextVirtual;
         pendingIdx = i;
         return new Prepared(day, i, price, dayClose, decSet.name(), decRegime == null ? null : decRegime.name(), virtual, demand,
-                wanted, wantedAmount, active, fixedBase, signal.zone(), audit);
+                wanted, wantedAmount, active, fixedBase, signal.zone(), audit, stakeMultiple, buyCapped);
     }
 
     /** Avance l'état du lien à la bougie finale du jour préparé. */
@@ -185,13 +207,13 @@ public final class LinkSignalReplay {
     /** Un pas de la machine Rainbow sur la bougie {@code i} de {@code data} avec le jeu {@code set} (bornes non calculables : pas invalide). */
     private static RainbowAtrStrategy.StepResult stepOn(RainbowAtrDataset data, int i, RainbowAtrParamSet set, double close,
                                                         double high, RainbowAtrState state, AthReference ath, double position,
-                                                        boolean active) {
+                                                        boolean active, AthCap athCap) {
         double sma = data.sma(set.tuning().smaPeriod())[i];
         double atr = data.atr(set.tuning().atrPeriod())[i];
         if (Double.isNaN(sma) || Double.isNaN(atr)) {
             return RainbowAtrStrategy.stepInvalid(state, close, high, ath, set.globals(), active);
         }
         return RainbowAtrStrategy.step(state, RainbowAtrBand.of(close, sma, atr, set.tuning()), high, ath, position, set.tuning(),
-                set.globals(), active);
+                set.globals(), active, athCap);
     }
 }

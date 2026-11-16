@@ -41,6 +41,7 @@ import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService.ModulationSettings;
 import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.MarketDataProviderLimits;
+import fr.ses10doigts.tradeIO5.service.dca.atr.AthCap;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrDataset;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.LiveCandleSource;
@@ -112,7 +113,13 @@ public class FullSimulationService {
 
     /** Demande validée : tout est résolu sauf les données (bougies, wallet réel, coûts). */
     public record Plan(Long walletId, LocalDate from, LocalDate to, Double cash0, ModulationSettings settings, boolean withCosts,
-                       List<PlannedLink> links, PolicySpec policy) {
+                       List<PlannedLink> links, PolicySpec policy, AthCap athCap) {
+
+        /** Sans plafond de mise ATH. */
+        public Plan(Long walletId, LocalDate from, LocalDate to, Double cash0, ModulationSettings settings, boolean withCosts,
+                    List<PlannedLink> links, PolicySpec policy) {
+            this(walletId, from, to, cash0, settings, withCosts, links, policy, null);
+        }
 
         /** Sans politique de modulation. */
         public Plan(Long walletId, LocalDate from, LocalDate to, Double cash0, ModulationSettings settings, boolean withCosts,
@@ -263,6 +270,12 @@ public class FullSimulationService {
                 errors.putAll(e.getFields());
             }
         }
+        AthCap athCap = null;
+        try {
+            athCap = AthCapResolver.resolve(req.athCap(), AthCapResolver.FIELD);
+        } catch (ExpertValidationException e) {
+            errors.putAll(e.getFields());
+        }
         List<RainbowLiveBinding> all = bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(ctx.user());
         if (all.isEmpty()) {
             throw new ExpertApiException(ExpertApiException.Code.BINDING_NOT_FOUND, "Aucun lien : reliez un actif à un wallet avant de simuler");
@@ -312,7 +325,7 @@ public class FullSimulationService {
         if (!errors.isEmpty()) {
             throw new ExpertValidationException(errors);
         }
-        return new Plan(walletId, from, to, req.cash0(), settings, req.withCosts() == null || req.withCosts(), planned, req.policy());
+        return new Plan(walletId, from, to, req.cash0(), settings, req.withCosts() == null || req.withCosts(), planned, req.policy(), athCap);
     }
 
     // ---------------------------------------------------------------- calcul
@@ -336,7 +349,7 @@ public class FullSimulationService {
         List<FullLinkMetaDto> metas = data.metas();
         ModulationPolicy policy = plan.policy() == null ? null : ModulationPolicies.from(plan.policy());
         hooks.computing().run();
-        MultiLinkReplayEngine.Result result = run(data, plan.settings(), policy);
+        MultiLinkReplayEngine.Result result = run(data, plan.settings(), policy, plan.athCap());
         if (result.walletDays().isEmpty()) {
             throw new ExpertValidationException("from", "aucun jour rejouable dans la plage (SMA / ATR pas encore définis)");
         }
@@ -362,7 +375,7 @@ public class FullSimulationService {
         EpisodeDtos.EpisodeReportDto episodes = FullReplayService.report(stored, first, last);
         FullMetaDto meta = new FullMetaDto(plan.walletId(), first, last, cash0, withCosts, new ModulationDto(plan.settings().exposureMin(),
                 plan.settings().exposureMax(), plan.settings().power(), plan.settings().bias(), plan.settings().regulationMarginPct()),
-                metas, warnings, policy == null ? null : policy.label());
+                metas, warnings, policy == null ? null : policy.label(), plan.athCap() == null ? null : plan.athCap().label());
         FullSeriesDto series = series(result, links);
         DrawdownDto drawdown = drawdown(series, userModulation.profileOf(user), modulationControl.current());
         List<ResultLineDto> lines = lines(result, cash0, withCosts);
@@ -372,10 +385,10 @@ public class FullSimulationService {
         return new FullSimulationResultDto(meta, series, assetCharts(result, links, dsByLink), lines, episodes, drawdown);
     }
 
-    /** Un rejeu du wallet chargé avec la politique donnée ({@code null} = réglages constants). */
-    MultiLinkReplayEngine.Result run(Loaded data, ModulationSettings settings, ModulationPolicy policy) {
+    /** Un rejeu du wallet chargé avec la politique et le plafond de mise ATH donnés ({@code null} = réglages constants / aucun plafond). */
+    MultiLinkReplayEngine.Result run(Loaded data, ModulationSettings settings, ModulationPolicy policy, AthCap athCap) {
         return MultiLinkReplayEngine.run(new MultiLinkReplayEngine.Input(data.links(), data.cash0(), settings,
-                modulationControl.current(), Map.of(), Map.of(), Map.of(), Map.of(), data.costs(), policy));
+                modulationControl.current(), Map.of(), Map.of(), Map.of(), Map.of(), data.costs(), policy, athCap));
     }
 
     /**

@@ -30,7 +30,14 @@ public final class FullSimulationDtos {
      */
     public record FullRequest(Long walletId, LocalDate from, LocalDate to, Double cash0, Double exposureMin, Double exposureMax,
                               Double power, Double bias, Double regulationMarginPct, Boolean withCosts, List<LinkOverride> links,
-                              PolicySpec policy) {
+                              PolicySpec policy, AthCapSpec athCap) {
+
+        /** Sans plafond de mise ATH. */
+        public FullRequest(Long walletId, LocalDate from, LocalDate to, Double cash0, Double exposureMin, Double exposureMax,
+                           Double power, Double bias, Double regulationMarginPct, Boolean withCosts, List<LinkOverride> links,
+                           PolicySpec policy) {
+            this(walletId, from, to, cash0, exposureMin, exposureMax, power, bias, regulationMarginPct, withCosts, links, policy, null);
+        }
 
         /** Sans politique de modulation (réglages constants). */
         public FullRequest(Long walletId, LocalDate from, LocalDate to, Double cash0, Double exposureMin, Double exposureMax,
@@ -39,18 +46,35 @@ public final class FullSimulationDtos {
         }
     }
 
-    /** Politique de modulation dans le temps : {@code type} (CONSTANT, REGIME_BAND, EXPOSURE_GAP_BIAS, BEAR_DERISK_RAMP) + paramètres. */
-    public record PolicySpec(String type, Map<String, Double> params) {
+    /**
+     * Plafond de mise ATH global à l'utilisateur : {@code profile} (PRUDENT, BALANCED, DYNAMIC, FULL, CUSTOM) donne les défauts,
+     * {@code buyCap} (≥ 1) / {@code sellCap} (≥ 0) explicites les surchargent ; tout nul = aucun plafond.
+     */
+    public record AthCapSpec(String profile, Double buyCap, Double sellCap) {
+    }
+
+    /**
+     * Politique de modulation dans le temps : {@code type} (CONSTANT, REGIME_BAND, EXPOSURE_GAP_BIAS, BEAR_DERISK_RAMP) + paramètres ;
+     * {@code athCap} (comparaison) : plafond propre à la variante, à défaut celui de {@code full}.
+     */
+    public record PolicySpec(String type, Map<String, Double> params, AthCapSpec athCap) {
+
+        /** Sans plafond propre. */
+        public PolicySpec(String type, Map<String, Double> params) {
+            this(type, params, null);
+        }
     }
 
     /** Comparaison de politiques : mêmes wallet / plage / capital que {@code full}, une exécution CONSTANT puis une par politique (max 5). */
     public record PolicyCompareRequest(FullRequest full, List<PolicySpec> policies) {
     }
 
-    /** Un run de comparaison : résultat, écart au DCA fixe de même budget, risque, répartition du gain, jours refusés, durée du rejeu. */
+    /** Un run de comparaison : résultat, écart au DCA fixe de même budget, risque, répartition du gain, jours refusés, durée du rejeu, plafond ATH
+     * appliqué (libellé), mise max du signal (× base, avant modulation) et décidée (après modulation), achats plafonnés. */
     public record PolicyRunDto(String label, PolicySpec spec, double finalValue, double fixedFinalValue, double gainVsFixed,
                                Double gainVsFixedPct, double maxDrawdownPct, double avgExposurePct, EpisodeDtos.Gain gain,
-                               long blockedDays, long belowMinDays, long runMs) {
+                               long blockedDays, long belowMinDays, long runMs, String athCap, double maxStakeMultiple,
+                               double maxFinalStakeMultiple, long cappedBuys) {
     }
 
     public record PolicyCompareDto(Long walletId, LocalDate from, LocalDate to, double cash0, boolean withCosts,
@@ -97,7 +121,7 @@ public final class FullSimulationDtos {
     }
 
     public record FullMetaDto(Long walletId, LocalDate from, LocalDate to, double cash0, boolean withCosts, ModulationDto modulation,
-                              List<FullLinkMetaDto> links, List<String> warnings, String policy) {
+                              List<FullLinkMetaDto> links, List<String> warnings, String policy, String athCap) {
     }
 
     /**

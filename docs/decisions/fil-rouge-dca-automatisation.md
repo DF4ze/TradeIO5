@@ -4,7 +4,7 @@ sujet: fil-rouge-dca-automatisation
 cree_le: 2026-11-10
 origine: memoire-claude-migree
 modifié_le: 2026-11-16
-empreinte: 8d00eb627c
+empreinte: 0024d06f97
 ---
 # fil-rouge-dca-automatisation
 
@@ -28,5 +28,5 @@ Cadre et architecture : [`../etudes/etude-optimisation-mode-autonome.md`](../etu
 - Presets : optimisés **par actif** (BTC, ETH, PAXG séparément). Trend figée, non optimisée.
 - Réglages utilisateur : politique de pilotage évaluée **par rapport au wallet de l'utilisateur** (état du wallet en entrée).
 - Promotion des presets : **auto-bornée** (dérive limitée, journalisée, réversible) ; Clem garde un regard (visibilité / veto) sans valider chaque promotion.
-- Modulation ATH : **détachée du preset** et traitée en réglage utilisateur plafonné (L2 risque) avant le moteur.
+- Modulation ATH : **détachée du preset** et traitée en réglage utilisateur plafonné (L2 risque) avant le moteur. Forme et portée : [`modulation-exposition-puissance.md`](modulation-exposition-puissance.md).
 - L3 (macro, YouTube) : **hors périmètre** pour l'instant.

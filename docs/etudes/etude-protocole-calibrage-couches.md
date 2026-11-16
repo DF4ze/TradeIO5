@@ -1,8 +1,8 @@
 ---
 statut: journal
 sujet: Protocole de calibrage Rainbow, attribution des pertes, couches portefeuille/macro, risque
-modifié_le: 2026-11-15
-empreinte: 5567e5a908
+modifié_le: 2026-11-16
+empreinte: f48939a55b
 ---
 # Étude — Protocole de calibrage Rainbow, attribution des pertes, couches de pilotage, gestion du risque
 
@@ -80,11 +80,11 @@ Points d'attention pour la spec :
 
 ## 6. Risque : modulation ATH et montant réellement engagé
 
-- Achat = base × facteur ATH (jusqu'à 4–5) × multiplicateur de zone (X2 = 2, ARMÉ = 3) ⇒ 10 à 15 × la mise de base, constaté par Clem sur le pine. Le bench mesurait ~280 % du budget d'un DCA fixe déployé en moyenne (112–478 %).
+- Achat = base × facteur ATH (jusqu'à 4–5) × multiplicateur de zone (X2 = 2, ARMÉ = 3). **Mesuré** (rejeu étape 2, 2026-11-16, BTC / ETH / PAXG) : mise max du signal 12 × la base (BTC, ETH) et 15 × (PAXG), jusqu'à 23 × après modulation avec la bande par régime (BTC, ETH) ; exposition moyenne ~7 % du wallet. Le bench mesurait ~280 % du budget d'un DCA fixe déployé en moyenne (112–478 %). Détail : [`etude-optimisation-mode-autonome.md`](etude-optimisation-mode-autonome.md) §11.2.
 - `modulationProductMax` ne plafonne que puissance × biais × bande, pas ATH × zone.
 - La proposition de montant de base (onboarding) ignore le facteur ATH ⇒ autonomie surestimée.
 - Lié : détachement de la modulation ATH en réglage utilisateur (étude en attente, discussion Cowork du 2026-11-09 : 3 lots proposés, 6 décisions ouvertes).
-- Pistes : plafond « mise max = k × base » ; budget par période ; amplitude ATH réglable ; rôle de la **Puissance** à redéfinir dans ce cadre (question de Clem).
+- Plafond « mise max = k × base » : **fait dans le rejeu** (étape 2, [`../architecture/13-espace-expert.md`](../architecture/13-espace-expert.md)) ; coût mesuré : Prudent (3) −0,3 à −0,7 % de valeur finale en `CONSTANT`, jusqu'à −17 % avec la bande par régime sur plage longue ; Équilibré (6) ≤ −4,7 % ; Dynamique (10) et Full (15) ≈ 0. Restent ouverts : budget par période ; amplitude ATH réglable ; rôle de la **Puissance** à redéfinir dans ce cadre (question de Clem).
 
 ## 7. Questions ouvertes
 

@@ -83,10 +83,16 @@ public final class RainbowAtrReplay {
      */
     public static Result runFull(RainbowAtrDataset ds, RainbowAtrParamSet[] sets, int[] setOfBar,
                                  int startIdx, int endIdx) {
+        return runFull(ds, sets, setOfBar, startIdx, endIdx, null);
+    }
+
+    /** {@code athCap} : plafond utilisateur de la mise ATH ({@code null} = aucun) ; la position virtuelle suit les montants plafonnés. */
+    public static Result runFull(RainbowAtrDataset ds, RainbowAtrParamSet[] sets, int[] setOfBar,
+                                 int startIdx, int endIdx, AthCap athCap) {
         if (setOfBar.length != ds.size()) {
             throw new IllegalArgumentException("setOfBar doit couvrir tout le dataset");
         }
-        ReferenceSizer sizer = new ReferenceSizer(BigDecimal.valueOf(sets[0].globals().baseAmount()));
+        ReferenceSizer sizer = new ReferenceSizer(BigDecimal.valueOf(sets[0].globals().baseAmount()), athCap);
         double base = sets[0].globals().baseAmount();
 
         RainbowMoon.State moon = RainbowMoon.State.INACTIVE;
@@ -126,7 +132,7 @@ public final class RainbowAtrReplay {
             }
             double athToday = ath.includingToday(hi);
             RainbowAtrBand band = RainbowAtrBand.of(cl, sma, atr, t);
-            RainbowAtrStrategy.StepResult r = RainbowAtrStrategy.step(st, band, hi, ath, pos, t, g, active);
+            RainbowAtrStrategy.StepResult r = RainbowAtrStrategy.step(st, band, hi, ath, pos, t, g, active, athCap);
             ath = ath.observe(hi, ds.time(i));
             st = r.state();
             RainbowSignal sig = r.signal();

@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-14
-empreinte: 0761e2cc08
+modifié_le: 2026-11-16
+empreinte: 95b9c3b78a
 ---
 # Rainbow DCA ATR live — Affectations, signal quotidien, liens (bindings), API REST
 
@@ -60,7 +60,7 @@ Pour chaque Affectation, `RainbowLiveExecutionService` délègue à `RainbowTren
 1. **Trend** : `TrendMixCalculator` (réglages du `TrendPreset`, cf. [`09-trend.md`](09-trend.md)) sur la série D1 chargée, puis `RainbowSetSelector` (RANGE selon `rangeMapping`, DOWN au départ) → preset Rainbow joué : UP ⇒ `rainbowUp`, DOWN ⇒ `rainbowDown`. Le montant de base est celui du preset joué. Les runs écrits restent figés (snapshot de config + `configHash` par run).
 2. **État et position virtuelle** : dernière ligne `RainbowLiveEngineState` antérieure au jour **si son `configHash` == `AffectationConfigResolver#effectiveHash`**. Absente (1re passe), hash différent (preset modifié ou presets installés changés) **ou trou de passes** (dernier `state_day` antérieur à la bougie précédant le jour : service arrêté, série sautée faute de bougie) ⇒ (ré-)amorçage par `RainbowAtrReplay.runFull` sur `analysisWindowMonths` mois jusqu'à la veille avec la config courante (état + `finalPosition()`), enregistré pour la veille. Un trou est tracé (WARN + journal admin `AdminAction.RUN`, acteur `auto-resync`, cible `rainbow-resync:affectation:<id>`, payload `reason`/`lastStateDay`/`resyncedTo`) : sans ce rejeu, un événement manqué (ex. levée du verrou d'achat par une clôture < DOWN2) ne serait jamais vu. Les jours manqués ne produisent **ni run ni ordre** : seul l'état moteur avance. Sans changement ni trou, l'état est recalculé depuis celui de la veille (un seul `RainbowAtrStrategy#step`).
 3. **ATH** : `RainbowAthService#athBefore` (ATH de la veille, lu en base). Amorçage one-shot à la 1re demande d'un actif sans aucune ligne : historique D1 complet Binance (`BinanceDailyCandleFetcher`, klines publics, seul appel exchange hors portefeuille, une fois par actif).
-4. **Dimensionnement du signal** : `ReferenceSizer` (base × facteur ATH × multiplicateur de zone ; vente = fraction × position **virtuelle**), sans plafond de portefeuille.
+4. **Dimensionnement du signal** : `ReferenceSizer` (base × facteur ATH × multiplicateur de zone ; vente = fraction × position **virtuelle**), sans plafond de portefeuille. Le live appelle `step` et `ReferenceSizer` **sans plafond de mise ATH** (résultat strictement inchangé) ; le plafond utilisateur n'existe que dans le rejeu Expert ([`13-espace-expert.md`](13-espace-expert.md)).
 5. **Écritures** : état du jour, position virtuelle (`max(0, position − quantité vendue + montant acheté / close)`) et ATH du jour via `Outcome#commit`, après l'enregistrement du run. Le run du lendemain rejoue le jour sur la vraie clôture (même chemin) et **remplace** ces écritures. Rejouer une passe est idempotent.
 
 Validation des réglages Trend : `RainbowLiveTrendConfigs#validate` (fenêtres ≥ 2, `0 ≤ exit ≤ enter`, `confirm ≥ 1`, tunings valides, `baseAmount > 0`).

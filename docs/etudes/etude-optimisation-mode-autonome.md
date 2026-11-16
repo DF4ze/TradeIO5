@@ -2,7 +2,7 @@
 statut: journal
 sujet: Optimiser TradeIO vers un mode Full Autonome — définition du bon paramétrage, instrument de mesure, méthode, agencement des briques
 modifié_le: 2026-11-16
-empreinte: 2fb0e080a1
+empreinte: 3c4557b6ea
 ---
 # Étude — Optimiser TradeIO vers un mode « Full Autonome »
 
@@ -236,3 +236,23 @@ Frais : 0 (non simulés). Jours refusés (`BLOCKED`) : de 0 à 26 par run, `BELO
 **Coût de calcul (budget étape 3)** : 5 à 110 ms par rejeu (BTC, ETH 24 mois ~15–60 ms, 8 ans ~30–60 ms, un seul lien sans frais, 1er run = JIT). Ordre de grandeur : ~50 ms par run et par lien sur 8 ans sans frais, à multiplier par le nombre de liens du wallet ; avec `OrderReplay` à mesurer.
 
 Plan d'implémentation : [`roadmap-moteur-optimisation.md`](roadmap-moteur-optimisation.md).
+
+### 11.2 Plafond de mise ATH (étape 2, 2026-11-16)
+Livré (rejeu seulement, live inchangé) : [`../architecture/13-espace-expert.md`](../architecture/13-espace-expert.md) (« Plafond de mise ATH utilisateur »). Mesure par `policy-compare` (méthode du §11.1 : un lien par run, départ 100 % USDC, sans frais) : `CONSTANT` et `REGIME_BAND` (bear 0–30, bull 20–90) × plafonds aucun / Prudent / Équilibré / Dynamique / Full, BTC, ETH (24 m et max), PAXG (19 m). Tableau complet : [`etude-plafond-ath-mesure.md`](etude-plafond-ath-mesure.md).
+
+**(1) La mise de 10–15 × la base se confirme.** Sans plafond, le signal atteint 12,00 × la base (BTC, ETH) et 14,96 × (PAXG) ; après modulation, 11,8–12,9 × avec la bande neutre (`CONSTANT`) et **22,7–23,0 × avec la bande par régime** sur BTC et ETH (14,3 × sur PAXG) : le plancher Bull multiplie encore la mise, produit ≤ `modulationProductMax` 2,5. Le plafond d'achat Full (15) ne mord jamais sur ces trois actifs (max observé 12 / 14,96) ; Dynamique (10) ne touche que 13–90 achats.
+
+**(2) Coût en gain d'un plafond** (variation de la valeur finale vs sans plafond) :
+
+| Plafond | CONSTANT (24 m / max) | REGIME_BAND BTC, ETH 24 m | REGIME_BAND BTC, ETH max | REGIME_BAND PAXG |
+|---|---|---|---|---|
+| Prudent 3/1 | −0,7 % / −0,3 % | −5,7 % / −5,4 % | −16,8 % / −16,6 % | −1,7 % |
+| Équilibré 6/2 | −0,5 % / −0,3 % | −0,7 % / −0,6 % | −4,7 % / −4,4 % | −0,1 % |
+| Dynamique 10/3 | −0,1 % / −0,1 % | −0,0 % | −0,3 % | +0,1 % |
+| Full 15/5 | 0 | 0 | 0 | 0 |
+
+Le coût est faible tant que le wallet n'est pas poussé par la bande ; il devient net avec la bande par régime sur plage longue : le plafond coupe les plus grosses mises (zones ARMÉ / EXTREME_BAS, aux creux) et ce cash reste inemployé (wallet limité par son capital). Côté risque : Prudent réduit le drawdown de `CONSTANT` (BTC max −9,1 → −7,9 %), très peu celui de la bande (−23,8 → −20,7 %). **Exposition moyenne** ~7 % (constante) : un plafond la réduit peu en `CONSTANT` (−0,1 à −0,5 pt) mais de 3,6 pts avec la bande sous Prudent (BTC 24 m 20,9 → 17,3 %, max 19,6 → 16,0 %) : le plafond réduit bien le déploiement.
+
+**(3) Le plafond ne change pas le verdict H0 sur plage longue.** La bande par régime reste le levier dominant : BTC max 5 462–6 568 vs 3 359–3 369 en `CONSTANT`, ETH max 5 354–6 420 vs 3 276–3 286, quel que soit le plafond ; la perte vs DCA fixe reste du même ordre (−62 à −69 %), drawdown de la bande −21 à −24 %. Sur 24 mois, en revanche, **Prudent efface l'avantage de la bande** sur BTC (2 412 vs 2 466 en `CONSTANT` au même plafond) et ETH (2 358 vs 2 407), alors qu'il subsiste sans plafond (+75 / +70) et sous Équilibré (+70 / +67) ; PAXG : la bande reste devant sous tous les plafonds. Lecture : l'effet reste un effet de plancher d'exposition, pas de timing du signal.
+
+**Limites** : (1) valeurs de défaut par profil non validées (constantes de code) ; (2) capital réel faible rapporté à l'historique (wallet limité par son cash) ; (3) une seule règle de bande, une fenêtre par actif, sans frais ; (4) **écart avec §11.1** : les lignes sans plafond ne reproduisent pas exactement les chiffres du §11.1 (BTC 24 m `CONSTANT` 2 483 vs 2 571 ; DCA fixe 2 111 vs 2 309 ; PAXG DCA fixe 918 vs 1 039), alors que le DCA fixe n'est pas touché par cette étape : cause non élucidée (liens, presets ou bougies de la base locale entre les deux exécutions), les comparaisons ne valent qu'à l'intérieur de ce tableau.

@@ -1,5 +1,8 @@
 package fr.ses10doigts.tradeIO5.service.modulation;
 
+import fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile;
+import fr.ses10doigts.tradeIO5.service.dca.atr.AthCap;
+
 import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -67,6 +70,22 @@ public final class ModulationDefaults {
     /** Bornes de l'exposition (en % de la valeur du portefeuille). */
     public static final double EXPOSURE_FLOOR_PCT = 0d;
     public static final double EXPOSURE_CEILING_PCT = 100d;
+
+    /**
+     * Plafonds de mise ATH par profil (achat / vente, en multiples de la base / facteur ATH de vente), valeurs initiales à valider :
+     * Prudent 3 / 1, Équilibré 6 / 2, Dynamique 10 / 3, Full 15 / 5. {@link StartingProfile#CUSTOM} : aucun défaut. Constantes de code
+     * pour l'instant (persistance et réglage admin : étape 7), utilisées par le rejeu Expert seulement.
+     */
+    private static final Map<StartingProfile, AthCap> ATH_CAPS = Map.of(
+            StartingProfile.PRUDENT, new AthCap(3d, 1d),
+            StartingProfile.BALANCED, new AthCap(6d, 2d),
+            StartingProfile.DYNAMIC, new AthCap(10d, 3d),
+            StartingProfile.FULL, new AthCap(15d, 5d));
+
+    /** Plafond de mise ATH par défaut du profil ({@code null} pour {@link StartingProfile#CUSTOM} : pas de défaut). */
+    public static AthCap athCapOf(StartingProfile profile) {
+        return ATH_CAPS.get(profile);
+    }
 
     public static Limit limit(String name) {
         return LIMITS.get(name);
