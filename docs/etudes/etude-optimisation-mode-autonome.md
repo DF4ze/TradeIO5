@@ -2,7 +2,7 @@
 statut: journal
 sujet: Optimiser TradeIO vers un mode Full Autonome — définition du bon paramétrage, instrument de mesure, méthode, agencement des briques
 modifié_le: 2026-11-16
-empreinte: 375d7d5e87
+empreinte: 2fb0e080a1
 ---
 # Étude — Optimiser TradeIO vers un mode « Full Autonome »
 
@@ -196,3 +196,43 @@ Décisions : [`../decisions/fil-rouge-dca-automatisation.md`](../decisions/fil-r
 **Ordre** : (1) hook de politique dynamique dans `MultiLinkReplayEngine` + test H0 avec 2–3 règles manuelles ; (2) ATH détaché du preset en réglage utilisateur plafonné ; (3) moteur de recherche headless (sensibilité → Sobol / halving, sortie JSON) ; (4) PolicyOptimizer ; (5) PresetOptimizer + walk-forward imbriqué ; (6) orchestrateur auto-borné + cron.
 
 **Ouvert** : valeur de X (cadence) ; bornes δ de dérive ; forme exacte de la politique (règles par régime vs fonction continue) ; budget de calcul du walk-forward imbriqué.
+
+### 11.1 Verdict H0 (étape 1, 2026-11-16)
+Hook livré : [`../architecture/13-espace-expert.md`](../architecture/13-espace-expert.md) (« Politique de modulation dans le temps »). Mesure : `policy-compare`, base locale copie de prod, un wallet par actif (liens des autres actifs coupés), départ 100 % USDC, capital = valeur du wallet réel (BTC 2 484, ETH 2 425, PAXG 1 062 USDC), sans frais. « 24 mois » = 2024-11-15 → 2026-11-15 ; « max » = plus longue plage atteignable (BTC, ETH : 2018-07-12 → 2026-11-15 ; PAXG : 2025-04-23 → 2026-11-15, Kraken ne sert que 754 bougies D1, 24 mois inatteignables ⇒ une seule ligne). Gain = écart à un DCA fixe de même budget.
+
+| Actif | Plage | Politique | Final | DCA fixe | Gain % | DD max % | Expo moy. % | Exposition | Timing | ms |
+|---|---|---|---|---|---|---|---|---|---|---|
+| BTC | 24 m | CONSTANT | 2 571 | 2 309 | +11,4 | −2,0 | 4,8 | +62 | +200 | 108 |
+| BTC | 24 m | REGIME_BAND | 2 435 | 2 309 | +5,5 | −9,2 | 13,7 | −4 | +130 | 56 |
+| BTC | 24 m | EXPOSURE_GAP_BIAS | 2 575 | 2 309 | +11,5 | −2,0 | 4,8 | +63 | +203 | 35 |
+| BTC | 24 m | BEAR_DERISK_RAMP | 2 571 | 2 309 | +11,4 | −2,0 | 4,8 | +62 | +200 | 33 |
+| BTC | max | CONSTANT | 3 377 | 11 026 | −69,4 | −8,9 | 5,7 | −7 127 | −522 | 59 |
+| BTC | max | REGIME_BAND | 6 154 | 11 026 | −44,2 | −25,8 | 16,1 | −5 679 | +808 | 54 |
+| BTC | max | EXPOSURE_GAP_BIAS | 3 366 | 11 026 | −69,5 | −8,8 | 5,6 | −7 137 | −523 | 42 |
+| BTC | max | BEAR_DERISK_RAMP | 3 377 | 11 026 | −69,4 | −8,9 | 5,7 | −7 127 | −522 | 35 |
+| ETH | 24 m | CONSTANT | 2 428 | 2 228 | +9,0 | −6,9 | 6,5 | +87 | +113 | 20 |
+| ETH | 24 m | REGIME_BAND | 2 471 | 2 228 | +10,9 | −15,6 | 18,7 | −64 | +307 | 14 |
+| ETH | 24 m | EXPOSURE_GAP_BIAS | 2 423 | 2 228 | +8,7 | −6,9 | 6,4 | +89 | +106 | 15 |
+| ETH | 24 m | BEAR_DERISK_RAMP | 2 428 | 2 228 | +9,0 | −6,9 | 6,5 | +87 | +113 | 14 |
+| ETH | max | CONSTANT | 3 196 | 9 641 | −66,8 | −8,6 | 5,8 | −5 595 | −850 | 32 |
+| ETH | max | REGIME_BAND | 6 272 | 9 641 | −34,9 | −20,7 | 18,4 | −4 637 | +1 268 | 27 |
+| ETH | max | EXPOSURE_GAP_BIAS | 3 169 | 9 641 | −67,1 | −8,5 | 5,7 | −5 606 | −866 | 23 |
+| ETH | max | BEAR_DERISK_RAMP | 3 196 | 9 641 | −66,8 | −8,6 | 5,8 | −5 595 | −850 | 26 |
+| PAXG | max (19 m) | CONSTANT | 1 081 | 1 039 | +4,0 | −1,8 | 5,5 | −33 | +74 | 10 |
+| PAXG | max (19 m) | REGIME_BAND | 1 132 | 1 039 | +8,9 | −6,4 | 17,6 | −15 | +107 | 7 |
+| PAXG | max (19 m) | EXPOSURE_GAP_BIAS | 1 080 | 1 039 | +4,0 | −1,8 | 5,5 | −33 | +74 | 5 |
+| PAXG | max (19 m) | BEAR_DERISK_RAMP | 1 081 | 1 039 | +4,0 | −1,8 | 5,5 | −33 | +74 | 6 |
+
+Frais : 0 (non simulés). Jours refusés (`BLOCKED`) : de 0 à 26 par run, `BELOW_MIN` : 0.
+
+**Réponse : oui, la couche exposition pèse plus que le timing du signal, mais pas par toutes les règles.**
+- Sur plage longue la perte vs DCA fixe vient presque entièrement du terme **exposition** (BTC −7 127, ETH −5 595) : le Rainbow ne détient que ~5 % du wallet en moyenne, le timing est secondaire (−522, −850). Une bande par régime (bull 20–90, bear 0–30) fait passer l'exposition moyenne à 16–18 %, déplace le terme exposition de +1 450 (BTC) / +960 (ETH) **et** le timing de +1 330 / +2 120 : la valeur finale double (BTC 3 377 → 6 154, ETH 3 196 → 6 272), soit un effet plus grand que tout le timing de la référence. Coût : drawdown ×3 (−8,9 → −25,8 %, −8,6 → −20,7 %).
+- Sur 24 mois le signe dépend de l'actif : BTC −5,9 pts de gain (DD −2 → −9,2 %), ETH +1,9, PAXG +4,9 (DD −1,8 → −6,4 %). Effet de plancher Bull (achats de rattrapage sous 20 %), pas un gain de timing prouvé : à départ ou actif différent, le signe change.
+- `EXPOSURE_GAP_BIAS` (gain 1) : écart ≤ 0,3 pt sur toutes les lignes, indiscernable de la constante. `BEAR_DERISK_RAMP` : résultat **identique** à la constante partout : l'exposition (~5 %) reste sous la cible / le plafond, la politique ne se déclenche jamais.
+- Conclusion pour l'ordre des étapes 4 / 5 : le levier pertinent est la **bande par régime** (plancher d'exposition), pas le biais ni la rampe de dé-risque tels que testés. Les politiques qui ne font que baisser le plafond ne peuvent rien tant que le wallet est loin de son plafond.
+
+**Limites connues** : (1) sans ordre de rééquilibrage (décision de Clem), « Bear ⇒ exposition basse » ne fait que couper les achats et accentuer les ventes déjà demandées par le Rainbow ; (2) le réglage fin du signal (presets) n'a pas été rejoué dans ce run : la comparaison se fait contre la décomposition timing de la référence, pas contre un balayage de presets ; (3) capital réel faible rapporté à 8 ans d'historique (le wallet simulé est cash-limité) ; (4) une seule règle manuelle, une seule fenêtre d'historique : pas de preuve de robustesse (§2.5).
+
+**Coût de calcul (budget étape 3)** : 5 à 110 ms par rejeu (BTC, ETH 24 mois ~15–60 ms, 8 ans ~30–60 ms, un seul lien sans frais, 1er run = JIT). Ordre de grandeur : ~50 ms par run et par lien sur 8 ans sans frais, à multiplier par le nombre de liens du wallet ; avec `OrderReplay` à mesurer.
+
+Plan d'implémentation : [`roadmap-moteur-optimisation.md`](roadmap-moteur-optimisation.md).

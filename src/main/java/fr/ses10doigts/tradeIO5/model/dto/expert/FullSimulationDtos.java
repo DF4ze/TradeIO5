@@ -26,10 +26,35 @@ public final class FullSimulationDtos {
     /**
      * Demande du simulateur complet. Tout champ nul prend son défaut : wallet du lien le plus prioritaire, plage = 24 derniers mois,
      * capital = valeur du wallet réel (cash USDC + actifs au prix), modulation = réglages effectifs de l'utilisateur, avec frais.
-     * {@code links} nul/vide = tous les liens exploitables du wallet.
+     * {@code links} nul/vide = tous les liens exploitables du wallet. {@code policy} nul = réglages constants sur la plage.
      */
     public record FullRequest(Long walletId, LocalDate from, LocalDate to, Double cash0, Double exposureMin, Double exposureMax,
-                              Double power, Double bias, Double regulationMarginPct, Boolean withCosts, List<LinkOverride> links) {
+                              Double power, Double bias, Double regulationMarginPct, Boolean withCosts, List<LinkOverride> links,
+                              PolicySpec policy) {
+
+        /** Sans politique de modulation (réglages constants). */
+        public FullRequest(Long walletId, LocalDate from, LocalDate to, Double cash0, Double exposureMin, Double exposureMax,
+                           Double power, Double bias, Double regulationMarginPct, Boolean withCosts, List<LinkOverride> links) {
+            this(walletId, from, to, cash0, exposureMin, exposureMax, power, bias, regulationMarginPct, withCosts, links, null);
+        }
+    }
+
+    /** Politique de modulation dans le temps : {@code type} (CONSTANT, REGIME_BAND, EXPOSURE_GAP_BIAS, BEAR_DERISK_RAMP) + paramètres. */
+    public record PolicySpec(String type, Map<String, Double> params) {
+    }
+
+    /** Comparaison de politiques : mêmes wallet / plage / capital que {@code full}, une exécution CONSTANT puis une par politique (max 5). */
+    public record PolicyCompareRequest(FullRequest full, List<PolicySpec> policies) {
+    }
+
+    /** Un run de comparaison : résultat, écart au DCA fixe de même budget, risque, répartition du gain, jours refusés, durée du rejeu. */
+    public record PolicyRunDto(String label, PolicySpec spec, double finalValue, double fixedFinalValue, double gainVsFixed,
+                               Double gainVsFixedPct, double maxDrawdownPct, double avgExposurePct, EpisodeDtos.Gain gain,
+                               long blockedDays, long belowMinDays, long runMs) {
+    }
+
+    public record PolicyCompareDto(Long walletId, LocalDate from, LocalDate to, double cash0, boolean withCosts,
+                                   List<PolicyRunDto> runs, List<String> warnings) {
     }
 
     // ---------------------------------------------------------------- défauts du formulaire
@@ -72,7 +97,7 @@ public final class FullSimulationDtos {
     }
 
     public record FullMetaDto(Long walletId, LocalDate from, LocalDate to, double cash0, boolean withCosts, ModulationDto modulation,
-                              List<FullLinkMetaDto> links, List<String> warnings) {
+                              List<FullLinkMetaDto> links, List<String> warnings, String policy) {
     }
 
     /**

@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-15
-empreinte: 7fbd138863
+modifié_le: 2026-11-16
+empreinte: c1ba25bdf1
 ---
 # Rainbow live — Modulation (admin + utilisateur)
 
@@ -47,6 +47,9 @@ Suite de [`08-rainbow-live.md`](08-rainbow-live.md) (Rainbow DCA ATR live — Af
 - **Admin, onglet « Modulation »** (`fragments/admin/modulation.html`, `assets/js/admin/modulation.js`) : un champ numérique par paramètre global (défaut et bornes absolues affichés), « Enregistrer » et « Remettre les défauts » via `GET/PUT /api/admin/rainbow-modulation` ; refus serveur affiché dans le bandeau d'alerte. Chaque champ affiche son impact concret (effet, si on augmente, si on diminue, exemple chiffré, défaut et bornes) et un bandeau rappelle que ces réglages s'appliquent immédiatement à tous les utilisateurs, ordres réels compris (`autonomyDays` n'agit que sur la proposition de montant de base ; les 4 plafonds de drawdown n'agissent que sur le signalement du simulateur).
 - **Utilisateur** : écran Réglages stratégiques (`/app/settings/strategy`, `page-settings-strategy.js`) : jauge 0–100 % (bande, marges de régulation illustrées à 25 % de la largeur, repère d'exposition), curseurs mini/maxi, puissance, biais (bornes issues de `limits`), « Neutre » ; via `GET/PUT /api/user/modulation-settings`. L'exposition affichée est lue dans le dernier journal de modulation des liens (`exposureAfter`, sinon `exposureBefore`), inconnue sinon ; message si la bande est plus étroite que le minimum (elle sera élargie).
 - **« Pourquoi ce montant ? »** : détail repliable de la fiche actif (`/app/assets/{symbole}`), construit depuis `snapshot.modulation` (signal, puissance/biais, bande, plafonds, montant final, exposition après).
+
+## Réglages variables dans le temps (rejeu)
+Le live applique un jeu de réglages constant par utilisateur. Le rejeu de l'Espace Expert peut les faire varier jour par jour via une politique (`ModulationPolicy`), toujours bornée par les limites admin ci-dessus (`UserTradingSettingsService.clamp`) : [`13-espace-expert.md`](13-espace-expert.md), « Politique de modulation dans le temps ». Aucun effet sur le live.
 
 ## Profils de départ et historique de la modulation
 

@@ -3,8 +3,8 @@ statut: decision
 sujet: fil-rouge-dca-automatisation
 cree_le: 2026-11-10
 origine: memoire-claude-migree
-modifié_le: 2026-11-10
-empreinte: 903e3f3fb4
+modifié_le: 2026-11-16
+empreinte: 8d00eb627c
 ---
 # fil-rouge-dca-automatisation
 
@@ -21,3 +21,12 @@ empreinte: 903e3f3fb4
 - Calibrations : mode itératif (run -> analyse -> relance).
 - Idée : Supertrend = stop-loss suiveur (couche Decision/sizing), pas vote directionnel.
 - Verdicts : RejectionZone utilisable en pondération basse (modulateur secondaire) ; EtfFlow utilisable tel quel (validateur J-1) ; MovementQualification non branché.
+
+## Moteur d'optimisation automatique (2026-11-16)
+Cadre et architecture : [`../etudes/etude-optimisation-mode-autonome.md`](../etudes/etude-optimisation-mode-autonome.md) §11. Rouvre le bench abandonné sous forme bornée (rejeu du simulateur complet + recherche en espace réduit).
+- But : un moteur de bench qui, tous les X jours, recalibre les presets Rainbow pour la conjoncture **actuelle**, et pilote dans le temps les réglages utilisateur (exposition, puissance, biais, ATH) : base du mode Full Autonome.
+- Presets : optimisés **par actif** (BTC, ETH, PAXG séparément). Trend figée, non optimisée.
+- Réglages utilisateur : politique de pilotage évaluée **par rapport au wallet de l'utilisateur** (état du wallet en entrée).
+- Promotion des presets : **auto-bornée** (dérive limitée, journalisée, réversible) ; Clem garde un regard (visibilité / veto) sans valider chaque promotion.
+- Modulation ATH : **détachée du preset** et traitée en réglage utilisateur plafonné (L2 risque) avant le moteur.
+- L3 (macro, YouTube) : **hors périmètre** pour l'instant.

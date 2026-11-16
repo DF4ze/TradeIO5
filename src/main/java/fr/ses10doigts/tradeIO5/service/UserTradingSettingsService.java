@@ -116,8 +116,14 @@ public class UserTradingSettingsService {
      * [0, 100]) si elle est plus étroite que {@code minBandWidthPts}.
      */
     public ModulationSettings effectiveSettings(User user) {
-        RainbowModulationControl limits = modulationControl.current();
-        ModulationSettings stored = getModulationSettings(user);
+        return clamp(getModulationSettings(user), modulationControl.current());
+    }
+
+    /**
+     * Fonction pure de {@link #effectiveSettings} : borne des réglages aux limites admin données (puissance, biais, bande [0, 100]
+     * élargie autour de son centre si trop étroite, marge de régulation). Réutilisée par le rejeu pour toute sortie de politique.
+     */
+    public static ModulationSettings clamp(ModulationSettings stored, RainbowModulationControl limits) {
         double minWidth = limits.getMinBandWidthPts().doubleValue();
         double floor = ModulationDefaults.EXPOSURE_FLOOR_PCT;
         double ceiling = ModulationDefaults.EXPOSURE_CEILING_PCT;

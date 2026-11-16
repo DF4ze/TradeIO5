@@ -21,6 +21,7 @@ import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.LinkDefaultDt
 import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.LinkOverride;
 import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.ModulationDto;
 import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.ModulationLimitsDto;
+import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.PolicySpec;
 import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.WalletChoiceDto;
 import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.WalletValueDto;
 import fr.ses10doigts.tradeIO5.model.dto.market.MarketData;
@@ -48,6 +49,8 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveTrendConfigs;
 import fr.ses10doigts.tradeIO5.service.expert.ExpertApiException;
 import fr.ses10doigts.tradeIO5.service.expert.ExpertContext;
 import fr.ses10doigts.tradeIO5.service.expert.ExpertValidationException;
+import fr.ses10doigts.tradeIO5.service.expert.simulation.policy.ModulationPolicies;
+import fr.ses10doigts.tradeIO5.service.expert.simulation.policy.ModulationPolicy;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.dataset.DailyDataset;
 import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlService;
@@ -109,7 +112,21 @@ public class FullSimulationService {
 
     /** Demande validée : tout est résolu sauf les données (bougies, wallet réel, coûts). */
     public record Plan(Long walletId, LocalDate from, LocalDate to, Double cash0, ModulationSettings settings, boolean withCosts,
-                       List<PlannedLink> links) {
+                       List<PlannedLink> links, PolicySpec policy) {
+
+        /** Sans politique de modulation. */
+        public Plan(Long walletId, LocalDate from, LocalDate to, Double cash0, ModulationSettings settings, boolean withCosts,
+                    List<PlannedLink> links) {
+            this(walletId, from, to, cash0, settings, withCosts, links, null);
+        }
+    }
+
+    /**
+     * Données chargées d'une demande (liens, bougies, capital, coûts) : un même chargement peut alimenter plusieurs rejeux
+     * ({@link PolicyCompareService}). {@code metas} / {@code dsByLink} servent à l'assemblage du résultat complet.
+     */
+    record Loaded(List<MultiLinkReplayEngine.Link> links, List<FullLinkMetaDto> metas, Map<Long, RainbowAtrDataset> dsByLink,
+                  double cash0, MultiLinkReplayEngine.Costs costs, List<String> warnings) {
     }
 
     /** Rappels du thread de calcul : changements d'état de la simulation et annulation. */
@@ -200,7 +217,7 @@ public class FullSimulationService {
     /** Valide la demande (champs, liens, wallet, historique atteignable) ; aucune donnée de marché n'est lue. */
     @Transactional(readOnly = true)
     public Plan resolve(ExpertContext ctx, FullRequest request) {
-        FullRequest req = request == null ? new FullRequest(null, null, null, null, null, null, null, null, null, null, null) : request;
+        FullRequest req = request == null ? new FullRequest(null, null, null, null, null, null, null, null, null, null, null, null) : request;
         Map<String, String> errors = new LinkedHashMap<>();
         if (req.cash0() != null && !(Double.isFinite(req.cash0()) && req.cash0() > 0)) {
             errors.put("cash0", "doit être un montant > 0");
@@ -238,6 +255,13 @@ public class FullSimulationService {
                     settings.regulationMarginPct());
         } catch (IllegalArgumentException e) {
             errors.put("modulation", e.getMessage());
+        }
+        if (req.policy() != null) {
+            try {
+                ModulationPolicies.from(req.policy());
+            } catch (ExpertValidationException e) {
+                errors.putAll(e.getFields());
+            }
         }
         List<RainbowLiveBinding> all = bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(ctx.user());
         if (all.isEmpty()) {
@@ -288,7 +312,7 @@ public class FullSimulationService {
         if (!errors.isEmpty()) {
             throw new ExpertValidationException(errors);
         }
-        return new Plan(walletId, from, to, req.cash0(), settings, req.withCosts() == null || req.withCosts(), planned);
+        return new Plan(walletId, from, to, req.cash0(), settings, req.withCosts() == null || req.withCosts(), planned, req.policy());
     }
 
     // ---------------------------------------------------------------- calcul
@@ -300,6 +324,65 @@ public class FullSimulationService {
      */
     @Transactional
     public FullSimulationResultDto compute(User user, Plan plan, Hooks hooks) {
+        Loaded data = load(user, plan, hooks);
+        if (data == null) {
+            return null;
+        }
+        List<MultiLinkReplayEngine.Link> links = data.links();
+        List<String> warnings = data.warnings();
+        double cash0 = data.cash0();
+        MultiLinkReplayEngine.Costs costs = data.costs();
+        Map<Long, RainbowAtrDataset> dsByLink = data.dsByLink();
+        List<FullLinkMetaDto> metas = data.metas();
+        ModulationPolicy policy = plan.policy() == null ? null : ModulationPolicies.from(plan.policy());
+        hooks.computing().run();
+        MultiLinkReplayEngine.Result result = run(data, plan.settings(), policy);
+        if (result.walletDays().isEmpty()) {
+            throw new ExpertValidationException("from", "aucun jour rejouable dans la plage (SMA / ATR pas encore définis)");
+        }
+        boolean withCosts = costs != null;
+        warnings.add("Cours de décision = clôture D1 du jour (le live décide à 23:55 sur la bougie ouverte) : écart assumé vs la prod.");
+        warnings.add(policy == null
+                ? "Départ 100 % USDC, sans apport ; réglages de modulation constants sur la plage ; actifs détenus sans lien exclus."
+                : "Départ 100 % USDC, sans apport ; réglages de modulation pilotés par la politique " + policy.label()
+                + " (bornes admin appliquées) ; actifs détenus sans lien exclus.");
+        if (withCosts) {
+            warnings.add("Frais, spread et slippage estimés : barème actuel (cache des frais 24 h, un carnet public par instrument "
+                    + "lu au lancement) appliqué à toute la période.");
+        } else {
+            warnings.add("Sans frais : ni frais, ni minimum d'ordre, ni carry.");
+        }
+        List<EpisodeTimeline.AssetSeries> episodeSeries = EpisodeSeries.build(result, links);
+        LocalDate first = result.walletDays().getFirst().day();
+        LocalDate last = result.walletDays().getLast().day();
+        List<String> notes = new ArrayList<>(warnings);
+        notes.add("Rejeu libre (wallet simulé en continu) " + (withCosts ? "avec" : "sans") + " frais ; PnL au prix moyen pondéré, "
+                + "position d'ouverture valorisée au cours du 1er jour de la plage.");
+        EpisodeResultStore.Stored stored = episodeStore.put(user.getId(), episodeSeries, first, last, notes);
+        EpisodeDtos.EpisodeReportDto episodes = FullReplayService.report(stored, first, last);
+        FullMetaDto meta = new FullMetaDto(plan.walletId(), first, last, cash0, withCosts, new ModulationDto(plan.settings().exposureMin(),
+                plan.settings().exposureMax(), plan.settings().power(), plan.settings().bias(), plan.settings().regulationMarginPct()),
+                metas, warnings, policy == null ? null : policy.label());
+        FullSeriesDto series = series(result, links);
+        DrawdownDto drawdown = drawdown(series, userModulation.profileOf(user), modulationControl.current());
+        List<ResultLineDto> lines = lines(result, cash0, withCosts);
+        addDrawdownLines(lines, drawdown);
+        meta.warnings().add("Drawdown mesuré sur la plage simulée (valeur totale du wallet, cash USDC inclus) ; plus haut initial = capital de "
+                + "départ ; signalement seul, aucun effet sur les ordres.");
+        return new FullSimulationResultDto(meta, series, assetCharts(result, links, dsByLink), lines, episodes, drawdown);
+    }
+
+    /** Un rejeu du wallet chargé avec la politique donnée ({@code null} = réglages constants). */
+    MultiLinkReplayEngine.Result run(Loaded data, ModulationSettings settings, ModulationPolicy policy) {
+        return MultiLinkReplayEngine.run(new MultiLinkReplayEngine.Input(data.links(), data.cash0(), settings,
+                modulationControl.current(), Map.of(), Map.of(), Map.of(), Map.of(), data.costs(), policy));
+    }
+
+    /**
+     * Charge les bougies de chaque lien (sa source, sans fallback) et résout capital et coûts ; {@code null} si annulé. Transaction
+     * de l'appelant (le chargement alimente le cache DB des candles).
+     */
+    Loaded load(User user, Plan plan, Hooks hooks) {
         hooks.loading().run();
         Map<Long, RainbowLiveBinding> byId = new HashMap<>();
         bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(user).forEach(b -> byId.put(b.getId(), b));
@@ -381,39 +464,7 @@ public class FullSimulationService {
         if (hooks.cancelled().getAsBoolean()) {
             return null;
         }
-        hooks.computing().run();
-        MultiLinkReplayEngine.Result result = MultiLinkReplayEngine.run(new MultiLinkReplayEngine.Input(links, cash0, plan.settings(),
-                modulationControl.current(), Map.of(), Map.of(), Map.of(), Map.of(), costs));
-        if (result.walletDays().isEmpty()) {
-            throw new ExpertValidationException("from", "aucun jour rejouable dans la plage (SMA / ATR pas encore définis)");
-        }
-        boolean withCosts = costs != null;
-        warnings.add("Cours de décision = clôture D1 du jour (le live décide à 23:55 sur la bougie ouverte) : écart assumé vs la prod.");
-        warnings.add("Départ 100 % USDC, sans apport ; réglages de modulation constants sur la plage ; actifs détenus sans lien exclus.");
-        if (withCosts) {
-            warnings.add("Frais, spread et slippage estimés : barème actuel (cache des frais 24 h, un carnet public par instrument "
-                    + "lu au lancement) appliqué à toute la période.");
-        } else {
-            warnings.add("Sans frais : ni frais, ni minimum d'ordre, ni carry.");
-        }
-        List<EpisodeTimeline.AssetSeries> episodeSeries = EpisodeSeries.build(result, links);
-        LocalDate first = result.walletDays().getFirst().day();
-        LocalDate last = result.walletDays().getLast().day();
-        List<String> notes = new ArrayList<>(warnings);
-        notes.add("Rejeu libre (wallet simulé en continu) " + (withCosts ? "avec" : "sans") + " frais ; PnL au prix moyen pondéré, "
-                + "position d'ouverture valorisée au cours du 1er jour de la plage.");
-        EpisodeResultStore.Stored stored = episodeStore.put(user.getId(), episodeSeries, first, last, notes);
-        EpisodeDtos.EpisodeReportDto episodes = FullReplayService.report(stored, first, last);
-        FullMetaDto meta = new FullMetaDto(plan.walletId(), first, last, cash0, withCosts, new ModulationDto(plan.settings().exposureMin(),
-                plan.settings().exposureMax(), plan.settings().power(), plan.settings().bias(), plan.settings().regulationMarginPct()),
-                metas, warnings);
-        FullSeriesDto series = series(result, links);
-        DrawdownDto drawdown = drawdown(series, userModulation.profileOf(user), modulationControl.current());
-        List<ResultLineDto> lines = lines(result, cash0, withCosts);
-        addDrawdownLines(lines, drawdown);
-        meta.warnings().add("Drawdown mesuré sur la plage simulée (valeur totale du wallet, cash USDC inclus) ; plus haut initial = capital de "
-                + "départ ; signalement seul, aucun effet sur les ordres.");
-        return new FullSimulationResultDto(meta, series, assetCharts(result, links, dsByLink), lines, episodes, drawdown);
+        return new Loaded(links, metas, dsByLink, cash0, costs, warnings);
     }
 
     /** Bloc drawdown : mesures stratégie / DCA fixe et verdict de la stratégie face aux plafonds admin des 4 profils. */

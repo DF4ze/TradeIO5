@@ -1,8 +1,8 @@
 ---
 statut: index
 sujet: Index des études actives
-modifié_le: 2026-11-14
-empreinte: 25dd662168
+modifié_le: 2026-11-16
+empreinte: cf97ac1643
 ---
 # Études (journal de conception daté)
 
@@ -23,6 +23,7 @@ empreinte: 25dd662168
 | [`etude-passerelle-actif-non-stable.md`](etude-passerelle-actif-non-stable.md) | Étude — Passerelle par actif non stable (PAXG sur Kraken), USDT exclu |  |
 | [`etude-optimisation-mode-autonome.md`](etude-optimisation-mode-autonome.md) | Étude — Optimiser TradeIO vers un mode Full Autonome (définition du bon paramétrage, rejeu intégral, méthode, agencement des briques) |  |
 | [`etude-protocole-calibrage-couches.md`](etude-protocole-calibrage-couches.md) | Étude — Protocole de calibrage Rainbow, attribution des pertes, couches de pilotage, gestion du risque |  |
+| [`roadmap-moteur-optimisation.md`](roadmap-moteur-optimisation.md) | Roadmap — moteur d'optimisation automatique (presets par actif + politique de pilotage utilisateur) |  |
 | [`etude-provider-revolutx.md`](etude-provider-revolutx.md) | Étude — Provider Revolut X : clés générées par utilisateur, candles, exécution |  |
 | [`etude-source-candles-provider-du-lien.md`](etude-source-candles-provider-du-lien.md) | Étude — Source des candles du Rainbow live : provider du lien, sans fallback silencieux |  |
 | [`etude-trading-stablecoin-frais-btc-eth-paxg.md`](etude-trading-stablecoin-frais-btc-eth-paxg.md) | Etude trading stablecoin -> BTC / ETH / PAXG : frais, liquidite, API |  |

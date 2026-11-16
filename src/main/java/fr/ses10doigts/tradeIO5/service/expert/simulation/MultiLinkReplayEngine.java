@@ -4,6 +4,7 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.LiveBlockReason;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.modulation.RainbowModulationControl;
+import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService.ModulationSettings;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.CashLedger;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExposureLedger;
@@ -11,6 +12,8 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.bench.LiveModulation;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.LiveSlot;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.PortfolioReading;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.SizingCore;
+import fr.ses10doigts.tradeIO5.service.expert.simulation.policy.DayState;
+import fr.ses10doigts.tradeIO5.service.expert.simulation.policy.ModulationPolicy;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -29,6 +32,10 @@ import java.util.TreeSet;
  * détenu sans prix ce jour-là ⇒ exposition inconnue (règle de {@link ExposureLedger#of}). Mono-lien = cas particulier
  * ({@link FullReplayEngine} délègue ici). Avec {@link Costs} : frais / spread / slippage, minimum d'ordre du lien et carry via {@link OrderReplay} (même calcul de route
  * que le plan d'ordres) ; sans : comportement des lots 1-2 (ni frais, ni minimum, ni carry).
+ * <p>
+ * Politique de modulation facultative ({@link ModulationPolicy}) : par jour, elle reçoit l'état du wallet ({@link DayState}, rien
+ * de postérieur au jour) et les réglages de base, et renvoie les réglages du jour, bornés par les limites admin
+ * ({@link UserTradingSettingsService#clamp}). Sans politique, comportement strictement inchangé.
  */
 public final class MultiLinkReplayEngine {
 
@@ -55,10 +62,19 @@ public final class MultiLinkReplayEngine {
      * @param pinned       wallet imposé par jour (parité « recalé ») ; vide ⇒ wallet simulé en continu
      * @param frozenQty    actifs détenus SANS lien : valorisés (exposition) mais jamais traités
      * @param frozenCloses cours par actif gelé et par jour ; jour sans cours ⇒ exposition inconnue (comme le live)
+     * @param policy       politique de modulation dans le temps ; {@code null} ⇒ réglages du jour inchangés
      */
     public record Input(List<Link> links, double cash0, ModulationSettings settings, RainbowModulationControl limits,
                         Map<LocalDate, ModulationSettings> settingsByDay, Map<LocalDate, Pin> pinned,
-                        Map<String, Double> frozenQty, Map<String, Map<LocalDate, Double>> frozenCloses, Costs costs) {
+                        Map<String, Double> frozenQty, Map<String, Map<LocalDate, Double>> frozenCloses, Costs costs,
+                        ModulationPolicy policy) {
+
+        /** Sans politique. */
+        public Input(List<Link> links, double cash0, ModulationSettings settings, RainbowModulationControl limits,
+                     Map<LocalDate, ModulationSettings> settingsByDay, Map<LocalDate, Pin> pinned,
+                     Map<String, Double> frozenQty, Map<String, Map<LocalDate, Double>> frozenCloses, Costs costs) {
+            this(links, cash0, settings, limits, settingsByDay, pinned, frozenQty, frozenCloses, costs, null);
+        }
 
         /** Sans coûts (lots 1-2). */
         public Input(List<Link> links, double cash0, ModulationSettings settings, RainbowModulationControl limits,
@@ -112,9 +128,18 @@ public final class MultiLinkReplayEngine {
     public record SignalDay(Long bindingId, LocalDate day, LinkSignalReplay.Audit audit) {
     }
 
+    /** Réglages réellement appliqués un jour donné par la politique (après bornes admin), avec l'exposition et le drawdown vus. */
+    public record PolicyDay(LocalDate day, ModulationSettings applied, Double exposurePct, double drawdownPct) {
+    }
+
+    /** {@code policyDays} : un élément par jour rejoué avec politique ; vide sans politique. */
     public record Result(List<LinkDay> linkDays, List<WalletDay> walletDays, double cash0, Map<String, Double> qty0,
                          double finalValue, double fixedFinalValue, List<CostDay> costDays, double totalCostUsdc,
-                         double fixedTotalCostUsdc, List<TradeDay> trades, List<SignalDay> signals) {
+                         double fixedTotalCostUsdc, List<TradeDay> trades, List<SignalDay> signals, List<PolicyDay> policyDays) {
+    }
+
+    /** Régime courant d'un actif et nombre de jours consécutifs dans ce régime (compteur de {@link DayState}). */
+    private record RegimeRun(String regime, int days) {
     }
 
     public static Result run(Input in) {
@@ -147,6 +172,10 @@ public final class MultiLinkReplayEngine {
         List<CostDay> costDays = new ArrayList<>();
         List<TradeDay> trades = new ArrayList<>();
         List<SignalDay> signals = new ArrayList<>();
+        List<PolicyDay> policyDays = new ArrayList<>();
+        Map<String, RegimeRun> regimeRuns = new HashMap<>();
+        double peak = in.cash0();
+        double lastAssets = 0.0;
         Map<Long, Double> carry = new HashMap<>();
         Map<Long, Double> lastBase = new HashMap<>();
         double totalCost = 0.0;
@@ -179,6 +208,11 @@ public final class MultiLinkReplayEngine {
                 }
             });
             ModulationSettings settings = in.settingsByDay().getOrDefault(day, in.settings());
+            if (in.policy() != null) {
+                DayState state = dayState(day, cash, positions, closes, peak, lastAssets, prepared, links, regimeRuns);
+                settings = UserTradingSettingsService.clamp(in.policy().settingsFor(state, settings), in.limits());
+                policyDays.add(new PolicyDay(day, settings, state.exposurePct(), state.drawdownPct()));
+            }
             double cashBefore = cash;
             Map<String, Double> qtyBefore = new HashMap<>(qty);
 
@@ -318,6 +352,8 @@ public final class MultiLinkReplayEngine {
                 fixedAssets += e.getValue() * lastPrice.getOrDefault(e.getKey(), 0.0);
             }
             double total = cash + assets;
+            peak = Math.max(peak, total);
+            lastAssets = assets;
             for (Link link : links) {
                 Long id = link.slot().bindingId();
                 LinkSignalReplay.Prepared p = prepared.get(id);
@@ -344,7 +380,39 @@ public final class MultiLinkReplayEngine {
         }
         double finalValue = walletDays.isEmpty() ? in.cash0() : walletDays.getLast().totalValue();
         double fixedFinal = walletDays.isEmpty() ? in.cash0() : walletDays.getLast().fixedValue();
-        return new Result(linkDays, walletDays, in.cash0(), qty0, finalValue, fixedFinal, costDays, totalCost, fixedCost, trades, signals);
+        return new Result(linkDays, walletDays, in.cash0(), qty0, finalValue, fixedFinal, costDays, totalCost, fixedCost, trades, signals,
+                policyDays);
+    }
+
+    /**
+     * État du jour pour la politique : exposition via {@link ExposureLedger#of} (inconnue ⇒ valeurs d'actifs de la veille), plus haut
+     * des fins de journée passées, régimes des liens actifs et compteur de jours consécutifs dans le régime (tenu ici, mis à jour
+     * pour les barres actives seulement).
+     */
+    private static DayState dayState(LocalDate day, double cash, Map<String, Double> positions, Map<String, Double> closes,
+                                     double peak, double lastAssets, Map<Long, LinkSignalReplay.Prepared> prepared, List<Link> links,
+                                     Map<String, RegimeRun> regimeRuns) {
+        ExposureLedger ledger = ExposureLedger.of(new PortfolioReading(cash, positions, null, PortfolioStatus.OK, 0L), closes);
+        double assets = ledger.isKnown() ? ledger.assetsValue() : lastAssets;
+        double total = ledger.isKnown() ? ledger.totalValue() : cash + lastAssets;
+        Map<String, String> regimeByAsset = new LinkedHashMap<>();
+        Map<String, Integer> daysByAsset = new LinkedHashMap<>();
+        for (Link link : links) {
+            LinkSignalReplay.Prepared p = prepared.get(link.slot().bindingId());
+            String asset = link.slot().assetSymbol();
+            if (p == null || !p.active() || p.regime() == null || regimeByAsset.containsKey(asset)) {
+                continue;
+            }
+            RegimeRun previous = regimeRuns.get(asset);
+            RegimeRun current = previous != null && previous.regime().equals(p.regime())
+                    ? new RegimeRun(p.regime(), previous.days() + 1) : new RegimeRun(p.regime(), 1);
+            regimeRuns.put(asset, current);
+            regimeByAsset.put(asset, current.regime());
+            daysByAsset.put(asset, current.days());
+        }
+        double drawdown = peak > 0 ? Math.min(0.0, 100.0 * (total / peak - 1.0)) : 0.0;
+        return new DayState(day, cash, assets, total, peak, drawdown, ledger.isKnown() ? ledger.exposurePct() : null, regimeByAsset,
+                daysByAsset);
     }
 
     private static String assetOf(List<Link> links, Long id) {
