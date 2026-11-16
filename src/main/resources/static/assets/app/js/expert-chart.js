@@ -606,6 +606,11 @@
     price.chart.timeScale().subscribeVisibleLogicalRangeChange(() => { const v = visibleDays(); if (v && rangeCb) rangeCb(v); });
     if (g.ResizeObserver) new g.ResizeObserver(() => drawEpisodes()).observe(epi.body);
 
+    /** Dézoom maximal : toute la courbe visible, aussi après mise en page (largeurs connues). */
+    function fitAll() {
+      const fit = () => { all.forEach((p) => { if (!p.box.hidden) p.chart.timeScale().fitContent(); }); drawEpisodes(); };
+      fit(); g.requestAnimationFrame(fit); g.setTimeout(fit, 120);
+    }
     function paintCap() {
       const dd = walletX && walletX.drawdown; if (!dd || !data) return;
       const v = profile && dd.verdicts.find((x) => x.profile === profile);
@@ -635,7 +640,7 @@
         paintCap();
       }
       apply();
-      all.forEach((p) => { if (!p.box.hidden) p.chart.timeScale().fitContent(); });
+      fitAll();
       scheduleAlign();
     }
 
@@ -729,6 +734,7 @@
         scheduleAlign();
         showDay(data.d.length - 1);
         drawOls(data.d.length - 1);
+        fitAll();
       },
       mainChart: () => price.chart,
       destroy() { g.removeEventListener('keydown', onKey); all.forEach((p) => p.chart.remove()); },
