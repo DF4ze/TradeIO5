@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """doc-police : indexation, contrôle et archivage de la documentation (stdlib only, Python>=3.8).
 Sous-commandes : index | check | archive. Config : .doc-police/config.json. Idempotent."""
-import os, re, sys, json, hashlib, subprocess, argparse, datetime, posixpath
+import fnmatch, os, re, sys, json, hashlib, subprocess, argparse, datetime, posixpath
 
 ROOT = os.getcwd()
 CFG = {"docs_dir": "docs", "entry": "docs/README.md", "archive_dir": "docs/archive",
        "code_dirs": ["src", "tools"], "code_exts": [".java", ".py", ".md", ".properties", ".pine", ".yml", ".xml", ".sql"],
-       "skip_dirs": ["target", ".git", "node_modules", "backup", "_to_delete", "logs"],
+       "skip_files": ["prompt-*.md"], "skip_dirs": ["target", ".git", "node_modules", "backup", "_to_delete", "logs"],
        "size_warn_kb": 20, "stale_days": 60, "dir_statut": {"docs/archive/": "archivé", "docs/etudes/": "journal", "docs/calibration/": "journal", "docs/known-gaps/": "gap", "docs/decisions/": "decision"},
        "no_header": ["docs/archive/README-old.md"]}
 LINK = re.compile(r'\]\(([^)\s#]+)(#[^)\s]*)?\)')
@@ -32,6 +32,8 @@ def walk(base, exts=None):
     for d, ds, fs in os.walk(os.path.join(ROOT, base)):
         ds[:] = [x for x in ds if x not in CFG["skip_dirs"]]
         for f in fs:
+            if any(fnmatch.fnmatch(f, g) for g in CFG.get("skip_files", [])):
+                continue
             if exts is None or os.path.splitext(f)[1].lower() in exts:
                 out.append(os.path.relpath(os.path.join(d, f), ROOT).replace(os.sep, "/"))
     return sorted(out)
@@ -144,7 +146,7 @@ def cmd_check(a):
             try: s = rd(f)
             except Exception: continue
             for m in DOCPATH.finditer(s):
-                if m.group(0) not in dset and "*" not in m.group(0):
+                if m.group(0) not in dset and "*" not in m.group(0) and not any(fnmatch.fnmatch(posixpath.basename(m.group(0)), g) for g in CFG.get("skip_files", [])):
                     issues.append(("SRC_REF_BROKEN", f, m.group(0)))
     keys = sorted(set("|".join(i) for i in issues))
     bp = os.path.join(ROOT, ".doc-police", "baseline.json")

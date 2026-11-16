@@ -26,4 +26,4 @@ Back Spring (Java 21) + front `/app` : DCA intelligent crypto (Rainbow ATR), mul
 - Pine de référence Rainbow : `tools/pine/rainbow_dca_v3_atr_moon.pine` (le Java s'y conforme).
 
 ## Police de la doc
-`python tools/doc-police/doc_police.py index|check|archive` — charte : [`docs/CHARTE.md`](docs/CHARTE.md). Passage hebdo planifié (branche `docs/police-AAAA-SS`, jamais main).
+`python tools/doc-police/doc_police.py index|check|archive` — charte : [`docs/CHARTE.md`](docs/CHARTE.md). Passage hebdo planifié (branche `docs/police-AAAA-SS`, jamais main). Inclut la relecture du `README.md` racine.
