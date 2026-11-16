@@ -1,11 +1,11 @@
 ---
 statut: journal
-modifié_le: 2026-08-10
-empreinte: f17fffc7e5
+modifié_le: 2026-11-16
+empreinte: 1cb9c00372
 ---
 # Calibration — MovementQualificationStrategy
 
-Complément à `docs/calibration/prompt-calibration-movement-qualification.md` et au protocole de référence
+Complément au protocole de référence
 `docs/calibration/calibration-rejection-zone.md` (même méthodologie : calibration visuelle/fréquence, test
 statistique vs groupe de contrôle, sensibilité aux paramètres). Documente la validation empirique
 de `MovementQualificationStrategy` (OI + Funding Rate + OBV, `StrategyType.CONFIDENCE_MODULATOR`

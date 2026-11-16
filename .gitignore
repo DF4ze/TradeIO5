@@ -61,3 +61,7 @@ tools/calibration/*_view*.html
 
 # Rejeu Rainbow : sorties générées (entrées d1_*.csv versionnées)
 tools/rainbow-replay/data/replay*
+
+# Prompts d'implémentation/calibration : locaux, non versionnés
+docs/**/prompt-*.md
+docs/prompts/

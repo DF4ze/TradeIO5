@@ -1,11 +1,11 @@
 ---
 statut: journal
-modifié_le: 2026-08-10
-empreinte: 92ab1acb5b
+modifié_le: 2026-11-16
+empreinte: c6f5517c3c
 ---
 # Calibration — EtfFlowConfidenceStrategy (BTC et ETH séparément)
 
-Complément à `docs/calibration/prompt-calibration-etf-flow.md` et au protocole de référence
+Complément au protocole de référence
 `docs/calibration/calibration-rejection-zone.md`/`docs/calibration/calibration-movement-qualification.md` (même
 méthodologie : auto-test fidèle, test statistique vs groupe de contrôle, grille de sensibilité,
 verdict explicite). Documente la validation empirique de `EtfFlowConfidenceStrategy` (flux ETF

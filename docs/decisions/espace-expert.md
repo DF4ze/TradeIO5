@@ -3,8 +3,8 @@ statut: decision
 sujet: espace-expert
 cree_le: 2026-11-10
 origine: memoire-claude-migree
-modifié_le: 2026-11-15
-empreinte: 0f3a37e808
+modifié_le: 2026-11-16
+empreinte: ad9413922d
 ---
 # espace-expert
 
@@ -15,7 +15,7 @@ empreinte: 0f3a37e808
 - Règles de simulation et décisions UI de la page expert : voir etudes/etude-espace-expert.md (actif).
 
 ## Simulateur complet (2026-11-14)
-Cadre, périmètre et sorties : [`../etudes/etude-optimisation-mode-autonome.md`](../etudes/etude-optimisation-mode-autonome.md) §10 ; prompts de réalisation par lot : [`../etudes/prompt-simulateur-complet.md`](../etudes/prompt-simulateur-complet.md).
+Cadre, périmètre et sorties : [`../etudes/etude-optimisation-mode-autonome.md`](../etudes/etude-optimisation-mode-autonome.md) §10.
 - Plafond de drawdown par profil (défauts) : Prudent −15 %, Équilibré −25 %, Dynamique −40 %, Full −60 %. Premier lot : mesure et signalement seulement, **aucun effet sur les ordres** (live et rejeu).
 - Plafonds (2026-11-15, lot 6) : réglage **global admin** (un jeu de 4 valeurs pour tous, pas de surcharge utilisateur) ; ordre imposé Prudent ≤ Équilibré ≤ Dynamique ≤ Full en amplitude ; profil `CUSTOM` : aucun plafond présélectionné, l'utilisateur choisit le profil à comparer ; drawdown sur la valeur totale du wallet (cash USDC inclus), plus haut initial = capital de départ, sur toute la plage simulée ; égalité exacte au plafond = respecté ; plafond du profil affiché aussi dans Réglages stratégiques.
 - Cache global des frais : durée de vie 24 h, **persisté en base** ; consommé par le plan d'ordres, le devis, l'ajout d'un lien, le re-devis d'exécution et le simulateur. Frais périmés + exchange injoignable : acceptés avec avertissement pour les estimations (simulateur, devis, onboarding), refusés pour le plan d'ordres et le re-devis. Re-devis d'exécution : cache 24 h conservé. Pas d'action admin « rafraîchir les frais » pour l'instant.
