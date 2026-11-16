@@ -15,8 +15,13 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Décorateur transparent devant un {@link MarketDataApiClient} réel (Binance/Kraken/OKX) :
@@ -57,6 +62,7 @@ public class CachingMarketDataApiClient implements MarketDataApiClient {
     private final CandleRepository repository;
     private final DomainClock clock;
     private final ConcurrentHashMap<GapKey, List<MarketData>> gapNetworkCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<GapKey, CompletableFuture<List<MarketData>>> inFlightOpenGaps = new ConcurrentHashMap<>();
 
     public CachingMarketDataApiClient(MarketDataApiClient delegate, CandleRepository repository, DomainClock clock) {
         this.delegate = delegate;
@@ -115,7 +121,8 @@ public class CachingMarketDataApiClient implements MarketDataApiClient {
         for (Range gap : gaps) {
             boolean touchesOpenCandle = gap.until().equals(untilGrid) && timeFrame.addTo(untilGrid).isAfter(now);
             List<MarketData> fetched = touchesOpenCandle
-                    ? fetchGap(source, symbol, timeFrame, gap, untilGrid, now)
+                    ? fetchGapSingleFlight(new GapKey(source, symbol, timeFrame, gap.since(), gap.until()),
+                            () -> fetchGap(source, symbol, timeFrame, gap, untilGrid, now))
                     : gapNetworkCache.computeIfAbsent(
                             new GapKey(source, symbol, timeFrame, gap.since(), gap.until()),
                             key -> fetchGap(source, symbol, timeFrame, gap, untilGrid, now));
@@ -131,6 +138,35 @@ public class CachingMarketDataApiClient implements MarketDataApiClient {
             result = result.subList(result.size() - limit, result.size());
         }
         return result;
+    }
+
+    /**
+     * Dédoublonne les appels réseau <b>en vol</b> pour un même trou touchant la bougie en cours : le résultat ne peut pas être
+     * mémoïsé (la bougie en cours évolue), mais N appelants concurrents partagent UN seul appel réseau au lieu d'en faire N
+     * (risque de rate limit, cf. docs/CODING_RULES.md). Aucune durée de vie : l'entrée est retirée dès la fin de l'appel,
+     * l'appel suivant refait donc un fetch frais.
+     */
+    private List<MarketData> fetchGapSingleFlight(GapKey key, Supplier<List<MarketData>> fetch) {
+        CompletableFuture<List<MarketData>> mine = new CompletableFuture<>();
+        CompletableFuture<List<MarketData>> inFlight = inFlightOpenGaps.putIfAbsent(key, mine);
+        if (inFlight != null) {
+            log.debug("Appel réseau déjà en cours pour {} : résultat partagé.", key);
+            try {
+                return inFlight.join();
+            } catch (CompletionException e) {
+                throw e.getCause() instanceof RuntimeException re ? re : e;
+            }
+        }
+        try {
+            List<MarketData> result = fetch.get();
+            mine.complete(result);
+            return result;
+        } catch (RuntimeException e) {
+            mine.completeExceptionally(e);
+            throw e;
+        } finally {
+            inFlightOpenGaps.remove(key, mine);
+        }
     }
 
     /**
@@ -165,18 +201,23 @@ public class CachingMarketDataApiClient implements MarketDataApiClient {
      * le contenu est de toute façon identique, la contrainte unique garantit juste qu'on ne
      * duplique pas (cf. étude section 6).
      */
-    private void persistClosedOnly(List<MarketData> fetched, TimeFrame timeFrame) {
+    private synchronized void persistClosedOnly(List<MarketData> fetched, TimeFrame timeFrame) {
         if (fetched == null || fetched.isEmpty()) {
             return;
         }
         Instant now = clock.now();
         MarketDataSource source = delegate.getSource();
 
-        List<CandleEntity> toPersist = fetched.stream()
+        List<CandleEntity> closed = fetched.stream()
                 .filter(candle -> isClosed(candle, timeFrame, now))
                 .map(candle -> toEntity(candle, source))
                 .toList();
 
+        if (closed.isEmpty()) {
+            return;
+        }
+
+        List<CandleEntity> toPersist = withoutAlreadyStored(closed, source, timeFrame);
         if (toPersist.isEmpty()) {
             return;
         }
@@ -188,6 +229,22 @@ public class CachingMarketDataApiClient implements MarketDataApiClient {
                     toPersist.size(), e.getMessage());
             persistRowByRow(toPersist);
         }
+    }
+
+    /**
+     * Écartement des bougies déjà en base. La méthode appelante est {@code synchronized} : des appels concurrents
+     * qui ont comblé le même trou s'écrivent l'un après l'autre, les suivants ne trouvent plus rien à insérer. Évite la
+     * violation de contrainte unique (que Hibernate journalise en WARN + ERROR avant que nous la capturions, et qui
+     * levait l'alarme Docteur {@code LOG_ERRORS}).
+     */
+    private List<CandleEntity> withoutAlreadyStored(List<CandleEntity> candles, MarketDataSource source, TimeFrame timeFrame) {
+        Instant min = candles.stream().map(CandleEntity::getTimestamp).min(Comparator.naturalOrder()).orElseThrow();
+        Instant max = candles.stream().map(CandleEntity::getTimestamp).max(Comparator.naturalOrder()).orElseThrow();
+        String pair = candles.getFirst().getPair();
+        Set<Instant> stored = repository
+                .findBySourceAndPairAndTimeFrameAndTimestampBetweenOrderByTimestampAsc(source, pair, timeFrame, min, max)
+                .stream().map(CandleEntity::getTimestamp).collect(Collectors.toSet());
+        return candles.stream().filter(c -> !stored.contains(c.getTimestamp())).toList();
     }
 
     private void persistRowByRow(List<CandleEntity> candles) {

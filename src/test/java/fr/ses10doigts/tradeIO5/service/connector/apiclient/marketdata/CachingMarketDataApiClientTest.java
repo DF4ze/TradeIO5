@@ -168,6 +168,66 @@ class CachingMarketDataApiClientTest {
     }
 
     @Test
+    @DisplayName("Bougies déjà insérées par un appel concurrent : filtrées avant écriture (aucun insert, donc aucune violation journalisée par Hibernate)")
+    void getCandles_candlesAlreadyStoredByConcurrentCall_areNotInsertedAgain() {
+        Instant since = T0;
+        Instant middle1 = T0.plusSeconds(3600);
+        Instant middle2 = T0.plusSeconds(7200);
+        Instant until = T0.plusSeconds(10800);
+
+        when(repository.findBySourceAndPairAndTimeFrameAndTimestampBetweenOrderByTimestampAsc(
+                eq(MarketDataSource.BINANCE), eq(SYMBOL), eq(TimeFrame.H1), eq(since), eq(until)))
+                .thenReturn(List.of(entity(since), entity(until)));
+        // Au moment de persister, l'appel concurrent a déjà écrit les 2 bougies du trou.
+        when(repository.findBySourceAndPairAndTimeFrameAndTimestampBetweenOrderByTimestampAsc(
+                eq(MarketDataSource.BINANCE), eq(SYMBOL), eq(TimeFrame.H1), eq(middle1), eq(middle2)))
+                .thenReturn(List.of(entity(middle1), entity(middle2)));
+
+        when(delegate.getCandles(SYMBOL, TimeFrame.H1, middle1, middle2, 2))
+                .thenReturn(List.of(candle(middle1), candle(middle2)));
+
+        List<MarketData> result = client.getCandles(SYMBOL, TimeFrame.H1, since, until, 0);
+
+        assertEquals(4, result.size());
+        verify(repository, never()).saveAll(any());
+        verify(repository, never()).saveAndFlush(any(CandleEntity.class));
+    }
+
+    @Test
+    @DisplayName("Appels concurrents sur le même trou touchant la bougie en cours : UN seul appel réseau partagé")
+    void getCandles_concurrentCallsOnOpenCandleGap_shareOneNetworkCall() throws Exception {
+        // now = T0 + 90 min : la bougie H1 de T0+60min est en cours ; trou [T0 .. T0+60min]
+        Instant since = T0;
+        Instant until = T0.plusSeconds(3600);
+        clock = new FixedDomainClock(T0.plusSeconds(5400));
+        client = new CachingMarketDataApiClient(delegate, repository, clock);
+
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger networkCalls = new java.util.concurrent.atomic.AtomicInteger();
+        when(delegate.getCandles(eq(SYMBOL), eq(TimeFrame.H1), any(), any(), anyInt())).thenAnswer(inv -> {
+            networkCalls.incrementAndGet();
+            release.await(5, java.util.concurrent.TimeUnit.SECONDS);
+            return List.of(candle(since), candle(until));
+        });
+
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(5);
+        try {
+            List<java.util.concurrent.Future<List<MarketData>>> futures = new java.util.ArrayList<>();
+            for (int i = 0; i < 5; i++) {
+                futures.add(pool.submit(() -> client.getCandles(SYMBOL, TimeFrame.H1, since, until, 0)));
+            }
+            Thread.sleep(300); // laisse les 5 threads atteindre le trou
+            release.countDown();
+            for (java.util.concurrent.Future<List<MarketData>> f : futures) {
+                assertEquals(2, f.get(5, java.util.concurrent.TimeUnit.SECONDS).size());
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+        assertEquals(1, networkCalls.get());
+    }
+
+    @Test
     @DisplayName("isClosed : close <= now => fermée, sinon en cours")
     void isClosed_behavesAroundCloseBoundary() {
         MarketData candle = candle(T0);
