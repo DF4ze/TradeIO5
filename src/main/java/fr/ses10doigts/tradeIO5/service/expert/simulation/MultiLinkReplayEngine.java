@@ -108,9 +108,13 @@ public final class MultiLinkReplayEngine {
                            double cashDelta, double costUsdc, double fixedQtyDelta, double fixedCashDelta, double fixedCostUsdc) {
     }
 
+    /** Bornes, ATH, réserve moon et signal du jour d'un lien : alimente le graphique Rainbow de l'actif (aucun effet sur la décision). */
+    public record SignalDay(Long bindingId, LocalDate day, LinkSignalReplay.Audit audit) {
+    }
+
     public record Result(List<LinkDay> linkDays, List<WalletDay> walletDays, double cash0, Map<String, Double> qty0,
                          double finalValue, double fixedFinalValue, List<CostDay> costDays, double totalCostUsdc,
-                         double fixedTotalCostUsdc, List<TradeDay> trades) {
+                         double fixedTotalCostUsdc, List<TradeDay> trades, List<SignalDay> signals) {
     }
 
     public static Result run(Input in) {
@@ -142,6 +146,7 @@ public final class MultiLinkReplayEngine {
         List<WalletDay> walletDays = new ArrayList<>();
         List<CostDay> costDays = new ArrayList<>();
         List<TradeDay> trades = new ArrayList<>();
+        List<SignalDay> signals = new ArrayList<>();
         Map<Long, Double> carry = new HashMap<>();
         Map<Long, Double> lastBase = new HashMap<>();
         double totalCost = 0.0;
@@ -327,6 +332,7 @@ public final class MultiLinkReplayEngine {
                         d.amountUsdc(), d.quantity(), p.wantedAction(), p.wantedAmountUsdc(), cash, qty.getOrDefault(asset, 0.0),
                         value.getOrDefault(asset, 0.0), total, d.journal()));
                 double[] t = tradeOf.getOrDefault(id, new double[6]);
+                signals.add(new SignalDay(id, day, p.audit()));
                 trades.add(new TradeDay(id, asset, day, p.zone(), p.active() ? p.regime() : null, p.price(), t[0], t[1], t[2],
                         t[3], t[4], t[5]));
             }
@@ -338,7 +344,7 @@ public final class MultiLinkReplayEngine {
         }
         double finalValue = walletDays.isEmpty() ? in.cash0() : walletDays.getLast().totalValue();
         double fixedFinal = walletDays.isEmpty() ? in.cash0() : walletDays.getLast().fixedValue();
-        return new Result(linkDays, walletDays, in.cash0(), qty0, finalValue, fixedFinal, costDays, totalCost, fixedCost, trades);
+        return new Result(linkDays, walletDays, in.cash0(), qty0, finalValue, fixedFinal, costDays, totalCost, fixedCost, trades, signals);
     }
 
     private static String assetOf(List<Link> links, Long id) {

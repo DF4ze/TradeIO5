@@ -5,7 +5,9 @@ import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertSimulationDtos.ResultLineD
 import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.DrawdownDto;
 import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.DrawdownMeasureDto;
 import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.DrawdownVerdictDto;
+import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertSimulationDtos.SetDto;
 import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.FullAssetChartDto;
+import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.FullLinkParamsDto;
 import fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile;
 import fr.ses10doigts.tradeIO5.service.UserModulationService;
 import fr.ses10doigts.tradeIO5.model.dto.expert.FullSimulationDtos.FullDefaultsDto;
@@ -352,7 +354,9 @@ public class FullSimulationService {
             }
             metas.add(new FullLinkMetaDto(b.getId(), pl.asset(), aff.displayName(), pl.source() == null ? null : pl.source().name(),
                     daily.source().name(), daily.providerSymbol(), false, b.getPriority(), bag, baseAmount,
-                    ReplayDays.dayOf(ds.time(startIdx)), ReplayDays.dayOf(ds.time(endIdx)), candles.size()));
+                    ReplayDays.dayOf(ds.time(startIdx)), ReplayDays.dayOf(ds.time(endIdx)), candles.size(),
+                    new FullLinkParamsDto(cfg.trend(), cfg.range(), windowMonths, java.util.Arrays.stream(cfg.sets())
+                            .map(ps -> new SetDto(ps.name(), ps.tuning(), ps.globals())).toList())));
         }
         // capital de départ : celui demandé, sinon la valeur du wallet réel
         double cash0;
@@ -533,7 +537,8 @@ public class FullSimulationService {
                     orders.add(order(day, ld, costDay.get(day)));
                 }
             }
-            out.add(new FullAssetChartDto(link.slot().assetSymbol(), id, o, h, l, c, regime, active, zone, orders));
+            out.add(new FullAssetChartDto(link.slot().assetSymbol(), id, o, h, l, c, regime, active, zone, orders,
+                    AssetChartBuilder.build(id, link.slot().assetSymbol(), ds, result, result.cash0(), link.qty0())));
         }
         return out;
     }

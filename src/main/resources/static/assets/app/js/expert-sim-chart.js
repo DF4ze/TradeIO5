@@ -1,5 +1,5 @@
-/* Espace Expert · Simulateur : graphiques synchronisés du rejeu libre (aucune logique métier : tout vient du résultat serveur).
-   Panneaux : wallet vs DCA fixe · exposition · prix de l'actif choisi (ordres, phases) · piste d'épisodes colorée par PnL. */
+/* Espace Expert · Simulateur : graphiques wallet du rejeu libre (le prix, les bornes, les ordres, le bag, le PnL et l'exposition par actif viennent de expert-chart.js).
+   Panneaux : wallet vs DCA fixe · drawdown · piste d'épisodes colorée par PnL (vignette de zone au survol). */
 (function (g) {
   'use strict';
   const TIO = g.TIO, h = TIO.h, F = TIO.fmt;
@@ -24,7 +24,6 @@
   /** @returns {{update(res), selectAsset(sym), highlight(from,to), clearHighlight(), zoomTo(from,to), onRange(cb), onEpisodeHover(cb), onEpisodeClick(cb), setEpisodes(list), assetSymbol()}} */
   TIO.simChart = function (container) {
     const st = { profile: null, profileCb: null, res: null, asset: null, charts: [], series: {}, days: [], episodes: [], hl: null, rangeCb: null, hoverCb: null, clickCb: null, busy: false };
-    const sel = h('select', { 'aria-label': 'Actif affiché' });
     const box = h('div', { class: 'xsim' });
     const panels = {};
     const mk = (key, title, height) => {
@@ -32,16 +31,14 @@
       panels[key] = body;
       return h('div', { class: 'xsim__panel' }, h('div', { class: 'xsim__title small muted' }, title), body);
     };
+    const tip = h('div', { class: 'xsim__tip', hidden: true, role: 'tooltip' });
     const track = h('div', { class: 'xsim__track', role: 'img', 'aria-label': 'Épisodes colorés par PnL' });
-    const pricePanel = mk('price', 'Prix · ordres', 260);
-    const priceTitle = pricePanel.firstChild;
-    priceTitle.appendChild(sel);
     const profSel = h('select', { 'aria-label': 'Profil de plafond' });
     const ddInfo = h('span', { class: 'xsim__info' });
     const ddPanel = mk('dd', 'Drawdown (%) · signalement seul, aucun effet sur les ordres ', 140);
     ddPanel.firstChild.append(profSel, ddInfo);
-    box.append(mk('wallet', 'Wallet stratégie vs DCA fixe (USDC)', 200), ddPanel, mk('expo', 'Exposition (%)', 120), pricePanel,
-      h('div', { class: 'xsim__panel' }, h('div', { class: 'xsim__title small muted' }, 'Épisodes (couleur = PnL)'), track));
+    box.append(mk('wallet', 'Wallet stratégie vs DCA fixe (USDC)', 200), ddPanel,
+      h('div', { class: 'xsim__panel xsim__panel--track' }, h('div', { class: 'xsim__title small muted' }, 'Épisodes (couleur = PnL · survol = détail de la zone)'), track, tip));
     TIO.mount(container, box);
 
     function destroy() { st.charts.forEach((c) => { try { c.remove(); } catch (e) { /* ignoré */ } }); st.charts = []; st.series = {}; }
@@ -58,9 +55,8 @@
       const r = st.res; if (!r || !LW) return;
       const s = r.series, days = times(s.d); st.days = days;
       const up = css('--up', '#26a69a'), down = css('--down', '#ef5350'), accent = css('--accent', '#4c8dff'), muted = css('--muted', '#8a94a6');
-      const cW = LW.createChart(panels.wallet, baseOpts(panels.wallet)), cE = LW.createChart(panels.expo, baseOpts(panels.expo)), cP = LW.createChart(panels.price, baseOpts(panels.price));
-      const cD = LW.createChart(panels.dd, baseOpts(panels.dd));
-      st.charts = [cW, cE, cP, cD];
+      const cW = LW.createChart(panels.wallet, baseOpts(panels.wallet)), cD = LW.createChart(panels.dd, baseOpts(panels.dd));
+      st.charts = [cW, cD];
       const dd = r.drawdown;
       if (dd) {
         st.ddBase = cD.addBaselineSeries({ baseValue: { type: 'price', price: -100 }, topLineColor: accent, topFillColor1: 'rgba(76,141,255,.20)', topFillColor2: 'rgba(76,141,255,.02)',
@@ -77,12 +73,6 @@
       }
       line(cW, accent, 'Stratégie').setData(data(days, s.wallet));
       line(cW, muted, 'DCA fixe', 1).setData(data(days, s.fixed));
-      const exp = days.map((d, i) => ({ time: d, value: 100 - Number(s.cashPct[i] || 0) }));
-      cE.addAreaSeries({ lineColor: accent, topColor: 'rgba(76,141,255,.35)', bottomColor: 'rgba(76,141,255,.02)', lineWidth: 2, priceLineVisible: false }).setData(exp);
-      cE.priceScale('right').applyOptions({ autoScale: false, scaleMargins: { top: 0.05, bottom: 0.05 } });
-      cE.addLineSeries({ color: 'transparent', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData([{ time: days[0], value: 0 }, { time: days[days.length - 1], value: 100 }]);
-      st.series = { price: cP.addCandlestickSeries({ upColor: up, downColor: down, wickUpColor: up, wickDownColor: down, borderVisible: false }) };
-      drawAsset();
       // synchronisation des échelles de temps + curseur
       let lock = false;
       st.charts.forEach((c, i) => c.timeScale().subscribeVisibleLogicalRangeChange((range) => {
@@ -90,12 +80,6 @@
         lock = true; st.charts.forEach((o, j) => { if (j !== i) o.timeScale().setVisibleLogicalRange(range); }); lock = false;
         drawTrack(); emitRange();
       }));
-      const mainSeries = [cW, cE, cP];
-      st.charts.forEach((c, i) => c.subscribeCrosshairMove((p) => {
-        if (!p.time || typeof c.setCrosshairPosition !== 'function') { st.charts.forEach((o, j) => { if (j !== i && o.clearCrosshairPosition) o.clearCrosshairPosition(); }); return; }
-        st.charts.forEach((o, j) => { if (j !== i && o.setCrosshairPosition) { const ser = j === 2 ? st.series.price : null; if (ser) o.setCrosshairPosition(NaN, p.time, ser); } });
-      }));
-      void mainSeries;
       cW.timeScale().fitContent();
       g.setTimeout(drawTrack, 50);
     }
@@ -109,20 +93,11 @@
       st.ddCap.applyOptions({ title: v ? 'Plafond ' + PROFILE_LABELS[v.profile] : 'Plafond' });
     }
 
+    /** L'actif affiché filtre la piste d'épisodes (le prix et les ordres sont dans le graphique Rainbow, hors de ce composant). */
     function drawAsset() {
-      const r = st.res; if (!r || !st.series.price) return;
+      const r = st.res; if (!r) return;
       const a = r.assets.find((x) => x.asset === st.asset) || r.assets[0]; if (!a) return;
       st.asset = a.asset;
-      const days = st.days;
-      st.series.price.setData(days.map((d, i) => (a.c[i] === null || a.c[i] === undefined ? { time: d } : { time: d, open: +a.o[i], high: +a.h[i], low: +a.l[i], close: +a.c[i] })));
-      const up = css('--up', '#26a69a'), down = css('--down', '#ef5350');
-      const idx = new Map(days.map((d, i) => [d, i]));
-      const markers = (a.orders || []).filter((o) => idx.has(String(o.day).slice(0, 10))).map((o) => {
-        const buy = o.side === 'BUY', ok = o.outcome === 'OK';
-        return { time: String(o.day).slice(0, 10), position: buy ? 'belowBar' : 'aboveBar', shape: buy ? 'arrowUp' : 'arrowDown',
-          color: ok ? (buy ? up : down) : '#9aa0a6', text: ok ? '' : (o.outcome === 'BELOW_MIN' ? 'min' : 'bloqué') };
-      }).sort((x, y) => (x.time < y.time ? -1 : 1));
-      st.series.price.setMarkers(markers);
       drawTrack();
     }
 
@@ -137,8 +112,48 @@
       if (i < 0) { i = st.days.findIndex((x) => x >= d); if (i < 0) i = st.days.length - 1; }
       return ts.timeToCoordinate(st.days[i]);
     }
+    // ---- vignette d'un épisode au survol (tout vient du serveur : EpisodeDto ; seuls les cours début / fin lisent la série du panneau prix)
+    const usd = (v) => F.usd(v, Math.abs(v) >= 1000 ? 0 : 2);
+    const signedUsd = (v) => (v > 0 ? '+' : '') + usd(v);
+    const tipRow = (label, value, cls) => h('tr', null, h('td', { class: 'muted' }, label), h('td', { class: 'num' + (cls ? ' ' + cls : '') }, value));
+    function priceAt(asset, day) {
+      const a = st.res && st.res.assets.find((x) => x.asset === asset); if (!a) return null;
+      const d = String(day).slice(0, 10);
+      let i = st.days.indexOf(d); if (i < 0) i = st.days.findIndex((x) => x >= d);
+      return i >= 0 && a.c[i] !== null && a.c[i] !== undefined ? Number(a.c[i]) : null;
+    }
+    function tipContent(e) {
+      const p0 = priceAt(e.asset, e.from), p1 = priceAt(e.asset, e.to);
+      const mv = p0 && p1 ? (p1 / p0 - 1) * 100 : null;
+      const q = (v) => F.num(v, v >= 1 ? 4 : 6);
+      const g = e.gain || {};
+      return [h('div', { class: 'xsim__tiphead' }, h('strong', null, e.asset), ' · ', e.regime, ' · zone ', h('strong', null, e.zoneLabel)),
+        h('div', { class: 'small muted' }, F.dayLong(e.from) + ' → ' + F.dayLong(e.to) + ' · ' + e.days + ' j'),
+        h('table', { class: 'tbl xsim__tiptbl' }, h('tbody', null,
+          p0 && p1 ? tipRow('Cours début → fin', F.price(p0) + ' → ' + F.price(p1) + (mv === null ? '' : ' (' + (mv > 0 ? '+' : '') + F.num(mv, 1) + ' %)')) : null,
+          tipRow('Acheté', usd(e.boughtUsdc) + ' · ' + q(e.boughtQty)),
+          tipRow('Vendu', usd(e.soldUsdc) + ' · ' + q(e.soldQty)),
+          tipRow('Net investi', signedUsd(e.boughtUsdc - e.soldUsdc)),
+          e.avgCostEnd === null || e.avgCostEnd === undefined ? null : tipRow('Prix de revient fin', F.price(e.avgCostEnd)),
+          tipRow('PnL de la zone', signedUsd(e.pnlTotal), TIO.sign(e.pnlTotal)),
+          tipRow('  dont réalisé', signedUsd(e.pnlRealized), TIO.sign(e.pnlRealized)),
+          tipRow('  dont latent', signedUsd(e.pnlLatent), TIO.sign(e.pnlLatent)),
+          e.exposureStartPct === null || e.exposureStartPct === undefined ? null : tipRow('Exposition début → fin', F.num(e.exposureStartPct, 1) + ' % → ' + (e.exposureEndPct === null || e.exposureEndPct === undefined ? '—' : F.num(e.exposureEndPct, 1) + ' %')),
+          tipRow('Gain vs DCA fixe', signedUsd(g.total || 0), TIO.sign(g.total || 0)),
+          tipRow('  exposition / timing / frais', signedUsd(g.exposure || 0) + ' / ' + signedUsd(g.timing || 0) + ' / ' + signedUsd(g.fees || 0))))];
+    }
+    function showTip(e, ev) {
+      TIO.mount(tip, tipContent(e)); tip.hidden = false;
+      const box = tip.parentNode.getBoundingClientRect(), r = ev.currentTarget.getBoundingClientRect();
+      const w = tip.offsetWidth, x = r.left + r.width / 2 - box.left - w / 2;
+      tip.style.left = Math.max(0, Math.min(box.width - w, x)) + 'px';
+      tip.style.bottom = (box.bottom - r.top + 6) + 'px';
+    }
+    const hideTip = () => { tip.hidden = true; };
+
     function drawTrack() {
       TIO.mount(track);
+      hideTip();
       if (!st.charts.length) return;
       const w = track.clientWidth;
       const list = st.episodes.filter((e) => !st.asset || e.asset === st.asset);
@@ -149,9 +164,9 @@
         const left = Math.min(x0, x1), width = Math.max(2, Math.abs(x1 - x0) + 3);
         if (left + width < 0 || left > w) return;
         const seg = h('div', { class: 'xsim__seg' + (st.hl === e ? ' is-hl' : ''), style: { left: left + 'px', width: width + 'px', background: pnlColor(e.pnlTotal, max) },
-          title: e.asset + ' · ' + e.regime + ' · ' + e.zoneLabel + ' · ' + F.dayLong(e.from) + ' → ' + F.dayLong(e.to) + ' · PnL ' + F.usd(e.pnlTotal, 2) });
-        seg.addEventListener('mouseenter', () => st.hoverCb && st.hoverCb(e));
-        seg.addEventListener('mouseleave', () => st.hoverCb && st.hoverCb(null));
+          'aria-label': e.asset + ' · ' + e.regime + ' · ' + e.zoneLabel + ' · ' + F.dayLong(e.from) + ' → ' + F.dayLong(e.to) + ' · PnL ' + F.usd(e.pnlTotal, 2) });
+        seg.addEventListener('mouseenter', (ev) => { showTip(e, ev); if (st.hoverCb) st.hoverCb(e); });
+        seg.addEventListener('mouseleave', () => { hideTip(); if (st.hoverCb) st.hoverCb(null); });
         seg.addEventListener('click', () => st.clickCb && st.clickCb(e));
         track.appendChild(seg);
       });
@@ -165,16 +180,13 @@
     function emitRange() { const v = visibleDays(); if (v && st.rangeCb) st.rangeCb(v); }
 
     profSel.addEventListener('change', () => { st.profile = profSel.value || null; paintCap(); if (st.profileCb) st.profileCb(st.profile); });
-    sel.addEventListener('change', () => { st.asset = sel.value; drawAsset(); });
-    g.addEventListener('resize', () => st.charts.forEach((c, i) => { const el = panels[['wallet', 'expo', 'price', 'dd'][i]]; if (el) c.applyOptions({ width: el.clientWidth }); drawTrack(); }));
+    g.addEventListener('resize', () => st.charts.forEach((c, i) => { const el = panels[['wallet', 'dd'][i]]; if (el) c.applyOptions({ width: el.clientWidth }); drawTrack(); }));
 
     return {
       update(res) {
         st.res = res; st.episodes = (res.episodes && res.episodes.episodes) || [];
         const keep = st.asset && res.assets.some((a) => a.asset === st.asset) ? st.asset : (res.assets[0] ? res.assets[0].asset : null);
         st.asset = keep;
-        TIO.mount(sel, res.assets.map((a) => h('option', { value: a.asset }, a.asset)));
-        if (keep) sel.value = keep;
         const dd = res.drawdown;
         ddPanel.hidden = !dd;
         st.profile = dd ? dd.defaultProfile || null : null;
@@ -182,7 +194,8 @@
         profSel.value = st.profile || '';
         build();
       },
-      selectAsset(sym) { st.asset = sym; sel.value = sym; drawAsset(); },
+      selectAsset(sym) { st.asset = sym; drawAsset(); },
+      mainChart: () => st.charts[0] || null,
       assetSymbol: () => st.asset,
       setEpisodes(list) { st.episodes = list || []; drawTrack(); },
       highlight(e) { st.hl = e; drawTrack(); },

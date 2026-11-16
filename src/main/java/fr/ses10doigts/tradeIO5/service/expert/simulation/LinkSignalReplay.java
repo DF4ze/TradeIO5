@@ -49,7 +49,15 @@ public final class LinkSignalReplay {
     /** Le jour préparé : demande du signal et éléments d'audit. */
     public record Prepared(LocalDate day, int index, double price, double dayClose, String setName, String regime, double virtualPosition,
                     LiveDemand demand, RainbowLiveAction wantedAction, double wantedAmountUsdc, boolean active,
-                    double fixedBase, int zone) {
+                    double fixedBase, int zone, Audit audit) {
+    }
+
+    /**
+     * Ce que le graphique doit afficher du jour (sans effet sur la décision) : bornes ATR de la décision ({@code null} si SMA / ATR
+     * pas encore définis), ATH incluant le plus haut du jour (NaN si aucun), quantité de la réserve To the moon après la bougie
+     * finale, signal complet (moon, armements, facteurs ATH).
+     */
+    public record Audit(RainbowAtrBand band, double ath, double reserveQty, RainbowSignal signal) {
     }
 
     private final Config cfg;
@@ -113,6 +121,8 @@ public final class LinkSignalReplay {
 
         // DÉCISION : le live décide à 23:55 sur la bougie encore ouverte (cours enregistré) ; sans cours enregistré = bougie finale
         RainbowAtrParamSet decSet = set;
+        RainbowAtrDataset decData = ds;
+        double decClose = dayClose;
         RainbowAtrStrategy.StepResult decStep = step;
         TrendRegime decRegime = regime[i];
         if (override != null && override > 0 && Math.abs(override - dayClose) > EPSILON) {
@@ -128,6 +138,8 @@ public final class LinkSignalReplay {
             int[] pset = RainbowSetSelector.select(preg, cfg.range());
             decSet = sets[RainbowAtrReplay.setIndex(pset[i])];
             decRegime = preg[i];
+            decData = pds;
+            decClose = override;
             decStep = stepOn(pds, i, decSet, override, pds.high(i), state, stepAth, virtual, active);
         }
         RainbowSignal signal = decStep.signal();
@@ -143,11 +155,13 @@ public final class LinkSignalReplay {
         double wantedAmount = wanted == RainbowLiveAction.SELL ? wantedSell * price : order.buyAmount().doubleValue();
         double fixedBase = cfg.linkBaseAmount() != null && cfg.linkBaseAmount() > 0 ? cfg.linkBaseAmount() : base;
 
+        Audit audit = new Audit(bandOf(decData, i, decSet, decClose), stepAth.includingToday(decData.high(i)),
+                step.state().reserveQty(), signal);
         pendingStep = step;
         pendingNextVirtual = nextVirtual;
         pendingIdx = i;
         return new Prepared(day, i, price, dayClose, decSet.name(), decRegime == null ? null : decRegime.name(), virtual, demand,
-                wanted, wantedAmount, active, fixedBase, signal.zone());
+                wanted, wantedAmount, active, fixedBase, signal.zone(), audit);
     }
 
     /** Avance l'état du lien à la bougie finale du jour préparé. */
@@ -159,6 +173,13 @@ public final class LinkSignalReplay {
         virtual = pendingNextVirtual;
         ath = ath.observe(cfg.ds().high(pendingIdx), cfg.ds().time(pendingIdx));
         pendingIdx = -1;
+    }
+
+    /** Bornes ATR de la bougie {@code i} au cours {@code close} avec le jeu {@code set} ; {@code null} si SMA / ATR non définis. */
+    private static RainbowAtrBand bandOf(RainbowAtrDataset data, int i, RainbowAtrParamSet set, double close) {
+        double sma = data.sma(set.tuning().smaPeriod())[i];
+        double atr = data.atr(set.tuning().atrPeriod())[i];
+        return Double.isNaN(sma) || Double.isNaN(atr) ? null : RainbowAtrBand.of(close, sma, atr, set.tuning());
     }
 
     /** Un pas de la machine Rainbow sur la bougie {@code i} de {@code data} avec le jeu {@code set} (bornes non calculables : pas invalide). */

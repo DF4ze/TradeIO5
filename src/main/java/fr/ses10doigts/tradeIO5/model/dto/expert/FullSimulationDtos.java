@@ -1,7 +1,10 @@
 package fr.ses10doigts.tradeIO5.model.dto.expert;
 
 import fr.ses10doigts.tradeIO5.model.dto.expert.EpisodeDtos.EpisodeReportDto;
+import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertSimulationDtos.ChartDto;
 import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertSimulationDtos.ResultLineDto;
+import fr.ses10doigts.tradeIO5.model.dto.expert.ExpertSimulationDtos.SetDto;
+import fr.ses10doigts.tradeIO5.service.tree.trend.TrendMixCalculator;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -56,9 +59,16 @@ public final class FullSimulationDtos {
 
     // ---------------------------------------------------------------- résultat
 
+    /**
+     * Paramétrage RÉELLEMENT rejoué pour un lien (affectation du lien au lancement, surcharges du formulaire appliquées) : Trend Mix,
+     * correspondance régime → jeu, fenêtre d'analyse, jeux Rainbow de chaque régime.
+     */
+    public record FullLinkParamsDto(TrendMixCalculator.Params trend, Object rangeMapping, int analysisWindowMonths, List<SetDto> sets) {
+    }
+
     public record FullLinkMetaDto(Long bindingId, String asset, String affectationName, String requestedSource, String usedSource,
                                   String providerSymbol, boolean substituted, int priority, double bagPercent, Double baseAmount,
-                                  LocalDate firstCandle, LocalDate lastCandle, int candles) {
+                                  LocalDate firstCandle, LocalDate lastCandle, int candles, FullLinkParamsDto params) {
     }
 
     public record FullMetaDto(Long walletId, LocalDate from, LocalDate to, double cash0, boolean withCosts, ModulationDto modulation,
@@ -83,11 +93,12 @@ public final class FullSimulationDtos {
     }
 
     /**
-     * Panneau prix d'un actif, aligné sur {@code series.d} (null = pas de bougie ce jour-là) : OHLC, régime ({@code regime} : 0 aucun,
+     * Panneau prix d'un actif (pour la piste d'épisodes) et {@code chart} = graphique Rainbow complet de l'actif (mêmes colonnes que l'onglet Rainbow, jours du lien seulement), aligné sur {@code series.d} (null = pas de bougie ce jour-là) : OHLC, régime ({@code regime} : 0 aucun,
      * 1 UP, 2 DOWN), barre active (0/1), zone Rainbow (-1 si bornes non calculables), ordres.
      */
     public record FullAssetChartDto(String asset, Long bindingId, List<Number> o, List<Number> h, List<Number> l, List<Number> c,
-                                    List<Integer> regime, List<Integer> active, List<Integer> zone, List<FullOrderDto> orders) {
+                                    List<Integer> regime, List<Integer> active, List<Integer> zone, List<FullOrderDto> orders,
+                                    ChartDto chart) {
     }
 
     /**

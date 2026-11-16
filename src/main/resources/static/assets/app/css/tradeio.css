@@ -578,3 +578,10 @@ details.fold > .fold-body { padding: 0 0 6px 48px; }
 .xsim__row { cursor: pointer; }
 .xsim__row.is-hl, .tbl tr.is-hl { background: rgba(128, 128, 128, .16); }
 .xsim__details > summary { cursor: pointer; padding: 4px 0; }
+
+.xsim__panel--track { position: relative; }
+.xsim__track { overflow: visible; }
+.xsim__tip { position: absolute; z-index: 20; min-width: 280px; max-width: 380px; padding: 8px 10px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0, 0, 0, .35); pointer-events: none; }
+.xsim__tip[hidden] { display: none; }
+.xsim__tiphead { margin-bottom: 2px; }
+.xsim__tiptbl td { padding: 1px 6px; white-space: pre; }

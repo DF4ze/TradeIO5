@@ -426,6 +426,11 @@
         if (cols.set && i > 0 && cols.set[i] !== cols.set[i - 1]) out.push({ time: t, position: 'belowBar', shape: 'square', color: cols.set[i] ? C.up : C.down, text: cols.set[i] ? 'Bull' : 'Bear', size: 0.6 });
         if (!cols.set && i > 0 && d.trend[i] !== d.trend[i - 1] && d.trend[i]) out.push({ time: t, position: 'belowBar', shape: 'square', color: d.trend[i] === 1 ? C.up : C.down, text: TRENDS[d.trend[i]], size: 0.6 });
         if (!cols.buyKind) continue;
+        if (cols.blocked && cols.blocked[i]) {
+          const b = cols.blocked[i], sell = b === 2;
+          out.push({ time: t, position: sell ? 'aboveBar' : 'belowBar', shape: sell ? 'arrowDown' : 'arrowUp', color: C.muted,
+            text: (b === 3 ? 'sous minimum ' : 'bloqué ') + (sell ? '-' : '+') + f(cols.blockedAmt[i]) });
+        }
         if (cols.moonEntry[i]) out.push({ time: t, position: 'aboveBar', shape: 'arrowDown', color: C.warn, text: 'MOON' });
         if (cols.sellKind[i] === 2) out.push({ time: t, position: 'aboveBar', shape: 'arrowDown', color: C.s1, text: 'STOP MOON -' + f(cols.sellProc[i]) });
         else if (cols.sellKind[i] === 1) out.push({ time: t, position: 'aboveBar', shape: 'arrowDown', color: C.down, text: '-' + f(cols.sellProc[i]) });
@@ -493,6 +498,7 @@
         const sig = [];
         if (cl('buyKind')) sig.push((cl('buyKind') === 2 ? 'ACHAT déclenché ' : 'ACHAT zone ') + '+' + F.num(cl('buyAmt'), 2) + ' (×' + F.num(cl('multZone'), 2) + ' zone × ' + F.num(cl('buyFac'), 2) + ' ATH)');
         if (cl('sellKind')) sig.push((cl('sellKind') === 2 ? 'STOP MOON ' : 'VENTE ') + F.num(cl('sellFrac') * 100, 1) + ' % = ' + F.num(cl('sellProc'), 2));
+        if (cl('blocked')) sig.push((cl('blocked') === 3 ? 'ORDRE SOUS LE MINIMUM ' : cl('blocked') === 2 ? 'VENTE BLOQUÉE ' : 'ACHAT BLOQUÉ ') + F.num(cl('blockedAmt'), 2));
         if (cl('sellArmNow')) sig.push('armement vente');
         if (cl('buyArmNow')) sig.push('armement achat');
         if (cl('moonEntry')) sig.push('entrée To the moon');
@@ -583,6 +589,7 @@
         showDay(data.d.length - 1);
         drawOls(data.d.length - 1);
       },
+      mainChart: () => price.chart,
       destroy() { g.removeEventListener('keydown', onKey); all.forEach((p) => p.chart.remove()); },
     };
   };

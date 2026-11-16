@@ -11,10 +11,11 @@
     const st = { def: null, walletId: null, cash: '', min: '', max: '', power: '', bias: '', margin: '', costs: true, links: {}, range: { mode: '24m', from: null, to: null }, res: null, lastKey: null, job: null, rangeSeq: 0, rangeTimer: null, rangeBusy: false, rangePending: null };
     const formBox = h('div', { class: 'stack' }), statusBox = h('div', { class: 'stack' }), resBox = h('div', { class: 'stack' }), rangeBox = h('div');
     const chartBox = h('div', { class: 'xchart' }), tableBox = h('div', { class: 'stack' });
+    const assetBar = h('div', { class: 'row' }), rbBox = h('div', { class: 'xchart' }), paramBox = h('div', { class: 'stack' });
     const btn = h('button', { type: 'button', class: 'btn btn--primary' }, 'Simuler');
     const cancel = h('button', { type: 'button', class: 'btn', hidden: true }, 'Annuler');
     const stale = h('span', { class: 'chip chip--warn', hidden: true }, 'Résultat périmé : entrées modifiées depuis la simulation');
-    let chart = null;
+    let chart = null, rb = null, unlink = null;
 
     const num = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v)) ? null : Number(v));
     function body() {
@@ -34,9 +35,11 @@
       i.addEventListener('input', () => { st[k] = i.value; touch(); });
       return ui.field(label, i, hint);
     }
+    // nom du wallet, suivi de l'exchange seulement s'il apporte une information (« OKX · OKX » → « OKX »)
+    const walletLabel = (w) => (w.exchange && String(w.name || '').trim().toLowerCase() !== String(w.exchange).trim().toLowerCase() ? w.name + ' · ' + w.exchange : (w.name || w.exchange || 'Wallet ' + w.walletId));
     function renderForm() {
       const d = st.def, m = d.modulation, lim = d.limits;
-      const wsel = h('select', { 'aria-label': 'Wallet' }, d.wallets.map((w) => h('option', { value: String(w.walletId) }, w.name + (w.exchange ? ' · ' + w.exchange : ''))));
+      const wsel = h('select', { 'aria-label': 'Wallet' }, d.wallets.map((w) => h('option', { value: String(w.walletId) }, walletLabel(w))));
       wsel.value = String(st.walletId);
       wsel.addEventListener('change', () => { st.walletId = Number(wsel.value); load(); });
       const real = d.wallet ? F.usd(d.wallet.total, 0) : null;
@@ -96,6 +99,8 @@
       if (!chart) chart = TIO.simChart(chartBox);
       chart.update(res);
       chart.onRange(onVisibleRange);
+      showAssets(res);
+      renderParams(res);
       const paintVerdict = () => {
         const p = chart.profile(), v = p && res.drawdown && res.drawdown.verdicts.find((x) => x.profile === p);
         ddChip.className = 'chip' + (v ? (v.respected ? ' chip--up' : ' chip--down') : '');
@@ -103,8 +108,78 @@
       };
       chart.onProfile(paintVerdict); paintVerdict();
       chart.onEpisodeHover((e) => { chart.highlight(e); markRow(e); });
-      chart.onEpisodeClick((e) => { chart.selectAsset(e.asset); chart.zoomTo(e.from, e.to); });
+      chart.onEpisodeClick((e) => { selectAsset(e.asset); chart.zoomTo(e.from, e.to); });
       renderReport(res.episodes, null);
+    }
+
+
+    // ------------------------------------------------------------ graphique Rainbow de l'actif (même composant que l'onglet Rainbow)
+    const assetSel = h('select', { 'aria-label': 'Actif affiché' });
+    assetSel.addEventListener('change', () => selectAsset(assetSel.value));
+    function showAssets(res) {
+      const list = res.assets.filter((a) => a.chart);
+      if (!list.length) { TIO.mount(assetBar); TIO.mount(rbBox); return; }
+      const keep = list.some((a) => a.asset === assetSel.value) ? assetSel.value : list[0].asset;
+      TIO.mount(assetSel, list.map((a) => h('option', { value: a.asset }, a.asset)));
+      assetSel.value = keep;
+      TIO.mount(assetBar, h('span', { class: 'small muted' }, 'Actif affiché'), assetSel, h('span', { class: 'small muted' }, 'Graphiques de l’onglet Rainbow : cours, bornes, ATH, To the moon, ordres (« bloqué » = ordre voulu non passé), bag, PnL, exposition.'));
+      if (!rb) rb = TIO.expertChart(rbBox, { kind: 'full' });
+      selectAsset(keep);
+    }
+    function selectAsset(sym) {
+      if (!st.res || !rb) return;
+      const a = st.res.assets.find((x) => x.asset === sym && x.chart); if (!a) return;
+      assetSel.value = sym;
+      rb.update(a.chart);
+      if (chart) chart.selectAsset(sym);
+      linkRanges();
+    }
+    /** Échelles de temps du groupe Rainbow et du groupe wallet / timeline liées (zoom et défilement communs). */
+    function linkRanges() {
+      if (unlink) { unlink(); unlink = null; }
+      const a = rb && rb.mainChart(), b = chart && chart.mainChart(); if (!a || !b) return;
+      let lock = false;
+      const mk = (dst) => (r) => { if (lock || !r) return; lock = true; try { dst.timeScale().setVisibleRange(r); } catch (e) { /* plage hors données : ignorée */ } lock = false; };
+      const fa = mk(b), fb = mk(a);
+      a.timeScale().subscribeVisibleTimeRangeChange(fa); b.timeScale().subscribeVisibleTimeRangeChange(fb);
+      unlink = () => { try { a.timeScale().unsubscribeVisibleTimeRangeChange(fa); } catch (e) { /* ignoré */ } try { b.timeScale().unsubscribeVisibleTimeRangeChange(fb); } catch (e) { /* ignoré */ } };
+      try { const r = a.timeScale().getVisibleRange(); if (r) b.timeScale().setVisibleRange(r); } catch (e) { /* ignoré */ }
+    }
+
+    // ------------------------------------------------------------ paramétrage rejoué (détail)
+    const L = {
+      shortWindow: 'Fenêtre courte (j)', mediumWindow: 'Fenêtre moyenne (j)', longWindow: 'Fenêtre longue (j)', slopeScale: 'Échelle de pente', enter: 'Seuil ENTER', exit: 'Seuil EXIT',
+      confirm: 'Confirmation (jours)', smaPeriod: 'SMA (période)', atrPeriod: 'ATR (période)', atrMultiplier: 'k × ATR (SMA)', wickDown: 'Mèche basse', wickUp: 'Mèche haute',
+      atrMultDown2: 'ATR × down2', atrMultDown1: 'ATR × down1', atrMultUp1: 'ATR × up1', atrMultUp2: 'ATR × up2', atrMultUp3: 'ATR × up3',
+      buyReentryMode: 'Réarmement achat', sellReentryMode: 'Réarmement vente', trailingStopBuyPct: 'Stop suiveur achat (%)', trailingStopSellPct: 'Stop suiveur vente (%)',
+      cooldownDays: 'Délai (jours)', fixedDelayDays: 'Délai fixe (jours)', sellFraction: 'Fraction vendue', allowSellDuringCooldown: 'Vente autorisée pendant le délai',
+      cooldownAfterSellOn: 'Délai après vente', blockBuyAfterSellUntilDown2: 'Achat bloqué après vente jusqu’à down2',
+      athOn: 'Modulation ATH', athRefDdBuyPct: 'ATH : drawdown de référence achat (%)', athRefDdSellPct: 'ATH : drawdown de référence vente (%)', athBuyMin: 'ATH : facteur achat min',
+      athBuyMax: 'ATH : facteur achat max', athSellMax: 'ATH : facteur vente max', athSellMin: 'ATH : facteur vente min', moonOn: 'To the moon', moonReservePct: 'Réserve moon (%)',
+      moonReserveRatchet: 'Réserve à cliquet', moonTrailingStopPct: 'Stop suiveur moon (%)', moonStopSellPct: 'Vente au stop moon (%)', multX2: 'Multiplicateur X2', multX1: 'Multiplicateur X1',
+      multX0_5: 'Multiplicateur X0,5', multTriggered: 'Multiplicateur déclenché', baseAmount: 'Montant de base',
+    };
+    const fv = (v) => (v === null || v === undefined ? F.dash : typeof v === 'boolean' ? (v ? 'oui' : 'non') : typeof v === 'number' ? String(Math.round(v * 10000) / 10000) : typeof v === 'object' ? JSON.stringify(v) : String(v));
+    /** Tableau libellé / valeur(s) : une colonne par objet (ex. jeu UP, jeu DOWN), lignes = union des clés. */
+    function kvTable(cols) {
+      const keys = []; cols.forEach((c) => Object.keys(c.obj || {}).forEach((k) => { if (!keys.includes(k)) keys.push(k); }));
+      return h('div', { class: 'scroll-x' }, h('table', { class: 'tbl' }, h('thead', null, h('tr', null, [''].concat(cols.map((c) => c.title)).map((t) => h('th', null, t)))),
+        h('tbody', null, keys.map((k) => h('tr', null, h('td', { class: 'muted' }, L[k] || k), cols.map((c) => h('td', { class: 'num' }, fv((c.obj || {})[k]))))))));
+    }
+    function renderParams(res) {
+      const m = res.meta, mod = m.modulation || {};
+      TIO.mount(paramBox,
+        h('div', { class: 'small muted' }, 'Ce qui a été rejoué : une seule configuration (formulaire + affectation de chaque lien au lancement), pas un classement de plusieurs essais.'),
+        h('h4', null, 'Wallet'),
+        kvTable([{ title: 'Valeur', obj: { capital: F.usd(m.cash0, 0), frais: m.withCosts ? 'estimés' : 'sans', expositionMin: mod.exposureMin, expositionMax: mod.exposureMax, puissance: mod.power, biais: mod.bias, margeRegulation: mod.regulationMarginPct, plage: F.dayLong(m.from) + ' → ' + F.dayLong(m.to) } }]),
+        (m.links || []).map((l) => {
+          const pr = l.params; if (!pr) return null;
+          return h('div', { class: 'stack' }, h('h4', null, l.asset + ' · ' + (l.affectationName || '—') + ' · ' + l.usedSource + (l.substituted ? ' (substitué)' : '')),
+            h('div', { class: 'small muted' }, 'Priorité ' + l.priority + ' · bag ' + l.bagPercent + ' % · montant de base ' + (l.baseAmount === null || l.baseAmount === undefined ? 'du jeu' : l.baseAmount) + ' · fenêtre d’analyse ' + pr.analysisWindowMonths + ' mois · correspondance régime → jeu : ' + fv(pr.rangeMapping)),
+            kvTable([{ title: 'Trend Mix', obj: pr.trend }]),
+            kvTable((pr.sets || []).map((x) => ({ title: 'Jeu ' + x.name + ' · bornes / mécanisme', obj: x.tuning }))),
+            kvTable((pr.sets || []).map((x) => ({ title: 'Jeu ' + x.name + ' · ATH / moon / multiplicateurs', obj: x.globals }))));
+        }));
     }
 
     // ------------------------------------------------------------ tableau : épisodes / agrégat / gain
@@ -124,7 +199,7 @@
             h('td', { class: 'num' }, usd(e.boughtUsdc)), h('td', { class: 'num' }, usd(e.soldUsdc)), h('td', { class: 'num ' + TIO.sign(e.pnlRealized) }, usd(e.pnlRealized)),
             h('td', { class: 'num ' + TIO.sign(e.pnlLatent) }, usd(e.pnlLatent)), h('td', { class: 'num ' + TIO.sign(e.pnlTotal) }, usd(e.pnlTotal)));
           tr.addEventListener('mouseenter', () => chart && chart.highlight(e)); tr.addEventListener('mouseleave', () => chart && chart.highlight(null));
-          tr.addEventListener('click', () => chart && (chart.selectAsset(e.asset), chart.zoomTo(e.from, e.to)));
+          tr.addEventListener('click', () => chart && (selectAsset(e.asset), chart.zoomTo(e.from, e.to)));
           rows.set(e, tr); return tr;
         })))) : h('div', { class: 'small muted' }, 'Aucun épisode sur cette plage.');
       const agg = (rep.aggregates || []).length ? h('div', { class: 'scroll-x' }, h('table', { class: 'tbl' },
@@ -188,7 +263,8 @@
     root.classList.add('tio-main--wide');
     TIO.mount(root, ui.pageHeader('Espace Expert', 'Simulateur'), X.mobileNotice(), X.tabs('simulateur'),
       h('div', { class: 'grid' }, ui.card('Paramètres', formBox, rangeBox, ui.cardOpts({ span: true })),
-        ui.card('Simulation', h('div', { class: 'row' }, btn, cancel, stale), statusBox, resBox, chartBox, ui.cardOpts({ span: true })),
+        ui.card('Simulation', h('div', { class: 'row' }, btn, cancel, stale), statusBox, resBox, assetBar, rbBox, chartBox, ui.cardOpts({ span: true })),
+        h('details', { class: 'card card--span xsim__details', open: true }, h('summary', { class: 'small' }, 'Paramétrage rejoué (détail)'), paramBox),
         h('details', { class: 'card card--span xsim__details' }, h('summary', { class: 'small' }, 'Épisodes · agrégat · répartition du gain'), tableBox)));
     load();
   });
