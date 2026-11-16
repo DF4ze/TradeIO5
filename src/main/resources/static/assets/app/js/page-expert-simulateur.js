@@ -10,12 +10,12 @@
     if (TIO.demo) { TIO.mount(root, ui.pageHeader('Espace Expert'), ui.empty('Pas de démo', "L'Espace Expert n'a pas de mode démo.")); return; }
     const st = { def: null, walletId: null, cash: '', min: '', max: '', power: '', bias: '', margin: '', costs: true, links: {}, range: { mode: '24m', from: null, to: null }, res: null, lastKey: null, job: null, rangeSeq: 0, rangeTimer: null, rangeBusy: false, rangePending: null };
     const formBox = h('div', { class: 'stack' }), statusBox = h('div', { class: 'stack' }), resBox = h('div', { class: 'stack' }), rangeBox = h('div');
-    const chartBox = h('div', { class: 'xchart' }), tableBox = h('div', { class: 'stack' });
+    const tableBox = h('div', { class: 'stack' });
     const assetBar = h('div', { class: 'row' }), rbBox = h('div', { class: 'xchart' }), paramBox = h('div', { class: 'stack' });
     const btn = h('button', { type: 'button', class: 'btn btn--primary' }, 'Simuler');
     const cancel = h('button', { type: 'button', class: 'btn', hidden: true }, 'Annuler');
     const stale = h('span', { class: 'chip chip--warn', hidden: true }, 'Résultat périmé : entrées modifiées depuis la simulation');
-    let chart = null, rb = null, unlink = null;
+    let rb = null;
 
     const num = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v)) ? null : Number(v));
     function body() {
@@ -96,19 +96,20 @@
         (m.warnings || []).map((w) => h('div', { class: 'banner banner--warn' }, w)),
         h('div', { class: 'scroll-x' }, h('table', { class: 'tbl' }, h('tbody', null, (res.lines || []).map((l) => h('tr', null, h('td', { class: 'muted' }, l.label),
           h('td', { class: 'num' }, l.value === null || l.value === undefined ? (l.text || F.dash) : (l.unit === '$' ? F.usd(l.value, Math.abs(l.value) >= 1000 ? 0 : 2) : l.unit === '%' ? F.pct(l.value, 1) : F.num(l.value, 2)) + (l.text ? ' · ' + l.text : ''))))))));
-      if (!chart) chart = TIO.simChart(chartBox);
-      chart.update(res);
-      chart.onRange(onVisibleRange);
       showAssets(res);
       renderParams(res);
       const paintVerdict = () => {
-        const p = chart.profile(), v = p && res.drawdown && res.drawdown.verdicts.find((x) => x.profile === p);
+        const p = rb && rb.profile(), v = p && res.drawdown && res.drawdown.verdicts.find((x) => x.profile === p);
         ddChip.className = 'chip' + (v ? (v.respected ? ' chip--up' : ' chip--down') : '');
-        ddChip.textContent = TIO.simChart.verdictText(res, p) + ' (signalement seul, aucun effet sur les ordres)';
+        ddChip.textContent = TIO.expertChart.verdictText(res, p) + ' (signalement seul, aucun effet sur les ordres)';
       };
-      chart.onProfile(paintVerdict); paintVerdict();
-      chart.onEpisodeHover((e) => { chart.highlight(e); markRow(e); });
-      chart.onEpisodeClick((e) => { selectAsset(e.asset); chart.zoomTo(e.from, e.to); });
+      if (rb) {
+        rb.onProfile(paintVerdict);
+        rb.onRange(onVisibleRange);
+        rb.onEpisodeHover((e) => { rb.highlight(e); markRow(e); });
+        rb.onEpisodeClick((e) => { selectAsset(e.asset); rb.zoomTo(e.from, e.to); });
+      }
+      paintVerdict();
       renderReport(res.episodes, null);
     }
 
@@ -131,21 +132,9 @@
       const a = st.res.assets.find((x) => x.asset === sym && x.chart); if (!a) return;
       assetSel.value = sym;
       rb.update(a.chart);
-      if (chart) chart.selectAsset(sym);
-      linkRanges();
+      rb.setWallet(st.res);
+      rb.setEpisodes((st.report || st.res.episodes).episodes, sym);
     }
-    /** Échelles de temps du groupe Rainbow et du groupe wallet / timeline liées (zoom et défilement communs). */
-    function linkRanges() {
-      if (unlink) { unlink(); unlink = null; }
-      const a = rb && rb.mainChart(), b = chart && chart.mainChart(); if (!a || !b) return;
-      let lock = false;
-      const mk = (dst) => (r) => { if (lock || !r) return; lock = true; try { dst.timeScale().setVisibleRange(r); } catch (e) { /* plage hors données : ignorée */ } lock = false; };
-      const fa = mk(b), fb = mk(a);
-      a.timeScale().subscribeVisibleTimeRangeChange(fa); b.timeScale().subscribeVisibleTimeRangeChange(fb);
-      unlink = () => { try { a.timeScale().unsubscribeVisibleTimeRangeChange(fa); } catch (e) { /* ignoré */ } try { b.timeScale().unsubscribeVisibleTimeRangeChange(fb); } catch (e) { /* ignoré */ } };
-      try { const r = a.timeScale().getVisibleRange(); if (r) b.timeScale().setVisibleRange(r); } catch (e) { /* ignoré */ }
-    }
-
     // ------------------------------------------------------------ paramétrage rejoué (détail)
     const L = {
       shortWindow: 'Fenêtre courte (j)', mediumWindow: 'Fenêtre moyenne (j)', longWindow: 'Fenêtre longue (j)', slopeScale: 'Échelle de pente', enter: 'Seuil ENTER', exit: 'Seuil EXIT',
@@ -198,8 +187,8 @@
           const tr = h('tr', { class: 'xsim__row' }, h('td', null, e.asset), h('td', null, e.regime), h('td', null, e.zoneLabel), h('td', null, F.dayLong(e.from)), h('td', null, F.dayLong(e.to)), h('td', { class: 'num' }, e.days),
             h('td', { class: 'num' }, usd(e.boughtUsdc)), h('td', { class: 'num' }, usd(e.soldUsdc)), h('td', { class: 'num ' + TIO.sign(e.pnlRealized) }, usd(e.pnlRealized)),
             h('td', { class: 'num ' + TIO.sign(e.pnlLatent) }, usd(e.pnlLatent)), h('td', { class: 'num ' + TIO.sign(e.pnlTotal) }, usd(e.pnlTotal)));
-          tr.addEventListener('mouseenter', () => chart && chart.highlight(e)); tr.addEventListener('mouseleave', () => chart && chart.highlight(null));
-          tr.addEventListener('click', () => chart && (selectAsset(e.asset), chart.zoomTo(e.from, e.to)));
+          tr.addEventListener('mouseenter', () => rb && rb.highlight(e)); tr.addEventListener('mouseleave', () => rb && rb.highlight(null));
+          tr.addEventListener('click', () => rb && (selectAsset(e.asset), rb.zoomTo(e.from, e.to)));
           rows.set(e, tr); return tr;
         })))) : h('div', { class: 'small muted' }, 'Aucun épisode sur cette plage.');
       const agg = (rep.aggregates || []).length ? h('div', { class: 'scroll-x' }, h('table', { class: 'tbl' },
@@ -231,7 +220,7 @@
         const rep = await X.req('GET', API + '/simulations/episodes/' + encodeURIComponent(id) + '?from=' + v.from + '&to=' + v.to);
         st.report = rep;
         renderReport(rep, null);
-        if (chart) chart.setEpisodes(rep.episodes);
+        if (rb) rb.setEpisodes(rep.episodes, assetSel.value);
       } catch (e) {
         const gone = e && e.status === 404;
         renderReport(st.report || st.res.episodes, { kind: 'error', text: gone ? 'Résultat expiré : relancez la simulation.' : X.errorText(e) });
@@ -263,7 +252,7 @@
     root.classList.add('tio-main--wide');
     TIO.mount(root, ui.pageHeader('Espace Expert', 'Simulateur'), X.mobileNotice(), X.tabs('simulateur'),
       h('div', { class: 'grid' }, ui.card('Paramètres', formBox, rangeBox, ui.cardOpts({ span: true })),
-        ui.card('Simulation', h('div', { class: 'row' }, btn, cancel, stale), statusBox, resBox, assetBar, rbBox, chartBox, ui.cardOpts({ span: true })),
+        ui.card('Simulation', h('div', { class: 'row' }, btn, cancel, stale), statusBox, resBox, assetBar, rbBox, ui.cardOpts({ span: true })),
         h('details', { class: 'card card--span xsim__details', open: true }, h('summary', { class: 'small' }, 'Paramétrage rejoué (détail)'), paramBox),
         h('details', { class: 'card card--span xsim__details' }, h('summary', { class: 'small' }, 'Épisodes · agrégat · répartition du gain'), tableBox)));
     load();

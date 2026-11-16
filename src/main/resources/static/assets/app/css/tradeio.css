@@ -566,7 +566,7 @@ details.fold > .fold-body { padding: 0 0 6px 48px; }
 /* Espace Expert · Rainbow « Les 2 » : une simulation à gauche, les deux blocs de réglages (Up, Down) empilés à droite */
 .xwork--mix .xsplit { pointer-events: none; }
 
-/* Espace Expert · Simulateur (expert-sim-chart.js) : panneaux synchronisés et piste d'épisodes colorée par PnL */
+/* Espace Expert · Simulateur (expert-chart.js) : panneaux synchronisés et piste d'épisodes colorée par PnL */
 .xsim { display: flex; flex-direction: column; gap: 8px; }
 .xsim__panel[hidden] { display: none; }
 .xsim__title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-bottom: 2px; }
@@ -585,3 +585,8 @@ details.fold > .fold-body { padding: 0 0 6px 48px; }
 .xsim__tip[hidden] { display: none; }
 .xsim__tiphead { margin-bottom: 2px; }
 .xsim__tiptbl td { padding: 1px 6px; white-space: pre; }
+
+/* Piste d'épisodes dans expertChart : calque de segments + vignette */
+.xc-body,.xc-panel{position:relative}
+.xc-epi{position:absolute;inset:0;pointer-events:none}
+.xc-epi .xsim__seg{pointer-events:auto}

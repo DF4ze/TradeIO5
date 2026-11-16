@@ -8,8 +8,9 @@
   const ZONES = ['Extrême bas', 'X2', 'X1', 'X0,5', "Pas d'achat", 'Extrême haut'];
   const TRENDS = ['—', 'UP', 'DOWN'];
   const STATES = ['—', 'UP', 'DOWN', 'RANGE'];
-  const DEFAULTS = { bands: true, markers: true, phases: true, fixed: true, ath: true, panels: { bag: true, pnl: true, expo: true, score: true, sub: true, raw: true, sma: true }, ols: true };
+  const DEFAULTS = { bands: true, markers: true, phases: true, fixed: true, ath: true, panels: { bag: true, pnl: true, expo: true, wallet: true, dd: true, epi: true, score: true, sub: true, raw: true, sma: true }, ols: true };
 
+  const PROFILE_LABELS = { PRUDENT: 'Prudent', BALANCED: 'Équilibré', DYNAMIC: 'Dynamique', FULL: 'Full' };
   const SIDE_MIN = 72; // largeur minimale commune des échelles de prix (px)
   const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   function rgba(hex, a) {
@@ -208,7 +209,9 @@
     const price = panel('price', 'Cours', 360), score = panel('score', 'Score de régression [−1 ; +1] (seuils ENTER / EXIT)', 130),
       rawT = track('rawT', 'Régime de régression · brut (avant confirmation)'), regT = track('regT', 'Régime de régression · appliqué'),
       smaT = track('smaT', 'Régime SMA (prix vs SMA ± k × ATR)'), bag = panel('bag', 'Taille du bag : quantité d’actif (axe droit, unités de l’actif), réserve moon, valeur en $ (axe gauche)', 150),
-      pnl = panel('pnl', 'PnL ($ à gauche, % du capital à droite)', 170), expo = panel('expo', 'Exposition ($ à gauche, % du capital à droite)', 160);
+      pnl = panel('pnl', 'PnL ($ à gauche, % du capital à droite)', 170), expo = panel('expo', 'Exposition ($ à gauche, % du capital à droite)', 160),
+      wal = panel('wallet', 'Wallet stratégie vs DCA fixe (USDC)', 200), ddp = panel('dd', 'Drawdown (%) · signalement seul, aucun effet sur les ordres', 140),
+      epi = track('epi', 'Épisodes (couleur = PnL · survol = détail de la zone)');
     (function scoreInfo() {
       const ttl = score.box.querySelector('.xc-title'), txt = h('span', { class: 'xc-ttext' }, ttl.textContent), inf = TIO.ui.info();
       inf.set([
@@ -248,6 +251,20 @@
     ['realized', 'potential', 'total', 'fixed'].forEach((k) => twin(pnl, k));
     pnl.series.total.createPriceLine({ price: 0, color: C.muted, lineWidth: 1, lineStyle: 1, axisLabelVisible: false, title: '' }); // repère du 0
     ['asset', 'stable', 'total', 'capital'].forEach((k) => twin(expo, k));
+    // Simulateur : wallet stratégie vs DCA fixe et drawdown (séries du wallet entier, ré-échantillonnées sur les jours de l'actif par setWallet)
+    wal.series.strategy = line(wal, C.accent, 2, 0, 'Stratégie', 'left'); wal.series.fixed = line(wal, C.muted, 1, 0, 'DCA fixe', 'left');
+    ddp.series.base = ddp.chart.addBaselineSeries({ baseValue: { type: 'price', price: -100 }, topLineColor: C.accent, topFillColor1: rgba(C.accent, 0.20), topFillColor2: rgba(C.accent, 0.02),
+      bottomLineColor: C.down, bottomFillColor1: rgba(C.down, 0.50), bottomFillColor2: rgba(C.down, 0.15), lineWidth: 2, priceLineVisible: false, lastValueVisible: false, title: 'Stratégie', priceScaleId: 'left' });
+    ddp.series.fixed = line(ddp, C.muted, 1, 0, 'DCA fixe', 'left');
+    ddp.series.cap = ddp.chart.addLineSeries({ color: C.down, lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, title: 'Plafond', priceScaleId: 'left' });
+    const profSel = h('select', { 'aria-label': 'Profil de plafond' }), ddInfo = h('span', { class: 'small muted' });
+    let walletX = null, profile = null, profileCb = null;
+    // ---- piste d'épisodes (Simulateur) : segments DOM posés sur un graphique-piste synchronisé, vignette au survol
+    epi.body.style.height = '30px';
+    const epiLayer = h('div', { class: 'xc-epi' }), epiTip = h('div', { class: 'xsim__tip', hidden: true, role: 'tooltip' });
+    epi.body.appendChild(epiLayer); epi.box.appendChild(epiTip);
+    let epiList = [], epiAsset = null, epiHl = null, hoverCb = null, clickCb = null, rangeCb = null;
+    const epiSegs = new Map();
 
     let data = null, shade = null, panelShades = [], byDay = {}, olsIdx = null, olsState = null;
     const olsPrim = new OlsPrimitive(price.chart, S.candle, () => (data && data.cols.tSma && state.ols ? olsState : null));
@@ -325,9 +342,10 @@
       if (l === sideL && r === sideR) return;
       sideL = l; sideR = r;
       all.forEach((p) => p.chart.applyOptions({ leftPriceScale: { minimumWidth: sideL }, rightPriceScale: { minimumWidth: sideR } }));
+      g.setTimeout(drawEpisodes, 0);
     }
     // ligne verticale du curseur reproduite sur tous les graphiques ; la ligne horizontale (prix) reste sur le graphique survolé seul
-    const anchorOf = (p) => p.series.candle || p.series.hist || p.series.bar || p.series.pos || p.series.total;
+    const anchorOf = (p) => p.series.candle || p.series.hist || p.series.bar || p.series.pos || p.series.total || p.series.strategy || p.series.base;
     // seul le graphique réellement survolé pilote les autres : les événements de crosshair émis (en différé) par setCrosshairPosition
     // sur les graphiques suiveurs ne doivent pas repartir en sens inverse (sinon l'horizontale du graphique survolé saute)
     let crossSrc = null, crossBusy = false, hoverSrc = null;
@@ -404,6 +422,9 @@
         sw('Courbe DCA fixe (budget égal)', () => state.fixed, (v) => { state.fixed = v; }, 'rb'),
         sw('Afficher', () => state.panels.pnl, (v) => { state.panels.pnl = v; }, 'rb'));
       place(expo, sw('Afficher', () => state.panels.expo, (v) => { state.panels.expo = v; }, 'wallet'));
+      place(epi, sw('Afficher', () => state.panels.epi, (v) => { state.panels.epi = v; }, 'sim'));
+      place(wal, sw('Afficher', () => state.panels.wallet, (v) => { state.panels.wallet = v; }, 'sim'));
+      place(ddp, profSel, ddInfo, sw('Afficher', () => state.panels.dd, (v) => { state.panels.dd = v; }, 'sim'));
     }
     function dot(color, label) { return h('span', { class: 'row' }, h('i', { class: 'xc-dot', style: { background: color } }), label); }
     function buildLegend() {
@@ -454,12 +475,13 @@
       // panneau indisponible => masqué ; désactivé => en-tête seul (xc-off)
       const show = (pn, avail, on) => { pn.box.hidden = !avail; pn.box.classList.toggle('xc-off', !on); };
       show(bag, hasRb, P.bag); show(pnl, hasRb, P.pnl); show(expo, hasWallet, P.expo);
+      show(wal, !!walletX, P.wallet); show(ddp, !!(walletX && walletX.drawdown), P.dd); show(epi, !!walletX && epiList.length > 0, P.epi);
       show(score, hasTb, P.score); show(rawT, hasTb, P.raw); show(smaT, hasTb, P.sma);
       regT.box.hidden = !(hasTb && (P.score || P.raw));
       score.series.sub.forEach((q) => q.applyOptions({ visible: hasTb && P.sub }));
       pnl.series.fixed.applyOptions({ visible: !!state.fixed }); pnl.series.fixedPct.applyOptions({ visible: !!state.fixed });
       drawOls(olsIdx);
-      const has = { band: hasRb || hasTb, rb: hasRb, wallet: hasWallet, tb: hasTb };
+      const has = { band: hasRb || hasTb, rb: hasRb, wallet: hasWallet, tb: hasTb, sim: !!walletX };
       panelsBox.querySelectorAll('label[data-need]').forEach((l) => { const nd = l.dataset.need; l.hidden = !!nd && !has[nd]; });
       all.forEach((p) => { if (!p.box.hidden) p.chart.applyOptions({}); });
       // forcer le redessin des primitives
@@ -517,10 +539,128 @@
       TIO.mount(detail, h('div', { class: 'small muted' }, 'Détail du jour (survol ou clic)'), h('div', { class: 'scroll-x' }, h('table', { class: 'tbl' }, h('tbody', null, rows))));
     }
 
+    /** Plafond du profil choisi : ligne horizontale + zone colorée au-delà ; sans profil, ni l'un ni l'autre. */
+    const usd = (v) => F.usd(v, Math.abs(v) >= 1000 ? 0 : 2);
+    const signedUsd = (v) => (v > 0 ? '+' : '') + usd(v);
+    const pnlColor = (v, max) => { const k = Math.min(1, Math.abs(v) / (max || 1)), a = (0.25 + 0.65 * k).toFixed(2); return v >= 0 ? 'rgba(38,166,154,' + a + ')' : 'rgba(239,83,80,' + a + ')'; };
+    const tipRow = (label, value, cls) => h('tr', null, h('td', { class: 'muted' }, label), h('td', { class: 'num' + (cls ? ' ' + cls : '') }, value));
+    function priceOn(day) {
+      if (!data) return null;
+      const d = String(day).slice(0, 10);
+      let i = byDay[d]; if (i === undefined) i = data.d.findIndex((x) => x >= d);
+      return i >= 0 && data.cols.c[i] !== null && data.cols.c[i] !== undefined ? Number(data.cols.c[i]) : null;
+    }
+    function tipContent(e) {
+      const p0 = priceOn(e.from), p1 = priceOn(e.to), mv = p0 && p1 ? (p1 / p0 - 1) * 100 : null, g = e.gain || {};
+      const q = (v) => F.num(v, v >= 1 ? 4 : 6);
+      return [h('div', { class: 'xsim__tiphead' }, h('strong', null, e.asset), ' · ', e.regime, ' · zone ', h('strong', null, e.zoneLabel)),
+        h('div', { class: 'small muted' }, F.dayLong(e.from) + ' → ' + F.dayLong(e.to) + ' · ' + e.days + ' j'),
+        h('table', { class: 'tbl xsim__tiptbl' }, h('tbody', null,
+          p0 && p1 ? tipRow('Cours début → fin', F.price(p0) + ' → ' + F.price(p1) + ' (' + (mv > 0 ? '+' : '') + F.num(mv, 1) + ' %)') : null,
+          tipRow('Acheté', usd(e.boughtUsdc) + ' · ' + q(e.boughtQty)), tipRow('Vendu', usd(e.soldUsdc) + ' · ' + q(e.soldQty)),
+          tipRow('Net investi', signedUsd(e.boughtUsdc - e.soldUsdc)),
+          e.avgCostEnd === null || e.avgCostEnd === undefined ? null : tipRow('Prix de revient fin', F.price(e.avgCostEnd)),
+          tipRow('PnL de la zone', signedUsd(e.pnlTotal), TIO.sign(e.pnlTotal)), tipRow('  dont réalisé', signedUsd(e.pnlRealized), TIO.sign(e.pnlRealized)),
+          tipRow('  dont latent', signedUsd(e.pnlLatent), TIO.sign(e.pnlLatent)),
+          e.exposureStartPct === null || e.exposureStartPct === undefined ? null : tipRow('Exposition début → fin', F.num(e.exposureStartPct, 1) + ' % → ' + (e.exposureEndPct === null || e.exposureEndPct === undefined ? '—' : F.num(e.exposureEndPct, 1) + ' %')),
+          tipRow('Gain vs DCA fixe', signedUsd(g.total || 0), TIO.sign(g.total || 0)),
+          tipRow('  exposition / timing / frais', signedUsd(g.exposure || 0) + ' / ' + signedUsd(g.timing || 0) + ' / ' + signedUsd(g.fees || 0))))];
+    }
+    function showTip(e, seg) {
+      TIO.mount(epiTip, tipContent(e)); epiTip.hidden = false;
+      const box = epi.box.getBoundingClientRect(), r = seg.getBoundingClientRect(), w = epiTip.offsetWidth;
+      epiTip.style.left = Math.max(0, Math.min(box.width - w, r.left + r.width / 2 - box.left - w / 2)) + 'px';
+      epiTip.style.bottom = (box.bottom - r.top + 6) + 'px';
+    }
+    const hideTip = () => { epiTip.hidden = true; };
+    function xOfDay(day) {
+      if (!data) return null;
+      const d = String(day).slice(0, 10);
+      let i = byDay[d]; if (i === undefined) { i = data.d.findIndex((x) => x >= d); if (i < 0) i = data.d.length - 1; }
+      return epi.chart.timeScale().timeToCoordinate(data.d[i]);
+    }
+    /** Redessine les segments (ne jamais l'appeler au survol : cela détruirait le segment survolé et fermerait la vignette). */
+    function drawEpisodes() {
+      epiLayer.textContent = ''; epiSegs.clear();
+      if (!data || epi.box.hidden || epi.box.classList.contains('xc-off')) return;
+      const left0 = epi.chart.priceScale('left').width(), w = epi.body.clientWidth - left0 - epi.chart.priceScale('right').width();
+      const list = epiList.filter((e) => !epiAsset || e.asset === epiAsset), max = Math.max(1e-9, ...list.map((e) => Math.abs(e.pnlTotal)));
+      list.forEach((e) => {
+        const x0 = xOfDay(e.from), x1 = xOfDay(e.to); if (x0 === null || x1 === null) return;
+        const left = Math.min(x0, x1), width = Math.max(2, Math.abs(x1 - x0) + 3);
+        if (left + width < 0 || left > w) return;
+        const seg = h('div', { class: 'xsim__seg' + (epiHl === e ? ' is-hl' : ''), style: { left: (left0 + left) + 'px', width: width + 'px', background: pnlColor(e.pnlTotal, max) }, 'aria-label': e.asset + ' · ' + e.regime + ' · ' + e.zoneLabel });
+        seg.addEventListener('mouseenter', () => { showTip(e, seg); if (hoverCb) hoverCb(e); });
+        seg.addEventListener('mouseleave', () => { hideTip(); if (hoverCb) hoverCb(null); });
+        seg.addEventListener('click', () => clickCb && clickCb(e));
+        epiSegs.set(e, seg); epiLayer.appendChild(seg);
+      });
+    }
+    function visibleDays() {
+      if (!data) return null;
+      const r = price.chart.timeScale().getVisibleLogicalRange(); if (!r) return null;
+      const a = Math.max(0, Math.ceil(r.from)), b = Math.min(data.d.length - 1, Math.floor(r.to));
+      return b >= a ? { from: data.d[a], to: data.d[b] } : null;
+    }
+    epi.chart.timeScale().subscribeVisibleLogicalRangeChange(() => drawEpisodes());
+    price.chart.timeScale().subscribeVisibleLogicalRangeChange(() => { const v = visibleDays(); if (v && rangeCb) rangeCb(v); });
+    if (g.ResizeObserver) new g.ResizeObserver(() => drawEpisodes()).observe(epi.body);
+
+    function paintCap() {
+      const dd = walletX && walletX.drawdown; if (!dd || !data) return;
+      const v = profile && dd.verdicts.find((x) => x.profile === profile);
+      ddp.series.base.applyOptions({ baseValue: { type: 'price', price: v ? v.capPct : -100 } });
+      ddp.series.cap.setData(v ? data.d.map((t) => ({ time: t, value: v.capPct })) : []);
+      ddp.series.cap.applyOptions({ title: v ? 'Plafond ' + PROFILE_LABELS[v.profile] : 'Plafond' });
+    }
+    profSel.addEventListener('change', () => { profile = profSel.value || null; paintCap(); if (profileCb) profileCb(profile); });
+    const pctTxt = (v) => F.pct(v, 1);
+    [wal, ddp].forEach((p) => p.chart.subscribeCrosshairMove((ev) => {
+      const i = ev.time && walletX ? walletX.idx.get(String(ev.time)) : undefined;
+      ddInfo.textContent = i === undefined || !walletX.drawdown ? '' : ' · ' + F.dayLong(String(ev.time)) + ' : stratégie ' + pctTxt(walletX.drawdown.strategy[i]) + ' · DCA fixe ' + pctTxt(walletX.drawdown.fixed[i]);
+    }));
+    /** Séries du wallet entier (res.series, res.drawdown) ré-échantillonnées sur les jours du graphique de l'actif (jours du lien ⊂ jours du wallet). */
+    function setWallet(res) {
+      if (!data || !res || !res.series) { walletX = null; apply(); return; }
+      const idx = new Map(res.series.d.map((t, i) => [String(t).slice(0, 10), i]));
+      walletX = { idx, drawdown: res.drawdown || null };
+      const pick = (arr) => data.d.map((t) => { const i = idx.get(t), v = i === undefined ? null : arr[i]; return v === null || v === undefined ? { time: t } : { time: t, value: Number(v) }; });
+      wal.series.strategy.setData(pick(res.series.wallet)); wal.series.fixed.setData(pick(res.series.fixed));
+      const dd = res.drawdown;
+      if (dd) {
+        ddp.series.base.setData(pick(dd.strategy)); ddp.series.fixed.setData(pick(dd.fixed));
+        profile = dd.defaultProfile || null;
+        TIO.mount(profSel, [h('option', { value: '' }, 'Profil : aucun')].concat(dd.verdicts.map((v) => h('option', { value: v.profile }, PROFILE_LABELS[v.profile] + ' ' + pctTxt(v.capPct)))));
+        profSel.value = profile || '';
+        paintCap();
+      }
+      apply();
+      all.forEach((p) => { if (!p.box.hidden) p.chart.timeScale().fitContent(); });
+      scheduleAlign();
+    }
+
     buildToolbar();
     return {
+      setWallet,
+      /** Épisodes du rejeu (liste d'EpisodeDto) pour l'actif {@code asset} ; aucune requête, aucun calcul. */
+      setEpisodes(list, asset) { epiList = list || []; epiAsset = asset || null; epiHl = null; hideTip(); apply(); drawEpisodes(); },
+      /** Surligne un épisode sans redessiner (la vignette reste ouverte). */
+      highlight(e) { epiHl = e; epiSegs.forEach((sg, ep) => sg.classList.toggle('is-hl', ep === e)); },
+      onEpisodeHover(cb) { hoverCb = cb; }, onEpisodeClick(cb) { clickCb = cb; },
+      onRange(cb) { rangeCb = cb; },
+      visible: visibleDays,
+      zoomTo(from, to) {
+        if (!data) return;
+        const a = Math.max(0, data.d.findIndex((x) => x >= String(from).slice(0, 10)));
+        let b = data.d.findIndex((x) => x > String(to).slice(0, 10)); b = b < 0 ? data.d.length - 1 : b - 1;
+        const pad = Math.max(3, Math.round((b - a) * 0.15));
+        price.chart.timeScale().setVisibleLogicalRange({ from: a - pad, to: b + pad });
+      },
+      profile: () => profile,
+      onProfile(cb) { profileCb = cb; },
       update(dto) {
         data = dto && dto.d && dto.d.length ? dto : null;
+        walletX = null;
         tools.measure = null; tools.zone = null;
         if (shade) { S.candle.detachPrimitive(shade); shade = null; }
         panelShades.forEach((x) => x.series.detachPrimitive(x.prim)); panelShades = [];
@@ -573,6 +713,7 @@
           [['asset', data.wallet.asset], ['stable', data.wallet.stable], ['total', data.wallet.total]].forEach(([k, arr]) => expo.series[k + 'Pct'].setData(ke ? pe(arr) : []));
           expo.series.capitalPct.setData(ke ? data.d.map((t) => ({ time: t, value: 100 })) : []);
         }
+        epi.series.bar.setData(data.d.map((t) => ({ time: t, value: 1, color: 'rgba(0,0,0,0)' })));
         shade = new ShadePrimitive(price.chart, data.d, data.trend, data.active, { off: rgba(C.muted, 0.16), up: rgba(C.up, 0.07), down: rgba(C.down, 0.07) });
         S.candle.attachPrimitive(shade);
         // zones hors régime testé grisées aussi sur Bag / PnL / Exposition (la vue Affectation n'en a aucune : rien n'est dessiné)
@@ -592,5 +733,14 @@
       mainChart: () => price.chart,
       destroy() { g.removeEventListener('keydown', onKey); all.forEach((p) => p.chart.remove()); },
     };
+  };
+  /** Texte du verdict du profil choisi (verdicts calculés par le serveur ; aucun recalcul ici). */
+  TIO.expertChart.verdictText = function (res, profile) {
+    const dd = res && res.drawdown; if (!dd) return '';
+    const m = dd.strategyMeasure, p = (v) => F.pct(v, 1);
+    const head = 'Drawdown max ' + p(m.maxPct) + (m.troughDay ? ' le ' + F.dayLong(m.troughDay) : '');
+    const v = profile && dd.verdicts.find((x) => x.profile === profile);
+    if (!v) return head + ' · choisissez un profil pour comparer au plafond';
+    return head + ', plafond ' + PROFILE_LABELS[v.profile] + ' ' + p(v.capPct) + ' : ' + (v.respected ? 'respecté' : 'dépassé le ' + F.dayLong(v.firstBreachDay) + ' (jusqu\'à ' + F.num(v.maxOverrunPts, 1) + ' pts au-delà)');
   };
 })(window);
