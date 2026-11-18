@@ -31,7 +31,8 @@ public record RainbowAtrGlobals(
     public static final class Builder {
         private boolean athOn, moonOn, ratchet;
         private double refBuy, refSell, buyMin, buyMax, sellMax, sellMin, reserve, moonTrail, moonStop;
-        private final double x2, x1, x05, trig, base;
+        private final double base;
+        private double x2, x1, x05, trig;
 
         private Builder(RainbowAtrGlobals g) {
             athOn = g.athOn; refBuy = g.athRefDdBuyPct; refSell = g.athRefDdSellPct;
@@ -55,6 +56,10 @@ public record RainbowAtrGlobals(
                 case "moonReserveRatchet" -> ratchet = (Boolean) v;
                 case "moonTrailingStopPct" -> moonTrail = (Double) v;
                 case "moonStopSellPct" -> moonStop = (Double) v;
+                case "multX2" -> x2 = (Double) v;
+                case "multX1" -> x1 = (Double) v;
+                case "multX0_5" -> x05 = (Double) v;
+                case "multTriggered" -> trig = (Double) v;
                 default -> throw new IllegalArgumentException("Paramètre global inconnu : " + name);
             }
             return this;

@@ -91,7 +91,7 @@ class AdminModulationSecurityTest {
         assertEquals(0, new java.math.BigDecimal("5").compareTo(margin.min()));
         assertEquals(0, new java.math.BigDecimal("50").compareTo(margin.max()));
         assertEquals(0, new java.math.BigDecimal("25").compareTo(margin.defaultValue()));
-        assertEquals(8, controller.get().parameters().size());
+        assertEquals(12, controller.get().parameters().size());
 
         controller.put(params());
         verify(ADMIN).update(params(), "root");

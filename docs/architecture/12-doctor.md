@@ -1,7 +1,7 @@
 ---
 statut: courant
-modifié_le: 2026-11-16
-empreinte: 13d98b5f8d
+modifié_le: 2026-11-17
+empreinte: 86e5fd1992
 ---
 # Docteur — diagnostic et alarmes (Admin)
 
@@ -22,6 +22,7 @@ Un contrôle est une sonde pure qui renvoie un `CheckResult` (sujet, statut OK/U
 | `KEY_REJECTED` | Clés à paire générée (Revolut X) refusées par l'exchange : sonde réelle de chaque credential active (`ProviderKeyPairSupport.verify`) au plus toutes les 60 min (`KEY_PROBE_INTERVAL_MINUTES`) ; refus (401/403) ⇒ CRIT, exchange injoignable ⇒ verdict précédent conservé ; credential désactivée ou supprimée ⇒ alarme résolue |
 | `DATABASE` | Requête de test, lenteur > 1 s |
 | `DISK` | Espace libre < 15 % (WARN) / < 5 % (CRIT) |
+| `INTERNET_ACCESS` | Deux sujets. `internet-ip` : TCP/443 vers `1.1.1.1` / `9.9.9.9` sans DNS, les deux en échec ⇒ CRIT. `dns` : résolution des hôtes d'exchanges (`api.kraken.com`, `www.okx.com`, `api.binance.com`) ; aucun résolu avec l'accès IP OK ⇒ CRIT « DNS en panne », une partie ⇒ WARN ; accès IP coupé ⇒ UNKNOWN (pas de double alarme). Aucune requête vers un exchange, délai max 3 s par sonde (`DoctorDefaults.INTERNET_PROBE_*`) |
 | `LOG_ERRORS` | ERROR ≥ 1 ou WARN ≥ 50 sur 24 h (`DoctorLogBuffer`, appender logback en mémoire, borné, vidé au redémarrage) |
 
 Un contrôle qui lève une exception produit un WARN sujet `_contrôle`. Seuils : constantes de `DoctorDefaults`. Jobs attendus : propriété `tradeio.doctor.expected-jobs` (défaut `RainbowLivePass2355Job,ExecutionPlanJob,ExecutionJob`) ; le cron est lu dans l'environnement (valeur `-` = désactivé ⇒ CRIT pour un job attendu).
@@ -35,7 +36,7 @@ Un contrôle qui lève une exception produit un WARN sujet `_contrôle`. Seuils 
 - Les alarmes résolues et les `job_run` sont purgés après 90 jours (`JobRunPurgeJob`).
 
 ## Exécution
-`DoctorJob` (premier passage 60 s après le démarrage, puis toutes les 5 min) appelle `DoctorService.runAll` (synchronisé). Propriétés : `tradeio.doctor.interval-ms`, `tradeio.doctor.kill-switch-lifted-warn-hours`, `tradeio.doctor.initial-delay-ms`, `tradeio.doctor.purge-cron`, `tradeio.doctor.expected-jobs`. Les profils sans crons (dev) doivent surcharger `expected-jobs`. **Profil `recette`** : `DoctorService` ignore, sans verdict ni alarme, `JOB_SCHEDULE` (crons coupés), `EXECUTION_STATE:master-key` (clé maître absente) et `LOG_ERRORS` (ERROR attendues : clé maître, 401 des smoke tests ; la recette surveille son journal elle-même) — `DoctorDefaults.RECETTE_IGNORED`. Les autres contrôles restent actifs.
+`DoctorJob` (premier passage 60 s après le démarrage, puis toutes les 5 min) appelle `DoctorService.runAll` (synchronisé). Propriétés : `tradeio.doctor.interval-ms`, `tradeio.doctor.kill-switch-lifted-warn-hours`, `tradeio.doctor.initial-delay-ms`, `tradeio.doctor.purge-cron`, `tradeio.doctor.expected-jobs`, `tradeio.doctor.internet-probe-hosts` (hôtes sondés par `INTERNET_ACCESS`, liste séparée par des virgules). Les profils sans crons (dev) doivent surcharger `expected-jobs`. **Profil `recette`** : `DoctorService` ignore, sans verdict ni alarme, `JOB_SCHEDULE` (crons coupés), `EXECUTION_STATE:master-key` (clé maître absente) et `LOG_ERRORS` (ERROR attendues : clé maître, 401 des smoke tests ; la recette surveille son journal elle-même) — `DoctorDefaults.RECETTE_IGNORED`. Les autres contrôles restent actifs.
 
 ## API et interface
 Endpoints `/api/admin/doctor/*` : [`api/rest-endpoints.md`](../api/rest-endpoints.md). Ack et report journalisés (`AdminAction.DOCTOR`, cible `alarm:<id>`).

@@ -16,7 +16,7 @@ import java.util.List;
  * Régimes de simulation : Trend brut (UP / DOWN / RANGE / indéfini) → sortie finale UP / DOWN uniquement ({@code rangeMapping}
  * appliqué en interne), {@code null} = barre sans régime résolu (inactive). Phases, bascules et métriques sur une plage.
  */
-final class SimulationRegimes {
+public final class SimulationRegimes {
 
     private SimulationRegimes() {
     }
@@ -26,7 +26,7 @@ final class SimulationRegimes {
      * qu'aucun régime n'a été résolu, la barre reste {@code null} : contrairement à {@code RainbowSetSelector} il n'y a pas de
      * jeu par défaut, la barre est inactive.
      */
-    static TrendRegime[] resolve(TrendRegime[] raw, RangeMapping mapping) {
+    public static TrendRegime[] resolve(TrendRegime[] raw, RangeMapping mapping) {
         TrendRegime[] out = new TrendRegime[raw.length];
         TrendRegime current = null;
         for (int i = 0; i < raw.length; i++) {

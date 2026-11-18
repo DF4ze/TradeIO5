@@ -54,6 +54,17 @@ public final class DoctorDefaults {
     /** Intervalle minimal entre deux sondes réelles d'une même clé (les passes du Docteur sont plus fréquentes). */
     public static final int KEY_PROBE_INTERVAL_MINUTES = 60;
 
+    // --- Accès internet (INTERNET_ACCESS)
+    public static final String INTERNET_ACCESS_CHECK = "INTERNET_ACCESS";
+    /** Hôtes d'exchanges dont la résolution DNS est sondée (liste séparée par des virgules, surchargeable). */
+    public static final String INTERNET_PROBE_HOSTS_PROPERTY = "tradeio.doctor.internet-probe-hosts";
+    public static final String INTERNET_PROBE_HOSTS = "${" + INTERNET_PROBE_HOSTS_PROPERTY + ":api.kraken.com,www.okx.com,api.binance.com}";
+    /** IP publiques jointes en TCP/443 sans DNS : prouvent l'accès internet indépendamment de la résolution de noms. */
+    public static final java.util.List<String> INTERNET_PROBE_IPS = java.util.List.of("1.1.1.1", "9.9.9.9");
+    public static final int INTERNET_PROBE_PORT = 443;
+    /** Délai max d'une sonde (connexion TCP ou résolution DNS). */
+    public static final int INTERNET_PROBE_TIMEOUT_MS = 3000;
+
     public static final String PURGE_CRON_PROPERTY = "tradeio.doctor.purge-cron";
     /** 03:30 heure JVM, tous les jours (actif par défaut). */
     public static final String PURGE_CRON = "${" + PURGE_CRON_PROPERTY + ":0 30 3 * * *}";
