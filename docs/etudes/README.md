@@ -1,8 +1,8 @@
 ---
 statut: index
 sujet: Index des études actives
-modifié_le: 2026-11-16
-empreinte: afd5deac2a
+modifié_le: 2026-11-18
+empreinte: 292dbd97cb
 ---
 # Études (journal de conception daté)
 
@@ -22,7 +22,10 @@ empreinte: afd5deac2a
 | [`etude-liens-strategie-provider-actif.md`](etude-liens-strategie-provider-actif.md) | Étude — Liens stratégie / provider / actif (vocabulaire et modèle cible) |  |
 | [`etude-passerelle-actif-non-stable.md`](etude-passerelle-actif-non-stable.md) | Étude — Passerelle par actif non stable (PAXG sur Kraken), USDT exclu |  |
 | [`etude-optimisation-mode-autonome.md`](etude-optimisation-mode-autonome.md) | Étude — Optimiser TradeIO vers un mode Full Autonome (définition du bon paramétrage, rejeu intégral, méthode, agencement des briques) |  |
-| [`etude-plafond-ath-mesure.md`](etude-plafond-ath-mesure.md) | Mesure du plafond de mise ATH utilisateur (étape 2) : tableau complet BTC, ETH, PAXG |  |
+| [`etude-plafond-ath-mesure.md`](etude-plafond-ath-mesure.md) | Mesures H0 et plafond de mise ATH (étapes 1 et 2) : tableaux complets BTC, ETH, PAXG |  |
+| [`etude-calibrage-politique-l2.md`](etude-calibrage-politique-l2.md) | Étape 4 rejouée après la pré-étape 5 : calibrage walk-forward de la politique L2 par profil (résultats, porte de sortie, mesure 4.0 B) |  |
+| [`etude-demo-l2-optimiseur.md`](etude-demo-l2-optimiseur.md) | Étape 3 : démo L2 de l'optimiseur (BTC, ETH, PAXG, Équilibré, hors échantillon) et diagnostic de reproductibilité |  |
+| [`etude-sensibilite-rainbow.md`](etude-sensibilite-rainbow.md) | Étape A : carte de sensibilité Rainbow BTC (Bull seul / Bear seul, PnL réel 24 mois, lecture gel) |  |
 | [`etude-protocole-calibrage-couches.md`](etude-protocole-calibrage-couches.md) | Étude — Protocole de calibrage Rainbow, attribution des pertes, couches de pilotage, gestion du risque |  |
 | [`roadmap-moteur-optimisation.md`](roadmap-moteur-optimisation.md) | Roadmap — moteur d'optimisation automatique (presets par actif + politique de pilotage utilisateur) |  |
 | [`etude-provider-revolutx.md`](etude-provider-revolutx.md) | Étude — Provider Revolut X : clés générées par utilisateur, candles, exécution |  |

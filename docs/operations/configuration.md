@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-10-03
-modifié_le: 2026-11-11
-empreinte: 49aa581978
+modifié_le: 2026-11-16
+empreinte: 0cb1374a96
 ---
 # Configuration
 
@@ -55,6 +55,8 @@ Vérifié le : 2026-10-03 (`configuration/**`, `RainbowLiveDefaultPresets`).
 | `tradeio.execution.instrument-catalog.refresh-after` | `PT24H` | Âge maximal du catalogue d'instruments avant rafraîchissement |
 | `spring.flyway.enabled` / `baseline-on-migrate` / `baseline-version` | `true` / `true` / `1` | Flyway actif (désactivé dans les tests) ; `spring.jpa.hibernate.ddl-auto=validate` en dev/prod — cf. [`flyway.md`](flyway.md) |
 | Profil `recette` | – | Répétition de déploiement sur copie de prod (port 9004, exécution `OFF`, crons coupés) — cf. [`recette.md`](recette.md) |
+| `tradeio.optimizer.enabled` | `false` | `true` ⇒ endpoints admin de l'optimiseur (`/api/admin/optimizer/runs`) et leurs beans ; sinon absents (404). Détail : [`../architecture/15-optimiseur.md`](../architecture/15-optimiseur.md) |
+| `tradeio.optimizer.pool-size` / `result-ttl-minutes` | `2` / `30` | Pool d'évaluation dédié de l'optimiseur / durée de vie des résultats en mémoire |
 | `tradeio.security.agent-api-key` | vide (filtre inactif) | Active l'authentification par clé API (`ROLE_API_AGENT`) |
 | `tradeio.security.agent-api-key-admin` | `false` | Recette : la clé agent reçoit aussi `ROLE_ADMIN`, **uniquement** si le profil `recette` est actif (jamais en prod) ; cf. [`recette.md`](recette.md) |
 

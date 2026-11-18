@@ -40,11 +40,24 @@ public final class LinkSignalReplay {
 
     private static final double EPSILON = 1e-9;
 
-    /** Paramètres du signal d'un lien ; {@code athCap} : plafond utilisateur de la mise ATH ({@code null} = aucun, comportement du live). */
+    /**
+     * Paramètres du signal d'un lien ; {@code athCap} : plafond utilisateur de la mise ATH ({@code null} = aucun, comportement du live) ;
+     * {@code fixedBaseAmount} : base du DCA fixe de référence ({@code null} = la base du lien, ou celle du jeu à défaut), distincte de la
+     * base de la stratégie ({@code linkBaseAmount}) : elle permet de comparer des bases de stratégie différentes à un même budget de référence.
+     */
     public record Config(RainbowAtrDataset ds, List<MarketData> candles, TrendMixCalculator.Params trend, RangeMapping range,
                   RainbowAtrParamSet[] sets, int engineStart, int startIdx, int endIdx, Double linkBaseAmount,
                   Map<LocalDate, Double> priceOverride, Map<LocalDate, AthReference> athBefore, Set<LocalDate> rebootstrapDays,
-                  int windowMonths, AthCap athCap) {
+                  int windowMonths, AthCap athCap, Double fixedBaseAmount) {
+
+        /** Sans base de référence propre au DCA fixe. */
+        public Config(RainbowAtrDataset ds, List<MarketData> candles, TrendMixCalculator.Params trend, RangeMapping range,
+                      RainbowAtrParamSet[] sets, int engineStart, int startIdx, int endIdx, Double linkBaseAmount,
+                      Map<LocalDate, Double> priceOverride, Map<LocalDate, AthReference> athBefore, Set<LocalDate> rebootstrapDays,
+                      int windowMonths, AthCap athCap) {
+            this(ds, candles, trend, range, sets, engineStart, startIdx, endIdx, linkBaseAmount, priceOverride, athBefore,
+                    rebootstrapDays, windowMonths, athCap, null);
+        }
 
         /** Sans plafond ATH. */
         public Config(RainbowAtrDataset ds, List<MarketData> candles, TrendMixCalculator.Params trend, RangeMapping range,
@@ -55,10 +68,16 @@ public final class LinkSignalReplay {
                     rebootstrapDays, windowMonths, null);
         }
 
+        /** Même configuration avec d'autres jeux Bear / Bull (optimiseur de presets L1) ; tout le reste est inchangé. */
+        public Config withSets(RainbowAtrParamSet[] newSets) {
+            return new Config(ds, candles, trend, range, newSets, engineStart, startIdx, endIdx, linkBaseAmount, priceOverride,
+                    athBefore, rebootstrapDays, windowMonths, athCap, fixedBaseAmount);
+        }
+
         /** Même configuration avec le plafond donné. */
         public Config withAthCap(AthCap cap) {
             return new Config(ds, candles, trend, range, sets, engineStart, startIdx, endIdx, linkBaseAmount, priceOverride,
-                    athBefore, rebootstrapDays, windowMonths, cap);
+                    athBefore, rebootstrapDays, windowMonths, cap, fixedBaseAmount);
         }
     }
 
@@ -172,7 +191,9 @@ public final class LinkSignalReplay {
         RainbowLiveAction wanted = wantedSell > EPSILON ? RainbowLiveAction.SELL
                 : order.buyAmount().doubleValue() > EPSILON ? RainbowLiveAction.BUY : RainbowLiveAction.NONE;
         double wantedAmount = wanted == RainbowLiveAction.SELL ? wantedSell * price : order.buyAmount().doubleValue();
-        double fixedBase = cfg.linkBaseAmount() != null && cfg.linkBaseAmount() > 0 ? cfg.linkBaseAmount() : base;
+        Double fixedOverride = cfg.fixedBaseAmount();
+        double fixedBase = fixedOverride != null && fixedOverride > 0 ? fixedOverride
+                : cfg.linkBaseAmount() != null && cfg.linkBaseAmount() > 0 ? cfg.linkBaseAmount() : base;
 
         boolean buyCapped = order.buyAmount().signum() > 0
                 && AthCap.buyCapped(cfg.athCap(), signal.buyAthFactor() * signal.multZone());

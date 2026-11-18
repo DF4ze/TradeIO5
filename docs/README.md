@@ -1,8 +1,8 @@
 ---
 statut: index
 sujet: Table de routage de la documentation
-modifié_le: 2026-11-11
-empreinte: 14b381edb7
+modifié_le: 2026-11-18
+empreinte: ad59a52d05
 ---
 # TradeIO-5 — Documentation
 
@@ -55,6 +55,10 @@ Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decis
 | [`architecture/11-front-app.md`](architecture/11-front-app.md) | front `/app` |
 | [`architecture/12-doctor.md`](architecture/12-doctor.md) | Docteur / alarmes |
 | [`architecture/13-espace-expert.md`](architecture/13-espace-expert.md) | Espace Expert |
+| [`architecture/13a-rejeu-politique-ath-couts.md`](architecture/13a-rejeu-politique-ath-couts.md) | rejeu : politique de modulation dans le temps, plafond ATH, coûts, épisodes |
+| [`architecture/15-optimiseur.md`](architecture/15-optimiseur.md) | optimiseur : évaluateur de paramètres, moteur de recherche, calibrage walk-forward par profil (POLICY_L2), rapport JSON, endpoint admin |
+| [`architecture/15a-optimiseur-presets-l1.md`](architecture/15a-optimiseur-presets-l1.md) | optimiseur de presets L1 par actif (PRESET_L1) : espace δ, veto d'exposition, walk-forward, cadences |
+| [`architecture/15b-carte-sensibilite-rainbow.md`](architecture/15b-carte-sensibilite-rainbow.md) | carte de sensibilité Rainbow (étape A) : un réglage à la fois, Bull / Bear seul, PnL réel, lecture gel |
 
 ## API & opérations
 | Doc | Lire si… |

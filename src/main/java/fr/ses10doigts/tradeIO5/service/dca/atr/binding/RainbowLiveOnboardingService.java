@@ -139,7 +139,7 @@ public class RainbowLiveOnboardingService {
             return new Proposal(binding.getId(), binding.getAssetSymbol(), binding.getBaseAmount(), presetBase,
                     Double.isNaN(cashShare) ? null : cashShare, mean, days, null, false, null, why);
         }
-        BigDecimal base = BigDecimal.valueOf(cashShare / (days * mean)).setScale(AMOUNT_SCALE, RoundingMode.DOWN);
+        BigDecimal base = referenceBaseAmount(cashShare, days, mean);
         if (base.signum() <= 0) {
             return new Proposal(binding.getId(), binding.getAssetSymbol(), binding.getBaseAmount(), presetBase, cashShare,
                     mean, days, null, false, null, "Cash trop faible pour " + days + " jours d'autonomie");
@@ -159,6 +159,11 @@ public class RainbowLiveOnboardingService {
         }
         return new Proposal(binding.getId(), binding.getAssetSymbol(), binding.getBaseAmount(), presetBase, cashShare, mean,
                 days, base.doubleValue(), below, level, warning);
+    }
+
+    /** Montant de base proposé : {@code cash alloué / (autonomyDays × multiplicateur moyen)}, arrondi vers le bas ; réutilisé par l'optimiseur (budget de référence). */
+    public static BigDecimal referenceBaseAmount(double cashShare, int days, double meanMultiplier) {
+        return BigDecimal.valueOf(cashShare / (days * meanMultiplier)).setScale(AMOUNT_SCALE, RoundingMode.DOWN);
     }
 
     /** Multiplicateur moyen des zones du jeu (Bear pour un Trend Mix) : moyenne de x2, x1 et x0,5. */

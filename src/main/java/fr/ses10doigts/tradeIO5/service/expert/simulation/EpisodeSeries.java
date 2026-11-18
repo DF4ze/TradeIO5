@@ -8,13 +8,13 @@ import java.util.List;
 import java.util.Map;
 
 /** Séries par actif de {@link EpisodeTimeline} construites depuis un résultat de {@link MultiLinkReplayEngine} (parité et rejeu libre). */
-final class EpisodeSeries {
+public final class EpisodeSeries {
 
     private EpisodeSeries() {
     }
 
     /** Une série par lien ayant au moins un jour ; exposition (% du wallet) par jour et par actif. */
-    static List<EpisodeTimeline.AssetSeries> build(MultiLinkReplayEngine.Result result, List<MultiLinkReplayEngine.Link> links) {
+    public static List<EpisodeTimeline.AssetSeries> build(MultiLinkReplayEngine.Result result, List<MultiLinkReplayEngine.Link> links) {
         Map<String, Map<LocalDate, Double>> expo = new HashMap<>();
         for (MultiLinkReplayEngine.WalletDay w : result.walletDays()) {
             w.value().forEach((asset, v) -> expo.computeIfAbsent(asset, k -> new HashMap<>())

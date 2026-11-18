@@ -132,7 +132,7 @@ public class FullSimulationService {
      * Données chargées d'une demande (liens, bougies, capital, coûts) : un même chargement peut alimenter plusieurs rejeux
      * ({@link PolicyCompareService}). {@code metas} / {@code dsByLink} servent à l'assemblage du résultat complet.
      */
-    record Loaded(List<MultiLinkReplayEngine.Link> links, List<FullLinkMetaDto> metas, Map<Long, RainbowAtrDataset> dsByLink,
+    public record Loaded(List<MultiLinkReplayEngine.Link> links, List<FullLinkMetaDto> metas, Map<Long, RainbowAtrDataset> dsByLink,
                   double cash0, MultiLinkReplayEngine.Costs costs, List<String> warnings) {
     }
 
@@ -395,7 +395,7 @@ public class FullSimulationService {
      * Charge les bougies de chaque lien (sa source, sans fallback) et résout capital et coûts ; {@code null} si annulé. Transaction
      * de l'appelant (le chargement alimente le cache DB des candles).
      */
-    Loaded load(User user, Plan plan, Hooks hooks) {
+    public Loaded load(User user, Plan plan, Hooks hooks) {
         hooks.loading().run();
         Map<Long, RainbowLiveBinding> byId = new HashMap<>();
         bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(user).forEach(b -> byId.put(b.getId(), b));

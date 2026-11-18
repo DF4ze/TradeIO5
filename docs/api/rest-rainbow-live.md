@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-15
-empreinte: 68fa43f941
+modifié_le: 2026-11-16
+empreinte: 206a1d86bf
 ---
 # Endpoints REST — Rainbow live (bindings, wallet, décisions, modulation, run)
 
@@ -69,6 +69,9 @@ Les réglages module les quantités des achats/ventes du Rainbow (cf. [`../archi
 | PUT | `/api/admin/limits` | ADMIN | Corps = jeu complet des 6 valeurs ⇒ même forme que le GET ; valeur absente, ≤ 0 ou au-delà du maximum, jour < ordre, avertissement > bloquant ⇒ 400 `{error}` ; journal `LIMITS` |
 | GET | `/api/admin/rainbow-modulation` | ADMIN | `{parameters{<nom>{value, defaultValue, min, max}}, updatedAt, updatedBy}` (12 paramètres dont les 4 plafonds de drawdown `drawdownCap{Prudent,Balanced,Dynamic,Full}Pct`, bornes absolues incluses) |
 | PUT | `/api/admin/rainbow-modulation` | ADMIN | Corps = jeu complet `{regulationMarginPct, sellBoostMax, biasMax, powerMin, powerMax, minBandWidthPts, modulationProductMax, autonomyDays, drawdownCapPrudentPct, drawdownCapBalancedPct, drawdownCapDynamicPct, drawdownCapFullPct}` (plafonds en % négatifs, ordre Prudent ≤ Équilibré ≤ Dynamique ≤ Full en amplitude) ⇒ même forme que le GET ; hors bornes ou `powerMin ≤ 1 ≤ powerMax` violé ⇒ 400 `{error}` ; journal `MODULATION` |
+| POST | `/api/admin/optimizer/runs` | ADMIN | Lance un run d'optimisation asynchrone (202) ; corps `{asset, walletId, cash0, endDate, profile, baseAmount?, seed?, sobolSamples?}` ⇒ `{id, state, progress, stage}` ; un seul run à la fois (409) ; **désactivé par défaut** (`tradeio.optimizer.enabled`, sinon 404) ; journal `RUN` — [`15-optimiseur.md`](../architecture/15-optimiseur.md) |
+| GET | `/api/admin/optimizer/runs/{id}` | ADMIN | `{id, state RUNNING\|DONE\|FAILED\|CANCELLED, progress, stage, error, reportJson}` ; 404 si inconnu ou expiré (30 min) |
+| DELETE | `/api/admin/optimizer/runs/{id}` | ADMIN | Annule le run ; même forme que le GET |
 | GET | `/api/user/modulation-settings` | authentifié | `{settings{exposureMin, exposureMax, power, bias, regulationMarginPct} (stockés ou neutres 0/100/1/0 ; `regulationMarginPct` nul = défaut admin), limits{drawdownCapsPct{PRUDENT, BALANCED, DYNAMIC, FULL}, minBandWidthPts, powerMin, powerMax, biasMax, marginDefaultPct (défaut admin), marginMinPct, marginMaxPct (5–50)}}` |
 | PUT | `/api/user/modulation-settings` | authentifié | Corps `{exposureMin, exposureMax, power, bias, regulationMarginPct?}` (les quatre premiers obligatoires ; la marge de régulation, en % de la largeur de bande dans [5, 50], est facultative : absente = inchangée) ⇒ même forme que le GET ; validation contre les limites admin courantes, 400 `{error}` sinon ; `riskCursor` inchangé. Pris en compte à la passe suivante (valeurs clampées aux bornes admin à ce moment-là) |
 

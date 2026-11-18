@@ -65,3 +65,6 @@ tools/rainbow-replay/data/replay*
 # Prompts d'implémentation/calibration : locaux, non versionnés
 docs/**/prompt-*.md
 docs/prompts/
+
+# Sorties de tests locales
+target-test-*.txt
