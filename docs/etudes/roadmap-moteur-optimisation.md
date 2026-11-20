@@ -28,12 +28,14 @@ Prompt d'étape (non conservé) → réalisation, tests verts, doc à jour dans 
 Détail : [`15b`](../architecture/15b-carte-sensibilite-rainbow.md), [`15c`](../architecture/15c-optimisation-par-blocs.md), [`15d`](../architecture/15d-mesure-exposition-egale.md), [`15f`](../architecture/15f-politique-exposition-regime.md), [`15g`](../architecture/15g-calage-exposition-pire-cas.md), [`15h`](../architecture/15h-mise-en-production-exposition.md), [`15i`](../architecture/15i-reglage-recent.md).
 
 ## Reste à faire (ordre)
+Bench en timing pur (sans modulation ATH ni de volume).
 | # | Étape | Porte de sortie |
 |---|---|---|
-| C5 | Niveaux d'exposition par profil en code (taux de base, marge k) | Full Autonome v1 actif dans le live, plafond affiché comme cible |
-| D1 | Pipeline d'accueil d'un nouvel actif (preset de départ, calage méthode C3, flag « provisoire », Binance USDT bench seulement) | un nouvel actif obtient preset + niveaux sans passage à la main |
-| E0 → E1 | Coupure au switch Bull → Bear : diagnostic descriptif puis test à plafond égal ([`etude-pistes-timing-sorties.md`](etude-pistes-timing-sorties.md)) | décale la frontière gain / drawdown, sinon abandon |
-| 6, 7 | Orchestrateur, mode Full Auto live | en pause (rien à promouvoir) |
+| E0 | Diagnostic descriptif des switchs Bull → Bear contre dates aléatoires ([`etude-pistes-timing-sorties.md`](etude-pistes-timing-sorties.md)) | ferme ou ouvre la piste |
+| E1 | Coupure du bag au switch Bear, ré-entrée (20 % du cash) au switch Bull, à plafond de drawdown égal ; comparateur « preset pur » (références re-mesurées sans modulation) | décale la frontière gain / drawdown, sinon abandon |
+| C5 | Niveaux d'exposition par profil en code (branchement live à décider) | livraison, après E |
+| D1 | Pipeline nouvel actif (Binance USDT bench seulement, flag « provisoire ») | livraison, après E |
+| 6, 7 | Orchestrateur, mode Full Auto live | en pause |
 
 ## Questions ouvertes
 - Pourquoi les améliorations manuelles de Clem ne sont pas reproduites par le moteur (critère « gel » sur-ajusté, exposition en plus, leviers couplés).

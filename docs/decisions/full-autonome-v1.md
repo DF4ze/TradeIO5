@@ -36,7 +36,8 @@ Autonomies équivalentes : 559 à 3 090 j, hors des bornes 7–365 j de l'onboar
 - **Proposition d'onboarding à 90 j : indicative, rien ne force l'utilisateur à la suivre.** Pas de correction des utilisateurs existants ; l'écart au plafond (+9 à +43 pts) n'est pas traité en v1.
 - **Un chantier à la fois** (pas de parallélisme).
 
-## Reste à faire (ordre)
-1. **C5** : niveaux par profil en code (taux de base + marge k), Full Autonome v1 lisible dans le live.
-2. **D1** : pipeline d'accueil d'un nouvel actif (preset de départ parmi BTC / ETH / PAXG à exposition égale, calage d'exposition méthode C3, flag « provisoire » sans blocage ; Binance USDT = bench seulement).
-3. **E0 → E1** (piste coupure au switch Bull → Bear) : [`../etudes/etude-pistes-timing-sorties.md`](../etudes/etude-pistes-timing-sorties.md). Après C5 et D1.
+## Reste à faire (ordre, corrigé 2026-11-20)
+Le bench continue en **timing pur** (modulation ATH et de volume retirée, voir [`fil-rouge-dca-automatisation.md`](fil-rouge-dca-automatisation.md)).
+1. **E0** : diagnostic descriptif des switchs Bull → Bear, contre dates aléatoires : [`../etudes/etude-pistes-timing-sorties.md`](../etudes/etude-pistes-timing-sorties.md).
+2. **E1** : coupure du bag au switch Bear, ré-entrée au switch Bull (20 % du cash), à plafond de drawdown égal, comparateur « preset pur » (références B' à C4 à re-mesurer sans modulation).
+3. **C5** (niveaux par profil en code ; branchement live à décider) et **D1** (nouvel actif) : livraison, après E, une fois le preset livré connu.
