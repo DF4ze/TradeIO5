@@ -69,6 +69,12 @@ public record ScorerInputs(List<AssetInput> assets, double cash0, LocalDate endD
                 OptimizerDefaults.DISPERSION_PENALTY, OptimizerDefaults.MAX_FINAL_STAKE_MULTIPLE, null);
     }
 
+    /** Même entrées avec un autre capital de départ (étape C4 : invariance au capital). */
+    public ScorerInputs withCash0(double newCash0) {
+        return new ScorerInputs(assets, newCash0, endDate, baseSettings, limits, profile, windows, dispersionPenalty, maxFinalStake,
+                completeCosts);
+    }
+
     public ScorerInputs withEndDate(LocalDate newEnd) {
         return new ScorerInputs(assets, cash0, newEnd, baseSettings, limits, profile, windows, dispersionPenalty, maxFinalStake,
                 completeCosts);

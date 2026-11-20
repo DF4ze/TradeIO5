@@ -110,6 +110,19 @@ public final class SensitivityParam {
         return key;
     }
 
+    /** Même réglage, borne haute de balayage relevée (étape B : élargissement d'un plafond de balayage choisi par nous). */
+    public SensitivityParam withMax(double newMax) {
+        return new SensitivityParam(key, group, kind, min, newMax, globals, getter);
+    }
+
+    /** Le réglage numérique est-il balayé jusqu'à un plafond que NOUS avons choisi (l'interface Expert ne le borne pas) ? */
+    public boolean sweepCapped() {
+        return SWEEP_CAPPED.contains(key);
+    }
+
+    private static final java.util.Set<String> SWEEP_CAPPED = java.util.Set.of("atrMultDown2", "atrMultDown1", "atrMultUp1", "atrMultUp2",
+            "atrMultUp3", "athBuyMin", "athBuyMax", "athSellMin", "athSellMax", "multX2", "multX1", "multX0_5", "multTriggered");
+
     public String group() {
         return group;
     }

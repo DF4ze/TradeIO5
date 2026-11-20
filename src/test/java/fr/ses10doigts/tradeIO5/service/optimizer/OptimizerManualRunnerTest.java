@@ -24,6 +24,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -31,7 +32,7 @@ import java.util.concurrent.Executors;
  * Runner manuel (DB dev = copie de prod ; jamais dans la suite normale) : diagnostic de reproductibilité (mode {@code repro}) et
  * démo L2 réelle (mode {@code l2}) de l'optimiseur, calibrage walk-forward de la politique L2 (mode {@code policy}).
  * <p>
- * Lancement : {@code mvn test -Dtest=OptimizerManualRunnerTest -Doptimizer.manual=repro|l2|policy|preset|preset-cadences|sensitivity} (ignoré sans la
+ * Lancement : {@code mvn test -Dtest=OptimizerManualRunnerTest -Doptimizer.manual=repro|l2|policy|preset|preset-cadences|sensitivity|tune|recent-tune|exposure-parity|exposure-frontier|exposure-policy|exposure-calibration} (ignoré sans la
  * propriété). {@code preset} = optimiseur de presets L1, walk-forward simple + estimation du coût des cadences ; {@code preset-cadences} =
  * comparaison des cadences 30 / 90 / 180 j (coûteuse : seulement après accord).
  * Sorties : {@code target/optimizer-repro.md}, {@code target/optimizer-l2.md}, {@code target/optimizer-<ACTIF>.json},
@@ -48,7 +49,7 @@ import java.util.concurrent.Executors;
         "spring.jpa.hibernate.ddl-auto=none",
         "spring.flyway.enabled=false"
 })
-@EnabledIfSystemProperty(named = "optimizer.manual", matches = "repro|l2|policy|policy-variants|preset|preset-cadences|sensitivity")
+@EnabledIfSystemProperty(named = "optimizer.manual", matches = "repro|l2|policy|policy-variants|preset|preset-cadences|sensitivity|tune|recent-tune|exposure-parity|exposure-frontier|exposure-policy|exposure-calibration|exposure-production")
 class OptimizerManualRunnerTest {
 
     private static final String USER = "OKlm";
@@ -219,6 +220,385 @@ class OptimizerManualRunnerTest {
         Files.writeString(Path.of("target/sensitivity-rainbow.json"), report.toJson());
         Files.writeString(Path.of("target/sensitivity-rainbow.md"), report.toMarkdown());
         System.out.println(report.toMarkdown());
+    }
+
+
+    // ---------------------------------------------------------------- réglage récent persistant ? (étape D0)
+
+    @Test
+    @DisplayName("Étape D0 : réglage sur les 24 mois avant T, joué sur les 3 et 6 mois suivants (BTC), un seul run, une seule configuration")
+    void recentTune() throws IOException {
+        Assumptions.assumeTrue(mode("recent-tune"));
+        User user = users.findByUsername(USER).orElseThrow();
+        LocalDate end = LocalDate.parse(System.getProperty("optimizer.end", "2026-11-17"));
+        Case c = CASES.getFirst();
+        ScorerInputs in = loader.load(user, new OptimizerRunRequest(c.asset(), c.walletId(), c.cash0(), end, PROFILE, null, null, null));
+        RecentTuneConfig cfg = RecentTuneConfig.defaults(end).withTrials(Integer.getInteger("optimizer.recent.trials", 1000));
+        List<LocalDate> dates = cfg.dates();
+        double measured = RecentTuneStudy.measureEvalMs(in, dates.getLast(), cfg);
+        RecentTuneReport.Estimate est = RecentTuneStudy.estimate(cfg, dates.size(), measured, POOL);
+        String plan = String.format(Locale.ROOT, "Estimation : %d T (%s -> %s), %d recherches x ~%d essais = %d rejeux au pire (parallele, pool de %d) + %d rejeux en serie "
+                        + "(tirages de perturbation, tests) ; mesure %.1f ms par candidat (cycle + gel) => %.1f min ; a %.0f ms par rejeu (ordre de grandeur du prompt) => %.1f min.",
+                est.dates(), dates.getFirst(), dates.getLast(), est.searches(), cfg.trialsPerSearch(), est.worstSearchReplays(), POOL,
+                est.serialReplays(), est.measuredMs(), est.minutes(), est.configuredMs(), est.minutesAtConfiguredMs());
+        Files.writeString(Path.of("target/recent-tune-plan.txt"), plan + "\n");
+        System.out.println(plan);
+        if (est.minutes() > cfg.budgetMinutes() && !Boolean.getBoolean("optimizer.recent.confirm")) {
+            System.out.println("ARRET : estimation > " + cfg.budgetMinutes() + " min, confirmation requise (-Doptimizer.recent.confirm=true).");
+            return;
+        }
+        ExecutorService pool = Executors.newFixedThreadPool(POOL);
+        try {
+            java.util.Map<String, String> stepA = stepADirections(SensitivityMap.run(in, SensitivityMap.VIEW_MONTHS));
+            RecentTuneReport report = RecentTuneStudy.run(in, cfg, pool, stepA, measured, POOL);
+            Files.writeString(Path.of("target/recent-tune.json"), report.toJson());
+            Files.writeString(Path.of("target/recent-tune.md"), report.toMarkdown());
+            if (report.latest() != null) {
+                Files.writeString(Path.of("target/recent-tune-latest-bull.json"), TuneReport.exportJson(report.latest().bullExport()));
+                Files.writeString(Path.of("target/recent-tune-latest-bear.json"), TuneReport.exportJson(report.latest().bearExport()));
+            }
+            System.out.println(report.toMarkdown());
+        } finally {
+            pool.shutdown();
+        }
+    }
+
+    /** Directions « gel » de l'étape A au dernier bloc : les 12 réglages les plus influents (gel) de chaque jeu. */
+    private static java.util.Map<String, String> stepADirections(SensitivityReport a) {
+        java.util.Map<String, String> out = new java.util.LinkedHashMap<>();
+        for (SensitivityReport.SetReport s : a.sets()) {
+            s.params().stream().sorted(java.util.Comparator.comparingDouble(SensitivityReport.ParamReport::frozenSpread).reversed()).limit(12)
+                    .filter(p -> p.frozenSpread() > 0).forEach(p -> out.put(s.role() + "." + p.key(), direction(p.inPlace(), p.frozenBest())));
+        }
+        return out;
+    }
+
+    private static String direction(String inPlace, String best) {
+        try {
+            double a = Double.parseDouble(inPlace);
+            double b = Double.parseDouble(best);
+            return Math.abs(a - b) < 1e-9 * Math.max(1.0, Math.abs(a)) ? "=" : b > a ? "↑" : "↓";
+        } catch (NumberFormatException e) {
+            return inPlace.equals(best) ? "=" : "≠";
+        }
+    }
+
+
+    // ---------------------------------------------------------------- optimisation par blocs (étape B)
+
+    @Test
+    @DisplayName("Étape B : optimisation façon main validée par blocs (4 blocs de 24 mois, 4 rotations, challenger exporté), un seul run")
+    void tuneByBlocks() throws IOException {
+        Assumptions.assumeTrue(mode("tune"));
+        User user = users.findByUsername(USER).orElseThrow();
+        LocalDate end = LocalDate.parse(System.getProperty("optimizer.end", "2026-11-17"));
+        Case c = CASES.getFirst();
+        ScorerInputs in = loader.load(user, new OptimizerRunRequest(c.asset(), c.walletId(), c.cash0(), end, PROFILE, null, null, null));
+        TuneConfig cfg = TuneConfig.defaults(end).withMinGainPoints(Double.parseDouble(System.getProperty("optimizer.tune.mingain", "0.25")));
+        long t0 = System.nanoTime();
+        BlockTuning.Plan plan = BlockTuning.plan(in, cfg);
+        long planMs = (System.nanoTime() - t0) / 1_000_000;
+        List<String> head = new ArrayList<>();
+        head.add("Blocs : " + plan.blocks());
+        head.add(String.format(Locale.ROOT, "Estimation : %d rejeux au pire x %.0f ms = %.1f min en série (mesure : %d ms pour %d blocs, Trend compris).",
+                plan.estimate().worstCaseReplays(), plan.estimate().replayMs(), plan.estimate().sequentialMinutes(), planMs, plan.blocks().size()));
+        Files.writeString(Path.of("target/tune-plan.txt"), String.join("\n", head) + "\n");
+        head.forEach(System.out::println);
+        if (plan.estimate().sequentialMinutes() > cfg.budgetMinutes() && !Boolean.getBoolean("optimizer.tune.confirm")) {
+            System.out.println("ARRET : estimation > " + cfg.budgetMinutes() + " min, confirmation requise (-Doptimizer.tune.confirm=true).");
+            return;
+        }
+        ExecutorService pool = Executors.newFixedThreadPool(POOL);
+        try {
+            TuneReport report = BlockTuning.run(in, cfg, pool);
+            Files.writeString(Path.of("target/tune-blocks.json"), report.toJson());
+            Files.writeString(Path.of("target/tune-blocks.md"), report.toMarkdown());
+            Files.writeString(Path.of("target/tune-challenger-bull.json"), TuneReport.exportJson(report.challenger().bullExport()));
+            Files.writeString(Path.of("target/tune-challenger-bear.json"), TuneReport.exportJson(report.challenger().bearExport()));
+            System.out.println(report.toMarkdown());
+        } finally {
+            pool.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("Étape B' : preset en place contre DCA fixe calé sur la même exposition moyenne (BTC, ETH), un seul run")
+    void exposureParity() throws IOException {
+        Assumptions.assumeTrue(mode("exposure-parity"));
+        User user = users.findByUsername(USER).orElseThrow();
+        LocalDate end = LocalDate.parse(System.getProperty("optimizer.end", "2026-11-17"));
+        ParityConfig cfg = ParityConfig.defaults(end);
+        Map<String, ScorerInputs> inputs = new java.util.LinkedHashMap<>();
+        List<String> notes = new ArrayList<>();
+        for (Case c : CASES.subList(0, 2)) {
+            try {
+                inputs.put(c.asset(), loader.load(user, new OptimizerRunRequest(c.asset(), c.walletId(), c.cash0(), end, PROFILE, null, null, null)));
+            } catch (RuntimeException e) {
+                notes.add(c.asset() + " non rejouable sans code nouveau : " + e.getMessage());
+            }
+        }
+        long worst = 0;
+        double minutes = 0;
+        for (var e : inputs.entrySet()) {
+            ParityReport.Estimate est = ExposureParity.estimate(cfg, cfg.blockCount());
+            worst += est.worstCaseReplays();
+            minutes += est.sequentialMinutes();
+        }
+        String plan = String.format(Locale.ROOT, "Estimation : %d rejeux au pire x %.0f ms = %.2f min en série (%d actif(s)).", worst, cfg.replayMs(), minutes,
+                inputs.size());
+        Files.writeString(Path.of("target/exposure-parity-plan.txt"), plan + "\n");
+        System.out.println(plan);
+        if (minutes > cfg.budgetMinutes() && !Boolean.getBoolean("optimizer.parity.confirm")) {
+            System.out.println("ARRET : estimation > " + cfg.budgetMinutes() + " min, confirmation requise (-Doptimizer.parity.confirm=true).");
+            return;
+        }
+        List<ParityReport.AssetReport> assets = new ArrayList<>();
+        ExecutorService pool = Executors.newFixedThreadPool(POOL);
+        try {
+            for (var e : inputs.entrySet()) {
+                fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrParamSet[] challenger = null;
+                if ("BTC".equals(e.getKey())) {
+                    TuneConfig tcfg = TuneConfig.defaults(end);
+                    BlockTuning.Plan tplan = BlockTuning.plan(e.getValue(), tcfg);
+                    List<SensitivityEvaluator> all = tplan.validIndexes().stream().map(i -> tplan.evaluators().get(i)).toList();
+                    challenger = new BlockTuner(tcfg, pool).tune(all, all.getFirst().template().sets(), BlockTuner.BULL_KEYS, BlockTuner.BEAR_KEYS)
+                            .asArray();
+                } else {
+                    notes.add(e.getKey() + " : pas de challenger de l'étape B (réglé sur BTC seulement) : colonne n/d.");
+                }
+                assets.add(ExposureParity.run(e.getValue(), cfg, challenger));
+            }
+        } finally {
+            pool.shutdown();
+        }
+        ParityReport report = new ParityReport(ParityReport.EXPOSURE_DEFINITION, cfg, assets, notes);
+        Files.writeString(Path.of("target/exposure-parity.json"), report.toJson());
+        Files.writeString(Path.of("target/exposure-parity.md"), report.toMarkdown());
+        System.out.println(report.toMarkdown());
+        ParityReport.AssetReport btc = assets.stream().filter(a -> "BTC".equals(a.asset())).findFirst().orElse(null);
+        if (btc != null && end.equals(LocalDate.parse("2026-11-17"))) {
+            ParityReport.BlockResult recent = btc.blocks().getFirst();
+            org.junit.jupiter.api.Assertions.assertEquals(2.41, recent.preset().gainPct(), 0.006, "preset bloc récent (étape A)");
+            org.junit.jupiter.api.Assertions.assertEquals(-7.28, recent.usualDca().gainPct(), 0.006, "DCA fixe bloc récent (étape A)");
+        }
+    }
+
+    @Test
+    @DisplayName("Étape C1 : frontière exposition → gain / drawdown (multiplicateur du montant de base), BTC et ETH, un seul run, une seule grille")
+    void exposureFrontier() throws IOException {
+        Assumptions.assumeTrue(mode("exposure-frontier"));
+        User user = users.findByUsername(USER).orElseThrow();
+        LocalDate end = LocalDate.parse(System.getProperty("optimizer.end", "2026-11-17"));
+        FrontierConfig cfg = FrontierConfig.defaults(end);
+        Map<String, ScorerInputs> inputs = new java.util.LinkedHashMap<>();
+        List<String> notes = new ArrayList<>();
+        for (Case c : CASES.subList(0, 2)) {
+            try {
+                inputs.put(c.asset(), loader.load(user, new OptimizerRunRequest(c.asset(), c.walletId(), c.cash0(), end, PROFILE, null, null, null)));
+            } catch (RuntimeException e) {
+                notes.add(c.asset() + " non rejouable sans code nouveau : " + e.getMessage());
+            }
+        }
+        int maxLevels = cfg.multipliers().size() + cfg.extendUp().size() + cfg.extendDown().size();
+        FrontierReport.Estimate base = ExposureFrontier.estimate(cfg, cfg.multipliers().size());
+        FrontierReport.Estimate worst = ExposureFrontier.estimate(cfg, maxLevels);
+        double minutes = worst.sequentialMinutes() * inputs.size();
+        String plan = String.format(Locale.ROOT, "Estimation : grille %d niveaux = %d rejeux au pire par actif ; avec élargissement possible (%d niveaux) %d rejeux "
+                        + "x %.0f ms = %.2f min en série pour %d actif(s) (pool de %d : plus court).", cfg.multipliers().size(), base.worstCaseReplays(),
+                maxLevels, worst.worstCaseReplays() * inputs.size(), cfg.parity().replayMs(), minutes, inputs.size(), POOL);
+        Files.writeString(Path.of("target/exposure-frontier-plan.txt"), plan + "\n");
+        System.out.println(plan);
+        if (minutes > 10.0 && !Boolean.getBoolean("optimizer.frontier.confirm")) {
+            System.out.println("ARRET : estimation > 10 min, confirmation requise (-Doptimizer.frontier.confirm=true).");
+            return;
+        }
+        List<FrontierReport.AssetFrontier> assets = new ArrayList<>();
+        ExecutorService pool = Executors.newFixedThreadPool(POOL);
+        try {
+            for (var e : inputs.entrySet()) {
+                assets.add(ExposureFrontier.run(e.getValue(), cfg, pool));
+            }
+        } finally {
+            pool.shutdown();
+        }
+        notes.add("Limite : un seul levier (montant de base) ; ni bande d'exposition ni biais n'ont été balayés.");
+        FrontierReport report = new FrontierReport(FrontierReport.DEFINITION, cfg, assets, notes);
+        Files.writeString(Path.of("target/exposure-frontier.json"), report.toJson());
+        Files.writeString(Path.of("target/exposure-frontier.md"), report.toMarkdown());
+        System.out.println(report.toMarkdown());
+        FrontierReport.AssetFrontier btc = assets.stream().filter(a -> "BTC".equals(a.asset())).findFirst().orElse(null);
+        if (btc != null && end.equals(LocalDate.parse("2026-11-17"))) {
+            FrontierReport.Level one = btc.blocks().getFirst().levels().stream().filter(l -> l.multiplier() == 1.0).findFirst().orElseThrow();
+            org.junit.jupiter.api.Assertions.assertEquals(2.41, one.preset().gainPct(), 0.006, "×1 = preset bloc récent (étape B')");
+        }
+    }
+
+    @Test
+    @DisplayName("Étape C2 : politique d'exposition par régime contre exposition constante, à plafond de drawdown égal (BTC, ETH), un seul run, une seule grille")
+    void exposurePolicy() throws IOException {
+        Assumptions.assumeTrue(mode("exposure-policy"));
+        User user = users.findByUsername(USER).orElseThrow();
+        LocalDate end = LocalDate.parse(System.getProperty("optimizer.end", "2026-11-17"));
+        ExposurePolicyConfig cfg = ExposurePolicyConfig.defaults(end);
+        Map<String, ScorerInputs> inputs = new java.util.LinkedHashMap<>();
+        List<String> notes = new ArrayList<>();
+        for (Case c : CASES.subList(0, 2)) {
+            try {
+                inputs.put(c.asset(), loader.load(user, new OptimizerRunRequest(c.asset(), c.walletId(), c.cash0(), end, PROFILE, null, null, null)));
+            } catch (RuntimeException e) {
+                notes.add(c.asset() + " non rejouable sans code nouveau : " + e.getMessage());
+            }
+        }
+        ExposurePolicyReport.Estimate est = ExposurePolicyStudy.estimate(cfg);
+        double minutes = est.sequentialMinutes() * inputs.size();
+        String plan = String.format(Locale.ROOT, "Estimation : %d combinaisons de politique + %d multiplicateurs de constante x %d plages + tests = %d rejeux au pire par actif ; "
+                        + "%d rejeux x %.0f ms = %.2f min en série pour %d actif(s) (pool de %d : plus court).", cfg.combos(), cfg.constantGrid().size(),
+                cfg.parity().blockCount() + 1, est.worstCaseReplays(), est.worstCaseReplays() * inputs.size(), cfg.parity().replayMs(), minutes,
+                inputs.size(), POOL);
+        Files.writeString(Path.of("target/exposure-policy-plan.txt"), plan + "\n");
+        System.out.println(plan);
+        if (minutes > 10.0 && !Boolean.getBoolean("optimizer.policy.confirm")) {
+            System.out.println("ARRET : estimation > 10 min, confirmation requise (-Doptimizer.policy.confirm=true).");
+            return;
+        }
+        List<ExposurePolicyReport.AssetPolicy> assets = new ArrayList<>();
+        ExecutorService pool = Executors.newFixedThreadPool(POOL);
+        try {
+            for (var e : inputs.entrySet()) {
+                assets.add(ExposurePolicyStudy.run(e.getValue(), cfg, pool));
+            }
+        } finally {
+            pool.shutdown();
+        }
+        notes.add("Limite : politique à 3 paramètres (bornes hautes Bull / Bear, multiplicateur) ; bornes basses et réglages de base = ceux de C1 (bande neutre 0-100).");
+        ExposurePolicyReport report = new ExposurePolicyReport(ExposurePolicyReport.DEFINITION, cfg, assets, notes);
+        Files.writeString(Path.of("target/exposure-policy.json"), report.toJson());
+        Files.writeString(Path.of("target/exposure-policy.md"), report.toMarkdown());
+        System.out.println(report.toMarkdown());
+        ExposurePolicyReport.AssetPolicy btc = assets.stream().filter(a -> "BTC".equals(a.asset())).findFirst().orElse(null);
+        if (btc != null && end.equals(LocalDate.parse("2026-11-17"))) {
+            // contrôle : la constante ×1 sur le bloc récent redonne +2,41 % (C1, B')
+            TuneBlocks.Block recent = TuneBlocks.build(end, 24, 4).getFirst();
+            SensitivityEvaluator ev = new SensitivityEvaluator(inputs.get("BTC").withEndDate(recent.to()), 24, recent.from());
+            double g = ExposurePolicyStudy.constantLine(ev, ev.template().sets(), false, 1.0, ev.referenceBase(ev.template().sets())).pnlPct();
+            org.junit.jupiter.api.Assertions.assertEquals(2.41, g, 0.006, "×1 = preset bloc récent (C1)");
+        }
+    }
+
+    @Test
+    @DisplayName("Étape C4 : calage exploitable (invariance au capital, bandes du live, wallet BTC + ETH), un seul run, une seule configuration")
+    void exposureProduction() throws IOException {
+        Assumptions.assumeTrue(mode("exposure-production"));
+        User user = users.findByUsername(USER).orElseThrow();
+        LocalDate end = LocalDate.parse(System.getProperty("optimizer.end", "2026-11-17"));
+        ExposureProductionConfig cfg = ExposureProductionConfig.defaults(end);
+        Map<String, ScorerInputs> inputs = new java.util.LinkedHashMap<>();
+        List<String> notes = new ArrayList<>();
+        for (Case c : CASES.subList(0, 2)) {
+            inputs.put(c.asset(), loader.load(user, new OptimizerRunRequest(c.asset(), c.walletId(), c.cash0(), end, PROFILE, null, null, null)));
+        }
+        int windows = ExposureCalibrationStudy.windowsFor(inputs.get("BTC"), cfg.calibration()).size();
+        ExposureCalibrationReport.Estimate est = ExposureProductionStudy.estimate(cfg, windows, inputs.size());
+        String plan = String.format(Locale.ROOT, "C4 : %d rejeux au pire (wallet a 2 liens compte double) x %.0f ms = %.2f min en serie (pool de %d : plus court).",
+                est.worstCaseReplays(), est.replayMs(), est.sequentialMinutes(), POOL);
+        Files.writeString(Path.of("target/exposure-production-plan.txt"), plan + "\n");
+        System.out.println(plan);
+        if (est.sequentialMinutes() > 10.0 && !Boolean.getBoolean("optimizer.calibration.confirm")) {
+            System.out.println("ARRET : estimation > 10 min, confirmation requise (-Doptimizer.calibration.confirm=true).");
+            return;
+        }
+        List<ExposureProductionReport.AssetProduction> assets = new ArrayList<>();
+        ExposureProductionReport.WalletProduction wallet;
+        ExecutorService pool = Executors.newFixedThreadPool(POOL);
+        try {
+            for (var e : inputs.entrySet()) {
+                assets.add(ExposureProductionStudy.runAsset(e.getValue(), cfg, pool));
+            }
+            wallet = ExposureProductionStudy.runWallet(inputs.get("BTC"), inputs.get("ETH"), assets.get(0), assets.get(1), cfg, pool);
+        } finally {
+            pool.shutdown();
+        }
+        Path c3 = Path.of("target/exposure-calibration.json");
+        if (Files.exists(c3)) {
+            var tree = new com.fasterxml.jackson.databind.ObjectMapper().readTree(Files.readString(c3));
+            double gap = 0.0;
+            for (var a : tree.get("assets")) {
+                var mine = assets.stream().filter(x -> x.asset().equals(a.get("asset").asText())).findFirst().orElseThrow();
+                for (var p : a.get("profiles")) {
+                    var pp = mine.profiles().stream().filter(x -> x.profile().equals(p.get("profile").asText())).findFirst().orElseThrow();
+                    gap = Math.max(gap, Math.abs(p.get("noMargin").get("multiplier").asDouble() - pp.levelRef().multiplier()));
+                }
+            }
+            notes.add(String.format(Locale.ROOT, "Controle C3 : niveaux k = 1 recalcules vs target/exposure-calibration.json, ecart max %.2e.", gap));
+        }
+        notes.add("Limite : un seul grand bear par actif (2021-22) : la marge de BTC repose sur un evenement, un repli plus profond depasserait le plafond ; plafond = cible calibree sur l'historique, pas garantie.");
+        notes.add("Limite : frais et glissement simplifies (bareme statique), aucun minimum d'ordre ni arrondi d'exchange modelises, pas de test sur le live reel.");
+        notes.add("Limite : bande du profil = min / max du StartingProfile, puissance x1, biais 0, marge admin ; wallet : capital = somme des capitaux de C3, partage 50 / 50, base de chaque lien = f x taux x part de cash ; PAXG exclu (historique insuffisant).");
+        ExposureProductionReport report = new ExposureProductionReport(ExposureProductionReport.DEFINITION, cfg, assets, wallet, notes);
+        Files.writeString(Path.of("target/exposure-production.json"), report.toJson());
+        Files.writeString(Path.of("target/exposure-production.md"), report.toMarkdown());
+        System.out.println(report.toMarkdown());
+    }
+
+    @Test
+    @DisplayName("Étape C3 : calage de l'exposition par profil sur le pire cas, marge de sécurité mesurée (BTC, ETH), un seul run, une seule configuration")
+    void exposureCalibration() throws IOException {
+        Assumptions.assumeTrue(mode("exposure-calibration"));
+        User user = users.findByUsername(USER).orElseThrow();
+        LocalDate end = LocalDate.parse(System.getProperty("optimizer.end", "2026-11-17"));
+        ExposureCalibrationConfig cfg = ExposureCalibrationConfig.defaults(end);
+        Map<String, ScorerInputs> inputs = new java.util.LinkedHashMap<>();
+        List<String> notes = new ArrayList<>();
+        for (Case c : CASES.subList(0, 2)) {
+            try {
+                inputs.put(c.asset(), loader.load(user, new OptimizerRunRequest(c.asset(), c.walletId(), c.cash0(), end, PROFILE, null, null, null)));
+            } catch (RuntimeException e) {
+                notes.add(c.asset() + " non rejouable sans code nouveau : " + e.getMessage());
+            }
+        }
+        double minutes = 0.0;
+        StringBuilder plan = new StringBuilder();
+        for (var e : inputs.entrySet()) {
+            int windows = ExposureCalibrationStudy.windowsFor(e.getValue(), cfg).size();
+            ExposureCalibrationReport.Estimate est = ExposureCalibrationStudy.estimate(cfg, windows);
+            minutes += est.sequentialMinutes();
+            plan.append(String.format(Locale.ROOT, "%s : %d niveaux x (%d fenetres + %d historiques ancres + %d blocs) + %d dates T x %d marges x 4 profils de tests + evaluations = %d rejeux "
+                            + "au pire x %.0f ms = %.2f min en serie. ", e.getKey(), cfg.grid().size(), windows, cfg.anchors().size() + 1, cfg.parity().blockCount(),
+                    cfg.anchors().size(), cfg.margins().size(), est.worstCaseReplays(), est.replayMs(), est.sequentialMinutes()));
+        }
+        plan.append(String.format(Locale.ROOT, "Total %.2f min en serie pour %d actif(s) (pool de %d : plus court).", minutes, inputs.size(), POOL));
+        Files.writeString(Path.of("target/exposure-calibration-plan.txt"), plan + "\n");
+        System.out.println(plan);
+        if (minutes > 10.0 && !Boolean.getBoolean("optimizer.calibration.confirm")) {
+            System.out.println("ARRET : estimation > 10 min, confirmation requise (-Doptimizer.calibration.confirm=true).");
+            return;
+        }
+        List<ExposureCalibrationReport.AssetCalibration> assets = new ArrayList<>();
+        ExecutorService pool = Executors.newFixedThreadPool(POOL);
+        try {
+            for (var e : inputs.entrySet()) {
+                assets.add(ExposureCalibrationStudy.run(e.getValue(), cfg, pool));
+            }
+        } finally {
+            pool.shutdown();
+        }
+        notes.add("Limite : un seul actif à la fois, avec son capital ; le cash commun entre actifs d'un wallet multi-actifs n'est pas simulé.");
+        notes.add("Limite : le plafond est une cible calibrée sur le passé, pas une garantie ; un bear futur plus profond que celui de 2021-22 le dépasserait. "
+                + "Formulation pour l'interface : « cible de risque calibrée sur l'historique, pas garantie ».");
+        notes.add("Limite : 8 ans d'historique = un seul grand bear par actif ; les fenêtres glissantes se chevauchent (elles servent à trouver le pire cas, pas à compter des événements).");
+        notes.add("Limite : un seul levier (montant de base du lien) ; ni bande d'exposition ni biais balayés ; preset, Trend et modulation inchangés.");
+        ExposureCalibrationReport report = new ExposureCalibrationReport(ExposureCalibrationReport.DEFINITION, cfg, assets, notes);
+        Files.writeString(Path.of("target/exposure-calibration.json"), report.toJson());
+        Files.writeString(Path.of("target/exposure-calibration.md"), report.toMarkdown());
+        System.out.println(report.toMarkdown());
+        ExposureCalibrationReport.AssetCalibration btc = assets.stream().filter(a -> "BTC".equals(a.asset())).findFirst().orElse(null);
+        if (btc != null && end.equals(LocalDate.parse("2026-11-17"))) {
+            // contrôle : la constante ×1 sur le bloc récent redonne +2,41 % (C1, B')
+            TuneBlocks.Block recent = TuneBlocks.build(end, 24, 4).getFirst();
+            SensitivityEvaluator ev = new SensitivityEvaluator(inputs.get("BTC").withEndDate(recent.to()), 24, recent.from());
+            double g = ExposurePolicyStudy.constantLine(ev, ev.template().sets(), false, 1.0, ev.referenceBase(ev.template().sets())).pnlPct();
+            org.junit.jupiter.api.Assertions.assertEquals(2.41, g, 0.006, "×1 = preset bloc récent (C1)");
+        }
     }
 
     // ---------------------------------------------------------------- presets L1 (étape 5)

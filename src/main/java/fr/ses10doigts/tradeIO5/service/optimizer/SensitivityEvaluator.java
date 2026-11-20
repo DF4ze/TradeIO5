@@ -53,18 +53,28 @@ public final class SensitivityEvaluator {
     private final ScorerInputs.AssetInput link;
     private final ScorerInputs in;
     private final int months;
+    private final LocalDate from;
     private final int[] setOfBar;
     private final TrendRegime[] resolved;
     private final AtomicLong replays = new AtomicLong();
 
     /** @param months durée de la vue de test (24), glissante à {@code in.endDate()} */
     public SensitivityEvaluator(ScorerInputs in, int months) {
+        this(in, months, null);
+    }
+
+    /**
+     * @param from premier jour de la vue (inclus) ; {@code null} = {@code endDate − months} (vue glissante de la carte de sensibilité).
+     *             Les blocs de l'étape B l'imposent pour ne jamais se chevaucher.
+     */
+    public SensitivityEvaluator(ScorerInputs in, int months, LocalDate from) {
         if (in.assets().size() != 1) {
             throw new IllegalArgumentException("Un seul lien attendu");
         }
         this.in = in;
         this.link = in.assets().getFirst();
         this.months = months;
+        this.from = from;
         LinkSignalReplay.Config t = link.template();
         RainbowAtrDataset ds = t.ds();
         TrendMixCalculator.Params tp = t.trend();
@@ -94,12 +104,19 @@ public final class SensitivityEvaluator {
         return ReplayScorer.requiredPoints(link.withTemplate(link.template().withSets(sets)));
     }
 
+    /** Premier jour rejouable (fin du préchauffage) : aucune plage ne peut commencer avant ; {@code null} si l'historique est insuffisant. */
+    public LocalDate firstReplayableDay(RainbowAtrParamSet[] sets) {
+        RainbowAtrDataset ds = link.template().ds();
+        int i = fullStart(sets);
+        return i >= ds.size() ? null : ReplayDays.dayOf(ds.time(i));
+    }
+
     private int startIndex(RainbowAtrParamSet[] sets, boolean fullHistory) {
         RainbowAtrDataset ds = link.template().ds();
         if (fullHistory) {
             return fullStart(sets);
         }
-        return ReplayDays.firstIndexOnOrAfter(ds, in.endDate().minusMonths(months));
+        return ReplayDays.firstIndexOnOrAfter(ds, from != null ? from : in.endDate().minusMonths(months));
     }
 
     /** {@code null} si la plage n'est pas rejouable (historique insuffisant avant le début, aucune bougie). */
@@ -138,6 +155,90 @@ public final class SensitivityEvaluator {
                 r.fixedFinalValue() - in.cash0(), realized, atBull == null ? Double.NaN : atBull.totalValue(),
                 atBull == null ? Double.NaN : atBull.assetsValue(), bullDay, DrawdownMeter.measure(days, totals).maxPct(), avgExposure, buys,
                 sells);
+    }
+
+    /**
+     * Mesure d'une série quotidienne du wallet (exposition = valeur de la position / valeur totale, moyenne sur les jours ; drawdown de la
+     * valeur du portefeuille, ≤ 0).
+     */
+    public record Line(double finalValue, double pnlPct, double avgExposurePct, double maxDrawdownPct, long buys, long sells) {
+    }
+
+    /** Un rejeu, deux lignes : le preset (jeux actifs) et le DCA fixe de référence du moteur (même cash commun, tout-ou-rien). */
+    public record Parity(LocalDate from, LocalDate to, Line preset, double realized, double latent, Line dca) {
+    }
+
+    /**
+     * Rejeu de l'étape B' : même moteur et même mesure que {@link #cycle} (les chiffres du preset et du DCA habituel sont identiques),
+     * avec en plus l'exposition et le drawdown du DCA fixe. {@code fixedBase} = montant de base du DCA fixe ({@code null} = base du
+     * lien, c'est-à-dire le DCA habituel) ; il ne change rien au preset. {@code shiftDays} décale le début de la plage (bande de bruit).
+     * {@code null} si la plage n'est pas rejouable.
+     */
+    public Parity parity(RainbowAtrParamSet[] sets, boolean fullHistory, int shiftDays, Double fixedBase) {
+        return parity(sets, fullHistory, shiftDays, fixedBase, null);
+    }
+
+    /** Montant de base de référence du lien (celui du lien, à défaut celui du premier jeu) : base de l'étape C1 (multiplicateur ×1). */
+    public double referenceBase(RainbowAtrParamSet[] sets) {
+        Double b = link.template().linkBaseAmount();
+        return b != null && b > 0 ? b : sets[0].globals().baseAmount();
+    }
+
+    /**
+     * Comme {@link #parity(RainbowAtrParamSet[], boolean, int, Double)} avec un montant de base du lien imposé ({@code linkBase}, étape C1 :
+     * multiplicateur × {@link #referenceBase}) ; {@code null} = base du lien inchangée (chiffres identiques à l'étape B'). Sans {@code fixedBase},
+     * le DCA fixe suit la base du lien. Preset, Trend et modulation inchangés : seule la taille des achats change.
+     */
+    public Parity parity(RainbowAtrParamSet[] sets, boolean fullHistory, int shiftDays, Double fixedBase, Double linkBase) {
+        return parity(sets, fullHistory, shiftDays, fixedBase, linkBase, null);
+    }
+
+    /**
+     * Comme {@link #parity(RainbowAtrParamSet[], boolean, int, Double, Double)} avec une politique de modulation dans le temps (étape C2) ;
+     * {@code null} = aucune politique : chiffres strictement identiques à l'appel sans politique.
+     */
+    public Parity parity(RainbowAtrParamSet[] sets, boolean fullHistory, int shiftDays, Double fixedBase, Double linkBase,
+                         fr.ses10doigts.tradeIO5.service.expert.simulation.policy.ModulationPolicy policy) {
+        LinkSignalReplay.Config t = link.template();
+        RainbowAtrDataset ds = t.ds();
+        int base = startIndex(sets, fullHistory);
+        int end = ReplayDays.lastIndexOnOrBefore(ds, in.endDate());
+        if (end < 0 || base >= ds.size() || base > end || base < fullStart(sets)) {
+            return null;
+        }
+        int start = shiftDays == 0 ? base : ReplayDays.firstIndexOnOrAfter(ds, ReplayDays.dayOf(ds.time(base)).plusDays(shiftDays));
+        if (start < 0 || start >= ds.size() || start > end) {
+            return null;
+        }
+        replays.incrementAndGet();
+        String asset = asset();
+        MultiLinkReplayEngine.Link engineLink = new MultiLinkReplayEngine.Link(link.slot(), new LinkSignalReplay.Config(ds, t.candles(),
+                t.trend(), t.range(), sets, start, start, end, linkBase != null ? linkBase : t.linkBaseAmount(), Map.of(), Map.of(), Set.of(),
+                t.windowMonths(), null, fixedBase), 0.0);
+        MultiLinkReplayEngine.Result r = MultiLinkReplayEngine.run(new MultiLinkReplayEngine.Input(List.of(engineLink), in.cash0(),
+                in.baseSettings(), in.limits(), Map.of(), Map.of(), Map.of(), Map.of(), OptimizerCosts.simplified(Set.of(asset)), policy,
+                null));
+        List<MultiLinkReplayEngine.WalletDay> w = r.walletDays();
+        if (w.isEmpty()) {
+            return null;
+        }
+        List<LocalDate> days = w.stream().map(MultiLinkReplayEngine.WalletDay::day).toList();
+        double cash0 = in.cash0();
+        double fin = r.finalValue();
+        double fixedFin = r.fixedFinalValue();
+        double expoPreset = w.stream().filter(x -> x.totalValue() > OptimizerDefaults.EPSILON)
+                .mapToDouble(x -> 100.0 * x.assetsValue() / x.totalValue()).average().orElse(0.0);
+        double expoDca = w.stream().filter(x -> x.fixedValue() > OptimizerDefaults.EPSILON)
+                .mapToDouble(x -> 100.0 * (x.fixedValue() - x.fixedCash()) / x.fixedValue()).average().orElse(0.0);
+        double ddPreset = DrawdownMeter.measure(days, w.stream().map(MultiLinkReplayEngine.WalletDay::totalValue).toList()).maxPct();
+        double ddDca = DrawdownMeter.measure(days, w.stream().map(MultiLinkReplayEngine.WalletDay::fixedValue).toList()).maxPct();
+        long buys = r.linkDays().stream().filter(x -> x.action() == RainbowLiveAction.BUY).count();
+        long sells = r.linkDays().stream().filter(x -> x.action() == RainbowLiveAction.SELL).count();
+        long dcaBuys = r.trades().stream().filter(x -> x.fixedQtyDelta() > 0).count();
+        double realized = r.trades().stream().filter(x -> x.qtyDelta() < 0).mapToDouble(MultiLinkReplayEngine.TradeDay::cashDelta).sum();
+        return new Parity(days.getFirst(), days.getLast(),
+                new Line(fin, 100.0 * (fin - cash0) / cash0, expoPreset, ddPreset, buys, sells), realized, w.getLast().assetsValue(),
+                new Line(fixedFin, 100.0 * (fixedFin - cash0) / cash0, expoDca, ddDca, dcaBuys, 0));
     }
 
     /**
