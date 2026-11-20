@@ -1,45 +1,41 @@
 ---
 statut: journal
-sujet: Roadmap — moteur d'optimisation automatique (presets Rainbow par actif + politique de pilotage utilisateur)
-modifié_le: 2026-11-18
-empreinte: f21e5c0a27
+sujet: Roadmap — moteur d'optimisation et Full Autonome v1 (bilan des étapes, reste à faire)
+modifié_le: 2026-11-20
+empreinte: 291de0534a
 ---
-# Roadmap — moteur d'optimisation automatique
+# Roadmap — moteur d'optimisation / Full Autonome v1
 
-Cadre et décisions : [`etude-optimisation-mode-autonome.md`](etude-optimisation-mode-autonome.md) §11, [`../decisions/fil-rouge-dca-automatisation.md`](../decisions/fil-rouge-dca-automatisation.md). Simulateur existant : [`../architecture/13-espace-expert.md`](../architecture/13-espace-expert.md). Règles de code : [`../CODING_RULES.md`](../CODING_RULES.md).
+État courant et décisions : [`../decisions/full-autonome-v1.md`](../decisions/full-autonome-v1.md). Mécanismes du code : [`../architecture/15-optimiseur.md`](../architecture/15-optimiseur.md) et 15a–15i. Règles de code : [`../CODING_RULES.md`](../CODING_RULES.md).
 
 ## Méthode (chaque étape)
-1. Prompt d'étape fourni dans la conversation (non conservé dans le repo).
-2. Réalisation → tests verts → doc mise à jour dans la même session.
-3. **Bilan de dérive** avant l'étape suivante : diff réel vs périmètre prévu, contrats modifiés, parité du rejeu inchangée, hypothèses invalidées, doc à jour. Le prompt suivant est rédigé d'après ce bilan, pas d'après ce plan.
-4. Porte de sortie = critère chiffré ; échec ⇒ on s'arrête et on décide.
+Prompt d'étape (non conservé) → réalisation, tests verts, doc à jour dans la même session → **bilan de dérive** avant l'étape suivante → verdict chiffré fixé avant lecture, un run, une configuration. Bench > 10 min : annoncé, accord demandé. Un chantier à la fois. Tout en USDC.
 
-Règles transverses : tout en USDC ; rejeu = code du live (jamais de logique dupliquée) ; aucune donnée > J-1 dans une décision ; DB modifiée ⇒ Flyway `V<n>__*.sql` idempotent + recette (sinon rien) ; bench coûteux ⇒ demander avant de lancer ; crons désactivés par défaut (`-`).
+## Bilan (études archivées dans `../archive/etudes/`)
+| Étape | Verdict | Retenu |
+|---|---|---|
+| 4 : politique L2 auto | NUL | abandon |
+| 5 : preset L1 auto | NUL (`GARDER_PRESET` BTC / ETH) | code seul, rien à promouvoir |
+| A : sensibilité BTC | gains sur une seule fenêtre | information seulement |
+| B : réglage par blocs | NUL | le preset n'est pas améliorable par réglage |
+| B' : exposition égale | `TIMING_UTILE` | le signal Rainbow est bon ; gain = exposition |
+| C1 : frontière | `AVANTAGE_PERSISTANT` | le plafond de drawdown fixe l'exposition |
+| C2 : politique par régime | NUL | exposition constante par profil |
+| C3 : pire cas | k = 1,1 ; niveaux par profil | table de calage |
+| C4 : mise en prod | onboarding 90 j et bandes de profil dépassent le plafond | bande neutre ; onboarding indicatif |
+| D0 : réglage récent | `NON_PERSISTANT` (BTC) | pas de ré-optimisation périodique |
 
-## Étapes
+Détail : [`15b`](../architecture/15b-carte-sensibilite-rainbow.md), [`15c`](../architecture/15c-optimisation-par-blocs.md), [`15d`](../architecture/15d-mesure-exposition-egale.md), [`15f`](../architecture/15f-politique-exposition-regime.md), [`15g`](../architecture/15g-calage-exposition-pire-cas.md), [`15h`](../architecture/15h-mise-en-production-exposition.md), [`15i`](../architecture/15i-reglage-recent.md).
 
-| # | Étape | Livrable | Porte de sortie |
-|---|---|---|---|
-| 1 | **Hook de politique + politiques manuelles + test H0** | `ModulationPolicy` (interface pure : état du jour → `ModulationSettings`) appelée dans `MultiLinkReplayEngine` en plus de `settingsByDay` ; politique constante = comportement actuel ; réglages du jour journalisés dans le résultat ; clamp `RainbowModulationControl` conservé. État d'entrée : régime par lien, exposition, valeur / plus haut / drawdown du wallet, PnL. 2–3 politiques manuelles (bande par régime ; biais selon l'écart à l'exposition cible ; dé-risque à la bascule Bear), option `policy` dans `FULL`, comparaison à la constante (valeur finale, drawdown, exposition / timing / frais) sur BTC, ETH, PAXG | Rejeu identique avec politique constante (parité et tests existants inchangés) ; **verdict H0 chiffré** : la couche exposition pèse-t-elle plus que le réglage fin ? Décide de l'ordre 4 / 5 |
-| 2 | **ATH : plafond de mise utilisateur (rejeu d'abord)** | Plafond k (achat : ATH × zone ≤ k × base ; vente : facteur ATH plafonné), global à l'utilisateur, défauts par profil, appliqué dans le **rejeu** (`LinkSignalReplay`), exposé dans `FULL` et le compare ; **sans changement de schéma** (persistance, défauts admin et écran Réglages en étape 7) ; live inchangé | Plafond respecté (aucune mise > k × base) ; sans plafond = résultats actuels ; effet du plafond mesuré sur BTC, ETH, PAXG |
-| 3 | **Évaluateur + moteur de recherche headless** | `ReplayScorer` pur (entrées **explicites** : capital, dates, empreinte des bougies ; fenêtres 12 m ×3 / 24 m ×2 / historique ×1 ancrées ; gain vs DCA fixe ; vetos drawdown du profil, jeu dégénéré, capital dépassé ; timing pur affiché en second ; modes frais simplifiés et complet) + `ParamSpace` (bornes, gel ; inclut le montant de base), tri par sensibilité, Sobol + successive halving, raffinement du plateau, bousculades (date ±30 j, provider, voisins), compteur d'essais, pool dédié ; `OptimizationReport` JSON ; runner de test manuel + endpoint admin asynchrone désactivé par défaut ; démo sur fonction synthétique et sur l'espace L2 réel | Rejeu **reproductible à l'octet** (mêmes entrées ⇒ même sortie) ; retrouve un optimum connu ; coût en ms / run, budget de 4 et 5 estimé |
-| 4 | **PolicyOptimizer (L2)** | Correction du biais de budget du scorer (DCA fixe à budget de référence commun, gain en % du capital) ; espace de 6 paramètres (bande par régime ×4, plafond d'achat ATH, multiple du montant de base) calibré sur un wallet de référence multi-actifs, pour chacun des 4 profils ; walk-forward en plis annuels ; rapport avec recommandation « adopter / garder le point de départ » ; rien n'est appliqué | Retenue seulement si bat le point de départ sur la majorité des plis sans veto ; sinon résultat nul assumé |
-| 4b | **Pré-étape 5 : correction de l'évaluateur** (**faite**, 2026-11-16) | Référence DCA au même cash commun (jamais au-delà, sans recharge) ; veto de drawdown, score et dispersion sur 12 m / 24 m seulement (fenêtre complète rapportée) ; pli à entraînement vetoé = `GARDER_DEPART` (`ENTRAINEMENT_VETOE`), jamais d'`INVALID_CANDIDATE` retenu ; statut `HISTORIQUE_INSUFFISANT` ; étape 4 rejouée | Départ vetoé à l'entraînement < 30 %, aucun `INVALID_CANDIDATE` retenu, référence ≤ capital, pénalité < 50 % du score (ou alerte) : **non atteinte** (départ vetoé 58 %, drawdown 12 m / 24 m) ⇒ arbitré (2026-11-17) : protocole V6 en opt-in swappable, défauts inchangés, passage à l'étape 5 ; voir [`etude-calibrage-politique-l2.md`](etude-calibrage-politique-l2.md) |
-| 5 | **PresetOptimizer (L1, par actif)** (**code fait**, 2026-11-17 ; walk-forward : `GARDER_PRESET` BTC / ETH, PAXG non optimisable ; cadences à lancer sur accord ; voir [`etude-optimisation-presets.md`](etude-optimisation-presets.md)) | Rainbow Bull / Bear de chaque actif, Trend figée, dérive bornée δ autour du preset en place, challenger non appliqué ; espace libre et δ en configuration (défaut ±25 %), score gain brut + exposition plafonnée, cadences 30 / 90 / 180 j ; walk-forward imbriqué (lancé seulement après accord) | Gain du processus (ré-optimiser tous les X j) vs preset statique démontré, ou abandon |
-| 6 | Orchestrateur + promotion auto-bornée | **en pause** : rien à promouvoir tant que A–B ci-dessous n'ont pas de gain démontré | — |
-| 7 | Mode Full Auto (live) | **en pause** (dépend de 6 et de L2, résultat nul à l'étape 4) | — |
+## Reste à faire (ordre)
+| # | Étape | Porte de sortie |
+|---|---|---|
+| C5 | Niveaux d'exposition par profil en code (taux de base, marge k) | Full Autonome v1 actif dans le live, plafond affiché comme cible |
+| D1 | Pipeline d'accueil d'un nouvel actif (preset de départ, calage méthode C3, flag « provisoire », Binance USDT bench seulement) | un nouvel actif obtient preset + niveaux sans passage à la main |
+| E0 → E1 | Coupure au switch Bull → Bear : diagnostic descriptif puis test à plafond égal ([`etude-pistes-timing-sorties.md`](etude-pistes-timing-sorties.md)) | décale la frontière gain / drawdown, sinon abandon |
+| 6, 7 | Orchestrateur, mode Full Auto live | en pause (rien à promouvoir) |
 
-## Pivot « Rainbow d'abord » (2026-11-17)
-L1 et L2 automatiques n'ont montré aucun gain (étapes 4 et 5 : évaluateurs aveugles, presets en place vetoés, espace de recherche qui gelait ATH / Moon / multiplicateurs). Priorité : **trouver quels réglages Rainbow font gagner, avant toute automatisation**. Position de Clem : [`../decisions/fil-rouge-dca-automatisation.md`](../decisions/fil-rouge-dca-automatisation.md) (« Pivot Rainbow d'abord »).
-
-| # | Étape | Livrable | Porte de sortie |
-|---|---|---|---|
-| A (**faite**, 2026-11-18 ; [`etude-sensibilite-rainbow.md`](etude-sensibilite-rainbow.md), mécanisme [`15b`](../architecture/15b-carte-sensibilite-rainbow.md)) | **Carte de sensibilité BTC** | Preset BTC en place ; **Bull seul**, puis **Bear seul** (l'autre jeu intact) ; un paramètre à la fois sur sa plage, **tous** ceux de l'interface Expert (bornes ATR, stops, délais, fraction vendue, ATH, multiplicateurs de zones, Moon ; interrupteurs et modes en variantes) ; vue 24 mois ; comparaison au **preset en place ET au DCA fixe** ; mesure en **PnL réel** (ventes encaissées, latent décoté) ; tableau classé par influence | Tableau lisible ; les paramètres influents recoupent le ressenti de Clem : **atteinte côté lisibilité** (Bull : réglages de vente ; Bear : `multX2`, `atrMultDown2`) ; recoupement avec le ressenti de Clem à confirmer au bilan. Verdict : des réglages battent le preset en place et le DCA en PnL réel sur 24 mois mais sur une seule fenêtre et 442 valeurs testées ; rien de validé hors échantillon (étape B) |
-| B | **Optimisation façon main** | Sur les 3–5 paramètres les plus influents : ajuster un par un, garder si le PnL réel monte, Bull et Bear en alternance (méthode du rejeu Expert) ; contrôle hors échantillon, une seule fois | Bat le preset en place **et** le DCA hors échantillon, ou résultat nul assumé |
-| C | **Autres actifs, puis automatisation périodique** | ETH, PAXG (historique requis), puis ré-optimisation tous les X j | Seulement si A et B montrent un gain réel |
-
-## Dépendances
-A → B → C ; 6 et 7 reprennent après C. La plomberie existante (`SearchEngine`, rejeu, rapport) est réutilisée.
-
-## Ouvert
-Vue de test (24 mois, cycles bull / bear), traitement du « gel » hors régime, décote du latent, cadence X, rayon δ.
+## Questions ouvertes
+- Pourquoi les améliorations manuelles de Clem ne sont pas reproduites par le moteur (critère « gel » sur-ajusté, exposition en plus, leviers couplés).
+- Preset en place battu par le DCA fixe sur l'historique complet (exposition 10 % contre 70 %) : sans objet à exposition égale.
+- D0b (contrôle « preset pur ») : non retenu, D0 étant déjà `NON_PERSISTANT`.

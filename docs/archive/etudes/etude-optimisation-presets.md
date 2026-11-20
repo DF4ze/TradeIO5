@@ -1,13 +1,18 @@
 ---
-statut: journal
+statut: archivé
 sujet: Optimiseur de presets L1 par actif (étape 5) — walk-forward semestriel BTC / ETH / PAXG, protocole V6 : entrées, résultats par actif, budget des cadences
 vérifié_le: 2026-11-17
-modifié_le: 2026-11-17
-empreinte: 574243279c
+remplacé_par: Claude
+archivé_le: 2026-11-20
+raison: Étude close : décision reprise dans decisions/full-autonome-v1.md
+modifié_le: 2026-11-20
+empreinte: 48d8616a57
 ---
 # Étude — optimisation des presets L1 (étape 5, 2026-11-17)
 
-Journal daté : mécanisme dans [`../architecture/15a-optimiseur-presets-l1.md`](../architecture/15a-optimiseur-presets-l1.md), cadre dans [`roadmap-moteur-optimisation.md`](roadmap-moteur-optimisation.md) (étape 5), leçons V6 dans [`etude-calibrage-politique-l2.md`](etude-calibrage-politique-l2.md).
+> ⚠ **ARCHIVÉ le 2026-11-20** — Étude close : décision reprise dans decisions/full-autonome-v1.md. Remplacé par `Claude`. Ne jamais lire comme référence de l'état courant.
+
+Journal daté : mécanisme dans [`../architecture/15a-optimiseur-presets-l1.md`](../../architecture/15a-optimiseur-presets-l1.md), cadre dans [`roadmap-moteur-optimisation.md`](../../etudes/roadmap-moteur-optimisation.md) (étape 5), leçons V6 dans [`etude-calibrage-politique-l2.md`](etude-calibrage-politique-l2.md).
 
 ## Entrées
 Un seul run (`-Doptimizer.manual=preset`, base locale copie de prod), graine 20261116, profil BALANCED (bande d'exposition 30–70 %, plafond de drawdown −25 %), capital 10 000 USDC, référence DCA fixe autonomie 360 j, δ ±25 % (tous paramètres libérables libres), 6 plis semestriels (fins 2023-05-15 … 2025-11-15, test 6 mois), un actif à la fois. 43 s (pool 4). Rejeu reproductible (test).

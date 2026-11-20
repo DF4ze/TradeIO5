@@ -1,12 +1,17 @@
 ---
-statut: journal
+statut: archivé
 sujet: Mesures H0 et plafond de mise ATH (étapes 1 et 2) — tableaux complets BTC, ETH, PAXG
-modifié_le: 2026-11-16
-empreinte: b6480fa9fe
+remplacé_par: Claude
+archivé_le: 2026-11-20
+raison: Étude close : décision reprise dans decisions/full-autonome-v1.md
+modifié_le: 2026-11-20
+empreinte: 56db5c1b57
 ---
 # Étude — Mesure du plafond de mise ATH (étape 2, 2026-11-16)
 
-Synthèse et réponses : [`etude-optimisation-mode-autonome.md`](etude-optimisation-mode-autonome.md) §11.2. Livraison : [`../architecture/13-espace-expert.md`](../architecture/13-espace-expert.md) (« Plafond de mise ATH utilisateur »).
+> ⚠ **ARCHIVÉ le 2026-11-20** — Étude close : décision reprise dans decisions/full-autonome-v1.md. Remplacé par `Claude`. Ne jamais lire comme référence de l'état courant.
+
+Synthèse et réponses : [`etude-optimisation-mode-autonome.md`](../../etudes/etude-optimisation-mode-autonome.md) §11.2. Livraison : [`../architecture/13-espace-expert.md`](../../architecture/13-espace-expert.md) (« Plafond de mise ATH utilisateur »).
 
 Méthode du §11.1 : `policy-compare` (runner `AthCapMeasureManualRunnerTest`), base locale copie de prod, un lien par run (BTC / ETH wallet 1, PAXG wallet 3), départ 100 % USDC, capital BTC 2 484 / ETH 2 425 / PAXG 1 062 USDC, sans frais. 24 m = 2024-11-15 → 2026-11-15 ; max = 2018-07-12 → 2026-11-15 (BTC, ETH), 2025-04-23 → 2026-11-15 (PAXG, 19 mois). `REGIME_BAND` : bear 0–30, bull 20–90. `maxStake` = achat du signal / base avant modulation, `maxFinalStake` = achat décidé / base après modulation, « achats plafonnés » = jours où le plafond a réduit la mise du signal. Gain % = écart à un DCA fixe de même budget.
 
@@ -64,7 +69,7 @@ Méthode du §11.1 : `policy-compare` (runner `AthCapMeasureManualRunnerTest`), 
 | PAXG | max (19 m) | REGIME_BAND | Full 15/5 | 1117 | 918 | +21,7 | −4,0 | 14,4 | 14,96 | 14,27 | 0 |
 
 ## Mesure H0 (étape 1, 2026-11-16) — tableau complet
-Synthèse : [`etude-optimisation-mode-autonome.md`](etude-optimisation-mode-autonome.md) §11.1. `policy-compare` aux entrées par défaut du simulateur (capital = valeur du wallet réel du jour, plage glissante : cf. §11.3 de la synthèse).
+Synthèse : [`etude-optimisation-mode-autonome.md`](../../etudes/etude-optimisation-mode-autonome.md) §11.1. `policy-compare` aux entrées par défaut du simulateur (capital = valeur du wallet réel du jour, plage glissante : cf. §11.3 de la synthèse).
 
 | Actif | Plage | Politique | Final | DCA fixe | Gain % | DD max % | Expo moy. % | Exposition | Timing | ms |
 |---|---|---|---|---|---|---|---|---|---|---|

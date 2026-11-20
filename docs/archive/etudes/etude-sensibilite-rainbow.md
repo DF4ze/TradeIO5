@@ -1,13 +1,18 @@
 ---
-statut: journal
+statut: archivé
 sujet: Carte de sensibilité Rainbow BTC (étape A du pivot « Rainbow d'abord ») — Bull seul / Bear seul, PnL réel 24 mois, lecture gel
 vérifié_le: 2026-11-18
-modifié_le: 2026-11-18
-empreinte: 9c641110e5
+remplacé_par: Claude
+archivé_le: 2026-11-20
+raison: Étude close : décision reprise dans decisions/full-autonome-v1.md
+modifié_le: 2026-11-20
+empreinte: 66736fae0c
 ---
 # Étude — carte de sensibilité Rainbow BTC (étape A, 2026-11-18)
 
-Journal daté : mécanisme dans [`../architecture/15b-carte-sensibilite-rainbow.md`](../architecture/15b-carte-sensibilite-rainbow.md), cadre dans [`roadmap-moteur-optimisation.md`](roadmap-moteur-optimisation.md) (pivot « Rainbow d'abord »), position de Clem dans [`../decisions/fil-rouge-dca-automatisation.md`](../decisions/fil-rouge-dca-automatisation.md).
+> ⚠ **ARCHIVÉ le 2026-11-20** — Étude close : décision reprise dans decisions/full-autonome-v1.md. Remplacé par `Claude`. Ne jamais lire comme référence de l'état courant.
+
+Journal daté : mécanisme dans [`../architecture/15b-carte-sensibilite-rainbow.md`](../../architecture/15b-carte-sensibilite-rainbow.md), cadre dans [`roadmap-moteur-optimisation.md`](../../etudes/roadmap-moteur-optimisation.md) (pivot « Rainbow d'abord »), position de Clem dans [`../decisions/fil-rouge-dca-automatisation.md`](../../decisions/fil-rouge-dca-automatisation.md).
 
 ## Entrées (run du 2026-11-18, reproductible)
 - Actif BTC (source OKX), wallet 1, lien 1, capital 2484 USDC ; vue 24 mois glissants finissant le 2026-11-17 (J-1) ; historique complet rapporté en lecture seule pour les 5 paramètres les plus influents de chaque jeu.

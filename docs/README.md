@@ -1,8 +1,8 @@
 ---
 statut: index
 sujet: Table de routage de la documentation
-modifié_le: 2026-11-18
-empreinte: ad59a52d05
+modifié_le: 2026-11-20
+empreinte: d0047e2a24
 ---
 # TradeIO-5 — Documentation
 
@@ -27,6 +27,7 @@ Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decis
 | [`decisions/passerelle-actif-non-stable.md`](decisions/passerelle-actif-non-stable.md) | PAXG/Kraken, routes via USDC |
 | [`decisions/wallet-reel-capital-commun.md`](decisions/wallet-reel-capital-commun.md) | wallet réel, pools cash, exchanges utilisés |
 | [`decisions/fil-rouge-dca-automatisation.md`](decisions/fil-rouge-dca-automatisation.md) | Trend, Rainbow ATR, pine, bench, calibrations |
+| [`decisions/full-autonome-v1.md`](decisions/full-autonome-v1.md) | cible Full Autonome v1 : exposition constante par profil (table de calage, marge k), acquis mesurés, reste à faire (C5, D1, E0) |
 | [`decisions/architecture-interface.md`](decisions/architecture-interface.md) | UX, pages, charte, logo |
 | [`decisions/definition-pnl.md`](decisions/definition-pnl.md) | calcul du PnL |
 | [`decisions/docteur-admin-ux.md`](decisions/docteur-admin-ux.md) | Docteur, page admin d'exécution, kill switch |
@@ -59,6 +60,12 @@ Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decis
 | [`architecture/15-optimiseur.md`](architecture/15-optimiseur.md) | optimiseur : évaluateur de paramètres, moteur de recherche, calibrage walk-forward par profil (POLICY_L2), rapport JSON, endpoint admin |
 | [`architecture/15a-optimiseur-presets-l1.md`](architecture/15a-optimiseur-presets-l1.md) | optimiseur de presets L1 par actif (PRESET_L1) : espace δ, veto d'exposition, walk-forward, cadences |
 | [`architecture/15b-carte-sensibilite-rainbow.md`](architecture/15b-carte-sensibilite-rainbow.md) | carte de sensibilité Rainbow (étape A) : un réglage à la fois, Bull / Bear seul, PnL réel, lecture gel |
+| [`architecture/15c-optimisation-par-blocs.md`](architecture/15c-optimisation-par-blocs.md) | optimisation par blocs Rainbow (étape B) : descente de coordonnée, plateau, garde-fou d'exposition, 4 rotations, challenger exporté, runner `tune` |
+| [`architecture/15d-mesure-exposition-egale.md`](architecture/15d-mesure-exposition-egale.md) | mesure à exposition égale Rainbow (B') et frontière exposition → gain / drawdown (C1) : DCA fixe calé, bande de bruit, règles de verdict, niveau par profil, runners `exposure-parity` et `exposure-frontier` |
+| [`architecture/15f-politique-exposition-regime.md`](architecture/15f-politique-exposition-regime.md) | politique d'exposition par régime contre exposition constante à plafond de drawdown égal (C2) : `REGIME_BAND` à 3 paramètres, réglage par blocs, règle de verdict, runner `exposure-policy` |
+| [`architecture/15g-calage-exposition-pire-cas.md`](architecture/15g-calage-exposition-pire-cas.md) | calage de l'exposition par profil sur le pire cas (fenêtres de 24 mois + historique) avec marge k mesurée par calage ancré (C3) : règle de k, runner `exposure-calibration`, équivalence onboarding |
+| [`architecture/15h-mise-en-production-exposition.md`](architecture/15h-mise-en-production-exposition.md) | mise en production du calage (C4) : niveau en taux de base, invariance au capital, bandes du live et onboarding, wallet BTC + ETH, facteur de réduction f, runner `exposure-production` |
+| [`architecture/15i-reglage-recent.md`](architecture/15i-reglage-recent.md) | réglage récent (D0) : réglage conjoint sur les 24 mois avant T, test en avançant 3 / 6 mois, comparateurs (preset, DCA égal, aléatoire), règle de verdict, runner `recent-tune` |
 
 ## API & opérations
 | Doc | Lire si… |

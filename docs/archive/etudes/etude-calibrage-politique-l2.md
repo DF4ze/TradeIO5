@@ -1,13 +1,18 @@
 ---
-statut: journal
+statut: archivé
 sujet: Calibrage walk-forward de la politique L2 par profil (4 profils, BTC + ETH [+ PAXG exclu], 3 plis annuels) après correction de l'évaluateur (pré-étape 5) : résultats et porte de sortie
 vérifié_le: 2026-11-16
-modifié_le: 2026-11-16
-empreinte: b14a47d658
+remplacé_par: Claude
+archivé_le: 2026-11-20
+raison: Étude close : décision reprise dans decisions/full-autonome-v1.md
+modifié_le: 2026-11-20
+empreinte: acce53253e
 ---
 # Étude — calibrage de la politique L2 (étape 4 rejouée après la pré-étape 5, 2026-11-16)
 
-Journal daté : le mécanisme est décrit dans [`../architecture/15-optimiseur.md`](../architecture/15-optimiseur.md), le cadre dans [`etude-optimisation-mode-autonome.md`](etude-optimisation-mode-autonome.md) §11.4. Un seul run (`-Doptimizer.manual=policy`, base locale copie de prod), graine 20261116, 4 profils × 3 plis, **2 412 essais** (+ 53 rejeux hors recherche), 48 s (pool de 4 threads). Résultats reproductibles (deux runs identiques).
+> ⚠ **ARCHIVÉ le 2026-11-20** — Étude close : décision reprise dans decisions/full-autonome-v1.md. Remplacé par `Claude`. Ne jamais lire comme référence de l'état courant.
+
+Journal daté : le mécanisme est décrit dans [`../architecture/15-optimiseur.md`](../../architecture/15-optimiseur.md), le cadre dans [`etude-optimisation-mode-autonome.md`](../../etudes/etude-optimisation-mode-autonome.md) §11.4. Un seul run (`-Doptimizer.manual=policy`, base locale copie de prod), graine 20261116, 4 profils × 3 plis, **2 412 essais** (+ 53 rejeux hors recherche), 48 s (pool de 4 threads). Résultats reproductibles (deux runs identiques).
 
 ## Entrées
 - Wallet : BTC (lien #1, OKX), ETH (#3, OKX), PAXG (#5, Kraken), cash commun 10 000 USDC, autonomie 90 j, base de référence 47,61 USDC/jour à 2 liens.

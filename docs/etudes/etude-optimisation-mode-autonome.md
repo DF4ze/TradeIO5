@@ -1,8 +1,8 @@
 ---
 statut: journal
 sujet: Optimiser TradeIO vers un mode Full Autonome — définition du bon paramétrage, instrument de mesure, méthode, agencement des briques
-modifié_le: 2026-11-16
-empreinte: 460dbae663
+modifié_le: 2026-11-20
+empreinte: d6bf6d42ce
 ---
 # Étude — Optimiser TradeIO vers un mode « Full Autonome »
 
@@ -144,7 +144,7 @@ Décisions : [`../decisions/fil-rouge-dca-automatisation.md`](../decisions/fil-r
 **Ouvert** : valeur de X (cadence) ; bornes δ de dérive ; forme exacte de la politique (règles par régime vs fonction continue) ; budget de calcul du walk-forward imbriqué.
 
 ### 11.1 Verdict H0 (étape 1, 2026-11-16)
-Hook livré : [`../architecture/13a-rejeu-politique-ath-couts.md`](../architecture/13a-rejeu-politique-ath-couts.md). Mesure : `policy-compare`, base locale copie de prod, un wallet par actif (liens des autres actifs coupés), départ 100 % USDC, sans frais ; « 24 mois » = 2024-11-15 → 2026-11-15, « max » = plus longue plage atteignable (BTC, ETH 2018-07-12 ; PAXG 2025-04-23, Kraken ne sert que 754 bougies D1). Gain = écart à un DCA fixe de même budget. Tableau complet et lecture détaillée : [`etude-plafond-ath-mesure.md`](etude-plafond-ath-mesure.md) (« Mesure H0 »).
+Hook livré : [`../architecture/13a-rejeu-politique-ath-couts.md`](../architecture/13a-rejeu-politique-ath-couts.md). Mesure : `policy-compare`, base locale copie de prod, un wallet par actif (liens des autres actifs coupés), départ 100 % USDC, sans frais ; « 24 mois » = 2024-11-15 → 2026-11-15, « max » = plus longue plage atteignable (BTC, ETH 2018-07-12 ; PAXG 2025-04-23, Kraken ne sert que 754 bougies D1). Gain = écart à un DCA fixe de même budget. Tableau complet et lecture détaillée : [`etude-plafond-ath-mesure.md`](../archive/etudes/etude-plafond-ath-mesure.md) (« Mesure H0 »).
 
 **Réponse : oui, la couche exposition pèse plus que le timing du signal, mais pas par toutes les règles.** Sur plage longue la perte vs DCA fixe vient presque entièrement du terme exposition (le Rainbow ne détient que ~5 % du wallet) ; une bande par régime (bull 20–90, bear 0–30) double la valeur finale mais triple le drawdown. Sur 24 mois le signe dépend de l'actif (effet de plancher Bull, pas un gain de timing prouvé). `EXPOSURE_GAP_BIAS` est indiscernable de la constante ; `BEAR_DERISK_RAMP` ne se déclenche jamais. **Levier retenu pour les étapes 4 / 5 : la bande par régime.**
 
@@ -153,20 +153,20 @@ Hook livré : [`../architecture/13a-rejeu-politique-ath-couts.md`](../architectu
 Plan d'implémentation : [`roadmap-moteur-optimisation.md`](roadmap-moteur-optimisation.md).
 
 ### 11.2 Plafond de mise ATH (étape 2, 2026-11-16)
-Livré (rejeu seulement, live inchangé) : [`../architecture/13a-rejeu-politique-ath-couts.md`](../architecture/13a-rejeu-politique-ath-couts.md). Mesure par `policy-compare` (méthode du §11.1) : `CONSTANT` et `REGIME_BAND` × plafonds aucun / Prudent / Équilibré / Dynamique / Full. Tableaux et lecture détaillée : [`etude-plafond-ath-mesure.md`](etude-plafond-ath-mesure.md).
+Livré (rejeu seulement, live inchangé) : [`../architecture/13a-rejeu-politique-ath-couts.md`](../architecture/13a-rejeu-politique-ath-couts.md). Mesure par `policy-compare` (méthode du §11.1) : `CONSTANT` et `REGIME_BAND` × plafonds aucun / Prudent / Équilibré / Dynamique / Full. Tableaux et lecture détaillée : [`etude-plafond-ath-mesure.md`](../archive/etudes/etude-plafond-ath-mesure.md).
 
 La mise de 10–15 × la base se confirme (jusqu'à ~23 × après modulation avec la bande par régime). Le plafond coûte peu en `CONSTANT`, nettement plus avec la bande sur plage longue (Prudent −17 %), et ne change pas le verdict H0 : la bande reste le levier dominant ; sur 24 mois Prudent efface son avantage.
 
 **Limites** : (1) défauts par profil non validés (constantes de code) ; (2) capital faible rapporté à l'historique ; (3) une règle de bande, une fenêtre par actif, sans frais ; (4) l'écart avec §11.1 (BTC 24 m `CONSTANT` 2 483 vs 2 571 ; DCA fixe 2 111 vs 2 309) s'explique par les entrées implicites du simulateur (§11.3) : les comparaisons ne valent qu'à l'intérieur d'un même tableau.
 
 ### 11.3 Évaluateur et moteur de recherche (étape 3, 2026-11-16)
-Livré : [`../architecture/15-optimiseur.md`](../architecture/15-optimiseur.md). Mesures complètes : [`etude-demo-l2-optimiseur.md`](etude-demo-l2-optimiseur.md).
+Livré : [`../architecture/15-optimiseur.md`](../architecture/15-optimiseur.md). Mesures complètes : [`etude-demo-l2-optimiseur.md`](../archive/etudes/etude-demo-l2-optimiseur.md).
 
-**Reproductibilité (écart §11.1 ↔ §11.2).** Le chemin par défaut du simulateur dépend d'entrées implicites (capital = valeur du wallet réel du jour, plage glissante, réglages utilisateur non neutres) : les chiffres de §11.1 ne sont pas rejouables. Remède : `ScorerInputs` tout explicite + empreinte des bougies dans chaque rapport (mesures : [`etude-demo-l2-optimiseur.md`](etude-demo-l2-optimiseur.md)).
+**Reproductibilité (écart §11.1 ↔ §11.2).** Le chemin par défaut du simulateur dépend d'entrées implicites (capital = valeur du wallet réel du jour, plage glissante, réglages utilisateur non neutres) : les chiffres de §11.1 ne sont pas rejouables. Remède : `ScorerInputs` tout explicite + empreinte des bougies dans chaque rapport (mesures : [`etude-demo-l2-optimiseur.md`](../archive/etudes/etude-demo-l2-optimiseur.md)).
 
 **Démo L2** (bande par régime × plafond d'achat ATH × montant de base, profil Équilibré, graine fixe) : entraînement sur des fenêtres 12 m / 24 m / historique finissant le 2025-11-15, **test hors échantillon sur les 12 mois suivants** (2025-11-15 → 2026-11-15), coûts complets statiques. Gain vs DCA fixe de même budget :
 
-Tableau complet (essais, entraînement, hors échantillon, exposition / timing) : [`etude-demo-l2-optimiseur.md`](etude-demo-l2-optimiseur.md).
+Tableau complet (essais, entraînement, hors échantillon, exposition / timing) : [`etude-demo-l2-optimiseur.md`](../archive/etudes/etude-demo-l2-optimiseur.md).
 
 - **Bat-il le DCA fixe hors échantillon ?** BTC oui (+2,3 %), PAXG à peine (+1,0 %, sans mieux que le point de départ), ETH non (−2,0 %, pire que le départ : surapprentissage). Une seule période de 12 mois, ~200 essais : la barre de significativité monte avec le nombre d'essais, aucune de ces différences n'est établie.
 - **Timing ou exposition ?** Le gain vient du timing (BTC +171) ; l'exposition est négative (−110 à −127) : le candidat n'est pas simplement « plus exposé ». Timing pur à l'entraînement : BTC +3,3 %, ETH +8,9 %. Sur l'historique complet tous les candidats perdent lourdement face au DCA fixe (−37 à −63 %) : terme exposition (−3 000 à −7 700 USDC).
@@ -176,4 +176,4 @@ Tableau complet (essais, entraînement, hors échantillon, exposition / timing) 
 **Budget de calcul** (mono-thread, un lien) : 10–13 ms par run sur 12 m simplifiée, 71–92 ms sur toutes les fenêtres, 75–81 ms en coûts complets. Une recherche L2 (≈ 200 essais) ≈ 4–6 s sur 4 threads ; étape 4 mesurée : 47 s (§11.4) ; étape 5 (walk-forward imbriqué mensuel sur 8 ans) ≈ 25 min sur 4 threads, jamais lancée sans demande.
 
 ### 11.4 Calibrage de la politique (étape 4, pré-étape 5 incluse, 2026-11-16)
-Livré : mode `POLICY_L2`, plis annuels, évaluateur corrigé ([`../architecture/15-optimiseur.md`](../architecture/15-optimiseur.md)). Mesures : [`etude-calibrage-politique-l2.md`](etude-calibrage-politique-l2.md). Synthèse : 4 profils `GARDER_DEPART` mais **porte vers l'étape 5 non atteinte** : départ vetoé à l'entraînement dans 58 % des plis-profils (cible < 30 %), drawdown 12 m / 24 m ; résultat nul non concluant. Le DCA fixe de référence ne dépassait déjà pas le capital : l'écart de l'étape 4 était un effet de timing (fenêtre complète désormais hors score). Pénalité de dispersion : BTC 43 %, ETH 50 % (alerte).
+Livré : mode `POLICY_L2`, plis annuels, évaluateur corrigé ([`../architecture/15-optimiseur.md`](../architecture/15-optimiseur.md)). Mesures : [`etude-calibrage-politique-l2.md`](../archive/etudes/etude-calibrage-politique-l2.md). Synthèse : 4 profils `GARDER_DEPART` mais **porte vers l'étape 5 non atteinte** : départ vetoé à l'entraînement dans 58 % des plis-profils (cible < 30 %), drawdown 12 m / 24 m ; résultat nul non concluant. Le DCA fixe de référence ne dépassait déjà pas le capital : l'écart de l'étape 4 était un effet de timing (fenêtre complète désormais hors score). Pénalité de dispersion : BTC 43 %, ETH 50 % (alerte).

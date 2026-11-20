@@ -1,8 +1,8 @@
 ---
 statut: index
 sujet: Index des études actives
-modifié_le: 2026-11-18
-empreinte: 292dbd97cb
+modifié_le: 2026-11-20
+empreinte: 3b0c27d1ba
 ---
 # Études (journal de conception daté)
 
@@ -10,7 +10,6 @@ empreinte: 292dbd97cb
 
 | Étude | Sujet | Dernière modif |
 |---|---|---|
-| [`etude-affectation-par-lien.md`](../archive/etudes/etude-affectation-par-lien.md) | Étude — Affectation choisie par lien (comblement du manque Lien ↔ Affectation) |  |
 | [`etude-architecture-interface.md`](etude-architecture-interface.md) | Étude — Architecture de l'interface |  |
 | [`etude-bench-auto-trend-mix-nouvel-actif.md`](etude-bench-auto-trend-mix-nouvel-actif.md) | Étude — Bench automatique du Trend Mix sur un nouvel actif |  |
 | [`etude-chemin-achat-execution.md`](etude-chemin-achat-execution.md) | Étude — chemin d'achat via API (passerelle USDT), plan d'ordres, Fee Test, exécution réelle |  |
@@ -22,12 +21,9 @@ empreinte: 292dbd97cb
 | [`etude-liens-strategie-provider-actif.md`](etude-liens-strategie-provider-actif.md) | Étude — Liens stratégie / provider / actif (vocabulaire et modèle cible) |  |
 | [`etude-passerelle-actif-non-stable.md`](etude-passerelle-actif-non-stable.md) | Étude — Passerelle par actif non stable (PAXG sur Kraken), USDT exclu |  |
 | [`etude-optimisation-mode-autonome.md`](etude-optimisation-mode-autonome.md) | Étude — Optimiser TradeIO vers un mode Full Autonome (définition du bon paramétrage, rejeu intégral, méthode, agencement des briques) |  |
-| [`etude-plafond-ath-mesure.md`](etude-plafond-ath-mesure.md) | Mesures H0 et plafond de mise ATH (étapes 1 et 2) : tableaux complets BTC, ETH, PAXG |  |
-| [`etude-calibrage-politique-l2.md`](etude-calibrage-politique-l2.md) | Étape 4 rejouée après la pré-étape 5 : calibrage walk-forward de la politique L2 par profil (résultats, porte de sortie, mesure 4.0 B) |  |
-| [`etude-demo-l2-optimiseur.md`](etude-demo-l2-optimiseur.md) | Étape 3 : démo L2 de l'optimiseur (BTC, ETH, PAXG, Équilibré, hors échantillon) et diagnostic de reproductibilité |  |
-| [`etude-sensibilite-rainbow.md`](etude-sensibilite-rainbow.md) | Étape A : carte de sensibilité Rainbow BTC (Bull seul / Bear seul, PnL réel 24 mois, lecture gel) |  |
 | [`etude-protocole-calibrage-couches.md`](etude-protocole-calibrage-couches.md) | Étude — Protocole de calibrage Rainbow, attribution des pertes, couches de pilotage, gestion du risque |  |
-| [`roadmap-moteur-optimisation.md`](roadmap-moteur-optimisation.md) | Roadmap — moteur d'optimisation automatique (presets par actif + politique de pilotage utilisateur) |  |
+| [`etude-pistes-timing-sorties.md`](etude-pistes-timing-sorties.md) | Pistes de timing et de sorties après D0 : coupure du bag au switch Bull → Bear (E0 / E1) |  |
+| [`roadmap-moteur-optimisation.md`](roadmap-moteur-optimisation.md) | Roadmap — moteur d'optimisation / Full Autonome v1 (bilan des étapes, reste à faire) |  |
 | [`etude-provider-revolutx.md`](etude-provider-revolutx.md) | Étude — Provider Revolut X : clés générées par utilisateur, candles, exécution |  |
 | [`etude-source-candles-provider-du-lien.md`](etude-source-candles-provider-du-lien.md) | Étude — Source des candles du Rainbow live : provider du lien, sans fallback silencieux |  |
 | [`etude-trading-stablecoin-frais-btc-eth-paxg.md`](etude-trading-stablecoin-frais-btc-eth-paxg.md) | Etude trading stablecoin -> BTC / ETH / PAXG : frais, liquidite, API |  |

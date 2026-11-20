@@ -2,12 +2,12 @@
 statut: courant
 sujet: Optimiseur de presets L1 par actif — PresetOptimizer (mode PRESET_L1) : espace δ configurable, évaluation V6, veto d'exposition, walk-forward, cadences
 vérifié_le: 2026-11-17
-modifié_le: 2026-11-17
-empreinte: ea5b10f7e9
+modifié_le: 2026-11-20
+empreinte: 510829477a
 ---
 # Optimiseur de presets L1 (`service/optimizer/Preset*`)
 
-Vérifié le : 2026-11-17 (`service/optimizer/Preset*`, `OptimizerService`, tests `PresetSpaceTest`, `PresetOptimizerTest`). Socle (évaluateur, moteur de recherche, rapport, lancement) : [`15-optimiseur.md`](15-optimiseur.md). Position de Clem : [`../decisions/fil-rouge-dca-automatisation.md`](../decisions/fil-rouge-dca-automatisation.md) (« Optimiseur de presets L1 »). Mesures : [`../etudes/etude-optimisation-presets.md`](../etudes/etude-optimisation-presets.md).
+Vérifié le : 2026-11-17 (`service/optimizer/Preset*`, `OptimizerService`, tests `PresetSpaceTest`, `PresetOptimizerTest`). Socle (évaluateur, moteur de recherche, rapport, lancement) : [`15-optimiseur.md`](15-optimiseur.md). Position de Clem : [`../decisions/fil-rouge-dca-automatisation.md`](../decisions/fil-rouge-dca-automatisation.md) (« Optimiseur de presets L1 »). Mesures : [`../etudes/etude-optimisation-presets.md`](../archive/etudes/etude-optimisation-presets.md).
 
 Cherche, **par actif**, le jeu Rainbow Bull / Bear qui gagne le plus maintenant, en partant du preset en place (point de départ **et** comparateur). **Challenger seulement** : rien n'est appliqué ni persisté (pas de migration), live inchangé.
 

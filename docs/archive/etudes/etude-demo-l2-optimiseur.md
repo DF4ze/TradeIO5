@@ -1,12 +1,17 @@
 ---
-statut: journal
+statut: archivé
 sujet: Étape 3 — démo L2 réelle de l'optimiseur (BTC, ETH, PAXG, profil Équilibré) et diagnostic de reproductibilité : mesures complètes
-modifié_le: 2026-11-16
-empreinte: 978334c005
+remplacé_par: Claude
+archivé_le: 2026-11-20
+raison: Étude close : décision reprise dans decisions/full-autonome-v1.md
+modifié_le: 2026-11-20
+empreinte: 15c17a10bc
 ---
 # Étude — Démo L2 de l'optimiseur et reproductibilité (étape 3, 2026-11-16)
 
-Synthèse et réponses : [`etude-optimisation-mode-autonome.md`](etude-optimisation-mode-autonome.md) §11.3. Moteur : [`../architecture/15-optimiseur.md`](../architecture/15-optimiseur.md). Runner : `OptimizerManualRunnerTest` (`-Doptimizer.manual=repro|l2`), base locale copie de prod, utilisateur admin, profil Équilibré, graine 20261116, pool 4 threads, coûts complets statiques.
+> ⚠ **ARCHIVÉ le 2026-11-20** — Étude close : décision reprise dans decisions/full-autonome-v1.md. Remplacé par `Claude`. Ne jamais lire comme référence de l'état courant.
+
+Synthèse et réponses : [`etude-optimisation-mode-autonome.md`](../../etudes/etude-optimisation-mode-autonome.md) §11.3. Moteur : [`../architecture/15-optimiseur.md`](../../architecture/15-optimiseur.md). Runner : `OptimizerManualRunnerTest` (`-Doptimizer.manual=repro|l2`), base locale copie de prod, utilisateur admin, profil Équilibré, graine 20261116, pool 4 threads, coûts complets statiques.
 
 Méthode : entraînement sur des fenêtres 12 m (poids 3) / 24 m (2) / historique complet (1) finissant le 2025-11-15, capital BTC 2 484, ETH 2 425, PAXG 1 062 USDC ; **hors échantillon** = les 12 mois suivants (2025-11-15 → 2026-11-15), même candidat. Espace : bandes par régime `bullMin`, `bullMax`, `bearMin`, `bearMax`, plafond d'achat ATH `buyCap`, montant de base `baseAmount`. « Départ » = bande 20–90 / 0–30 et plafond du profil. Exposition / timing / frais : répartition du gain vs DCA fixe en USDC (`EpisodeTimeline`). PAXG : seule la fenêtre « full » (7 mois) est éligible à l'entraînement (Kraken : 754 bougies D1).
 

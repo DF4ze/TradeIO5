@@ -2,12 +2,12 @@
 statut: courant
 sujet: Carte de sensibilité Rainbow (étape A) — balayage d'un réglage à la fois, Bull seul / Bear seul, PnL réel et lecture gel, rapport JSON + md
 vérifié_le: 2026-11-18
-modifié_le: 2026-11-18
-empreinte: 3f1ec08f33
+modifié_le: 2026-11-20
+empreinte: dfd0cfeea0
 ---
 # Carte de sensibilité Rainbow (`service/optimizer/Sensitivity*`)
 
-Vérifié le : 2026-11-18 (`SensitivityParam`, `SensitivityEvaluator`, `SensitivityMap`, `SensitivityReport`, test `SensitivityMapTest`, runner `OptimizerManualRunnerTest`). Socle : [`15-optimiseur.md`](15-optimiseur.md) ; position de Clem : [`../decisions/fil-rouge-dca-automatisation.md`](../decisions/fil-rouge-dca-automatisation.md) (« Pivot Rainbow d'abord ») ; mesures : [`../etudes/etude-sensibilite-rainbow.md`](../etudes/etude-sensibilite-rainbow.md).
+Vérifié le : 2026-11-18 (`SensitivityParam`, `SensitivityEvaluator`, `SensitivityMap`, `SensitivityReport`, test `SensitivityMapTest`, runner `OptimizerManualRunnerTest`). Socle : [`15-optimiseur.md`](15-optimiseur.md) ; position de Clem : [`../decisions/fil-rouge-dca-automatisation.md`](../decisions/fil-rouge-dca-automatisation.md) (« Pivot Rainbow d'abord ») ; mesures : [`../etudes/etude-sensibilite-rainbow.md`](../archive/etudes/etude-sensibilite-rainbow.md).
 
 Dit quels réglages Rainbow changent le PnL réel d'un actif, dans quel sens, séparément pour Bull et pour Bear. Hors ligne : rien n'est appliqué ni persisté (aucune migration), live inchangé, ni veto, ni walk-forward, ni combinaison.
 

@@ -1,8 +1,8 @@
 ---
 statut: index
 sujet: Index des archives
-modifié_le: 2026-11-10
-empreinte: 7467883983
+modifié_le: 2026-11-20
+empreinte: 6e6e9c7801
 ---
 # Archive
 
@@ -61,3 +61,17 @@ Documents conservés pour l'historique. **Jamais une référence de l'état cour
 | Fichier | Archivé le | Raison | Remplacé par |
 |---|---|---|---|
 | [`etudes/etude-affectation-par-lien.md`](etudes/etude-affectation-par-lien.md) | 2026-11-10 | Réalisée : lots 1 à 3 livrés (activation dérivée des liens, Affectations nommées, UI) | — |
+| [`etudes/etude-sensibilite-rainbow.md`](etudes/etude-sensibilite-rainbow.md) | 2026-11-20 | Étude close : décision reprise dans decisions/full-autonome-v1.md | Claude |
+| [`etudes/etude-optimisation-par-blocs.md`](etudes/etude-optimisation-par-blocs.md) | 2026-11-20 | Étude close : décision reprise dans decisions/full-autonome-v1.md | Claude |
+| [`etudes/etude-exposition-egale.md`](etudes/etude-exposition-egale.md) | 2026-11-20 | Étude close : décision reprise dans decisions/full-autonome-v1.md | Claude |
+| [`etudes/etude-frontiere-exposition.md`](etudes/etude-frontiere-exposition.md) | 2026-11-20 | Étude close : décision reprise dans decisions/full-autonome-v1.md | Claude |
+| [`etudes/etude-frontiere-exposition-tableaux.md`](etudes/etude-frontiere-exposition-tableaux.md) | 2026-11-20 | Étude close : décision reprise dans decisions/full-autonome-v1.md | Claude |
+| [`etudes/etude-politique-exposition.md`](etudes/etude-politique-exposition.md) | 2026-11-20 | Étude close : décision reprise dans decisions/full-autonome-v1.md | Claude |
+| [`etudes/etude-calage-exposition.md`](etudes/etude-calage-exposition.md) | 2026-11-20 | Étude close : décision reprise dans decisions/full-autonome-v1.md | Claude |
+| [`etudes/etude-mise-en-production-exposition.md`](etudes/etude-mise-en-production-exposition.md) | 2026-11-20 | Étude close : décision reprise dans decisions/full-autonome-v1.md | Claude |
+| [`etudes/etude-reglage-recent.md`](etudes/etude-reglage-recent.md) | 2026-11-20 | Étude close : décision reprise dans decisions/full-autonome-v1.md | Claude |
+| [`etudes/etude-reglage-recent-tableaux.md`](etudes/etude-reglage-recent-tableaux.md) | 2026-11-20 | Étude close : décision reprise dans decisions/full-autonome-v1.md | Claude |
+| [`etudes/etude-calibrage-politique-l2.md`](etudes/etude-calibrage-politique-l2.md) | 2026-11-20 | Étude close : décision reprise dans decisions/full-autonome-v1.md | Claude |
+| [`etudes/etude-optimisation-presets.md`](etudes/etude-optimisation-presets.md) | 2026-11-20 | Étude close : décision reprise dans decisions/full-autonome-v1.md | Claude |
+| [`etudes/etude-demo-l2-optimiseur.md`](etudes/etude-demo-l2-optimiseur.md) | 2026-11-20 | Étude close : décision reprise dans decisions/full-autonome-v1.md | Claude |
+| [`etudes/etude-plafond-ath-mesure.md`](etudes/etude-plafond-ath-mesure.md) | 2026-11-20 | Étude close : décision reprise dans decisions/full-autonome-v1.md | Claude |

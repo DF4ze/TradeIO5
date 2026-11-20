@@ -2,8 +2,8 @@
 statut: courant
 sujet: Optimiseur (L2 politique + renvoi L1 presets) — évaluateur (ReplayScorer), moteur de recherche headless, calibrage walk-forward par profil (POLICY_L2), rapport JSON, lancement admin
 vérifié_le: 2026-11-16
-modifié_le: 2026-11-18
-empreinte: a0f77bf945
+modifié_le: 2026-11-20
+empreinte: b7b075591b
 ---
 # Optimiseur — évaluateur + moteur de recherche (`service/optimizer/`)
 
@@ -47,9 +47,9 @@ Entrées (espace demandé et gelé, graine, réglages de recherche, fenêtres, c
 - **Pli à entraînement vetoé** (`PolicyCalibrator.trainBlocked`) : si le candidat retenu est vetoé (donc tous les candidats, y compris un `INVALID_CANDIDATE`) **ou** si le point de départ est vetoé à l'entraînement, le pli donne `foldDecision = GARDER_DEPART`, `foldReason = ENTRAINEMENT_VETOE` : aucun candidat retenu (`chosen` nul), jamais un candidat invalide ; le départ reste rapporté en test, le motif du veto du départ dans `trainVetoesStart`. Le pli n'est pas gagné.
 - **Règle** (`PolicyVerdict`, pure) : `ADOPTER` si la politique bat le départ sur la majorité des plis (plis/2 + 1), sans veto bloquant en test (drawdown, capital, mise finale ; « dégénéré » seulement rapporté) et médiane hors échantillon ≥ 0 % du capital ; sinon `GARDER_DEPART` (résultat nul valide).
 - **Rapport** `PolicyCalibrationReport` : entrées (wallet, plis, empreintes, graine), par profil et par pli (candidat retenu, score d'entraînement, gain hors échantillon retenu vs départ, vetos, timing pur, sensibilités), stabilité des paramètres, verdict + motif, nombre d'essais (tous plis), mesure de la pénalité de dispersion (`PenaltyMeasure` : part de la pénalité dans le score ; calculée sur les seules fenêtres 12 m / 24 m ; alerte si la médiane dépasse `PENALTY_SHARE_ALERT` = 50 %). Octets identiques à entrées égales hors `timings` (`toJsonWithoutTimings`).
-- Protocole alternatif **opt-in** `CalibrationConfig.protocolV6()` + `V6_REFERENCE_AUTONOMY_DAYS` (360 j) : défauts, endpoint et live inchangés ; bascule = un appel, retour = ne pas l'appeler. Mesures : [étude](../etudes/etude-calibrage-politique-l2.md).
+- Protocole alternatif **opt-in** `CalibrationConfig.protocolV6()` + `V6_REFERENCE_AUTONOMY_DAYS` (360 j) : défauts, endpoint et live inchangés ; bascule = un appel, retour = ne pas l'appeler. Mesures : [étude](../archive/etudes/etude-calibrage-politique-l2.md).
 - Variantes expérimentales (runner `-Doptimizer.manual=policy-variants`, jamais par défaut) : `CalibrationConfig.withVariant(trainDrawdownVeto, dropFoldOnStartVeto)` (veto de drawdown à l'entraînement ; pli écarté si le départ est vetoé), `withStart` (valeurs de départ), `withFolds` (plis et durée de test) et `ReferenceWallet.autonomyDays` (étalement de la référence).
-- Mesures et verdicts : [`../etudes/etude-calibrage-politique-l2.md`](../etudes/etude-calibrage-politique-l2.md).
+- Mesures et verdicts : [`../etudes/etude-calibrage-politique-l2.md`](../archive/etudes/etude-calibrage-politique-l2.md).
 
 ## Presets par actif : mode `PRESET_L1`
 Optimisation du jeu Rainbow Bull / Bear de chaque actif autour du preset en place (challenger seul, rien d'appliqué) : [`15a-optimiseur-presets-l1.md`](15a-optimiseur-presets-l1.md).
