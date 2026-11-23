@@ -19,6 +19,7 @@ import org.mockito.ArgumentCaptor;
 import fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import fr.ses10doigts.tradeIO5.service.market.instrument.ExecutionDefaults;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
@@ -154,6 +155,23 @@ class StepRunnerTest {
         assertEquals(StepStatus.REJECTED, runner.send(new StepRunner.StepContext(1L, 5L, 9L, "tio9abd", "BTC-USDC", StepSide.BUY,
                 new BigDecimal("0.01"), new BigDecimal("100000"), BTC_USDC, new ApiCredential(), null, WebProviderCode.OKX)).status());
         verify(recorder, never()).record(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Fills publiés tardivement : relus, étape FILLED, un seul envoi")
+    void fillsPublishedLate() {
+        exchange.hideFills(ExecutionDefaults.FILLS_QUERY_ATTEMPTS - 1);
+        assertEquals(StepStatus.FILLED, runner.send(ctx()).status());
+        assertEquals(1, exchange.submitCount());
+    }
+
+    @Test
+    @DisplayName("Fills jamais publiés : UNKNOWN (FILLS_UNAVAILABLE) après les relectures, aucun renvoi")
+    void fillsNeverPublished() {
+        exchange.hideFills(ExecutionDefaults.FILLS_QUERY_ATTEMPTS + 5);
+        assertEquals(StepStatus.UNKNOWN, runner.send(ctx()).status());
+        assertEquals(1, exchange.submitCount());
+        assertEquals(ExecutionDefaults.FILLS_QUERY_ATTEMPTS, exchange.calls.stream().filter(x -> x.startsWith("fills:")).count());
     }
 
     @Test

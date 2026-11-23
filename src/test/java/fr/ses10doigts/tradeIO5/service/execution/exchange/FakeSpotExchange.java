@@ -45,6 +45,7 @@ public class FakeSpotExchange implements SpotOrderPort {
     private BigDecimal fillPxFactor = BigDecimal.ONE;
     private String rejectCode = "51008";
     private int hiddenQueries;
+    private int hiddenFills;
     private Consumer<OrderRequest> onSubmit = r -> { };
     private long seq;
 
@@ -56,6 +57,8 @@ public class FakeSpotExchange implements SpotOrderPort {
     public FakeSpotExchange rejectCode(String c) { this.rejectCode = c; return this; }
     /** Les {@code n} premières lectures d'état répondent « introuvable ». */
     public FakeSpotExchange hideQueries(int n) { this.hiddenQueries = n; return this; }
+    /** Les {@code n} premières lectures de fills répondent une liste vide (fills pas encore publiés). */
+    public FakeSpotExchange hideFills(int n) { this.hiddenFills = n; return this; }
     public FakeSpotExchange onSubmit(Consumer<OrderRequest> hook) { this.onSubmit = hook; return this; }
 
     public int submitCount() {
@@ -119,6 +122,10 @@ public class FakeSpotExchange implements SpotOrderPort {
     @Override
     public List<Fill> fills(ApiCredential credential, String instId, String ordId) {
         calls.add("fills:" + ordId);
+        if (hiddenFills > 0) {
+            hiddenFills--;
+            return List.of();
+        }
         return orders.values().stream().filter(o -> o.ordId().equals(ordId) && o.filledSz().signum() > 0).map(o -> {
             boolean buy = o.request().side() == StepSide.BUY;
             BigDecimal px = px(o);

@@ -108,8 +108,18 @@ public class PlanProblemsCheck implements DoctorCheck {
         }
         for (RainbowLiveOrderStep step : plan.getSteps()) {
             if (step.getStatus() == StepStatus.UNKNOWN) {
-                status = DoctorStatus.CRIT;
-                problems.add("step #" + step.getRank() + " " + step.getAssetSymbol() + " état inconnu");
+                Instant started = plan.getExecutionStartedAt();
+                boolean autoReconciling = plan.getStatus() == PlanStatus.EXECUTING && started != null
+                        && Duration.between(started, now).toMinutes() < DoctorDefaults.PLAN_STUCK_MINUTES;
+                if (autoReconciling) {
+                    if (status == DoctorStatus.OK) {
+                        status = DoctorStatus.WARN;
+                    }
+                    problems.add("step #" + step.getRank() + " " + step.getAssetSymbol() + " état inconnu (réconciliation auto en cours)");
+                } else {
+                    status = DoctorStatus.CRIT;
+                    problems.add("step #" + step.getRank() + " " + step.getAssetSymbol() + " état inconnu");
+                }
             } else if (step.getStatus() == StepStatus.REJECTED && status != DoctorStatus.CRIT) {
                 status = DoctorStatus.WARN;
                 problems.add("step #" + step.getRank() + " " + step.getAssetSymbol() + " rejeté");

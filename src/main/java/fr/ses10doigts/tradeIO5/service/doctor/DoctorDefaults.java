@@ -33,8 +33,11 @@ public final class DoctorDefaults {
     public static final int JOB_GRACE_MINUTES = 10;
     /** Plans examinés : ceux des N derniers jours. */
     public static final int PLAN_WINDOW_DAYS = 3;
-    /** Plan resté {@code EXECUTING} au-delà de ce délai = bloqué. */
-    public static final int PLAN_STUCK_MINUTES = 30;
+    /**
+     * Plan resté {@code EXECUTING} / step {@code UNKNOWN} au-delà de ce délai = bloqué (CRIT). Avant : réconciliation automatique en cours
+     * (WARN). = somme de {@code ExecutionDefaults.RECONCILE_DELAYS} (30 min) + 5 min de marge.
+     */
+    public static final int PLAN_STUCK_MINUTES = 35;
     /** Stock intermédiaire en transit au-delà de ce délai = anormal. */
     public static final int TRANSIT_STOCK_MAX_HOURS = 12;
     /** Kill switch laissé levé au-delà de ce délai (heures) = WARN ; {@code 0} (défaut) = jamais : levé est l'état normal en LIVE. */

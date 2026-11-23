@@ -202,13 +202,21 @@ public class StepRunner {
         List<Fill> fills = List.of();
         boolean filled = state.accFillSz() != null && state.accFillSz().signum() > 0;
         if (filled) {
-            try {
-                fills = port.fills(c.tradeCredential(), c.instId(), state.ordId());
-            } catch (RuntimeException e) {
-                return markUnknown(c, "FILLS_UNAVAILABLE", e.getClass().getSimpleName());
+            String lastError = "empty";
+            for (int attempt = 1; attempt <= ExecutionDefaults.FILLS_QUERY_ATTEMPTS && fills.isEmpty(); attempt++) {
+                try {
+                    fills = port.fills(c.tradeCredential(), c.instId(), state.ordId());
+                    lastError = "empty";
+                } catch (RuntimeException e) {
+                    lastError = e.getClass().getSimpleName();
+                }
+                if (fills.isEmpty() && attempt < ExecutionDefaults.FILLS_QUERY_ATTEMPTS) {
+                    log.debug("Fills de {} indisponibles (tentative {}) : {}", c.clOrdId(), attempt, lastError);
+                    pause(queryInterval.isZero() ? Duration.ZERO : ExecutionDefaults.FILLS_QUERY_INTERVAL);
+                }
             }
             if (fills.isEmpty()) {
-                return markUnknown(c, "FILLS_UNAVAILABLE", "empty");
+                return markUnknown(c, "FILLS_UNAVAILABLE", lastError);
             }
         }
         FillAccounting.Outcome outcome = FillAccounting.of(c.side(), c.instrument(), c.sz(), state, fills);
@@ -291,11 +299,15 @@ public class StepRunner {
     }
 
     private void pause() {
-        if (queryInterval.isZero()) {
+        pause(queryInterval);
+    }
+
+    private static void pause(Duration d) {
+        if (d.isZero()) {
             return;
         }
         try {
-            Thread.sleep(queryInterval.toMillis());
+            Thread.sleep(d.toMillis());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

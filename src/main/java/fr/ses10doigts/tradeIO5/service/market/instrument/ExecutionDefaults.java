@@ -2,6 +2,7 @@ package fr.ses10doigts.tradeIO5.service.market.instrument;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.List;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -67,6 +68,19 @@ public final class ExecutionDefaults {
     /** Après l'envoi d'un ordre IOC : nombre de relectures de l'état et délai entre deux, avant de conclure {@code UNKNOWN}. */
     public static final int ORDER_QUERY_ATTEMPTS = 5;
     public static final Duration ORDER_QUERY_INTERVAL = Duration.ofMillis(300);
+
+    /**
+     * Ordre rempli mais remplissages (fills) pas encore publiés par l'exchange : nombre de relectures et délai entre deux
+     * avant de conclure {@code UNKNOWN} ({@code FILLS_UNAVAILABLE}, remonté au Docteur). Délai nul si l'intervalle d'interrogation est nul (tests).
+     */
+    public static final int FILLS_QUERY_ATTEMPTS = 6;
+    public static final Duration FILLS_QUERY_INTERVAL = Duration.ofSeconds(5);
+
+    /**
+     * Réconciliation automatique d'un plan resté {@code EXECUTING} (step {@code UNKNOWN} / {@code SUBMITTED}) : passes successives
+     * après ces délais (5 puis +10 puis +15 min, soit 30 min au plus). Toujours en vol après la dernière passe => alerte CRIT (Docteur).
+     */
+    public static final List<Duration> RECONCILE_DELAYS = List.of(Duration.ofMinutes(5), Duration.ofMinutes(10), Duration.ofMinutes(15));
 
     /** Délai minimal entre deux appels réseau du client d'ordres (limites OKX : 60 requêtes / 2 s par endpoint). */
     public static final Duration ORDER_CLIENT_MIN_INTERVAL = Duration.ofMillis(100);

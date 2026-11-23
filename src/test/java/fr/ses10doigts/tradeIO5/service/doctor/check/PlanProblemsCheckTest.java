@@ -77,6 +77,20 @@ class PlanProblemsCheckTest {
     }
 
     @Test
+    @DisplayName("step UNKNOWN sur plan EXECUTING : WARN pendant la réconciliation auto, CRIT au-delà")
+    void unknownDuringAutoReconcile() {
+        RainbowLiveOrderPlan early = plan(1, PlanStatus.EXECUTING);
+        early.setExecutionStartedAt(NOW.minus(Duration.ofMinutes(10)));
+        early.getSteps().add(RainbowLiveOrderStep.builder().rank(1).assetSymbol("ETH").status(StepStatus.UNKNOWN).build());
+        assertEquals(DoctorStatus.WARN, run(early).getFirst().status());
+
+        RainbowLiveOrderPlan late = plan(2, PlanStatus.EXECUTING);
+        late.setExecutionStartedAt(NOW.minus(Duration.ofMinutes(40)));
+        late.getSteps().add(RainbowLiveOrderStep.builder().rank(1).assetSymbol("ETH").status(StepStatus.UNKNOWN).build());
+        assertEquals(DoctorStatus.CRIT, run(late).getFirst().status());
+    }
+
+    @Test
     @DisplayName("step UNKNOWN => CRIT, step REJECTED => WARN, même sur un plan EXECUTED")
     void stepProblems() {
         RainbowLiveOrderPlan unknown = plan(1, PlanStatus.EXECUTED);

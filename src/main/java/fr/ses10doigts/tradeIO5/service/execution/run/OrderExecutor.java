@@ -151,8 +151,15 @@ public class OrderExecutor {
     private final DomainClock clock;
     private final TransitStockRepository transit;
     private final Duration retryDelay;
+    private org.springframework.context.ApplicationEventPublisher publisher;
     private final TransactionTemplate tx;
     private final UserPreferencesService preferences;
+
+    /** Optionnel (absent dans les tests unitaires) : déclenche la réconciliation automatique d'un plan resté en vol. */
+    @Autowired(required = false)
+    void setPublisher(org.springframework.context.ApplicationEventPublisher publisher) {
+        this.publisher = publisher;
+    }
 
     @Autowired
     public OrderExecutor(ExecutionSettings settings, ExecutionControlService control, SpotOrderRouter router,
@@ -799,6 +806,9 @@ public class OrderExecutor {
             log.warn("Plan {} terminé {} : stock conservé, aucun ordre compensatoire", planId, status);
         } else {
             log.info("Plan {} : {} ({} ordre(s) envoyé(s))", planId, status, run.sent);
+        }
+        if (status == PlanStatus.EXECUTING && publisher != null) {
+            publisher.publishEvent(new PlanInFlightEvent(planId));
         }
         return new ExecutionResult(planId, status, Map.copyOf(run.blocks), run.sent);
     }

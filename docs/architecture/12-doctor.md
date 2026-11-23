@@ -17,7 +17,7 @@ Un contrôle est une sonde pure qui renvoie un `CheckResult` (sujet, statut OK/U
 |---|---|
 | `JOB_SCHEDULE` | Pour chaque job attendu : cron présent et valide, dernier `job_run` présent, pas en retard (> 10 min après le dernier tir théorique + 60 s), pas PARTIAL (WARN) / FAILED (CRIT). Aucun run enregistré ⇒ UNKNOWN |
 | `EXECUTION_STATE` | Mode, clé maître, kill switch (levé = état normal en LIVE ; WARN « levé > N h » seulement si `tradeio.doctor.kill-switch-lifted-warn-hours` > 0, défaut 0 = désactivé) |
-| `PLAN_PROBLEMS` | Plans des 3 derniers jours en erreur / bloqués > 30 min |
+| `PLAN_PROBLEMS` | Plans des 3 derniers jours en erreur / bloqués > 35 min ; step `UNKNOWN` = WARN pendant la réconciliation auto (≤ 35 min), CRIT au-delà ([`14-execution-reelle.md`](14-execution-reelle.md)) |
 | `TRANSIT_STOCK` | Stocks de transit non résolus depuis > 12 h |
 | `KEY_REJECTED` | Clés à paire générée (Revolut X) refusées par l'exchange : sonde réelle de chaque credential active (`ProviderKeyPairSupport.verify`) au plus toutes les 60 min (`KEY_PROBE_INTERVAL_MINUTES`) ; refus (401/403) ⇒ CRIT, exchange injoignable ⇒ verdict précédent conservé ; credential désactivée ou supprimée ⇒ alarme résolue |
 | `DATABASE` | Requête de test, lenteur > 1 s |
