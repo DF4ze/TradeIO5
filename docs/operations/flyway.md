@@ -10,7 +10,7 @@ Vérifié le : 2026-11-11 (`pom.xml`, `application.properties`, `db/migration/`,
 
 ## État
 
-Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11 ; prod à la version **V4** depuis le 2026-11-15) : `spring.flyway.enabled=true`, `baseline-on-migrate=true`, `baseline-version=1` (`application.properties`), `spring.jpa.hibernate.ddl-auto=validate` (`application-dev/prod.properties`, gitignorés ; le fichier externe `/home/oklm/TradeIO/application-prod.properties` prime en prod). Les tests gardent `spring.flyway.enabled=false` (H2 `create-drop`).
+Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11 ; prod à la version **V5** depuis le 2026-11-23) : `spring.flyway.enabled=true`, `baseline-on-migrate=true`, `baseline-version=1` (`application.properties`), `spring.jpa.hibernate.ddl-auto=validate` (`application-dev/prod.properties`, gitignorés ; le fichier externe `/home/oklm/TradeIO/application-prod.properties` prime en prod). Les tests gardent `spring.flyway.enabled=false` (H2 `create-drop`).
 
 - Base **vide** : Flyway applique `V1__init.sql` puis les migrations suivantes.
 - Base **existante sans historique** (issue de `ddl-auto=update`) : baseline à V1 (aucune exécution de V1), puis migrations `V2+`. Le schéma de ces bases correspondait à V1 au 2026-11-11.
@@ -26,7 +26,7 @@ Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11 ; prod à la
 
 ## Restes legacy
 
-`V5__nettoyage_legacy.sql` supprime les restes du modèle d'avant les Affectations (colonnes `preset_id` et leurs FK / uniques, tables `rainbow_live_preset`, `rainbow_live_trend_config`, `rainbow_asset_strategy`, `rainbow_live_user_settings`, colonne `rainbow_live_preset_event.strategy_revision`), idempotente. Restent à nettoyer : [`../known-gaps/nettoyages.md`](../known-gaps/nettoyages.md).
+`V5__nettoyage_legacy.sql` (appliquée en prod le 2026-11-23) a supprimé les restes du modèle d'avant les Affectations (colonnes `preset_id` et leurs FK / uniques, tables `rainbow_live_preset`, `rainbow_live_trend_config`, `rainbow_asset_strategy`, `rainbow_live_user_settings`, colonne `rainbow_live_preset_event.strategy_revision`), idempotente. Restent à nettoyer : [`../known-gaps/nettoyages.md`](../known-gaps/nettoyages.md).
 
 ## Base locale (dev)
 
