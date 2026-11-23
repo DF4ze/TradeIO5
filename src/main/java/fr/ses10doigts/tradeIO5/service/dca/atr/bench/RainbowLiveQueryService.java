@@ -118,7 +118,7 @@ public class RainbowLiveQueryService {
     public List<PresetEventDto> presetEvents(User user, String asset) {
         return eventService.list(user, asset).stream()
                 .map(e -> new PresetEventDto(e.getId(), e.getAssetSymbol(), e.getType().name(), e.getPresetBeforeId(),
-                        e.getPresetBeforeName(), e.getPresetAfterId(), e.getPresetAfterName(), e.getStrategyRevision(),
+                        e.getPresetBeforeName(), e.getPresetAfterId(), e.getPresetAfterName(),
                         e.getOccurredAt(), e.getReason()))
                 .toList();
     }

@@ -13,7 +13,7 @@ Vérifié le : 2026-11-11 (`pom.xml`, `application.properties`, `db/migration/`,
 Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11 ; prod à la version **V4** depuis le 2026-11-15) : `spring.flyway.enabled=true`, `baseline-on-migrate=true`, `baseline-version=1` (`application.properties`), `spring.jpa.hibernate.ddl-auto=validate` (`application-dev/prod.properties`, gitignorés ; le fichier externe `/home/oklm/TradeIO/application-prod.properties` prime en prod). Les tests gardent `spring.flyway.enabled=false` (H2 `create-drop`).
 
 - Base **vide** : Flyway applique `V1__init.sql` puis les migrations suivantes.
-- Base **existante sans historique** (issue de `ddl-auto=update`) : baseline à V1 (aucune exécution de V1), puis migrations `V2+`. Le schéma de ces bases correspondait à V1 au 2026-11-11, aux restes legacy près (ci-dessous).
+- Base **existante sans historique** (issue de `ddl-auto=update`) : baseline à V1 (aucune exécution de V1), puis migrations `V2+`. Le schéma de ces bases correspondait à V1 au 2026-11-11.
 - `V1__init.sql` est généré depuis les entités (Hibernate, dialecte MySQL) : types, `enum` MySQL natifs, unicités, FK `ON DELETE CASCADE`.
 
 ## Règles
@@ -21,12 +21,12 @@ Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11 ; prod à la
 - Le schéma de référence = **entités JPA**. Toute modification d'entité (table, colonne, contrainte, valeur d'enum) = un **nouveau fichier `V<n>__description.sql`** dans `src/main/resources/db/migration/`. Plus aucun `ALTER` manuel.
 - Une migration appliquée n'est **jamais modifiée** (checksum vérifié) ; on corrige par une migration suivante.
 - Migration **idempotente** (rejouable en dev/recette) : conditionner chaque DDL par `information_schema` + `PREPARE`/`EXECUTE` (compatible MySQL 8 et MariaDB 10.11).
-- Ne jamais supprimer dans une migration ce que le code lit encore (cf. legacy ci-dessous).
+- Ne jamais supprimer dans une migration ce que le code lit encore : retirer d'abord le code, puis écrire la migration (un `V2` qui supprimait `preset_id` avant le retrait du code a fait échouer la recette du 2026-11-11).
 - `ddl-auto=validate` : un écart entité/schéma empêche le démarrage.
 
 ## Restes legacy
 
-Les prod/dev existantes portent des restes du modèle d'avant les Affectations (colonnes `preset_id`, tables `rainbow_live_preset`, `rainbow_asset_strategy`…), hors `V1__init.sql` et tolérés par `validate`. Leur suppression est une migration à écrire (`V5+` : `V2` = `V2__user_ssh_access.sql`, `V3` = `V3__trading_fee_cache.sql`, `V4` = `V4__drawdown_caps.sql`) **après** le retrait du code qui les lit (`AffectationMigrationService` lit `preset_id` : un V2 qui les supprimait avant a fait échouer la recette du 2026-11-11 avec `Unknown column 'preset_id'`). Liste et ordre : [`../known-gaps/nettoyages.md`](../known-gaps/nettoyages.md).
+`V5__nettoyage_legacy.sql` supprime les restes du modèle d'avant les Affectations (colonnes `preset_id` et leurs FK / uniques, tables `rainbow_live_preset`, `rainbow_live_trend_config`, `rainbow_asset_strategy`, `rainbow_live_user_settings`, colonne `rainbow_live_preset_event.strategy_revision`), idempotente. Restent à nettoyer : [`../known-gaps/nettoyages.md`](../known-gaps/nettoyages.md).
 
 ## Base locale (dev)
 
@@ -52,7 +52,7 @@ Tout nouveau « défaut » de l'application (donnée de paramétrage devant exis
 
 Tables de cache de données publiques (non seedées par un initializer) : `exchange_instrument` (catalogue des paires, rempli à la demande par `InstrumentCatalog`).
 
-Initializers existants : `AssetInitializer` (1), `AssetGroupInitializer` (2, groupe `USD` = USDC seul), `RoleInitializer` (10), `UserInitializer` (20), `HistoricalDataInitializer` (5, recharge `candle` et `etf_flow_snapshot` depuis les fichiers de backup si la table est vide), `ApiCredentialInitializer` (40, tous profils : clés du user System (CoinStats, Coinalyze, Twelve Data, Finnhub, SoSoValue) et clés Binance/Kraken/OKX d'OKlm lues dans les propriétés `tradeio.<fournisseur>.apiKey|secretKey` (OKX : `tradeio.okx.read.*` et `tradeio.okx.trade.*`, avec `passphrase`) des `application-*.properties` (gitignorés) ; clé absente => warning, rien semé), `WalletInitializer` (45), `WebProviderInitializer` (dont OKX, `https://www.okx.com`), `ContentSourceInitializer` (50), `ExecutionControlInitializer` (70, ligne `execution_control` kill switch engagé), `RainbowModulationControlInitializer` (71, ligne `rainbow_modulation_control` aux défauts de `ModulationDefaults`, jamais modifiée ensuite), `ExpertBasePresetInitializer` (61, 9 presets système de base Trend / Rainbow Bull / Rainbow Bear, jamais modifiés ensuite), `AffectationMigrationInitializer` (62, migration idempotente des anciens presets utilisateur vers les Affectations ; les Affectations des nouveaux utilisateurs sont créées à leur première utilisation), cf. [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md).
+Initializers existants : `AssetInitializer` (1), `AssetGroupInitializer` (2, groupe `USD` = USDC seul), `RoleInitializer` (10), `UserInitializer` (20), `HistoricalDataInitializer` (5, recharge `candle` et `etf_flow_snapshot` depuis les fichiers de backup si la table est vide), `ApiCredentialInitializer` (40, tous profils : clés du user System (CoinStats, Coinalyze, Twelve Data, Finnhub, SoSoValue) et clés Binance/Kraken/OKX d'OKlm lues dans les propriétés `tradeio.<fournisseur>.apiKey|secretKey` (OKX : `tradeio.okx.read.*` et `tradeio.okx.trade.*`, avec `passphrase`) des `application-*.properties` (gitignorés) ; clé absente => warning, rien semé), `WalletInitializer` (45), `WebProviderInitializer` (dont OKX, `https://www.okx.com`), `ContentSourceInitializer` (50), `ExecutionControlInitializer` (70, ligne `execution_control` kill switch engagé), `RainbowModulationControlInitializer` (71, ligne `rainbow_modulation_control` aux défauts de `ModulationDefaults`, jamais modifiée ensuite), `ExpertBasePresetInitializer` (61, 9 presets système de base Trend / Rainbow Bull / Rainbow Bear, jamais modifiés ensuite), cf. [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md).
 
 ## Données non recréées par les initializers
 

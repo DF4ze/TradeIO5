@@ -63,7 +63,7 @@ public final class RainbowLiveDtos {
 
     /** Événement de l'historique des changements d'Affectation. */
     public record PresetEventDto(Long id, String assetSymbol, String type, Long presetBeforeId, String presetBeforeName,
-                                 Long presetAfterId, String presetAfterName, Integer strategyRevision, Instant occurredAt,
+                                 Long presetAfterId, String presetAfterName, Instant occurredAt,
                                  String reason) {
     }
 }

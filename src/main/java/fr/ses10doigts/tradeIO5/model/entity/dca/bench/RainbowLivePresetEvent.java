@@ -63,9 +63,6 @@ public class RainbowLivePresetEvent {
     @Column(length = 96)
     private String presetAfterName;
 
-    /** Révision de la stratégie concernée (STRATEGY_CHANGED, DETACH), sinon null. */
-    private Integer strategyRevision;
-
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt;
 

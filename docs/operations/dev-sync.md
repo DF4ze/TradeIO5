@@ -20,7 +20,6 @@ Clés de la prod : TRADE et clés en attente supprimées, clés READ des exchang
 ## Points d'attention
 - Les comptes utilisateurs (hash de mots de passe compris) et les transactions sont copiés : base de dev locale uniquement, jamais partagée.
 - `application-dev.properties` local porte `tradeio.execution.mode=LIVE` / `live-unlocked=true` : tes clés TRADE locales sont conservées, les liens ne sont pas exécutables après import ; le kill switch garde son état local.
-- Écarts de schéma tolérés vs V1 : tables legacy ([`../known-gaps/nettoyages.md`](../known-gaps/nettoyages.md)).
 
 ## Éléments présents en local mais pas en prod
 - **Provider local en plus** : recréé avant la réinjection des clés (code, nom, URL, activation), puis ses clés locales sont réinjectées.
