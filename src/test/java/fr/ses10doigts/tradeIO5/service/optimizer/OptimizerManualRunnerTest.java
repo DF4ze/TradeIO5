@@ -32,7 +32,7 @@ import java.util.concurrent.Executors;
  * Runner manuel (DB dev = copie de prod ; jamais dans la suite normale) : diagnostic de reproductibilité (mode {@code repro}) et
  * démo L2 réelle (mode {@code l2}) de l'optimiseur, calibrage walk-forward de la politique L2 (mode {@code policy}).
  * <p>
- * Lancement : {@code mvn test -Dtest=OptimizerManualRunnerTest -Doptimizer.manual=repro|l2|policy|preset|preset-cadences|sensitivity|tune|recent-tune|exposure-parity|exposure-frontier|exposure-policy|exposure-calibration} (ignoré sans la
+ * Lancement : {@code mvn test -Dtest=OptimizerManualRunnerTest -Doptimizer.manual=repro|l2|policy|preset|preset-cadences|sensitivity|tune|recent-tune|exposure-parity|exposure-frontier|exposure-policy|exposure-calibration|switch-diagnostic|switch-cut} (ignoré sans la
  * propriété). {@code preset} = optimiseur de presets L1, walk-forward simple + estimation du coût des cadences ; {@code preset-cadences} =
  * comparaison des cadences 30 / 90 / 180 j (coûteuse : seulement après accord).
  * Sorties : {@code target/optimizer-repro.md}, {@code target/optimizer-l2.md}, {@code target/optimizer-<ACTIF>.json},
@@ -49,7 +49,7 @@ import java.util.concurrent.Executors;
         "spring.jpa.hibernate.ddl-auto=none",
         "spring.flyway.enabled=false"
 })
-@EnabledIfSystemProperty(named = "optimizer.manual", matches = "repro|l2|policy|policy-variants|preset|preset-cadences|sensitivity|tune|recent-tune|exposure-parity|exposure-frontier|exposure-policy|exposure-calibration|exposure-production")
+@EnabledIfSystemProperty(named = "optimizer.manual", matches = "repro|l2|policy|policy-variants|preset|preset-cadences|sensitivity|tune|recent-tune|exposure-parity|exposure-frontier|exposure-policy|exposure-calibration|exposure-production|switch-diagnostic|switch-cut")
 class OptimizerManualRunnerTest {
 
     private static final String USER = "OKlm";
@@ -599,6 +599,81 @@ class OptimizerManualRunnerTest {
             double g = ExposurePolicyStudy.constantLine(ev, ev.template().sets(), false, 1.0, ev.referenceBase(ev.template().sets())).pnlPct();
             org.junit.jupiter.api.Assertions.assertEquals(2.41, g, 0.006, "×1 = preset bloc récent (C1)");
         }
+    }
+
+    @Test
+    @DisplayName("Étape E0 : diagnostic descriptif des switchs Bull → Bear (BTC référence, ETH et PAXG rapportés), prix et régime seuls, un seul run")
+    void switchDiagnostic() throws IOException {
+        Assumptions.assumeTrue(mode("switch-diagnostic"));
+        User user = users.findByUsername(USER).orElseThrow();
+        LocalDate end = LocalDate.parse(System.getProperty("optimizer.end", "2026-11-17"));
+        SwitchDiagnosticConfig cfg = SwitchDiagnosticConfig.defaults(end);
+        String plan = "E0 : aucun rejeu de stratégie ; chargement des bougies D1 (cache DB, rien téléchargé) + O(N) par actif, estimé < 1 min.";
+        Files.writeString(Path.of("target/switch-diagnostic-plan.txt"), plan + "\n");
+        System.out.println(plan);
+        List<SwitchDiagnosticReport.AssetDiagnostic> assets = new ArrayList<>();
+        List<String> notes = new ArrayList<>();
+        for (Case c : CASES) {
+            try {
+                ScorerInputs in = loader.load(user, new OptimizerRunRequest(c.asset(), c.walletId(), c.cash0(), end, PROFILE, null, null, null));
+                assets.add(SwitchDiagnosticStudy.run(in, cfg, "BTC".equals(c.asset())));
+            } catch (RuntimeException e) {
+                notes.add(c.asset() + " non rejouable sans code nouveau : " + e.getMessage());
+            }
+        }
+        notes.add("Événements non indépendants : BTC, ETH et PAXG sont corrélés (ETH ~ BTC, switchs quasi simultanés) ; les phases Bear voisines se chevauchent ; "
+                + "ETH et PAXG n'ajoutent pas d'indépendance réelle et sont hors verdict.");
+        notes.add("Frais : barème simplifié du simulateur (" + cfg.feePct() + " % par ordre, aller-retour = 2 ordres), sans spread ni glissement.");
+        notes.add("Hasard : " + cfg.nullDraws() + " dates uniformes dans l'historique rejouable (graine " + cfg.seed() + ") ; une valeur dont la fenêtre dépasse la fin des "
+                + "données est exclue de sa mesure ; gain de coupure du hasard = vendre à la date tirée, racheter après une durée tirée dans les phases Bear fermées de l'actif.");
+        notes.add("Verdict : N = switchs BTC fermés ; (b) compare la médiane NETTE de frais ; (c) sur les switchs fermés ; la phase de marché est le signe du rendement de P_S sur "
+                + cfg.phaseLookbackDays() + " j.");
+        notes.add("Multiplicité : une configuration, un run, 3 conditions conjointes (a, b, c) fixées avant lecture ; 8 mesures par switch rapportées sans correction ; aucune variante.");
+        SwitchDiagnosticReport report = new SwitchDiagnosticReport(SwitchDiagnosticReport.DEFINITION, cfg, assets, notes);
+        Files.writeString(Path.of("target/switch-diagnostic.json"), report.toJson());
+        Files.writeString(Path.of("target/switch-diagnostic.md"), report.toMarkdown());
+        System.out.println(report.toMarkdown());
+    }
+
+    @Test
+    @DisplayName("Étape E1 : coupure du bag au switch Bull → Bear contre preset pur, à plafond de drawdown égal (BTC, ETH, PAXG ; avec et sans ré-entrée)")
+    void switchCut() throws IOException {
+        Assumptions.assumeTrue(mode("switch-cut"));
+        User user = users.findByUsername(USER).orElseThrow();
+        LocalDate end = LocalDate.parse(System.getProperty("optimizer.end", "2026-11-17"));
+        SwitchCutConfig cfg = SwitchCutConfig.defaults(end);
+        double[] reentries = {cfg.reentryPct(), 0.0};
+        String plan = String.format(Locale.ROOT, "E1 : %d rejeux au pire par run x %.0f ms ; %d actifs x %d ré-entrées = %.2f min en série.", cfg.replays(),
+                cfg.parity().replayMs(), CASES.size(), reentries.length, cfg.replays() * cfg.parity().replayMs() * CASES.size() * reentries.length / 60_000.0);
+        Files.writeString(Path.of("target/switch-cut-plan.txt"), plan + "\n");
+        System.out.println(plan);
+        List<SwitchCutReport.Run> runs = new ArrayList<>();
+        List<String> notes = new ArrayList<>();
+        for (Case c : CASES) {
+            ScorerInputs in;
+            try {
+                in = loader.load(user, new OptimizerRunRequest(c.asset(), c.walletId(), c.cash0(), end, PROFILE, null, null, null));
+            } catch (RuntimeException e) {
+                notes.add(c.asset() + " non rejouable sans code nouveau : " + e.getMessage());
+                continue;
+            }
+            for (double re : reentries) {
+                runs.add(new SwitchCutReport.Run(c.asset() + (re > 0 ? " avec ré-entrée" : " sans ré-entrée"), re, SwitchCutStudy.run(in, cfg.withReentry(re))));
+            }
+        }
+        notes.add("Preset pur : modulation ATH du preset désactivée (athOn = faux sur les deux jeux) pour les DEUX lignes ; réglages utilisateur neutres, ni politique ni plafond ATH.");
+        notes.add("Coupure : vente de la fraction du bag de l'actif au jour où le jeu passe de Bull à Bear (crédit le lendemain, frais du simulateur) ; "
+                + "ré-entrée : achat de la fraction du capital initial au jour où il repasse de Bear à Bull (borné au cash), absente quand la fraction est 0 ; "
+                + "achats Rainbow habituels inchangés.");
+        notes.add("Un seul levier d'exposition (multiplicateur du montant de base), grille de C1 élargie d'emblée ; interpolation en pire drawdown des blocs. "
+                + "Les blocs sans historique suffisant sont écartés ; moins de 3 blocs rejouables => plafond NON_CONCLU.");
+        notes.add("Limites : blocs non indépendants, ni bande de bruit ni décalages de départ ; retard Trend et faux switchs inclus (acceptés par décision de Clem) ; "
+                + "BTC, ETH et PAXG sont corrélés (pas trois confirmations indépendantes) ; chaque actif en run isolé, multi-actif à cash commun non traité.");
+        notes.add("Multiplicité : règle fixée avant lecture, " + runs.size() + " runs (3 actifs x 2 ré-entrées) × 4 plafonds ; le run BTC avec ré-entrée est celui déjà publié.");
+        SwitchCutReport report = new SwitchCutReport(SwitchCutReport.DEFINITION, cfg, runs, notes);
+        Files.writeString(Path.of("target/switch-cut.json"), report.toJson());
+        Files.writeString(Path.of("target/switch-cut.md"), report.toMarkdown());
+        System.out.println(report.toMarkdown());
     }
 
     // ---------------------------------------------------------------- presets L1 (étape 5)

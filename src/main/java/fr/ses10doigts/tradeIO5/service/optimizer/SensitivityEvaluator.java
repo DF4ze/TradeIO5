@@ -199,6 +199,21 @@ public final class SensitivityEvaluator {
      */
     public Parity parity(RainbowAtrParamSet[] sets, boolean fullHistory, int shiftDays, Double fixedBase, Double linkBase,
                          fr.ses10doigts.tradeIO5.service.expert.simulation.policy.ModulationPolicy policy) {
+        CutParity c = parityCut(sets, fullHistory, shiftDays, fixedBase, linkBase, policy, null);
+        return c == null ? null : c.parity();
+    }
+
+    /** Rejeu avec coupure au switch (étape E1) : la mesure habituelle plus le nombre d'ordres de coupure exécutés. */
+    public record CutParity(Parity parity, int cutSells, int cutBuys, double cutCostUsdc) {
+    }
+
+    /**
+     * Comme {@link #parity(RainbowAtrParamSet[], boolean, int, Double, Double, fr.ses10doigts.tradeIO5.service.expert.simulation.policy.ModulationPolicy)}
+     * avec une coupure au switch ({@code cut} {@code null} = aucune : chiffres identiques).
+     */
+    public CutParity parityCut(RainbowAtrParamSet[] sets, boolean fullHistory, int shiftDays, Double fixedBase, Double linkBase,
+                               fr.ses10doigts.tradeIO5.service.expert.simulation.policy.ModulationPolicy policy,
+                               MultiLinkReplayEngine.SwitchCut cut) {
         LinkSignalReplay.Config t = link.template();
         RainbowAtrDataset ds = t.ds();
         int base = startIndex(sets, fullHistory);
@@ -217,7 +232,7 @@ public final class SensitivityEvaluator {
                 t.windowMonths(), null, fixedBase), 0.0);
         MultiLinkReplayEngine.Result r = MultiLinkReplayEngine.run(new MultiLinkReplayEngine.Input(List.of(engineLink), in.cash0(),
                 in.baseSettings(), in.limits(), Map.of(), Map.of(), Map.of(), Map.of(), OptimizerCosts.simplified(Set.of(asset)), policy,
-                null));
+                null, cut));
         List<MultiLinkReplayEngine.WalletDay> w = r.walletDays();
         if (w.isEmpty()) {
             return null;
@@ -236,9 +251,11 @@ public final class SensitivityEvaluator {
         long sells = r.linkDays().stream().filter(x -> x.action() == RainbowLiveAction.SELL).count();
         long dcaBuys = r.trades().stream().filter(x -> x.fixedQtyDelta() > 0).count();
         double realized = r.trades().stream().filter(x -> x.qtyDelta() < 0).mapToDouble(MultiLinkReplayEngine.TradeDay::cashDelta).sum();
-        return new Parity(days.getFirst(), days.getLast(),
+        Parity par = new Parity(days.getFirst(), days.getLast(),
                 new Line(fin, 100.0 * (fin - cash0) / cash0, expoPreset, ddPreset, buys, sells), realized, w.getLast().assetsValue(),
                 new Line(fixedFin, 100.0 * (fixedFin - cash0) / cash0, expoDca, ddDca, dcaBuys, 0));
+        return new CutParity(par, (int) r.cuts().stream().filter(x -> "SELL".equals(x.kind())).count(),
+                (int) r.cuts().stream().filter(x -> "BUY".equals(x.kind())).count(), r.cuts().stream().mapToDouble(MultiLinkReplayEngine.CutEvent::costUsdc).sum());
     }
 
     /**

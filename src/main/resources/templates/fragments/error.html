@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr">
+<body>
+<!-- Carte d'erreur commune (error.html, unauthorized.html). code = statut HTTP (null => 500), chemin = URL demandée (facultatif). -->
+<main id="contenu" class="pub-auth" th:fragment="card(code, chemin)"
+      th:with="c=${code != null ? code : 500}">
+  <section class="card pub-auth-card pub-err" aria-labelledby="t">
+    <p class="pub-err-code" aria-hidden="true" th:text="${c}">404</p>
+    <h1 id="t" th:text="${c == 404 ? 'Page introuvable'
+                       : c == 403 ? 'Accès refusé'
+                       : c == 401 ? 'Connexion requise'
+                       : c == 400 ? 'Requête invalide'
+                       : c == 405 ? 'Action non autorisée'
+                       : c == 429 ? 'Trop de requêtes'
+                       : c >= 500 ? 'Erreur de notre côté'
+                       : 'Une erreur est survenue'}">Page introuvable</h1>
+    <p class="muted" th:text="${c == 404 ? 'Cette adresse n’existe pas ou a été déplacée.'
+                            : c == 403 ? 'Vous n’avez pas les droits pour afficher cette page.'
+                            : c == 401 ? 'Identifiez-vous pour accéder à cette page.'
+                            : c == 400 ? 'La requête envoyée n’a pas pu être comprise.'
+                            : c == 405 ? 'Cette action n’est pas disponible ici.'
+                            : c == 429 ? 'Patientez quelques instants avant de réessayer.'
+                            : c >= 500 ? 'Le serveur a rencontré un problème. Réessayez dans un instant ; si cela persiste, prévenez l’administrateur.'
+                            : 'La page demandée n’a pas pu être affichée.'}">Cette adresse n’existe pas.</p>
+    <p class="note pub-err-path" th:if="${chemin != null and !#strings.isEmpty(chemin)}"><code th:text="${chemin}">/chemin</code></p>
+    <div class="pub-err-actions">
+      <a class="btn btn--primary btn--lg" th:href="@{/app}">Tableau de bord</a>
+      <a class="btn btn--lg" th:href="@{/}">Accueil</a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # TradeIO5
 
-Application Spring Boot (Java 21) de **DCA intelligent crypto** multi-utilisateurs : elle calcule des signaux de décision (Rainbow ATR, Trend) à partir de données de marché, macro et média, dimensionne des plans d'ordres, et peut les exécuter sur des exchanges (OKX, Kraken, One Trading). Interface web `/app` et tools MCP pour un agent IA externe.
+Application Spring Boot (Java 21) de **DCA intelligent crypto** multi-utilisateurs : elle calcule des signaux de décision (Rainbow ATR, Trend) à partir de données de marché, macro et média, dimensionne des plans d'ordres, et peut les exécuter sur des exchanges (OKX, Kraken, One Trading, Bitvavo, Revolut X, Gate EU). Interface web `/app` et tools MCP pour un agent IA externe.
 
 **Documentation complète et vérifiée sur le code : [`docs/README.md`](docs/README.md)** (table de routage). L'état d'exécution des ordres réels (verrous, kill switch, plafonds) est décrit dans [`docs/architecture/14-execution-reelle.md`](docs/architecture/14-execution-reelle.md) ; l'exécution `LIVE` est verrouillée par défaut.
 

@@ -3,7 +3,7 @@ statut: decision
 sujet: full-autonome-v1
 cree_le: 2026-11-20
 modifié_le: 2026-11-20
-empreinte: 2a130947a6
+empreinte: 4dac3579dd
 ---
 # Full Autonome v1 — état courant (tranché)
 
@@ -38,6 +38,6 @@ Autonomies équivalentes : 559 à 3 090 j, hors des bornes 7–365 j de l'onboar
 
 ## Reste à faire (ordre, corrigé 2026-11-20)
 Le bench continue en **timing pur** (modulation ATH et de volume retirée, voir [`fil-rouge-dca-automatisation.md`](fil-rouge-dca-automatisation.md)).
-1. **E0** : diagnostic descriptif des switchs Bull → Bear, contre dates aléatoires : [`../etudes/etude-pistes-timing-sorties.md`](../etudes/etude-pistes-timing-sorties.md).
-2. **E1** : coupure du bag au switch Bear, ré-entrée au switch Bull (20 % du cash), à plafond de drawdown égal, comparateur « preset pur » (références B' à C4 à re-mesurer sans modulation).
+1. **E0 (fait, 2026-11-20)** : `PISTE_FERMÉE` selon la règle de gain (BTC, N = 20, 50 % de gains de coupure nets > 0 pour 60 % exigés ; médiane = hasard ; baisse restante pire que le hasard) : [`../architecture/15j-diagnostic-switchs.md`](../architecture/15j-diagnostic-switchs.md), [`../etudes/etude-diagnostic-switchs.md`](../etudes/etude-diagnostic-switchs.md). E1 lancé sur arbitrage de Clem (priorité drawdown).
+2. **E1 (fait, 2026-11-20)** : coupure 100 % du bag au switch Bull → Bear, ré-entrée 20 % du capital initial au switch Bear → Bull, contre preset pur re-mesuré à plafond de drawdown égal, avec et sans ré-entrée : BTC et ETH `COUPURE_UTILE` par la règle fixée mais fragile (ré-entrée = l'essentiel du gain BTC), PAXG non conclu (historique < 24 mois) : [`../architecture/15k-coupure-switch.md`](../architecture/15k-coupure-switch.md), [`../etudes/etude-coupure-switch.md`](../etudes/etude-coupure-switch.md). Suite à arbitrer par Clem (valider, ou bande de bruit / autre taille de ré-entrée / fenêtre courte PAXG / portefeuille à cash commun).
 3. **C5** (niveaux par profil en code ; branchement live à décider) et **D1** (nouvel actif) : livraison, après E, une fois le preset livré connu.

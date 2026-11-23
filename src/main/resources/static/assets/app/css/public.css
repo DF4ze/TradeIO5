@@ -53,6 +53,10 @@ body.pub { display: flex; flex-direction: column; min-height: 100vh; }
 .pub-auth-card .muted { margin: 0; }
 .pub-auth-card .note { margin: 0; }
 .pub-errs { margin: 0; padding-left: 18px; }
+.pub-err { text-align: center; align-items: center; }
+.pub-err-code { margin: 0; font-size: 88px; line-height: 1; font-weight: 800; letter-spacing: -.04em; background: var(--spectrum); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pub-err-path { margin: 0; max-width: 100%; overflow-wrap: anywhere; }
+.pub-err-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px; }
 @media (min-width: 640px) { .pub-steps { grid-template-columns: repeat(2, 1fr); } .pub-strip { flex-direction: row; align-items: center; } }
 @media (min-width: 900px) {
   .pub-links { display: flex; }

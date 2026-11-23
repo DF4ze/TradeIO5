@@ -5,6 +5,7 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.PortfolioStatus;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction;
 import fr.ses10doigts.tradeIO5.model.entity.modulation.RainbowModulationControl;
 import fr.ses10doigts.tradeIO5.service.dca.atr.AthCap;
+import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrPresets;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService;
 import fr.ses10doigts.tradeIO5.service.UserTradingSettingsService.ModulationSettings;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.CashLedger;
@@ -69,14 +70,22 @@ public final class MultiLinkReplayEngine {
     public record Input(List<Link> links, double cash0, ModulationSettings settings, RainbowModulationControl limits,
                         Map<LocalDate, ModulationSettings> settingsByDay, Map<LocalDate, Pin> pinned,
                         Map<String, Double> frozenQty, Map<String, Map<LocalDate, Double>> frozenCloses, Costs costs,
-                        ModulationPolicy policy, AthCap athCap) {
+                        ModulationPolicy policy, AthCap athCap, SwitchCut cut) {
+
+        /** Sans coupure au switch. */
+        public Input(List<Link> links, double cash0, ModulationSettings settings, RainbowModulationControl limits,
+                     Map<LocalDate, ModulationSettings> settingsByDay, Map<LocalDate, Pin> pinned,
+                     Map<String, Double> frozenQty, Map<String, Map<LocalDate, Double>> frozenCloses, Costs costs,
+                     ModulationPolicy policy, AthCap athCap) {
+            this(links, cash0, settings, limits, settingsByDay, pinned, frozenQty, frozenCloses, costs, policy, athCap, null);
+        }
 
         /** Sans plafond ATH. */
         public Input(List<Link> links, double cash0, ModulationSettings settings, RainbowModulationControl limits,
                      Map<LocalDate, ModulationSettings> settingsByDay, Map<LocalDate, Pin> pinned,
                      Map<String, Double> frozenQty, Map<String, Map<LocalDate, Double>> frozenCloses, Costs costs,
                      ModulationPolicy policy) {
-            this(links, cash0, settings, limits, settingsByDay, pinned, frozenQty, frozenCloses, costs, policy, null);
+            this(links, cash0, settings, limits, settingsByDay, pinned, frozenQty, frozenCloses, costs, policy, null, null);
         }
 
         /** Sans politique. */
@@ -154,7 +163,24 @@ public final class MultiLinkReplayEngine {
     public record Result(List<LinkDay> linkDays, List<WalletDay> walletDays, double cash0, Map<String, Double> qty0,
                          double finalValue, double fixedFinalValue, List<CostDay> costDays, double totalCostUsdc,
                          double fixedTotalCostUsdc, List<TradeDay> trades, List<SignalDay> signals, List<PolicyDay> policyDays,
-                         StakeStats stakeStats) {
+                         StakeStats stakeStats, List<CutEvent> cuts) {
+    }
+
+    /**
+     * Coupure au switch (étape E1) : au passage du jeu Bull au jeu Bear d'un lien, vente de {@code sellFraction} (0..1) de la position de
+     * l'actif (crédit le lendemain comme toute vente) ; au passage Bear → Bull, achat de {@code reentryPct} % du capital initial
+     * ({@code cash0}), borné au cash disponible. Les achats Rainbow habituels continuent. {@code null} ⇒ aucune coupure.
+     */
+    public record SwitchCut(double sellFraction, double reentryPct) {
+        public SwitchCut {
+            if (sellFraction < 0 || sellFraction > 1 || reentryPct < 0) {
+                throw new IllegalArgumentException("coupure invalide");
+            }
+        }
+    }
+
+    /** Ordre de coupure exécuté : {@code SELL} (switch Bull → Bear) ou {@code BUY} (ré-entrée Bear → Bull). */
+    public record CutEvent(LocalDate day, String asset, String kind, double price, double qty, double cashDelta, double costUsdc) {
     }
 
     /** Régime courant d'un actif et nombre de jours consécutifs dans ce régime (compteur de {@link DayState}). */
@@ -193,6 +219,8 @@ public final class MultiLinkReplayEngine {
         List<SignalDay> signals = new ArrayList<>();
         List<PolicyDay> policyDays = new ArrayList<>();
         Map<String, RegimeRun> regimeRuns = new HashMap<>();
+        Map<Long, String> prevSet = new HashMap<>();
+        List<CutEvent> cutEvents = new ArrayList<>();
         double peak = in.cash0();
         double lastAssets = 0.0;
         Map<Long, Double> carry = new HashMap<>();
@@ -219,6 +247,64 @@ public final class MultiLinkReplayEngine {
                     LinkSignalReplay.Prepared p = replays.get(id).prepare(idx);
                     prepared.put(id, p);
                     closes.putIfAbsent(link.slot().assetSymbol(), p.price());
+                }
+            }
+            double cutSold = 0.0; // produit des ventes de coupure : crédité en fin de journée, comme toute vente
+            if (in.cut() != null) {
+                for (Link link : links) {
+                    Long id = link.slot().bindingId();
+                    LinkSignalReplay.Prepared p = prepared.get(id);
+                    if (p == null) {
+                        continue;
+                    }
+                    String before = prevSet.put(id, p.setName());
+                    String bear = link.signal().sets()[RainbowAtrPresets.BEAR].name();
+                    String bull = link.signal().sets()[RainbowAtrPresets.BULL].name();
+                    if (before == null || before.equals(p.setName())) {
+                        continue;
+                    }
+                    String asset = link.slot().assetSymbol();
+                    boolean toBear = before.equals(bull) && p.setName().equals(bear);
+                    boolean toBull = before.equals(bear) && p.setName().equals(bull);
+                    if (toBear) {
+                        double q = qty.getOrDefault(asset, 0.0) * in.cut().sellFraction();
+                        if (q <= EPSILON) {
+                            continue;
+                        }
+                        if (costs == null) {
+                            cutSold += q * p.price();
+                            qty.merge(asset, -q, Double::sum);
+                            cutEvents.add(new CutEvent(day, asset, "SELL", p.price(), q, q * p.price(), 0.0));
+                            continue;
+                        }
+                        OrderReplay.Executed e = costs.orders().execute(new OrderReplay.Request(asset, RainbowLiveAction.SELL, 0.0, q, 0.0,
+                                cash, null, costs.preferredRoute().get(id), closes));
+                        if (e.executed()) {
+                            cutSold += e.cashDelta();
+                            qty.put(asset, Math.max(0.0, qty.getOrDefault(asset, 0.0) + e.qtyDelta()));
+                            totalCost += e.costUsdc();
+                            cutEvents.add(new CutEvent(day, asset, "SELL", p.price(), -e.qtyDelta(), e.cashDelta(), e.costUsdc()));
+                        }
+                    } else if (toBull) {
+                        double amount = Math.min(cash, in.cut().reentryPct() / 100.0 * in.cash0());
+                        if (amount <= EPSILON) {
+                            continue;
+                        }
+                        if (costs == null) {
+                            cash -= amount;
+                            qty.merge(asset, amount / p.price(), Double::sum);
+                            cutEvents.add(new CutEvent(day, asset, "BUY", p.price(), amount / p.price(), -amount, 0.0));
+                            continue;
+                        }
+                        OrderReplay.Executed e = costs.orders().execute(new OrderReplay.Request(asset, RainbowLiveAction.BUY, amount, 0.0, 0.0,
+                                cash, costs.minBuyUsd().get(id), costs.preferredRoute().get(id), closes));
+                        if (e.executed()) {
+                            cash += e.cashDelta();
+                            qty.merge(asset, e.qtyDelta(), Double::sum);
+                            totalCost += e.costUsdc();
+                            cutEvents.add(new CutEvent(day, asset, "BUY", p.price(), e.qtyDelta(), e.cashDelta(), e.costUsdc()));
+                        }
+                    }
                 }
             }
             Map<String, Double> positions = new HashMap<>(qty);
@@ -329,7 +415,7 @@ public final class MultiLinkReplayEngine {
                             e.feeTestLevel() == null ? null : e.feeTestLevel().name(), e.cashDelta(), e.qtyDelta(), totalCost));
                 }
             }
-            cash += soldCash;
+            cash += soldCash + cutSold;
             // DCA fixe de référence : base de chaque lien sur ses barres actives, cash commun, tout-ou-rien, même ordre de service
             for (Link link : links) {
                 LinkSignalReplay.Prepared p = prepared.get(link.slot().bindingId());
@@ -408,7 +494,7 @@ public final class MultiLinkReplayEngine {
         double finalValue = walletDays.isEmpty() ? in.cash0() : walletDays.getLast().totalValue();
         double fixedFinal = walletDays.isEmpty() ? in.cash0() : walletDays.getLast().fixedValue();
         return new Result(linkDays, walletDays, in.cash0(), qty0, finalValue, fixedFinal, costDays, totalCost, fixedCost, trades, signals,
-                policyDays, new StakeStats(maxStake, maxFinalStake, cappedBuys));
+                policyDays, new StakeStats(maxStake, maxFinalStake, cappedBuys), cutEvents);
     }
 
     /**

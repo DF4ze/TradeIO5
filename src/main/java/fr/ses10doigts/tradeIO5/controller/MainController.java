@@ -2,6 +2,8 @@ package fr.ses10doigts.tradeIO5.controller;
 
 import java.util.Map;
 
+import jakarta.servlet.http.HttpServletResponse;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +49,13 @@ public class MainController {
 		return isConnected() ? "redirect:/app" : "home";
     }
 
+
+    /** Cible de {@code accessDeniedPage} (WebSecurityConfig) : page 403 au design du site. */
+    @GetMapping("/unauthorized.html")
+    public String unauthorized(HttpServletResponse response) {
+		response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+		return "unauthorized";
+    }
 
     @GetMapping("/login")
     public String login(Model model, @RequestParam(required = false, name = "error") Boolean error) {

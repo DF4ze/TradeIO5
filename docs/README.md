@@ -2,7 +2,7 @@
 statut: index
 sujet: Table de routage de la documentation
 modifié_le: 2026-11-20
-empreinte: d0047e2a24
+empreinte: 590eda79a7
 ---
 # TradeIO-5 — Documentation
 
@@ -27,7 +27,7 @@ Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decis
 | [`decisions/passerelle-actif-non-stable.md`](decisions/passerelle-actif-non-stable.md) | PAXG/Kraken, routes via USDC |
 | [`decisions/wallet-reel-capital-commun.md`](decisions/wallet-reel-capital-commun.md) | wallet réel, pools cash, exchanges utilisés |
 | [`decisions/fil-rouge-dca-automatisation.md`](decisions/fil-rouge-dca-automatisation.md) | Trend, Rainbow ATR, pine, bench, calibrations |
-| [`decisions/full-autonome-v1.md`](decisions/full-autonome-v1.md) | cible Full Autonome v1 : exposition constante par profil (table de calage, marge k), acquis mesurés, reste à faire (C5, D1, E0) |
+| [`decisions/full-autonome-v1.md`](decisions/full-autonome-v1.md) | cible Full Autonome v1 : exposition constante par profil (table de calage, marge k), acquis mesurés, E1 mesuré (coupure au switch : BTC et ETH `COUPURE_UTILE` mais fragile, PAXG non conclu), reste à faire (C5, D1) |
 | [`decisions/architecture-interface.md`](decisions/architecture-interface.md) | UX, pages, charte, logo |
 | [`decisions/definition-pnl.md`](decisions/definition-pnl.md) | calcul du PnL |
 | [`decisions/docteur-admin-ux.md`](decisions/docteur-admin-ux.md) | Docteur, page admin d'exécution, kill switch |
@@ -66,6 +66,8 @@ Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decis
 | [`architecture/15g-calage-exposition-pire-cas.md`](architecture/15g-calage-exposition-pire-cas.md) | calage de l'exposition par profil sur le pire cas (fenêtres de 24 mois + historique) avec marge k mesurée par calage ancré (C3) : règle de k, runner `exposure-calibration`, équivalence onboarding |
 | [`architecture/15h-mise-en-production-exposition.md`](architecture/15h-mise-en-production-exposition.md) | mise en production du calage (C4) : niveau en taux de base, invariance au capital, bandes du live et onboarding, wallet BTC + ETH, facteur de réduction f, runner `exposure-production` |
 | [`architecture/15i-reglage-recent.md`](architecture/15i-reglage-recent.md) | réglage récent (D0) : réglage conjoint sur les 24 mois avant T, test en avançant 3 / 6 mois, comparateurs (preset, DCA égal, aléatoire), règle de verdict, runner `recent-tune` |
+| [`architecture/15j-diagnostic-switchs.md`](architecture/15j-diagnostic-switchs.md) | diagnostic des switchs Bull → Bear (E0) : régime du rejeu, 6 mesures par switch contre hasard, règle de verdict, runner `switch-diagnostic` ; résultats : [`etudes/etude-diagnostic-switchs.md`](etudes/etude-diagnostic-switchs.md) |
+| [`architecture/15k-coupure-switch.md`](architecture/15k-coupure-switch.md) | coupure du bag au switch Bull → Bear (E1) : hook `SwitchCut` du moteur de rejeu, preset pur, comparaison à plafond de drawdown égal, runner `switch-cut` (BTC, ETH, PAXG, ré-entrée 20 % / 0 %) ; résultats : [`etudes/etude-coupure-switch.md`](etudes/etude-coupure-switch.md) |
 
 ## API & opérations
 | Doc | Lire si… |

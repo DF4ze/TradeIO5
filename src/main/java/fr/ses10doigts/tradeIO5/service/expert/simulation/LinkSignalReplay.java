@@ -112,9 +112,8 @@ public final class LinkSignalReplay {
     LinkSignalReplay(Config cfg) {
         this.cfg = cfg;
         RainbowAtrDataset ds = cfg.ds();
-        TrendMixCalculator.Params tp = cfg.trend();
-        this.regime = TrendMixCalculator.compute(cfg.candles(), ds.sma(tp.smaPeriod()), ds.atr(tp.atrPeriod()), tp).regime();
-        this.setOfBar = RainbowSetSelector.select(regime, cfg.range());
+        this.regime = regimes(cfg);
+        this.setOfBar = setOfBar(cfg, regime);
         RainbowAtrReplay.Result boot = RainbowAtrReplay.runFull(ds, cfg.sets(), setOfBar, cfg.engineStart(), cfg.startIdx() - 1, cfg.athCap());
         this.state = boot.finalState();
         this.virtual = boot.finalPosition();
@@ -124,6 +123,17 @@ public final class LinkSignalReplay {
             a = a.observe(ds.high(j), ds.time(j));
         }
         this.ath = a;
+    }
+
+    /** Régime de Trend (Mix, confirmation et retard inclus) de chaque bougie du lien : source unique du rejeu et des diagnostics. */
+    public static TrendRegime[] regimes(Config cfg) {
+        TrendMixCalculator.Params tp = cfg.trend();
+        return TrendMixCalculator.compute(cfg.candles(), cfg.ds().sma(tp.smaPeriod()), cfg.ds().atr(tp.atrPeriod()), tp).regime();
+    }
+
+    /** Jeu actif (Bear / Bull) de chaque bougie, à partir des régimes de {@link #regimes(Config)}. */
+    public static int[] setOfBar(Config cfg, TrendRegime[] regimeOfBar) {
+        return RainbowSetSelector.select(regimeOfBar, cfg.range());
     }
 
     /** Jour calendaire de la bougie {@code i}. */

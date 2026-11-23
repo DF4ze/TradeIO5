@@ -2,11 +2,11 @@
 statut: journal
 sujet: Pistes de timing et de sorties après D0 — vente du bag au switch Bull vers Bear, ré-entrée, diagnostic avant tout code ; paramètres nouveaux candidats ; étapes proposées à la roadmap
 modifié_le: 2026-11-20
-empreinte: df5b3a6d9e
+empreinte: 74f8a42ef0
 ---
 # Étude — pistes de timing et de sorties (après D0, 2026-11-20)
 
-Discussion parallèle avec Clem, à reprendre par la discussion principale. Position de Clem : [`../decisions/fil-rouge-dca-automatisation.md`](../decisions/fil-rouge-dca-automatisation.md) (« Presets purs »). Faits de départ : [`etude-reglage-recent.md`](../archive/etudes/etude-reglage-recent.md) (D0), constats B / B' / C1 / C2 de la même décision. Mécanisme des ré-entrées existantes : [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md) (`blockBuyAfterSellUntilDown2`, `cooldownAfterSellOn`, `allowSellDuringCooldown`). **Rien n'est codé ni lancé.**
+Discussion parallèle avec Clem, à reprendre par la discussion principale. Position de Clem : [`../decisions/fil-rouge-dca-automatisation.md`](../decisions/fil-rouge-dca-automatisation.md) (« Presets purs »). Faits de départ : [`etude-reglage-recent.md`](../archive/etudes/etude-reglage-recent.md) (D0), constats B / B' / C1 / C2 de la même décision. Mécanisme des ré-entrées existantes : [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md) (`blockBuyAfterSellUntilDown2`, `cooldownAfterSellOn`, `allowSellDuringCooldown`). **E0 codé et lancé (2026-11-20) : [`etude-diagnostic-switchs.md`](etude-diagnostic-switchs.md) ; E1 codé et lancé (BTC) : [`etude-coupure-switch.md`](etude-coupure-switch.md).**
 
 ## 1. Ce que les résultats disent déjà
 - **Le timing du preset est bon, le gain est fixé par la part engagée** (B / B' / C1). Régler les paramètres du preset n'ajoute rien (B, D0 : NON_PERSISTANT).

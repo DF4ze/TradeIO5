@@ -2,7 +2,7 @@
 statut: index
 sujet: Index des études actives
 modifié_le: 2026-11-20
-empreinte: 3b0c27d1ba
+empreinte: 7c1d7474fa
 ---
 # Études (journal de conception daté)
 
@@ -22,6 +22,8 @@ empreinte: 3b0c27d1ba
 | [`etude-passerelle-actif-non-stable.md`](etude-passerelle-actif-non-stable.md) | Étude — Passerelle par actif non stable (PAXG sur Kraken), USDT exclu |  |
 | [`etude-optimisation-mode-autonome.md`](etude-optimisation-mode-autonome.md) | Étude — Optimiser TradeIO vers un mode Full Autonome (définition du bon paramétrage, rejeu intégral, méthode, agencement des briques) |  |
 | [`etude-protocole-calibrage-couches.md`](etude-protocole-calibrage-couches.md) | Étude — Protocole de calibrage Rainbow, attribution des pertes, couches de pilotage, gestion du risque |  |
+| [`etude-diagnostic-switchs.md`](etude-diagnostic-switchs.md) | Résultats E0 : diagnostic des switchs Bull → Bear (verdict `PISTE_FERMÉE`, tableaux dans `etude-diagnostic-switchs-tableaux.md`) |  |
+| [`etude-coupure-switch.md`](etude-coupure-switch.md) | Résultats E1 : coupure du bag au switch contre preset pur à plafond de drawdown égal (BTC, ETH, PAXG ; avec et sans ré-entrée ; `COUPURE_UTILE` fragile sur BTC et ETH, PAXG non conclu) |  |
 | [`etude-pistes-timing-sorties.md`](etude-pistes-timing-sorties.md) | Pistes de timing et de sorties après D0 : coupure du bag au switch Bull → Bear (E0 / E1) |  |
 | [`roadmap-moteur-optimisation.md`](roadmap-moteur-optimisation.md) | Roadmap — moteur d'optimisation / Full Autonome v1 (bilan des étapes, reste à faire) |  |
 | [`etude-provider-revolutx.md`](etude-provider-revolutx.md) | Étude — Provider Revolut X : clés générées par utilisateur, candles, exécution |  |
