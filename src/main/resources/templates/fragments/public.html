@@ -13,7 +13,6 @@
 </head>
 <body>
 <header th:fragment="topbar(withAnchors)" class="pub-top">
-  <a class="skip" href="#contenu">Aller au contenu</a>
   <a class="pub-logo" th:href="@{/}" aria-label="TradeIO — accueil"><span th:replace="~{fragments/brand :: logo}"></span></a>
   <nav class="pub-links" th:if="${withAnchors}" aria-label="Sections">
     <a href="#fonctionnement">Fonctionnement</a>

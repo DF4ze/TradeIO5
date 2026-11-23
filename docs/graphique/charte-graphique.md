@@ -117,7 +117,7 @@ Patrimoine · Exposition (arc) · Décisions du jour · Puissance (0,5×–2×, 
 - Aucune couleur en dur dans les composants ; aucun `innerHTML` (`textContent` / création de nœuds).
 - Dégradés de valeur : `linear-gradient` + `clip-path` (pas de canvas pour les barres et curseurs).
 - Contrastes : texte principal et secondaire ≥ 4,5:1 sur `--surface`. Mesuré : sombre texte 15,2 · muted 5,8 ; clair muted 6,3. Pastilles : couleur du texte = `color-mix(var(--c) 78%, var(--text))` ⇒ ≥ 5,1:1 dans les deux thèmes.
-- Accessibilité : lien « Aller au contenu » en tête de page, focus visible, `prefers-reduced-motion` (animations coupées), `forced-colors` (contours système), graphique du cours doublé d'un tableau de données repliable (`<details>`), information jamais portée par la couleur seule.
+- Accessibilité : focus visible, `prefers-reduced-motion` (animations coupées), `forced-colors` (contours système), graphique du cours doublé d'un tableau de données repliable (`<details>`), information jamais portée par la couleur seule.
 
 ## 9. Logo
 

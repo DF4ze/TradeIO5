@@ -300,8 +300,6 @@ table.tbl td { padding: 8px; border-top: 1px solid var(--line); font-variant-num
 .bandbar .bb-mark { position: absolute; top: 3px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent); }
 
 /* accessibilité : lien d'évitement, texte réduit en mouvement, contrastes vérifiés (docs/graphique/charte-graphique.md §9) */
-.skip { position: absolute; left: 8px; top: -48px; z-index: 50; padding: 8px 14px; border-radius: 999px; background: var(--surface); border: 1px solid var(--accent); color: var(--text); font-weight: 700; }
-.skip:focus { top: 8px; }
 @media (forced-colors: active) { .chip, .btn, .pchip, .seg button, .periods button { border: 1px solid ButtonText; } }
 
 /* Logo : une image par thème (fragments/brand.html), la visible suit data-theme */

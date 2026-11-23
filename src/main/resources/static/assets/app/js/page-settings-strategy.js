@@ -64,9 +64,9 @@
       const sBias = ui.slider({ min: -L.biasMax, max: L.biasMax, step: 0.05, value: cur.bias, marker: 0, label: 'Biais', onInput: (v) => { cur.bias = v; paint(); } });
       paint();
       const row = (label, o, s, hint) => h('div', { class: 'stack' }, h('div', { class: 'row row--between' }, h('span', { class: 'lbl muted' }, label), o), s.el, hint ? h('div', { class: 'note' }, hint) : null);
-      return [bar, h('div', { class: 'grid grid--2' }, row('Exposition minimale', minOut, sMin, 'Sous cette part en actifs, les achats sont amplifiés.'), row('Exposition maximale', maxOut, sMax, 'Au-dessus, les achats sont freinés et les ventes amplifiées. Écart minimal ' + F.num(L.minBandWidthPts, 0) + ' pts.'),
-        row('Marge de régulation', marOut, sMar, 'Largeur de la zone de transition près de chaque borne, en % de la bande (défaut ' + F.num(L.marginDefaultPct, 0) + ' %). Plus elle est grande, plus la zone libre est étroite et la régulation précoce.'),
-        row('Puissance', powOut, sPow, 'Multiplie tous les montants (repère 1×).'), row('Biais achat / vente', biasOut, sBias, '+ : achats favorisés, − : ventes favorisées.')),
+      return [bar, h('div', { class: 'grid grid--3' }, row('Exposition minimale', minOut, sMin, 'Sous cette part en actifs, les achats sont amplifiés.'), row('Exposition maximale', maxOut, sMax, 'Au-dessus, les achats sont freinés et les ventes amplifiées. Écart minimal ' + F.num(L.minBandWidthPts, 0) + ' pts.'),
+        row('Marge de régulation', marOut, sMar, 'Largeur de la zone de transition près de chaque borne, en % de la bande (défaut ' + F.num(L.marginDefaultPct, 0) + ' %). Plus elle est grande, plus la zone libre est étroite et la régulation précoce.')),
+        h('div', { class: 'grid grid--2' }, row('Puissance', powOut, sPow, 'Multiplie tous les montants (repère 1×).'), row('Biais achat / vente', biasOut, sBias, '+ : achats favorisés, − : ventes favorisées.')),
         h('div', { class: 'note' }, 'Modifier un de ces réglages bascule le profil sur Custom ; chaque changement enregistré est ajouté à l\'historique ci-dessous.'),
         h('div', { class: 'row' }, h('button', { class: 'btn btn--primary', type: 'button', onclick: async () => {
           try {
