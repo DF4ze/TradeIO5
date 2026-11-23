@@ -55,6 +55,16 @@ final class WalletEvaluator {
 
     /** Bases en USDC, dans l'ordre de {@code in.assets()} ; {@code null} si la plage n'est pas rejouable. */
     Line line(double[] bases) {
+        CutLine c = lineCut(bases, null);
+        return c == null ? null : c.line();
+    }
+
+    /** Ligne du wallet et ordres de coupure exécutés (étape E2). */
+    record CutLine(Line line, int cutSells, int cutBuys) {
+    }
+
+    /** Comme {@link #line(double[])} avec une coupure au switch ({@code cut} {@code null} = aucune : chiffres identiques). */
+    CutLine lineCut(double[] bases, MultiLinkReplayEngine.SwitchCut cut) {
         List<MultiLinkReplayEngine.Link> links = new ArrayList<>();
         Set<String> assets = new HashSet<>();
         LocalDate startDay = from != null ? from : firstReplayableDay(in);
@@ -76,7 +86,7 @@ final class WalletEvaluator {
         }
         replays.incrementAndGet();
         MultiLinkReplayEngine.Result r = MultiLinkReplayEngine.run(new MultiLinkReplayEngine.Input(links, in.cash0(), in.baseSettings(),
-                in.limits(), Map.of(), Map.of(), Map.of(), Map.of(), OptimizerCosts.simplified(assets), null, null));
+                in.limits(), Map.of(), Map.of(), Map.of(), Map.of(), OptimizerCosts.simplified(assets), null, null, cut));
         List<MultiLinkReplayEngine.WalletDay> w = r.walletDays();
         if (w.isEmpty()) {
             return null;
@@ -88,6 +98,7 @@ final class WalletEvaluator {
         double dd = DrawdownMeter.measure(days, w.stream().map(MultiLinkReplayEngine.WalletDay::totalValue).toList()).maxPct();
         long buys = r.linkDays().stream().filter(x -> x.action() == fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction.BUY).count();
         long sells = r.linkDays().stream().filter(x -> x.action() == fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveAction.SELL).count();
-        return new Line(fin, 100.0 * (fin - in.cash0()) / in.cash0(), expo, dd, buys, sells);
+        return new CutLine(new Line(fin, 100.0 * (fin - in.cash0()) / in.cash0(), expo, dd, buys, sells),
+                (int) r.cuts().stream().filter(x -> "SELL".equals(x.kind())).count(), (int) r.cuts().stream().filter(x -> "BUY".equals(x.kind())).count());
     }
 }

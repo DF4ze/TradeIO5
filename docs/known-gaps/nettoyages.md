@@ -1,8 +1,8 @@
 ---
 statut: gap
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-15
-empreinte: da3056d88e
+modifié_le: 2026-11-23
+empreinte: d33b87a062
 ---
 # Nettoyages à prévoir
 

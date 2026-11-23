@@ -2,8 +2,8 @@
 statut: decision
 sujet: full-autonome-v1
 cree_le: 2026-11-20
-modifié_le: 2026-11-20
-empreinte: 4dac3579dd
+modifié_le: 2026-11-23
+empreinte: b2a45e54f9
 ---
 # Full Autonome v1 — état courant (tranché)
 
@@ -36,8 +36,12 @@ Autonomies équivalentes : 559 à 3 090 j, hors des bornes 7–365 j de l'onboar
 - **Proposition d'onboarding à 90 j : indicative, rien ne force l'utilisateur à la suivre.** Pas de correction des utilisateurs existants ; l'écart au plafond (+9 à +43 pts) n'est pas traité en v1.
 - **Un chantier à la fois** (pas de parallélisme).
 
+## Coupure au switch : option Expert (2026-11-23)
+Positions de Clem après E1 / E2 : la coupure n'est **ni adoptée par défaut ni rejetée** (avantage dépendant du cycle sur ETH, gain surtout lié à la ré-entrée). Elle doit devenir une **option de paramétrage de l'Espace Expert** : activation, fraction vendue au switch Bull → Bear, taille de ré-entrée au switch Bear → Bull (en % du capital initial ; mesurée 0 / 5 / 10 / 20 %, 20 % = meilleure testée, optimum non encadré). Défaut = désactivée (comportement actuel inchangé). Mécanisme mesuré : [`../architecture/15k-coupure-switch.md`](../architecture/15k-coupure-switch.md). Cadre de l'Espace Expert : [`espace-expert.md`](espace-expert.md). Implémentation (live, rejeu, simulateur, onboarding) : **non faite**, à spécifier avec Clem (portée par lien ou par preset, entité et migration Flyway, affichage du risque : plafond de drawdown calibré sur le passé, pas une garantie).
+
 ## Reste à faire (ordre, corrigé 2026-11-20)
 Le bench continue en **timing pur** (modulation ATH et de volume retirée, voir [`fil-rouge-dca-automatisation.md`](fil-rouge-dca-automatisation.md)).
 1. **E0 (fait, 2026-11-20)** : `PISTE_FERMÉE` selon la règle de gain (BTC, N = 20, 50 % de gains de coupure nets > 0 pour 60 % exigés ; médiane = hasard ; baisse restante pire que le hasard) : [`../architecture/15j-diagnostic-switchs.md`](../architecture/15j-diagnostic-switchs.md), [`../etudes/etude-diagnostic-switchs.md`](../etudes/etude-diagnostic-switchs.md). E1 lancé sur arbitrage de Clem (priorité drawdown).
 2. **E1 (fait, 2026-11-20)** : coupure 100 % du bag au switch Bull → Bear, ré-entrée 20 % du capital initial au switch Bear → Bull, contre preset pur re-mesuré à plafond de drawdown égal, avec et sans ré-entrée : BTC et ETH `COUPURE_UTILE` par la règle fixée mais fragile (ré-entrée = l'essentiel du gain BTC), PAXG non conclu (historique < 24 mois) : [`../architecture/15k-coupure-switch.md`](../architecture/15k-coupure-switch.md), [`../etudes/etude-coupure-switch.md`](../etudes/etude-coupure-switch.md). Suite à arbitrer par Clem (valider, ou bande de bruit / autre taille de ré-entrée / fenêtre courte PAXG / portefeuille à cash commun).
-3. **C5** (niveaux par profil en code ; branchement live à décider) et **D1** (nouvel actif) : livraison, après E, une fois le preset livré connu.
+3. **E2 (fait, 2026-11-23)** : robustesse de la coupure (ré-entrée 0 / 5 / 10 / 20 %, bande de bruit sur 20 décalages, portefeuille BTC + ETH à cash commun) : `COUPURE_NON_ROBUSTE`, cause cycle dominant (ETH : le bloc 2024-2026 renverse le signe ; BTC robuste en Δ apparié mais gain médian sous le pur à −40 / −60 %) ; bruit `STABLE`, portefeuille `TIENT` (3/4 plafonds) ; gain croissant avec la taille, meilleure taille 20 % pour BTC et ETH (optimum non encadré) : [`../architecture/15k-coupure-switch.md`](../architecture/15k-coupure-switch.md), [`../etudes/etude-coupure-robustesse.md`](../etudes/etude-coupure-robustesse.md). Rien appliqué.
+4. **C5** (niveaux par profil en code ; branchement live à décider) et **D1** (nouvel actif) : livraison, après E, une fois le preset livré connu.

@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-11
-modifié_le: 2026-11-11
-empreinte: 0a0fc67f34
+modifié_le: 2026-11-23
+empreinte: 59526e43b3
 ---
 # Copie de la prod vers le dev (anti-dérive)
 

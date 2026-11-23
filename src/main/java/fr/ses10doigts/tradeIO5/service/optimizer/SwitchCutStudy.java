@@ -42,7 +42,7 @@ public final class SwitchCutStudy {
         return out;
     }
 
-    private static Point point(SensitivityEvaluator.Line l) {
+    static Point point(SensitivityEvaluator.Line l) {
         return new Point(l.pnlPct(), l.maxDrawdownPct(), l.avgExposurePct());
     }
 

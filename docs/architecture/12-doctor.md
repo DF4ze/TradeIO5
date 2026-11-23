@@ -1,7 +1,7 @@
 ---
 statut: courant
-modifié_le: 2026-11-17
-empreinte: 86e5fd1992
+modifié_le: 2026-11-23
+empreinte: bb708776ad
 ---
 # Docteur — diagnostic et alarmes (Admin)
 

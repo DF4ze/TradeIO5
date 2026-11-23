@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-11
-modifié_le: 2026-11-15
-empreinte: 07f5524e2e
+modifié_le: 2026-11-23
+empreinte: 4de99eca5d
 ---
 # Flyway et défauts d'initialisation
 

@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-10-30
 modifié_le: 2026-11-23
-empreinte: 46290b11b2
+empreinte: d960e15318
 ---
 # Charte graphique — piste B « Rainbow doux » (sombre et clair)
 

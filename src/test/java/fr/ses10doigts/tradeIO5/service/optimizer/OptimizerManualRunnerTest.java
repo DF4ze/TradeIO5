@@ -32,7 +32,7 @@ import java.util.concurrent.Executors;
  * Runner manuel (DB dev = copie de prod ; jamais dans la suite normale) : diagnostic de reproductibilité (mode {@code repro}) et
  * démo L2 réelle (mode {@code l2}) de l'optimiseur, calibrage walk-forward de la politique L2 (mode {@code policy}).
  * <p>
- * Lancement : {@code mvn test -Dtest=OptimizerManualRunnerTest -Doptimizer.manual=repro|l2|policy|preset|preset-cadences|sensitivity|tune|recent-tune|exposure-parity|exposure-frontier|exposure-policy|exposure-calibration|switch-diagnostic|switch-cut} (ignoré sans la
+ * Lancement : {@code mvn test -Dtest=OptimizerManualRunnerTest -Doptimizer.manual=repro|l2|policy|preset|preset-cadences|sensitivity|tune|recent-tune|exposure-parity|exposure-frontier|exposure-policy|exposure-calibration|switch-diagnostic|switch-cut|switch-robustness} (ignoré sans la
  * propriété). {@code preset} = optimiseur de presets L1, walk-forward simple + estimation du coût des cadences ; {@code preset-cadences} =
  * comparaison des cadences 30 / 90 / 180 j (coûteuse : seulement après accord).
  * Sorties : {@code target/optimizer-repro.md}, {@code target/optimizer-l2.md}, {@code target/optimizer-<ACTIF>.json},
@@ -49,7 +49,7 @@ import java.util.concurrent.Executors;
         "spring.jpa.hibernate.ddl-auto=none",
         "spring.flyway.enabled=false"
 })
-@EnabledIfSystemProperty(named = "optimizer.manual", matches = "repro|l2|policy|policy-variants|preset|preset-cadences|sensitivity|tune|recent-tune|exposure-parity|exposure-frontier|exposure-policy|exposure-calibration|exposure-production|switch-diagnostic|switch-cut")
+@EnabledIfSystemProperty(named = "optimizer.manual", matches = "repro|l2|policy|policy-variants|preset|preset-cadences|sensitivity|tune|recent-tune|exposure-parity|exposure-frontier|exposure-policy|exposure-calibration|exposure-production|switch-diagnostic|switch-cut|switch-robustness")
 class OptimizerManualRunnerTest {
 
     private static final String USER = "OKlm";
@@ -674,6 +674,68 @@ class OptimizerManualRunnerTest {
         Files.writeString(Path.of("target/switch-cut.json"), report.toJson());
         Files.writeString(Path.of("target/switch-cut.md"), report.toMarkdown());
         System.out.println(report.toMarkdown());
+    }
+
+    @Test
+    @DisplayName("Étape E2 : robustesse de la coupure au switch (taille de ré-entrée, bande de bruit, portefeuille BTC + ETH), BTC et ETH, runs fixés avant lecture")
+    void switchRobustness() throws IOException {
+        Assumptions.assumeTrue(mode("switch-robustness"));
+        User user = users.findByUsername(USER).orElseThrow();
+        LocalDate end = LocalDate.parse(System.getProperty("optimizer.end", "2026-11-17"));
+        SwitchRobustnessConfig cfg = SwitchRobustnessConfig.defaults(end);
+        List<Case> cases = CASES.subList(0, 2);
+        double minutes = cfg.worstCaseMinutes(cases.size());
+        String plan = String.format(Locale.ROOT, "E2 : %d rejeux (équivalents 1 lien) au pire x %.0f ms = %.2f min en série (pool de %d : plus court) ; seuil %.0f min.",
+                cfg.worstCaseReplays(cases.size()), cfg.replayMs(), minutes, POOL, cfg.budgetMinutes());
+        Files.writeString(Path.of("target/switch-robustness-plan.txt"), plan + "\n");
+        System.out.println(plan);
+        if (minutes > cfg.budgetMinutes() && !Boolean.getBoolean("optimizer.robustness.confirm")) {
+            System.out.println("ARRET : estimation > 10 min, confirmation requise (-Doptimizer.robustness.confirm=true).");
+            return;
+        }
+        long t0 = System.nanoTime();
+        List<ScorerInputs> inputs = new ArrayList<>();
+        for (Case c : cases) {
+            inputs.add(loader.load(user, new OptimizerRunRequest(c.asset(), c.walletId(), c.cash0(), end, PROFILE, null, null, null)));
+        }
+        List<SwitchRobustnessReport.AssetRobustness> assets = new ArrayList<>();
+        SwitchRobustnessReport.WalletResult wallet;
+        ExecutorService pool = Executors.newFixedThreadPool(POOL);
+        try {
+            for (ScorerInputs in : inputs) {
+                assets.add(SwitchRobustness.runAsset(in, cfg, pool));
+            }
+            wallet = SwitchRobustness.runWallet(inputs.get(0), inputs.get(1), cfg, pool);
+        } finally {
+            pool.shutdown();
+        }
+        List<String> drift = new ArrayList<>();
+        for (SwitchRobustnessReport.AssetRobustness a : assets) {
+            drift.addAll(SwitchRobustness.drift(a.asset(), a.sizes()));
+        }
+        int nAssets = assets.size();
+        List<String> notes = new ArrayList<>();
+        notes.add("Timing pur : modulation ATH du preset désactivée sur TOUTES les lignes (pur et coupure) ; mécanisme de coupure d'E1 inchangé (vente 100 % du bag au switch Bull → Bear, "
+                + "ré-entrée en % du capital initial au switch Bear → Bull) ; aucun preset modifié, rien appliqué ni persisté.");
+        notes.add("Ré-entrées 0 % et 20 % : E1 reconstitué par le même code (les points par bloc d'E1 n'étaient plus stockés), comparé au tableau publié ; ce ne sont pas de nouveaux runs.");
+        notes.add("Δ gain médian = médiane sur les blocs du (gain de la coupure − gain du pur), chaque ligne interpolée à son multiplicateur où le pire drawdown des blocs atteint le plafond ; "
+                + "un plafond non encadré par la grille = non conclu = non positif.");
+        notes.add("Portefeuille : cash commun = somme des capitaux d'E1 ; même multiplicateur sur les deux liens (base de référence de chaque actif) ; la ré-entrée d'un lien est la taille × "
+                + cfg.walletShare() + " du cash commun (même montant relatif au lien qu'en E1) ; plafond lu sur le pire drawdown du WALLET ; « respecté » = pire drawdown rejoué au "
+                + "multiplicateur interpolé >= plafond - " + cfg.capTolerancePts() + " pt, même test pour le pur.");
+        notes.add("Multiplicité (aucune correction) : A = " + cfg.newSizes().size() * nAssets + " runs nouveaux (+ " + (cfg.sizes().size() - cfg.newSizes().size()) * nAssets
+                + " runs E1 reconstitués) x 4 plafonds, " + cfg.sizes().size() * nAssets * 4 * cfg.cut().parity().blockCount() + " ablations (recalculs, 0 rejeu) ; B = "
+                + nAssets * cfg.noiseSizes().size() * cfg.shifts().size() + " évaluations (" + nAssets + " actifs x " + cfg.noiseSizes().size() + " tailles x " + cfg.shifts().size()
+                + " décalages, dont " + nAssets * cfg.noiseSizes().size() + " au décalage 0 = A) x 4 plafonds ; C = " + (1 + cfg.noiseSizes().size()) + " lignes de wallet x 4 plafonds ; "
+                + "4 règles, 1 verdict global ; rejeux réels : actifs " + assets.stream().mapToLong(SwitchRobustnessReport.AssetRobustness::replays).sum() + ", wallet " + wallet.replays() + ".");
+        notes.add("Limites : 4 blocs non indépendants ; BTC et ETH corrélés (pas deux confirmations indépendantes) ; PAXG exclu (historique < 24 mois) ; frais simplifiés (0,40 % par ordre) ; "
+                + "interpolation linéaire entre points de grille ; un seul levier d'exposition ; pas de calage de la ré-entrée au-delà des 4 tailles.");
+        SwitchRobustnessReport.Verdicts verdicts = SwitchRobustness.verdicts(assets, wallet, cfg);
+        SwitchRobustnessReport report = new SwitchRobustnessReport(SwitchRobustnessReport.DEFINITION, cfg, assets, wallet, verdicts, drift, notes, (System.nanoTime() - t0) / 1_000_000);
+        Files.writeString(Path.of("target/switch-robustness.json"), report.toJson());
+        Files.writeString(Path.of("target/switch-robustness.md"), report.toMarkdown());
+        System.out.println(report.toMarkdown());
+        org.junit.jupiter.api.Assertions.assertTrue(drift.isEmpty(), "dérive contre E1 publié : " + drift);
     }
 
     // ---------------------------------------------------------------- presets L1 (étape 5)

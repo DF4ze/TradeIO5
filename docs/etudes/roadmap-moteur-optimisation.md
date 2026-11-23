@@ -1,8 +1,8 @@
 ---
 statut: journal
 sujet: Roadmap — moteur d'optimisation et Full Autonome v1 (bilan des étapes, reste à faire)
-modifié_le: 2026-11-20
-empreinte: cf8641af6f
+modifié_le: 2026-11-23
+empreinte: 3a851dc813
 ---
 # Roadmap — moteur d'optimisation / Full Autonome v1
 
@@ -26,13 +26,14 @@ Prompt d'étape (non conservé) → réalisation, tests verts, doc à jour dans 
 | D0 : réglage récent | `NON_PERSISTANT` (BTC) | pas de ré-optimisation périodique |
 | E0 : diagnostic des switchs Bull → Bear | `PISTE_FERMÉE` (BTC, N = 20, cause a : 50 % de gains nets > 0) ; baisse restante pire que le hasard, gain de coupure = hasard | E1 lancé sur arbitrage de Clem (ci-dessous) |
 
-Détail : [`15b`](../architecture/15b-carte-sensibilite-rainbow.md), [`15c`](../architecture/15c-optimisation-par-blocs.md), [`15d`](../architecture/15d-mesure-exposition-egale.md), [`15f`](../architecture/15f-politique-exposition-regime.md), [`15g`](../architecture/15g-calage-exposition-pire-cas.md), [`15h`](../architecture/15h-mise-en-production-exposition.md), [`15i`](../architecture/15i-reglage-recent.md), [`15j`](../architecture/15j-diagnostic-switchs.md) ([résultats E0](etude-diagnostic-switchs.md)), [`15k`](../architecture/15k-coupure-switch.md) ([résultats E1](etude-coupure-switch.md)).
+Détail : [`15b`](../architecture/15b-carte-sensibilite-rainbow.md), [`15c`](../architecture/15c-optimisation-par-blocs.md), [`15d`](../architecture/15d-mesure-exposition-egale.md), [`15f`](../architecture/15f-politique-exposition-regime.md), [`15g`](../architecture/15g-calage-exposition-pire-cas.md), [`15h`](../architecture/15h-mise-en-production-exposition.md), [`15i`](../architecture/15i-reglage-recent.md), [`15j`](../architecture/15j-diagnostic-switchs.md) ([résultats E0](etude-diagnostic-switchs.md)), [`15k`](../architecture/15k-coupure-switch.md) ([résultats E1](etude-coupure-switch.md), [résultats E2](etude-coupure-robustesse.md)).
 
 ## Reste à faire (ordre)
 Bench en timing pur (sans modulation ATH ni de volume).
 | # | Étape | Porte de sortie |
 |---|---|---|
 | E1 | Coupure du bag au switch Bear, ré-entrée (20 % du cash) au switch Bull, à plafond de drawdown égal ; comparateur « preset pur » (références re-mesurées sans modulation) | Fait (vente 100 %, ré-entrée 20 % du capital initial ou 0 %) : BTC et ETH `COUPURE_UTILE` mais fragile (BTC : gain tiré par 2018-2020, 2022-2024 négatif ; sans ré-entrée gain médian sous le pur), PAXG non conclu (historique < 24 mois) ; [`etude-coupure-switch.md`](etude-coupure-switch.md) |
+| E2 | Robustesse de la coupure (E1) : taille de ré-entrée 5 / 10 %, bande de bruit (20 décalages), portefeuille BTC + ETH à cash commun, ablation d'un bloc | Fait : `COUPURE_NON_ROBUSTE`, cause cycle dominant (ETH fragile : le bloc 2024-2026 renverse le signe ; BTC robuste en Δ apparié mais gain médian sous le pur) ; bruit `STABLE`, portefeuille `TIENT` (3/4 plafonds) ; gain croissant avec la taille (meilleure : 20 %, optimum non encadré) ; [`etude-coupure-robustesse.md`](etude-coupure-robustesse.md) ; décision de Clem : option de l'Espace Expert, désactivée par défaut ([`full-autonome-v1.md`](../decisions/full-autonome-v1.md)) |
 | C5 | Niveaux d'exposition par profil en code (branchement live à décider) | livraison, après E |
 | D1 | Pipeline nouvel actif (Binance USDT bench seulement, flag « provisoire ») | livraison, après E |
 | 6, 7 | Orchestrateur, mode Full Auto live | en pause |

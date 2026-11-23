@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-16
-empreinte: 95b9c3b78a
+modifié_le: 2026-11-23
+empreinte: f71a78a9a9
 ---
 # Rainbow DCA ATR live — Affectations, signal quotidien, liens (bindings), API REST
 

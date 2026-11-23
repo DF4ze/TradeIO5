@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-11
-modifié_le: 2026-11-16
-empreinte: 71e369704c
+modifié_le: 2026-11-23
+empreinte: f2b14a8cba
 ---
 # Recette et déploiement prod
 

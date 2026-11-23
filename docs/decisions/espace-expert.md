@@ -3,8 +3,8 @@ statut: decision
 sujet: espace-expert
 cree_le: 2026-11-10
 origine: memoire-claude-migree
-modifié_le: 2026-11-16
-empreinte: ad9413922d
+modifié_le: 2026-11-23
+empreinte: d468f05cf4
 ---
 # espace-expert
 
@@ -29,3 +29,6 @@ Cadre, périmètre et sorties : [`../etudes/etude-optimisation-mode-autonome.md`
 - Parité multi-liens, mesure du 2026-11-14 (wallet 1, BTC + ETH, du 11/10 au 13/11) : 28/37 jours-liens identiques, 0 écart inexpliqué ; BTC 18/19 (écart du 28/10 déjà accepté), ETH 10/18 (8 écarts consécutifs du 27/10 au 03/11, live NONE vs rejeu BUY ; tous les jours du 04/11 au 13/11 identiques). Aucun écart dû au cash commun, à la priorité ou à l'exposition inconnue ; cash jamais contraignant sur la période (aucun `INSUFFICIENT_CASH` testé). Règle : le verdict de l'endpoint n'est pas assoupli ; la parité se mesure sur la période où l'état moteur est reconstituable (`from=2026-11-04`). Confirmé le 2026-11-15 sur cette période : 19/19 jours-liens identiques (BTC 10/10, ETH 9/9), 0 écart, verdict ACCEPTÉ. Parité multi-liens acceptée (lot 2).
 - Timeline des épisodes et répartition du gain (2026-11-15, lot 4) : répartition = exposition (exposition moyenne × mouvement) / timing (exposition au bon moment + écart d'exécution) / frais, exactement additive ; prix de revient de la position d'ouverture = cours du 1er jour de la plage (latent nul au départ) ; barres inactives = épisodes « inactif » ; aucune fusion ni durée minimale ; recalcul serveur sur la plage visible depuis le résultat en mémoire (TTL 30 min) ; endpoint dédié sans UI dans ce lot.
 - Écran Simulateur (2026-11-15, lot 5) : nouvel onglet « Simulateur » (`/app/expert/simulateur`) ; rejeu libre = tous les liens actifs du wallet (case par lien) ; départ tout en USDC, position initiale 0, capital par défaut = valeur du wallet réel ; cours de décision = clôture D1 (écart vs 23:55 de la prod signalé dans le résultat) ; frais activés par défaut (estimation signalée) ; plage par défaut 24 mois ; zoom/pan = recalcul serveur du tableau avec rebond ~400 ms ; plafond de drawdown : voir ci-dessus (lot 6).
+
+## Option « coupure au switch » (2026-11-23)
+Clem veut la coupure du bag au switch Bull → Bear (fraction vendue, taille de ré-entrée) comme **option de paramétrage de l'Espace Expert**, désactivée par défaut. Mesures et position : [`full-autonome-v1.md`](full-autonome-v1.md) (« Coupure au switch : option Expert »). Pas encore implémentée.

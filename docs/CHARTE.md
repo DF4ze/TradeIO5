@@ -1,8 +1,8 @@
 ---
 statut: charte
 sujet: Charte de conservation de la documentation
-modifié_le: 2026-11-16
-empreinte: f92aa9f817
+modifié_le: 2026-11-23
+empreinte: 4b937e388d
 ---
 # Charte de conservation
 
