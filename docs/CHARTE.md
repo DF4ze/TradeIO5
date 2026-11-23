@@ -30,4 +30,4 @@ Géré par script (`doc_police.py index`) : `modifié_le`, `empreinte` (ne pas �
 ## Police hebdomadaire
 Le `README.md` racine (vitrine du projet) est relu à chaque passage : ses affirmations (stack, périmètre, exécution des ordres, licence, démarrage) doivent rester conformes à `architecture/`, `decisions/` et au `pom.xml` ; il renvoie vers `docs/README.md` sans dupliquer. Tout écart => correction de la phrase fausse (cadrage minimal) ou proposition numérotée.
 
-Dry-run par défaut ; auto-corrections limitées (liens après déplacement, bandeau d'archive) sur branche `docs/police-AAAA-SS`, jamais sur main ; le reste = propositions numérotées. Ne crée pas de doc, ne réécrit pas le fond, ne supprime rien. Baseline : `.doc-police/baseline.json`.
+Dry-run par défaut ; auto-corrections limitées (liens après déplacement, bandeau d'archive) commitées directement sur `master` (seul développeur) ; le reste = propositions numérotées. Ne crée pas de doc, ne réécrit pas le fond, ne supprime rien. Baseline : `.doc-police/baseline.json`.
