@@ -18,6 +18,7 @@ Toute migration Flyway (et tout changement de schéma) est répétée sur une **
 | `deploy-prod.sh <jar> --go` | Déploiement prod (root). Refuse sans tampon « recette OK » du même jar (sha256, < 24 h). **Sur « go » de Clem uniquement.** Rapport : `reports/latest-deploy.md`. |
 | `clean-recette.sql` | Nettoyage de la copie : clés TRADE supprimées, clés d'exchange neutralisées (désactivées, secrets vidés), `execution_enabled=0` sur tous les liens. Aucun DDL. |
 | `allowed-errors.txt` | Motifs d'ERROR tolérés dans le journal de recette (clé maître absente, refus d'accès des smoke tests). Toute autre ERROR = KO. |
+| `expected-drops.txt` | Tables dont la suppression par une migration est attendue (nettoyage) : une table listée qui disparaît n'est pas un KO ; une baisse de lignes reste un KO. Retirer l'entrée une fois la migration en prod. |
 | `lib.sh` | Fonctions communes (chemins, lecture des properties, comptages, rapport). |
 
 `recette.sh` enchaîne :

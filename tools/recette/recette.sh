@@ -156,7 +156,12 @@ block "WARN les plus fréquents :" "$REPORT_DIR/warns.log" 10
 
 counts RDB "$RDB_NAME" > "$REPORT_DIR/counts-after.tsv"
 join -t$'\t' -a1 -e MISSING -o 0,1.2,2.2 <(sort "$REPORT_DIR/counts-before.tsv") <(sort "$REPORT_DIR/counts-after.tsv") \
-  | awk -F'\t' '$3=="MISSING" || $3<$2 {print}' > "$REPORT_DIR/counts-diff.tsv"
+  | awk -F'\t' '$3=="MISSING" || $3<$2 {print}' > "$REPORT_DIR/counts-diff-all.tsv"
+# suppressions de tables attendues (expected-drops.txt) : non bloquantes
+grep -vE '^\s*(#|$)' "$HERE/expected-drops.txt" 2>/dev/null | tr -d '\r' > "$REPORT_DIR/expected-drops.lst" || true
+awk -F'\t' 'NR==FNR{ok[$0]=1; next} !($3=="MISSING" && ($1 in ok))' "$REPORT_DIR/expected-drops.lst" "$REPORT_DIR/counts-diff-all.tsv" > "$REPORT_DIR/counts-diff.tsv"
+awk -F'\t' 'NR==FNR{ok[$0]=1; next} ($3=="MISSING" && ($1 in ok))' "$REPORT_DIR/expected-drops.lst" "$REPORT_DIR/counts-diff-all.tsv" > "$REPORT_DIR/counts-dropped-expected.tsv"
+[ -s "$REPORT_DIR/counts-dropped-expected.tsv" ] && { check ok "tables supprimées attendues (expected-drops.txt)" "$(cut -f1 "$REPORT_DIR/counts-dropped-expected.tsv" | paste -sd, -)"; }
 if [ -s "$REPORT_DIR/counts-diff.tsv" ]; then
   check ko "tables dont le nombre de lignes a baissé ou qui ont disparu (table / avant / après)" "à justifier (migration de nettoyage attendue ?)"
   block "Écarts :" "$REPORT_DIR/counts-diff.tsv" 20

@@ -1,0 +1,7 @@
+# Tables dont la suppression par une migration Flyway est attendue (nettoyage legacy).
+# Une table listée qui disparaît pendant la recette n'est pas un KO (une baisse de lignes reste un KO).
+# Retirer une entrée une fois la migration déployée en prod.
+rainbow_asset_strategy
+rainbow_live_preset
+rainbow_live_trend_config
+rainbow_live_user_settings
