@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-11
-modifié_le: 2026-11-23
-empreinte: 7ffef74043
+modifié_le: 2026-11-24
+empreinte: 37862edc65
 ---
 # Flyway et défauts d'initialisation
 
@@ -10,7 +10,7 @@ Vérifié le : 2026-11-11 (`pom.xml`, `application.properties`, `db/migration/`,
 
 ## État
 
-Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11 ; prod à la version **V5** depuis le 2026-11-23) : `spring.flyway.enabled=true`, `baseline-on-migrate=true`, `baseline-version=1` (`application.properties`), `spring.jpa.hibernate.ddl-auto=validate` (`application-dev/prod.properties`, gitignorés ; le fichier externe `/home/oklm/TradeIO/application-prod.properties` prime en prod). Les tests gardent `spring.flyway.enabled=false` (H2 `create-drop`).
+Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11 ; prod à la version **V8** depuis le 2026-11-24) : `spring.flyway.enabled=true`, `baseline-on-migrate=true`, `baseline-version=1` (`application.properties`), `spring.jpa.hibernate.ddl-auto=validate` (`application-dev/prod.properties`, gitignorés ; le fichier externe `/home/oklm/TradeIO/application-prod.properties` prime en prod). Les tests gardent `spring.flyway.enabled=false` (H2 `create-drop`).
 
 - Base **vide** : Flyway applique `V1__init.sql` puis les migrations suivantes.
 - Base **existante sans historique** (issue de `ddl-auto=update`) : baseline à V1 (aucune exécution de V1), puis migrations `V2+`. Le schéma de ces bases correspondait à V1 au 2026-11-11.
@@ -24,11 +24,11 @@ Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11 ; prod à la
 - Ne jamais supprimer dans une migration ce que le code lit encore : retirer d'abord le code, puis écrire la migration (un `V2` qui supprimait `preset_id` avant le retrait du code a fait échouer la recette du 2026-11-11).
 - `ddl-auto=validate` : un écart entité/schéma empêche le démarrage.
 
-`V6__base_rates_par_profil.sql` (taux de base par profil + marge k, 9 colonnes de `rainbow_modulation_control`, défauts = table de calage ; **pas encore appliquée en prod**, recette requise) : [`../architecture/08d-rainbow-modulation.md`](../architecture/08d-rainbow-modulation.md).
+`V6__base_rates_par_profil.sql` (taux de base par profil + marge k, 9 colonnes de `rainbow_modulation_control`, défauts = table de calage ; appliquée en prod le 2026-11-24) : [`../architecture/08d-rainbow-modulation.md`](../architecture/08d-rainbow-modulation.md).
 
-`V7__new_asset_proposal.sql` (table `new_asset_proposal`, propositions d'accueil d'un nouvel actif ; **pas encore appliquée en prod**, recette requise) : [`../architecture/15m-pipeline-nouvel-actif.md`](../architecture/15m-pipeline-nouvel-actif.md).
+`V7__new_asset_proposal.sql` (table `new_asset_proposal`, propositions d'accueil d'un nouvel actif ; appliquée en prod le 2026-11-24) : [`../architecture/15m-pipeline-nouvel-actif.md`](../architecture/15m-pipeline-nouvel-actif.md).
 
-`V8__asset_base_rate.sql` (table `asset_base_rate`, ligne de taux dédiée par actif écrite à la validation d'une proposition ; **pas encore appliquée en prod**, recette requise ; V6, V7 et V8 se déploient ensemble) : [`../architecture/15m-pipeline-nouvel-actif.md`](../architecture/15m-pipeline-nouvel-actif.md).
+`V8__asset_base_rate.sql` (table `asset_base_rate`, ligne de taux dédiée par actif écrite à la validation d'une proposition ; appliquée en prod le 2026-11-24 avec V6 et V7) : [`../architecture/15m-pipeline-nouvel-actif.md`](../architecture/15m-pipeline-nouvel-actif.md).
 
 ## Restes legacy
 
