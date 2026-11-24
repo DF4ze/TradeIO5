@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-11
 modifié_le: 2026-11-24
-empreinte: ef76d60387
+empreinte: a5bea3fdf9
 ---
 # Flyway et défauts d'initialisation
 
@@ -33,7 +33,7 @@ Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11 ; prod à la
 
 `V9__taux_de_base_unifies.sql` (appliquée en prod le 2026-11-24) : copie les 8 taux réels de `rainbow_modulation_control` vers 2 lignes `asset_base_rate` (BTC, ETH, `validated_by` = `migration V9`, `proposal_id` NULL) si elles n'existent pas, insère la table de calage si une ligne manque encore (base neuve), puis supprime les 8 colonnes `base_rate_<btc|eth>_<profil>` (`base_rate_margin_k` reste). Idempotente (information_schema + NOT EXISTS). Détail : [`../architecture/08d-rainbow-modulation.md`](../architecture/08d-rainbow-modulation.md).
 
-`V10__actifs_dynamiques_socle.sql` (**pas encore appliquée en prod** : recette sur copie de prod obligatoire) : crée `asset_blocklist` (symbole unique) et `asset_eligibility_settings` (ligne unique, `min_volume_usd`), ajoute `volume_24h_quote` et `volume_read_at` à `exchange_instrument`, copie les 4 taux BTC vers une ligne `asset_base_rate` PAXG (`validated_by` = `migration V10`, `proposal_id` NULL) si PAXG est absent et BTC présent. Idempotente (information_schema + PREPARE/EXECUTE, `IF NOT EXISTS`, `NOT EXISTS`). Détail : [`../architecture/08c-rainbow-chemin-achat-wallet.md`](../architecture/08c-rainbow-chemin-achat-wallet.md).
+`V10__actifs_dynamiques_socle.sql` (appliquée en prod le 2026-11-24, recette sur copie de prod OK) : crée `asset_blocklist` (symbole unique) et `asset_eligibility_settings` (ligne unique, `min_volume_usd`), ajoute `volume_24h_quote` et `volume_read_at` à `exchange_instrument`, copie les 4 taux BTC vers une ligne `asset_base_rate` PAXG (`validated_by` = `migration V10`, `proposal_id` NULL) si PAXG est absent et BTC présent. Idempotente (information_schema + PREPARE/EXECUTE, `IF NOT EXISTS`, `NOT EXISTS`). Détail : [`../architecture/08c-rainbow-chemin-achat-wallet.md`](../architecture/08c-rainbow-chemin-achat-wallet.md).
 
 ## Restes legacy
 

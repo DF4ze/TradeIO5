@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-11
 modifié_le: 2026-11-24
-empreinte: 7bffd7b772
+empreinte: 8556ab9de0
 ---
 # Recette et déploiement prod
 

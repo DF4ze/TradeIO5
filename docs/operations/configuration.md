@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-10-03
 modifié_le: 2026-11-24
-empreinte: a8f36359fa
+empreinte: b14fa849d1
 ---
 # Configuration
 
