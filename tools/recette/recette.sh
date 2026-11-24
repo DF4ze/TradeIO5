@@ -135,6 +135,9 @@ if [ "$STARTED" -eq 1 ]; then
   expect 200 "POST /api/admin/doctor/run (lecture seule)" -X POST -H "$H" "$B/api/admin/doctor/run"
   expect 200 "GET /api/admin/doctor/alarms"  -H "$H" "$B/api/admin/doctor/alarms"
   expect 200 "GET /api/admin/decision/scenarios" -H "$H" "$B/api/admin/decision/scenarios"
+  expect 200 "GET /api/admin/assets (actifs dynamiques)" -H "$H" "$B/api/admin/assets"
+  expect 200 "GET /api/admin/assets/blocklist" -H "$H" "$B/api/admin/assets/blocklist"
+  expect 200 "GET /api/admin/assets/settings" -H "$H" "$B/api/admin/assets/settings"
   curl -s -m 30 -H "$H" "$B/api/admin/doctor" | head -c 4000 > "$REPORT_DIR/doctor.json"
   block "Rapport Docteur (début) :" "$REPORT_DIR/doctor.json" 15
   sleep 3

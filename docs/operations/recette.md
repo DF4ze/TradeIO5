@@ -26,7 +26,7 @@ Toute migration Flyway (et tout changement de schéma) est répétée sur une **
 2. **Copie** : `mysqldump --single-transaction` de la prod (lecture seule) → `~/backups/prod-pour-recette-*.sql.gz` ; recréation de `tradeio5_recette` ; restauration ; `clean-recette.sql` ; comptage des lignes par table.
 3. **Démarrage** du jar (`--spring.profiles.active=recette`, lié à 127.0.0.1, `-Xmx768m`, clé agent éphémère aléatoire).
 4. **Flyway** : journal, `flyway_schema_history` (aucune migration en échec), version avant/après.
-5. **Smoke tests** avec la clé agent (`X-Api-Key`) : `/`, `/login`, `/app` (302), refus sans clé, Docteur (`GET`, `POST /run`, `/alarms`), `/api/admin/decision/scenarios`. Étendre la liste dans `recette.sh` quand un lot ajoute un endpoint critique.
+5. **Smoke tests** avec la clé agent (`X-Api-Key`) : `/`, `/login`, `/app` (302), refus sans clé, Docteur (`GET`, `POST /run`, `/alarms`), `/api/admin/decision/scenarios`, `/api/admin/assets` (+ `/blocklist`, `/settings`). `/api/rainbow-live/assets/eligible` n'est pas couvert : il exige une session utilisateur en base (la clé agent n'en est pas une). Étendre la liste dans `recette.sh` quand un lot ajoute un endpoint critique.
 6. **Journal et base** : ERROR hors motifs autorisés, `Caused by`, WARN fréquents, comparaison des comptages avant/après (une table qui perd des lignes ou disparaît = KO à justifier).
 7. Arrêt de la recette, rapport, tampon `recette-ok-<sha256>.stamp` si aucun KO.
 
@@ -65,6 +65,7 @@ Remettre le lien `tradeio.jar` sur le jar précédent et redémarrer. Restaurer 
 - `systemctl stop|start tradeio` exige root : appeler `execCommand` avec `runAsUser: root` (`sudo -n` seul échoue).
 - Un appel `execCommand` coupe à ~80 s : lancer la recette en arrière-plan (`nohup … &`), puis lire `recette.out` dans un appel séparé ; ne pas relancer sans vérifier (`pgrep -af "[T]radeIO5"`).
 - `uploadFile` d'un jar (~125 Mo) dépasse 80 s : le transfert continue, vérifier la taille/`cmp` du fichier distant avant de relancer.
+- Jar à envoyer : `target/TradeIO5-<version>.jar`. Le `*-spring-boot.jar` (classifier du pom) a un `Start-Class` erroné et ne démarre pas (`ClassNotFoundException`).
 - `pkill -f <motif>` lancé depuis un `bash -c` contenant ce motif se tue lui-même : utiliser `kill $(pgrep -f "[m]otif")`.
 - Le jar embarque `application-dev/prod.properties` locaux ; en prod le fichier externe `/home/oklm/TradeIO/application-prod.properties` prime (y mettre `ddl-auto`, secrets, modes d'exécution).
 - Le service prod tourne en `LIVE` (`live-unlocked=true`) : ne jamais copier ce réglage ni `TRADEIO_MASTER_KEY` dans la recette.
