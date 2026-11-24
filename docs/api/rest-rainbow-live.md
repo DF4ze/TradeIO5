@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-07
 modifié_le: 2026-11-24
-empreinte: b6aff408a6
+empreinte: 471a0eaa37
 ---
 # Endpoints REST — Rainbow live (bindings, wallet, décisions, modulation, run)
 
@@ -80,6 +80,13 @@ Les réglages module les quantités des achats/ventes du Rainbow (cf. [`../archi
 | GET | `/api/admin/new-asset-proposals` | ADMIN | Propositions de nouvel actif à valider (`PROPOSE`) ; `?all=true` = historique. Par proposition : `{id, asset, status, presetSource, historySource, candle{FirstDay,LastDay,Count,Checksum}, historyMonths, blockCount, switchCount, flags[], marginK, rates[{profile, capPct, multiplier, baseRate, status, worstWindow}], warning, nonTradable, presetPlan APPLIQUE_BTC\|DEDIE_CONSERVE, presetPlanText, canValidate, validateBlockedReason, requestedBy, createdAt, decidedAt, decidedBy}` |
 | POST | `/api/admin/new-asset-proposals/{id}/validate` | ADMIN | Écrit la ligne de taux dédiée de l'actif (+ presets BTC copiés si aucun preset dédié) ; même forme que le GET ; déjà décidée, sans taux ou taux invalides ⇒ 400 `{error}` ; journal `MODULATION` ([`../architecture/15m-pipeline-nouvel-actif.md`](../architecture/15m-pipeline-nouvel-actif.md)) |
 | POST | `/api/admin/new-asset-proposals/{id}/refuse` | ADMIN | Refuse : rien n'est écrit, repli BTC « non calibré » conservé ; même forme ; déjà décidée ⇒ 400 |
+| POST | `/api/admin/new-asset-proposals/recompute?asset=` | ADMIN | Relance le calcul D1b de l'actif (refus, calcul dégradé, recalibrage) : `202 {asset, status: "EN_FILE", message}`, calcul asynchrone qui remplace la proposition (ligne de taux validée intacte) ; symbole invalide ou aucun lien actif ⇒ 400 `{error}` ; calcul déjà en cours ou pipeline désactivé ⇒ 409 `{error}` ; journal `MODULATION` cible `new-asset-recompute:<ACTIF>` ([`../architecture/15m-pipeline-nouvel-actif.md`](../architecture/15m-pipeline-nouvel-actif.md)) |
+| GET | `/api/admin/assets` | ADMIN | Onglet admin « Actifs » : `{assets[{asset, linkCount, userCount, calibration CALIBRE\|EN_ATTENTE_VALIDATION, proposalStatus PROPOSE\|REFUSE\|VALIDE\|null, blocked, blockReason, volumes[{provider, volumeUsd, verified}], suspendedLinks, recomputeRunning}], minVolumeUsd, defaultMinVolumeUsd, recomputeEnabled}` : actifs ayant au moins un lien non archivé + actifs en liste noire ; `volumeUsd` nul et `verified` faux = « volume non vérifiable » (éligible, non vérifié) |
+| GET | `/api/admin/assets/blocklist` | ADMIN | Liste noire : `[{asset, reason, createdBy, createdAt}]` |
+| POST | `/api/admin/assets/blocklist` | ADMIN | Corps `{asset, reason?}` ⇒ 201 `{asset, reason, createdBy, createdAt}` ; symbole normalisé (majuscules, 2 à 16 lettres ou chiffres), motif ≤ 255 ; invalide ou déjà listé ⇒ 400 `{error}` ; effet immédiat (nouveaux liens refusés, liens existants suspendus + alarme) ; journal `MODULATION` cible `asset-blocklist:<SYM>` |
+| DELETE | `/api/admin/assets/blocklist/{asset}` | ADMIN | 204 ; absent ⇒ 400 `{error}` ; journal `MODULATION` cible `asset-blocklist:<SYM>` |
+| GET | `/api/admin/assets/settings` | ADMIN | `{minVolumeUsd, defaultMinVolumeUsd, updatedBy, updatedAt}` : volume spot 24 h minimum (USD), défaut 1 000 000 |
+| PUT | `/api/admin/assets/settings` | ADMIN | Corps `{minVolumeUsd}` (≥ 0, 0 = aucun seuil) ⇒ même forme que le GET ; négatif ou absent ⇒ 400 ; journal `MODULATION` cible `asset-settings:min-volume`, payload `{action, before, after}` |
 | POST | `/api/admin/optimizer/runs` | ADMIN | Lance un run d'optimisation asynchrone (202) ; corps `{asset, walletId, cash0, endDate, profile, baseAmount?, seed?, sobolSamples?}` ⇒ `{id, state, progress, stage}` ; un seul run à la fois (409) ; **désactivé par défaut** (`tradeio.optimizer.enabled`, sinon 404) ; journal `RUN` — [`15-optimiseur.md`](../architecture/15-optimiseur.md) |
 | GET | `/api/admin/optimizer/runs/{id}` | ADMIN | `{id, state RUNNING\|DONE\|FAILED\|CANCELLED, progress, stage, error, reportJson}` ; 404 si inconnu ou expiré (30 min) |
 | DELETE | `/api/admin/optimizer/runs/{id}` | ADMIN | Annule le run ; même forme que le GET |

@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-10-03
-modifié_le: 2026-11-16
-empreinte: 0cb1374a96
+modifié_le: 2026-11-24
+empreinte: a8f36359fa
 ---
 # Configuration
 
@@ -55,6 +55,7 @@ Vérifié le : 2026-10-03 (`configuration/**`, `RainbowLiveDefaultPresets`).
 | `tradeio.execution.instrument-catalog.refresh-after` | `PT24H` | Âge maximal du catalogue d'instruments avant rafraîchissement |
 | `spring.flyway.enabled` / `baseline-on-migrate` / `baseline-version` | `true` / `true` / `1` | Flyway actif (désactivé dans les tests) ; `spring.jpa.hibernate.ddl-auto=validate` en dev/prod — cf. [`flyway.md`](flyway.md) |
 | Profil `recette` | – | Répétition de déploiement sur copie de prod (port 9004, exécution `OFF`, crons coupés) — cf. [`recette.md`](recette.md) |
+| `tradeio.new-asset-proposal.enabled` | `true` (code `matchIfMissing` et `application.properties`) | Calcul D1b des propositions de taux d'un nouvel actif, automatique à l'accueil et via « Recalculer » ([`../architecture/15m-pipeline-nouvel-actif.md`](../architecture/15m-pipeline-nouvel-actif.md)). `false` dans les propriétés de test (modèle `template-application.properties` inclus) et dans le modèle de recette : aucun calcul réel. `application-prod.properties` (VPS) ne le définit pas : ne le toucher que s'il le force à `false` |
 | `tradeio.optimizer.enabled` | `false` | `true` ⇒ endpoints admin de l'optimiseur (`/api/admin/optimizer/runs`) et leurs beans ; sinon absents (404). Détail : [`../architecture/15-optimiseur.md`](../architecture/15-optimiseur.md) |
 | `tradeio.optimizer.pool-size` / `result-ttl-minutes` | `2` / `30` | Pool d'évaluation dédié de l'optimiseur / durée de vie des résultats en mémoire |
 | `tradeio.security.agent-api-key` | vide (filtre inactif) | Active l'authentification par clé API (`ROLE_API_AGENT`) |

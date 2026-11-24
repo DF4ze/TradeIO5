@@ -20,8 +20,12 @@ public final class DoctorDtos {
     private DoctorDtos() {
     }
 
-    /** Dernier rapport + nombre d'alarmes ouvertes (non acquittées) par gravité. */
-    public record Report(Instant runAt, DoctorStatus worst, long activeCrit, long activeWarn,
+    /**
+     * Dernier rapport + nombre d'alarmes ouvertes (non acquittées) par gravité. {@code pendingAssets} = propositions de nouvel actif au statut
+     * {@code PROPOSE} ; {@code menuCount} = pastille du menu admin = alarmes ouvertes, où chaque proposition à valider compte pour 1 point (son alarme
+     * « actif à valider » n'est pas comptée en plus, et la proposition reste comptée une fois l'alarme acquittée).
+     */
+    public record Report(Instant runAt, DoctorStatus worst, long activeCrit, long activeWarn, long pendingAssets, long menuCount,
                          List<DoctorReport.Entry> results) {
     }
 

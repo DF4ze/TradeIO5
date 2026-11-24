@@ -176,4 +176,15 @@ class AlarmServiceTest {
         pass(Set.of("C"), entry("C", "s", DoctorStatus.OK, "ok"));
         assertThrows(IllegalArgumentException.class, () -> service.acknowledge(id, "clem", null));
     }
+
+    @Test
+    @DisplayName("countActiveByCheckId : compte les alarmes ACTIVE du contrôle, pas les acquittées ni celles d'un autre contrôle")
+    void countsActiveByCheck() {
+        pass(Set.of("C", "D"), entry("C", "s1", DoctorStatus.WARN, "m"), entry("C", "s2", DoctorStatus.WARN, "m"), entry("D", "s3", DoctorStatus.WARN, "m"));
+        assertEquals(2, service.countActiveByCheckId("C"));
+        service.acknowledge(all().stream().filter(a -> a.getSubject().equals("s1")).findFirst().orElseThrow().getId(), "root", "vu");
+        assertEquals(1, service.countActiveByCheckId("C"));
+        assertEquals(1, service.countActiveByCheckId("D"));
+        assertEquals(0, service.countActiveByCheckId("X"));
+    }
 }

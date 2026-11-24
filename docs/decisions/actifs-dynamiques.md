@@ -3,11 +3,11 @@ statut: decision
 sujet: actifs-dynamiques
 cree_le: 2026-11-24
 modifié_le: 2026-11-24
-empreinte: 0c2eb44a03
+empreinte: c0486fefee
 ---
 # Actifs dynamiques (liste d'actifs non figée)
 
-> Décisions de Clem (tranchées). Ne pas re-questionner sans demande explicite. Le « comment c'est fait » ira dans `architecture/` à l'implémentation. Reste à faire et lots : [`../known-gaps/actifs-dynamiques-lots.md`](../known-gaps/actifs-dynamiques-lots.md).
+> Décisions de Clem (tranchées). Ne pas re-questionner sans demande explicite. Le « comment c'est fait » : [`../architecture/08c-rainbow-chemin-achat-wallet.md`](../architecture/08c-rainbow-chemin-achat-wallet.md) (éligibilité, registre, liens), [`../architecture/15m-pipeline-nouvel-actif.md`](../architecture/15m-pipeline-nouvel-actif.md) (D1b, validation admin), [`../architecture/11-front-app.md`](../architecture/11-front-app.md) (onboarding, onglet Actifs).
 
 ## Objectif
 Plus de liste figée d'actifs (naguère BTC, ETH, PAXG) : ajouter DOGE, SOL, etc. depuis l'interface sans toucher au code.
@@ -37,10 +37,7 @@ Plus de liste figée d'actifs (naguère BTC, ETH, PAXG) : ajouter DOGE, SOL, etc
 
 ## UX
 - **Onboarding** : **top 12 par volume + recherche** ; badges d'état (calibré / provisoire / simulation seule en attente de validation) ; mobile + PC ; stocker le volume 24 h au catalogue.
-- **Admin** : nouvel onglet **« Actifs »** (vue par actif : liens, état de calibration, bloqué ; liste noire ; seuil de volume). Propositions à valider et Taux de base restent dans « Modulation ». **La barre d'onglets passe sur deux lignes** (l'overlay masque déjà « Diagnostic »).
-
-## Livraison
-Lots A (socle DB + éligibilité), B (moteur), D (admin), C (onboarding user, ouverture de l'UI en dernier), **déployés lot par lot** ; recette sur copie de prod pour tout lot touchant la DB.
+- **Admin** : nouvel onglet **« Actifs »** (vue par actif : liens, état de calibration, bloqué ; liste noire ; seuil de volume). « Actifs à valider » (propositions de nouvel actif : Valider / Refuser) est **en haut de l'onglet « Actifs »**, avec une pastille du nombre de propositions à valider (onglet et menu admin) ; « Modulation » ne garde que ses réglages globaux ; « Taux de base » reste dans son onglet. **La barre d'onglets passe sur deux lignes** (l'overlay masque déjà « Diagnostic »).
 
 ## Hypothèses de conception (non questionnées, à contester si besoin)
 - Listes d'actifs de l'Espace Expert / Actifs gérés = actifs liés par le user.

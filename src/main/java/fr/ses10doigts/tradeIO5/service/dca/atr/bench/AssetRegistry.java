@@ -15,8 +15,8 @@ import java.util.TreeSet;
  * un lien non archivé ; pour tous les utilisateurs, quand au moins un lien non archivé le porte. Aucune liste d'activation, aucune whitelist : les
  * providers font foi (éligibilité au lien, {@code AssetEligibilityService}).
  * <p>
- * {@link #SEED_ASSETS} n'est PAS un périmètre : c'est uniquement le jeu semé au démarrage (presets de base, Affectations Système) et le périmètre par
- * défaut de la liaison automatique d'un wallet (onboarding) tant que l'écran de choix d'actifs n'existe pas.
+ * {@link #SEED_ASSETS} n'est PAS un périmètre : c'est uniquement le jeu semé au démarrage (presets de base, Affectations Système). L'onboarding
+ * ne lie que les actifs demandés par l'utilisateur.
  */
 @Component
 @RequiredArgsConstructor

@@ -52,6 +52,9 @@
     							<button type="button" class="nav-link" id="adm-tab-baseRates" data-adm-tab="baseRates" data-bs-target="#adm-pane-baseRates" role="tab">Taux de base</button>
     						</li>
     						<li class="nav-item" role="presentation">
+    							<button type="button" class="nav-link" id="adm-tab-assets" data-adm-tab="assets" data-bs-target="#adm-pane-assets" role="tab">Actifs <span class="badge text-bg-warning d-none" id="adm-assets-badge" title="Propositions de nouvel actif à valider"></span></button>
+    						</li>
+    						<li class="nav-item" role="presentation">
     							<button type="button" class="nav-link" id="adm-tab-limits" data-adm-tab="limits" data-bs-target="#adm-pane-limits" role="tab">Plafonds</button>
     						</li>
     						<li class="nav-item" role="presentation">
@@ -68,6 +71,7 @@
     						<div th:replace="~{fragments/admin/orderTester :: orderTester}"></div>
     						<div th:replace="~{fragments/admin/modulation :: modulation}"></div>
     						<div th:replace="~{fragments/admin/baseRates :: baseRates}"></div>
+    						<div th:replace="~{fragments/admin/assets :: assets}"></div>
     						<div th:replace="~{fragments/admin/limits :: limits}"></div>
     						<div th:replace="~{fragments/admin/journal :: journal}"></div>
     						<div th:replace="~{fragments/admin/doctor :: doctor}"></div>
@@ -84,6 +88,7 @@
 <script th:src="@{/assets/js/admin/orderTester.js}"></script>
 <script th:src="@{/assets/js/admin/modulation.js}"></script>
 <script th:src="@{/assets/js/admin/baseRates.js}"></script>
+<script th:src="@{/assets/js/admin/assets.js}"></script>
 <script th:src="@{/assets/js/admin/limits.js}"></script>
 <script th:src="@{/assets/js/admin/journal.js}"></script>
 <script th:src="@{/assets/js/admin/doctor.js}"></script>

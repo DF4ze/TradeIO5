@@ -123,7 +123,7 @@ class NewAssetProposalAdminServiceTest {
         Alarm a = list.getFirst();
         assertEquals(AlarmState.ACTIVE, a.getState());
         assertEquals(1, a.getOccurrences());
-        assertTrue(a.getMessage().contains("/admin#modulation") && a.getMessage().contains("NEWX"));
+        assertTrue(a.getMessage().contains("/admin#assets") && a.getMessage().contains("NEWX"));
         alarms.acknowledge(a.getId(), "root", "vu");
         service.alert(p);
         assertEquals(1, alarmsOf("NEWX").size());

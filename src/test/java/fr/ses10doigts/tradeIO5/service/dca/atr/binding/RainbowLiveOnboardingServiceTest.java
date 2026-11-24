@@ -95,7 +95,7 @@ class RainbowLiveOnboardingServiceTest {
         when(bindingService.create(eq(user), any())).thenReturn(new RainbowLiveBindingService.Checked(created,
                 new BindingCheckResult(BindingCheckStatus.OK, "ok")));
 
-        List<LinkResult> results = service.link(user, WALLET_ID);
+        List<LinkResult> results = service.link(user, WALLET_ID, List.of("BTC", "ETH", "PAXG"));
 
         assertEquals(LinkOutcome.ALREADY_LINKED, results.get(0).outcome());
         assertEquals(LinkOutcome.LINKED, results.get(1).outcome());
@@ -106,9 +106,26 @@ class RainbowLiveOnboardingServiceTest {
     }
 
     @Test
+    @DisplayName("link : ne lie QUE les actifs demandés (casse normalisée, doublons ignorés) ; liste vide => erreur, aucun lien")
+    void linkOnlyRequested() {
+        when(repository.findByUserAndAssetSymbolAndWallet_Id(any(), any(), anyLong())).thenReturn(Optional.empty());
+        when(bindingCheck.check(any(Wallet.class), any())).thenReturn(new BindingCheckResult(BindingCheckStatus.OK, "ok"));
+        when(bindingService.create(eq(user), any())).thenReturn(new RainbowLiveBindingService.Checked(binding(20L, "DOGE", null),
+                new BindingCheckResult(BindingCheckStatus.OK, "ok")));
+
+        List<LinkResult> results = service.link(user, WALLET_ID, List.of(" doge ", "DOGE"));
+
+        assertEquals(1, results.size());
+        assertEquals("DOGE", results.getFirst().assetSymbol());
+        verify(bindingService, Mockito.times(1)).create(eq(user), any());
+        assertThrows(IllegalArgumentException.class, () -> service.link(user, WALLET_ID, List.of()));
+        assertThrows(IllegalArgumentException.class, () -> service.link(user, WALLET_ID, null));
+    }
+
+    @Test
     @DisplayName("link : wallet étranger => 404")
     void linkForeignWallet() {
-        assertThrows(RainbowLiveBindingNotFoundException.class, () -> service.link(user, 99L));
+        assertThrows(RainbowLiveBindingNotFoundException.class, () -> service.link(user, 99L, List.of("BTC")));
         verify(bindingService, never()).create(any(), any());
     }
 
@@ -118,7 +135,7 @@ class RainbowLiveOnboardingServiceTest {
         when(repository.findByUserAndAssetSymbolAndWallet_Id(any(), any(), anyLong())).thenReturn(Optional.empty());
         when(bindingCheck.check(any(Wallet.class), any())).thenReturn(
                 new BindingCheckResult(BindingCheckStatus.CREDENTIAL_INVALID, "clé rejetée"));
-        List<LinkResult> results = service.link(user, WALLET_ID);
+        List<LinkResult> results = service.link(user, WALLET_ID, List.of("BTC"));
         assertEquals("CREDENTIAL_INVALID", results.getFirst().status());
         assertEquals("clé rejetée", results.getFirst().message());
     }

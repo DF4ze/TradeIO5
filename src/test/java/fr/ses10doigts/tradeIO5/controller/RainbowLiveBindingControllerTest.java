@@ -189,7 +189,7 @@ class RainbowLiveBindingControllerTest {
     }
 
     @Test
-    @DisplayName("Création : défauts bag 100 % et priorité par actif (BTC=0, ETH=1, PAXG=2), check retourné")
+    @DisplayName("Création : défauts bag 100 % et priorité « après les liens existants » (BTC=0, puis 1), check retourné")
     void createWithDefaults() throws Exception {
         json(post("/api/rainbow-live/bindings"), createBody("BTC", aliceWallet.getId(), null))
                 .andExpect(status().isCreated())
@@ -200,7 +200,7 @@ class RainbowLiveBindingControllerTest {
                 .andExpect(jsonPath("$.check.ok").value(true));
         json(post("/api/rainbow-live/bindings"), createBody("PAXG", aliceWallet.getId(), 40.0))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.binding.priority").value(2))
+                .andExpect(jsonPath("$.binding.priority").value(1))
                 .andExpect(jsonPath("$.binding.bagPercent").value(40.0));
         mvc.perform(get("/api/rainbow-live/bindings")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2));

@@ -36,7 +36,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RainbowLiveOnboardingController {
 
-    public record LinkRequest(Long walletId) {
+    /** {@code assets} : symboles à lier (obligatoire, non vide) ; aucun périmètre par défaut. */
+    public record LinkRequest(Long walletId, List<String> assets) {
     }
 
     /** Bande proposée par défaut : neutre (aucune modulation de bande) tant que l'utilisateur n'a pas choisi la sienne. */
@@ -81,7 +82,7 @@ public class RainbowLiveOnboardingController {
 
     @PostMapping("/link")
     public List<LinkResult> link(@RequestBody LinkRequest request) {
-        return onboardingService.link(authenticationFacade.getConnectedUser(), request.walletId());
+        return onboardingService.link(authenticationFacade.getConnectedUser(), request.walletId(), request.assets());
     }
 
     @GetMapping("/proposals")

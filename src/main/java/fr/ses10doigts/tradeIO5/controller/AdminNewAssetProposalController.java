@@ -3,7 +3,9 @@ package fr.ses10doigts.tradeIO5.controller;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.admin.NewAssetProposalAdminService;
 import fr.ses10doigts.tradeIO5.service.admin.NewAssetProposalAdminService.ProposalView;
+import fr.ses10doigts.tradeIO5.service.admin.NewAssetRecomputeService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -17,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Propositions d'accueil d'un nouvel actif (D1b, lot 2) : liste, Valider, Refuser. Réservé ROLE_ADMIN (même contrôle que les paramètres de
+ * Propositions d'accueil d'un nouvel actif (D1b, lot 2) : liste, Valider, Refuser, Recalculer. Réservé ROLE_ADMIN (même contrôle que les paramètres de
  * modulation). Aucune application automatique : sans appel ici, rien ne change.
  */
 @RestController
@@ -27,6 +29,7 @@ import java.util.List;
 public class AdminNewAssetProposalController {
 
     private final NewAssetProposalAdminService service;
+    private final NewAssetRecomputeService recomputeService;
     private final IAuthenticationFacade authenticationFacade;
 
     /** Propositions à valider ({@code PROPOSE}) ; {@code all=true} : historique complet. */
@@ -45,8 +48,19 @@ public class AdminNewAssetProposalController {
         return service.refuse(id, actor());
     }
 
+    /** Relance le calcul de l'actif (refus, calcul dégradé, recalibrage) : 202, calcul asynchrone ; 409 si déjà en cours ou pipeline désactivé. */
+    @PostMapping("/recompute")
+    public ResponseEntity<NewAssetRecomputeService.Started> recompute(@RequestParam String asset) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(recomputeService.recompute(asset, actor()));
+    }
+
     private String actor() {
         return authenticationFacade.getConnectedUser().getUsername();
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<RainbowLiveControllerAdvice.ErrorResponse> conflict(IllegalStateException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new RainbowLiveControllerAdvice.ErrorResponse(e.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

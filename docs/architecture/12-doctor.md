@@ -1,7 +1,7 @@
 ---
 statut: courant
 modifié_le: 2026-11-24
-empreinte: 91e0346cfe
+empreinte: 9af41e2356
 ---
 # Docteur — diagnostic et alarmes (Admin)
 
@@ -33,7 +33,7 @@ Un contrôle qui lève une exception produit un WARN sujet `_contrôle`. Seuils 
 - WARN/CRIT ⇒ crée ou met à jour (`lastSeen`, `occurrences`).
 - OK, ou sujet disparu d'un contrôle évalué ⇒ RESOLVED. UNKNOWN ne crée ni ne résout.
 - Défaut revenu < 24 h après sa résolution (`ALARM_REOPEN_WINDOW_HOURS`, ex. tampon de logs vidé au redémarrage) ⇒ **même alarme rouverte** (`occurrences` cumulées), pas de nouvelle ligne ; au-delà ⇒ nouvelle alarme.
-- Alarme levée **hors passe** : `NEW_ASSET_PROPOSAL:<actif>` (« Actif à valider », WARN, DATA / QUALITY), ouverte par `AlarmService.raise` quand une proposition de nouvel actif est enregistrée, close par Valider / Refuser ; aucun contrôle ne la réconcilie ([`15m-pipeline-nouvel-actif.md`](15m-pipeline-nouvel-actif.md)).
+- Alarme levée **hors passe** : `NEW_ASSET_PROPOSAL:<actif>` (« Actif à valider », WARN, DATA / QUALITY), ouverte par `AlarmService.raise` quand une proposition de nouvel actif est enregistrée, close par Valider / Refuser, lien `/admin#assets` ; aucun contrôle ne la réconcilie ([`15m-pipeline-nouvel-actif.md`](15m-pipeline-nouvel-actif.md)).
 - Acquitter / reporter (1–720 h) masque sans résoudre ; réouverture si la gravité monte ou à l'échéance du report.
 - Les alarmes résolues et les `job_run` sont purgés après 90 jours (`JobRunPurgeJob`).
 
@@ -43,4 +43,4 @@ Un contrôle qui lève une exception produit un WARN sujet `_contrôle`. Seuils 
 ## API et interface
 Endpoints `/api/admin/doctor/*` : [`api/rest-endpoints.md`](../api/rest-endpoints.md). Ack et report journalisés (`AdminAction.DOCTOR`, cible `alarm:<id>`).
 Onglet « Diagnostic » de `/admin` (`fragments/admin/doctor.html`, `js/admin/doctor.js`) : statut global, alarmes (Acquitter / Reporter 1 h, 24 h, 7 j, option « résolues »), contrôles par famille, bouton « Relancer », journal des jobs paginé. Pastille de l'onglet = alarmes ouvertes (CRIT rouge, sinon WARN), rafraîchie toutes les 60 s.
-Le même compteur (CRIT ⇒ rouge, sinon orange, masqué à 0) apparaît sur l'entrée « Administration » du menu `/app` pour les admins : `app/fragments.html` (`#tio-admin-count`), `static/assets/app/js/admin-alarms.js` (poll `/api/admin/doctor` toutes les 60 s), style `.tab-count` dans `tradeio.css`.
+Le même compteur (CRIT ⇒ rouge, sinon orange, masqué à 0) augmenté des propositions de nouvel actif à valider apparaît sur l'entrée « Administration » du menu `/app` pour les admins : `app/fragments.html` (`#tio-admin-count`), `static/assets/app/js/admin-alarms.js` (poll `/api/admin/doctor` toutes les 60 s, lit `menuCount`), style `.tab-count` dans `tradeio.css`. `menuCount` = CRIT + WARN ouvertes non acquittées − alarmes `NEW_ASSET_PROPOSAL` ouvertes + propositions `PROPOSE` (`pendingAssets`) : une proposition = 1 point, conservée après acquittement de son alarme ; la pastille de l'onglet « Diagnostic » reste le compte des alarmes.

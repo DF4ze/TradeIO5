@@ -1,0 +1,69 @@
+<div th:fragment="assets" class="tab-pane fade" id="adm-pane-assets" role="tabpanel">
+	<h5 id="adm-nap-title">Actifs à valider</h5>
+	<p class="text-muted small">Propositions d'accueil d'un actif sans taux calibré (preset de départ + taux par profil). <strong>Rien n'est appliqué sans votre action</strong> : « Valider » écrit une ligne de taux dédiée à l'actif (lue avant le repli BTC « non calibré ») ; « Refuser » laisse l'actif sur le repli BTC. Un preset ou une Affectation déjà dédié à l'actif n'est jamais écrasé. Pour relancer un calcul : « Recalculer » dans la vue par actif ci-dessous.</p>
+	<div id="adm-nap-list"></div>
+	<hr>
+	<h5>Vue par actif</h5>
+	<p class="text-muted small">Actifs ayant au moins un lien non archivé, et actifs en liste noire. Les actifs sont ouverts à tout actif éligible chez un provider connecté (volume, route d'achat, historique) : cet onglet permet de les superviser, d'en bloquer et de régler le seuil de volume.</p>
+	<div id="adm-as-disabled" class="alert alert-warning small d-none" role="status">Calcul des nouveaux actifs désactivé sur ce serveur (<code>tradeio.new-asset-proposal.enabled=false</code>) : « Recalculer » est indisponible.</div>
+	<div class="table-responsive">
+		<table class="table table-sm mb-0">
+			<thead>
+				<tr>
+					<th>Actif</th>
+					<th>Liens</th>
+					<th>Utilisateurs</th>
+					<th>Calibration</th>
+					<th>Bloqué</th>
+					<th>Volume 24 h</th>
+					<th>Suspendus</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody id="adm-as-body"></tbody>
+		</table>
+	</div>
+	<hr>
+	<h5>Liste noire</h5>
+	<p class="text-muted small">Un actif en liste noire n'accepte plus de nouveau lien ; ses liens existants sont <strong>suspendus</strong> (aucun ordre réel, simulation visible) et une alarme du Diagnostic est levée. Effet immédiat, sans redémarrage ; le retrait lève tout.</p>
+	<form id="adm-as-bl-form" class="row g-3 align-items-end" novalidate>
+		<div class="col-12 col-md-3">
+			<label class="form-label" for="adm-as-bl-asset">Symbole</label>
+			<input type="text" class="form-control" id="adm-as-bl-asset" maxlength="16" autocomplete="off" placeholder="ex. DOGE" required>
+		</div>
+		<div class="col-12 col-md-6">
+			<label class="form-label" for="adm-as-bl-reason">Motif</label>
+			<input type="text" class="form-control" id="adm-as-bl-reason" maxlength="255" autocomplete="off" placeholder="facultatif">
+		</div>
+		<div class="col-auto">
+			<button type="submit" class="btn btn-primary" id="adm-as-bl-add">Ajouter</button>
+		</div>
+	</form>
+	<div class="table-responsive">
+		<table class="table table-sm mb-0">
+			<thead>
+				<tr>
+					<th>Actif</th>
+					<th>Motif</th>
+					<th>Par</th>
+					<th>Le</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody id="adm-as-bl-body"></tbody>
+		</table>
+	</div>
+	<hr>
+	<h5>Seuil de volume</h5>
+	<p class="text-muted small">Volume spot 24 h minimum (USD) chez le provider du lien pour qu'un actif soit éligible. Un volume non vérifiable (exchange sans volume, lecture périmée) reste éligible mais non vérifié. 0 = aucun seuil.</p>
+	<form id="adm-as-vol-form" class="row g-3 align-items-end" novalidate>
+		<div class="col-12 col-md-3">
+			<label class="form-label" for="adm-as-vol">Volume 24 h minimum (USD)</label>
+			<input type="number" class="form-control" id="adm-as-vol" min="0" step="1" required>
+		</div>
+		<div class="col-auto">
+			<button type="submit" class="btn btn-primary" id="adm-as-vol-save">Enregistrer</button>
+		</div>
+		<div class="col-auto"><span class="small text-muted" id="adm-as-vol-meta"></span></div>
+	</form>
+</div>

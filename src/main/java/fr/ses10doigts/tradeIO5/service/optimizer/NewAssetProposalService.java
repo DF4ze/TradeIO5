@@ -37,6 +37,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -47,11 +48,15 @@ import java.util.stream.Collectors;
  * Pipeline d'accueil d'un nouvel actif (D1b, lot 1) : à la création d'un lien sur un actif sans ligne de taux {@code asset_base_rate} valide ({@link AssetBaseRateService#isCalibrated})
  * et sans proposition, calcule EN ASYNCHRONE (pool dédié d'un fil, priorité minimale, délai maximal, jamais sur le chemin du cron live) une proposition
  * {@link NewAssetProposalCalculator} et la persiste au statut {@code PROPOSE}. Rien n'est appliqué : le lien tourne déjà sur le repli BTC « non calibré ».
- * Aucune exception ne remonte : un échec devient une proposition dégradée (drapeaux). Désactivé par défaut ({@value #ENABLED_PROPERTY}).
+ * Aucune exception ne remonte : un échec devient une proposition dégradée (drapeaux). Actif par défaut ({@value #ENABLED_PROPERTY}{@code =false} le coupe : tests, recette).
+ * <p><b>Recalcul admin</b> ({@link #requestRecompute}) : relance le calcul d'un actif ayant déjà une proposition (refusée, dégradée, validée), dans la même file
+ * asynchrone et avec le même calcul. Un seul calcul à la fois par actif ({@link #isRunning}). Le résultat REMPLACE le contenu de la proposition de l'actif
+ * (statut repassé {@code PROPOSE}, alarme « actif à valider » close puis relevée) ; si la dernière proposition est {@code VALIDE}, une nouvelle ligne est écrite
+ * (la validée reste la cible de {@code asset_base_rate.proposal_id}). La ligne de taux déjà validée n'est jamais touchée : seule une nouvelle validation l'écrase.</p>
  */
 @Slf4j
 @Service
-@ConditionalOnProperty(name = NewAssetProposalService.ENABLED_PROPERTY, havingValue = "true")
+@ConditionalOnProperty(name = NewAssetProposalService.ENABLED_PROPERTY, havingValue = "true", matchIfMissing = true)
 public class NewAssetProposalService {
 
     public static final String ENABLED_PROPERTY = "tradeio.new-asset-proposal.enabled";
@@ -72,6 +77,8 @@ public class NewAssetProposalService {
     private final AssetBaseRateService baseRates;
     private final Path benchDir;
     private final NewAssetConfig cfg = NewAssetConfig.defaults();
+    /** Actifs dont un calcul est en file ou en cours : un seul à la fois par actif. */
+    private final Set<String> running = ConcurrentHashMap.newKeySet();
     private final ExecutorService queue = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "new-asset-proposal");
         t.setDaemon(true);
@@ -108,7 +115,7 @@ public class NewAssetProposalService {
     /** Point d'entrée : lien créé (après commit). Ne calcule rien ici : met en file et rend la main. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onLinked(NewAssetLinkedEvent event) {
-        if (!needsProposal(event.assetSymbol())) {
+        if (!needsProposal(event.assetSymbol()) || !running.add(event.assetSymbol())) {
             return;
         }
         log.info("Nouvel actif {} : proposition mise en file (lien {})", event.assetSymbol(), event.bindingId());
@@ -117,8 +124,42 @@ public class NewAssetProposalService {
                 propose(event);
             } catch (RuntimeException e) {
                 log.error("Nouvel actif {} : proposition en échec", event.assetSymbol(), e);
+            } finally {
+                running.remove(event.assetSymbol());
             }
         });
+    }
+
+    /** Un calcul (accueil ou recalcul) est-il en file ou en cours pour cet actif ? */
+    public boolean isRunning(String asset) {
+        return running.contains(asset);
+    }
+
+    /**
+     * Recalcul demandé par un admin : met en file (même file asynchrone que l'accueil) et rend la main.
+     *
+     * @throws IllegalStateException un calcul est déjà en file ou en cours pour cet actif
+     */
+    public void requestRecompute(NewAssetLinkedEvent event) {
+        String asset = event.assetSymbol();
+        if (!running.add(asset)) {
+            throw new IllegalStateException("Un calcul est déjà en cours pour " + asset + " : attendre sa fin");
+        }
+        log.info("Nouvel actif {} : recalcul mis en file (lien {})", asset, event.bindingId());
+        try {
+            queue.submit(() -> {
+                try {
+                    recompute(event);
+                } catch (RuntimeException e) {
+                    log.error("Nouvel actif {} : recalcul en échec", asset, e);
+                } finally {
+                    running.remove(asset);
+                }
+            });
+        } catch (RuntimeException e) {
+            running.remove(asset);
+            throw e;
+        }
     }
 
     boolean needsProposal(String asset) {
@@ -131,6 +172,62 @@ public class NewAssetProposalService {
         if (!needsProposal(asset)) {
             return proposals.findFirstByAssetSymbolOrderByIdDesc(asset).orElse(null);
         }
+        NewAssetProposal saved = proposals.save(build(event));
+        alerts.alert(saved);
+        log.info("Nouvel actif {} : proposition {} (statut {}, drapeaux {}, {} ms)", asset, saved.getId(), saved.getStatus(), saved.getFlags(),
+                saved.getComputeMs());
+        return saved;
+    }
+
+    /**
+     * Recalcule (synchrone : tests, file asynchrone) et REMPLACE le contenu de la dernière proposition de l'actif, statut {@code PROPOSE} ; dernière proposition
+     * {@code VALIDE} ou aucune : nouvelle ligne. Clôt l'ancienne alarme « actif à valider » puis relève la nouvelle. N'écrit jamais {@code asset_base_rate}.
+     */
+    public NewAssetProposal recompute(NewAssetLinkedEvent event) {
+        String asset = event.assetSymbol();
+        NewAssetProposal fresh = build(event);
+        NewAssetProposal saved = tx.execute(s -> {
+            NewAssetProposal last = proposals.findFirstByAssetSymbolOrderByIdDesc(asset).orElse(null);
+            if (last == null || last.getStatus() == NewAssetProposalStatus.VALIDE) {
+                return proposals.save(fresh);
+            }
+            replaceContent(last, fresh);
+            return proposals.save(last);
+        });
+        alerts.closeAlert(asset, "proposition recalculée");
+        alerts.alert(saved);
+        log.info("Nouvel actif {} : recalcul -> proposition {} (statut {}, drapeaux {}, {} ms)", asset, saved.getId(), saved.getStatus(), saved.getFlags(),
+                saved.getComputeMs());
+        return saved;
+    }
+
+    /** Copie le résultat du calcul dans la ligne existante (identifiant conservé), décision effacée, statut {@code PROPOSE}. */
+    private static void replaceContent(NewAssetProposal target, NewAssetProposal fresh) {
+        target.setStatus(NewAssetProposalStatus.PROPOSE);
+        target.setPresetSource(fresh.getPresetSource());
+        target.setHistorySource(fresh.getHistorySource());
+        target.setCandleFirstDay(fresh.getCandleFirstDay());
+        target.setCandleLastDay(fresh.getCandleLastDay());
+        target.setCandleCount(fresh.getCandleCount());
+        target.setCandleChecksum(fresh.getCandleChecksum());
+        target.setHistoryMonths(fresh.getHistoryMonths());
+        target.setBlockCount(fresh.getBlockCount());
+        target.setSwitchCount(fresh.getSwitchCount());
+        target.setFlags(fresh.getFlags());
+        target.setMarginK(fresh.getMarginK());
+        target.setLevelsJson(fresh.getLevelsJson());
+        target.setReplays(fresh.getReplays());
+        target.setComputeMs(fresh.getComputeMs());
+        target.setWarning(fresh.getWarning());
+        target.setRequestedBy(fresh.getRequestedBy());
+        target.setCreatedAt(fresh.getCreatedAt());
+        target.setDecidedAt(null);
+        target.setDecidedBy(null);
+    }
+
+    /** Calcul complet d'une proposition (non persistée) : contexte, historique, calcul borné ; jamais d'exception (échec = proposition dégradée). */
+    private NewAssetProposal build(NewAssetLinkedEvent event) {
+        String asset = event.assetSymbol();
         long t0 = System.nanoTime();
         Context ctx = tx.execute(s -> context(event));
         Set<ProposalFlag> extra = new LinkedHashSet<>();
@@ -156,11 +253,7 @@ public class NewAssetProposalService {
             log.warn("Nouvel actif {} : calcul en échec : {}", asset, String.valueOf(e.getCause() == null ? e : e.getCause()));
             result = interrupted(asset, ctx, "erreur : " + (e.getCause() == null ? e : e.getCause()).getMessage());
         }
-        NewAssetProposal saved = proposals.save(toEntity(result, extra, notes, warning, ctx.requestedBy(), (System.nanoTime() - t0) / 1_000_000));
-        alerts.alert(saved);
-        log.info("Nouvel actif {} : proposition {} (statut {}, drapeaux {}, {} ms)", asset, saved.getId(), saved.getStatus(), saved.getFlags(),
-                saved.getComputeMs());
-        return saved;
+        return toEntity(result, extra, notes, warning, ctx.requestedBy(), (System.nanoTime() - t0) / 1_000_000);
     }
 
     private record Context(MarketDataSource source, TransferStudy.Source btc, double k, RainbowModulationControl limits, String requestedBy,

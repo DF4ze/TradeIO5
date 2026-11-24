@@ -2,7 +2,9 @@ package fr.ses10doigts.tradeIO5.service.market.eligibility;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Constantes métier de l'éligibilité d'un actif (source unique : ne pas les recopier). Le seuil de volume est le DÉFAUT du
@@ -28,6 +30,18 @@ public final class AssetEligibilityDefaults {
 
     /** Cotations assimilées au dollar (volume additionnable sans conversion de change). */
     public static final Set<String> USD_QUOTES = Set.of("USD", "USDC", "USDT");
+
+    /** Symbole d'actif nu normalisé (majuscules) : 2 à 16 lettres ou chiffres. Source unique (liens, liste noire admin). */
+    public static final Pattern ASSET_SYMBOL_FORMAT = Pattern.compile("[A-Z0-9]{2,16}");
+
+    /** Symbole nu en majuscules ; format invalide => {@link IllegalArgumentException}. */
+    public static String normalizeSymbol(String asset) {
+        String normalized = asset == null ? "" : asset.trim().toUpperCase(Locale.ROOT);
+        if (!ASSET_SYMBOL_FORMAT.matcher(normalized).matches()) {
+            throw new IllegalArgumentException("Symbole d'actif invalide : " + asset);
+        }
+        return normalized;
+    }
 
     private AssetEligibilityDefaults() {
     }

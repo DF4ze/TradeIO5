@@ -334,15 +334,9 @@ public class RainbowLiveBindingService {
         return r;
     }
 
-    private static final java.util.regex.Pattern ASSET_FORMAT = java.util.regex.Pattern.compile("[A-Z0-9]{2,16}");
-
     /** Symbole nu en majuscules ; format invalide => 400 (l'éligibilité chez le provider juge ensuite l'actif). */
     private static String normalizeAsset(String asset) {
-        String normalized = asset == null ? "" : asset.trim().toUpperCase(java.util.Locale.ROOT);
-        if (!ASSET_FORMAT.matcher(normalized).matches()) {
-            throw new IllegalArgumentException("Symbole d'actif invalide : " + asset);
-        }
-        return normalized;
+        return fr.ses10doigts.tradeIO5.service.market.eligibility.AssetEligibilityDefaults.normalizeSymbol(asset);
     }
 
     /** Priorité par défaut d'un nouveau lien : après tous les liens existants de l'utilisateur ; à priorité égale, le plus ancien (id) est servi d'abord. */

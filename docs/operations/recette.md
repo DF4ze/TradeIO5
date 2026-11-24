@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-11
-modifié_le: 2026-11-23
-empreinte: f2b14a8cba
+modifié_le: 2026-11-24
+empreinte: 7bffd7b772
 ---
 # Recette et déploiement prod
 
@@ -36,7 +36,7 @@ La clé agent (`tradeio.security.agent-api-key`, en-tête `X-Api-Key`) donne `RO
 
 ## Profil `recette`
 
-Template versionné : `src/main/resources/application-recette.properties.template` (sans secret). Le fichier réel `application-recette.properties` vit sur le VPS dans `/home/oklm/TradeIO-recette/` (dossier de travail dédié : `logs/`, `backup/`, `reports/` séparés), droits `600`, secrets repris de `/home/oklm/TradeIO/application-prod.properties`.
+Template versionné : `src/main/resources/application-recette.properties.template` (sans secret ; `tradeio.new-asset-proposal.enabled=false` : le calcul des nouveaux actifs ne tourne pas en recette). Le fichier réel `application-recette.properties` vit sur le VPS dans `/home/oklm/TradeIO-recette/` (dossier de travail dédié : `logs/`, `backup/`, `reports/` séparés), droits `600`, secrets repris de `/home/oklm/TradeIO/application-prod.properties`.
 
 - Base : `tradeio5_recette` (copie de la prod), port `9004`, `ddl-auto=validate`.
 - Aucun effet de bord : `tradeio.execution.mode=OFF`, `live-unlocked=false`, tous les crons à `-`, **pas de `TRADEIO_MASTER_KEY`** (clés chiffrées illisibles ; les 2 ERROR « clé maître absente » au démarrage sont attendus).

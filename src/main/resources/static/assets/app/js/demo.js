@@ -222,6 +222,9 @@
       if ((m = p.match(/^\/api\/rainbow-live\/bindings\/(\d+)\/bands$/))) return bands(m[1], q.get('period') || '90d', q.get('simulated') === 'true');
       if ((m = p.match(/^\/api\/rainbow-live\/bindings\/(\d+)\/transactions$/))) return transactions(m[1]);
       if ((m = p.match(/^\/api\/rainbow-live\/bindings\/(\d+)\/check$/))) return { status: 'OK', message: 'Prêt', ok: true, executable: true, blocked: false, quoteMember: 'USDC', routeKey: 'X-USDC' };
+      if (p === '/api/rainbow-live/assets/eligible') { const n = (q.get('q') || '').toUpperCase(), lim = Number(q.get('limit')) || 50;
+        return ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'LINK', 'AVAX', 'DOT', 'LTC', 'TRX', 'PAXG', 'ATOM', 'UNI'].map((s, i) => ({ symbol: s, provider: 'OKX', volumeUsd: 9e9 / (i + 1), volumeVerified: i !== 6,
+          alreadyLinked: ['BTC', 'ETH', 'PAXG'].includes(s), state: ['BTC', 'ETH', 'PAXG'].includes(s) ? 'CALIBRE' : 'EN_ATTENTE_VALIDATION' })).filter((a) => !n || a.symbol.includes(n)).slice(0, lim); }
       if (p === '/api/rainbow-live/defaults') return { assets: ['BTC', 'ETH', 'PAXG'], cashCurrency: 'USDC', baseAmount: 10 };
       if (p === '/api/rainbow-live/affectations') return [{ id: 11, assetSymbol: q.get('asset') || 'BTC', name: 'Trend de base', enabled: true, complete: true }];
       if (p === '/api/user/preferences') return prefs;

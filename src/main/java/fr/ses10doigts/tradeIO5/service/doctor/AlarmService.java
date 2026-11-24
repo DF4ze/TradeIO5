@@ -163,6 +163,12 @@ public class AlarmService {
                 .filter(a -> a.getSeverity() == severity).count();
     }
 
+    /** Alarmes ouvertes non acquittées (ACTIVE) d'un contrôle : celles que compte la pastille du menu admin. */
+    @Transactional(readOnly = true)
+    public long countActiveByCheckId(String checkId) {
+        return alarms.findByCheckIdAndStateNot(checkId, AlarmState.RESOLVED).stream().filter(a -> a.getState() == AlarmState.ACTIVE).count();
+    }
+
     private Alarm open(Long id) {
         Alarm alarm = alarms.findById(id).orElseThrow(() -> new IllegalArgumentException("alarme introuvable : " + id));
         if (alarm.getState() == AlarmState.RESOLVED) {

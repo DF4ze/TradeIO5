@@ -5,10 +5,13 @@ import fr.ses10doigts.tradeIO5.model.entity.admin.AdminAction;
 import fr.ses10doigts.tradeIO5.model.entity.admin.AdminActionOutcome;
 import fr.ses10doigts.tradeIO5.model.entity.doctor.Alarm;
 import fr.ses10doigts.tradeIO5.model.entity.doctor.AlarmState;
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.NewAssetProposalStatus;
 import fr.ses10doigts.tradeIO5.model.entity.doctor.DoctorStatus;
+import fr.ses10doigts.tradeIO5.repository.dca.bench.NewAssetProposalRepository;
 import fr.ses10doigts.tradeIO5.repository.doctor.JobRunRepository;
 import fr.ses10doigts.tradeIO5.security.service.IAuthenticationFacade;
 import fr.ses10doigts.tradeIO5.service.admin.AdminActionLogService;
+import fr.ses10doigts.tradeIO5.service.admin.NewAssetProposalAdminService;
 import fr.ses10doigts.tradeIO5.service.doctor.AlarmService;
 import fr.ses10doigts.tradeIO5.service.doctor.DoctorReport;
 import fr.ses10doigts.tradeIO5.service.doctor.DoctorService;
@@ -47,6 +50,7 @@ public class DoctorAdminController {
     private final AlarmService alarms;
     private final JobRunRepository jobRuns;
     private final AdminActionLogService journal;
+    private final NewAssetProposalRepository proposals;
     private final IAuthenticationFacade authenticationFacade;
 
     @GetMapping
@@ -101,8 +105,13 @@ public class DoctorAdminController {
     }
 
     private DoctorDtos.Report toDto(DoctorReport report) {
-        return new DoctorDtos.Report(report.runAt(), report.worst(), alarms.countOpenBySeverity(DoctorStatus.CRIT),
-                alarms.countOpenBySeverity(DoctorStatus.WARN), report.results());
+        long crit = alarms.countOpenBySeverity(DoctorStatus.CRIT);
+        long warn = alarms.countOpenBySeverity(DoctorStatus.WARN);
+        long pendingAssets = proposals.findByStatusOrderByCreatedAtAsc(NewAssetProposalStatus.PROPOSE).size();
+        long proposalAlarms = alarms.countActiveByCheckId(NewAssetProposalAdminService.ALARM_CHECK);
+        // Une proposition à valider = 1 point : son alarme (si ouverte) est retirée du compte avant d'ajouter les propositions.
+        long menuCount = Math.max(0, crit + warn - proposalAlarms) + pendingAssets;
+        return new DoctorDtos.Report(report.runAt(), report.worst(), crit, warn, pendingAssets, menuCount, report.results());
     }
 
     private String actor() {

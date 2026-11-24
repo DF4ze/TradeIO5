@@ -95,53 +95,6 @@
 
   async function load() {
     render(await api('GET', '/api/admin/rainbow-modulation'));
-    await loadProposals();
-  }
-
-  /* ---- Actifs à valider (D1b lot 2) : GET /api/admin/new-asset-proposals, POST /{id}/validate|refuse */
-  /* Base indicative en $ par jour pour 1 000 $ de cash (taux × 1000), jamais le taux brut. */
-  const fmtRate = (v) => (Number(v) * 1000).toFixed(4);
-
-  function proposalCard(p) {
-    const line = (k, v) => el('div', { class: 'small' }, el('strong', { text: k + ' ' }), v == null || v === '' ? '—' : String(v));
-    const rows = (p.rates || []).map((r) => el('tr', null, el('td', { text: r.profile }), el('td', { text: r.capPct + ' %' }),
-      el('td', { text: '×' + Number(r.multiplier).toFixed(2) }), el('td', { text: fmtRate(r.baseRate) }), el('td', { text: r.status })));
-    const rates = rows.length
-      ? el('table', { class: 'table table-sm w-auto mb-2' }, el('thead', null, el('tr', null, ['Profil', 'Plafond', 'Multiplicateur', 'Base $/jour pour 1 000 $ de cash', 'Statut'].map((h) => el('th', { text: h })))), el('tbody', null, ...rows))
-      : el('div', { class: 'small text-muted mb-2', text: 'Aucun taux calculé.' });
-    const pending = p.status === 'PROPOSE';
-    const buttons = pending ? el('div', { class: 'd-flex gap-2 mt-2' },
-      el('button', { type: 'button', class: 'btn btn-sm btn-primary', text: 'Valider', disabled: !p.canValidate, title: p.validateBlockedReason || '',
-        onclick: (e) => decide(e.currentTarget, p, 'validate') }),
-      el('button', { type: 'button', class: 'btn btn-sm btn-outline-danger', text: 'Refuser', onclick: (e) => decide(e.currentTarget, p, 'refuse') })) : null;
-    return el('div', { class: 'card card-body mb-2', id: 'adm-nap-' + p.id },
-      el('div', { class: 'fw-bold', text: p.asset + ' · ' + p.status + (p.decidedBy ? ' par ' + p.decidedBy : '') }),
-      p.nonTradable ? el('div', { class: 'alert alert-warning small py-1 my-1', text: 'Actif non tradable chez le provider du lien : ' + (p.warning || '') }) : null,
-      line('Preset de départ :', p.presetSource + ' (Bull / Bear + Trend par défaut)'),
-      line('Drapeaux :', (p.flags || []).join(', ') || 'aucun'),
-      line('Historique :', (p.historyMonths == null ? '—' : p.historyMonths + ' mois') + ' · ' + (p.blockCount == null ? '—' : p.blockCount) + ' bloc(s) de 24 mois · ' + (p.switchCount == null ? '—' : p.switchCount) + ' switch(s)'),
-      line('Source des bougies :', (p.historySource || '—') + ' · ' + (p.candleFirstDay || '?') + ' → ' + (p.candleLastDay || '?') + ' (' + (p.candleCount == null ? '?' : p.candleCount) + ')'),
-      line('Empreinte des bougies :', p.candleChecksum),
-      line('Marge k :', p.marginK),
-      p.warning && !p.nonTradable ? line('Note :', p.warning) : null,
-      rates,
-      el('div', { class: 'alert alert-info small py-1 mb-0', text: p.presetPlanText }),
-      p.validateBlockedReason && pending ? el('div', { class: 'small text-muted', text: p.validateBlockedReason }) : null,
-      buttons);
-  }
-
-  async function decide(btn, p, action) {
-    const lines = action === 'validate'
-      ? ['Écrire la ligne de taux dédiée de ' + p.asset + ' (lue avant le repli BTC).', p.presetPlanText]
-      : ['L\'actif ' + p.asset + ' reste sur le repli BTC « non calibré » ; l\'alarme est close.'];
-    if (!await core.askConfirm((action === 'validate' ? 'Valider ' : 'Refuser ') + p.asset, lines, 'OK', action === 'validate' ? 'Valider' : 'Refuser')) { return; }
-    await run(btn, async () => { await api('POST', '/api/admin/new-asset-proposals/' + p.id + '/' + action); await loadProposals(); });
-  }
-
-  async function loadProposals() {
-    const list = await api('GET', '/api/admin/new-asset-proposals');
-    const host = byId('adm-nap-list');
-    host.replaceChildren(...(list.length ? list.map(proposalCard) : [el('div', { class: 'small text-muted', text: 'Aucune proposition en attente.' })]));
   }
 
   function body(useDefaults) {

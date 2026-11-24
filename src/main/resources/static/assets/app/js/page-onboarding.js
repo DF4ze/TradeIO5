@@ -1,4 +1,4 @@
-/* Ajouter un actif : 1 actif → 2 où acheter (frais de tous les exchanges comparés d'un coup, un seul choix exchange + route) → 3 montant de base par jour. Le profil déjà paramétré s'applique tel quel. L'exécution réelle reste désactivée. */
+/* Ajouter un actif : 1 actif (recherche + top par volume + badges d'état, données de GET /api/rainbow-live/assets/eligible, tout en texte échappé) → 2 où acheter (frais de tous les exchanges comparés d'un coup, un seul choix exchange + route) → 3 montant de base par jour. Le profil déjà paramétré s'applique tel quel. L'exécution réelle reste désactivée. */
 (function (g) {
   'use strict';
   const TIO = g.TIO, h = TIO.h, ui = TIO.ui, F = TIO.fmt;
@@ -7,13 +7,43 @@
   /** Montant sur lequel les exchanges sont comparés : même base pour tous, indépendante du montant journalier. */
   const COMPARE_USD = 1000;
   const AMOUNTS = [10, 25, 50, 100];
+  /** Nombre de pastilles du top par volume (constante unique). */
+  const ONBOARDING_TOP_N = 12;
+  /** Chargement initial : un seul appel, dédoublonné par symbole ; s'il n'est pas tronqué il sert aussi de filtre local à la recherche. */
+  const POOL_LIMIT = 60;
+  const SEARCH_LIMIT = 100;
+  const DEBOUNCE_MS = 300;
+  /** Badges d'état : [libellé, style de pastille, explication en une phrase]. */
+  const BADGES = {
+    CALIBRE: ['Calibré', 'ok', 'Ligne de taux valide : l\'exécution réelle est possible une fois activée.'],
+    EN_ATTENTE_VALIDATION: ['En attente de validation', 'sim', 'Simulation seule jusqu\'à validation par un administrateur : aucun ordre réel avant.'],
+    UNVERIFIED: ['Volume non vérifié', 'unknown', 'Cet exchange ne donne pas le volume 24 h : la liquidité n\'est pas confirmée.'],
+    LINKED: ['Déjà géré', 'accent', 'Cet actif est déjà lié à l\'un de vos exchanges.'] };
+  const norm = (v) => String(v || '').trim().toLowerCase();
+  /** Un actif par symbole (l'API renvoie une ligne par exchange) : volume max, « non vérifié » si une ligne l'est, « déjà géré » si une ligne l'est. */
+  function mergeBySymbol(rows) {
+    const out = new Map();
+    (rows || []).forEach((r) => {
+      const cur = out.get(r.symbol);
+      if (!cur) { out.set(r.symbol, { symbol: r.symbol, volumeUsd: r.volumeUsd, volumeVerified: !!r.volumeVerified, alreadyLinked: !!r.alreadyLinked, state: r.state }); return; }
+      if (Number(r.volumeUsd) > Number(cur.volumeUsd || 0)) cur.volumeUsd = r.volumeUsd;
+      cur.volumeVerified = cur.volumeVerified && !!r.volumeVerified; cur.alreadyLinked = cur.alreadyLinked || !!r.alreadyLinked;
+    });
+    return Array.from(out.values());
+  }
+  const badgesOf = (a) => [BADGES[a.state] || BADGES.EN_ATTENTE_VALIDATION, a.volumeVerified ? null : BADGES.UNVERIFIED, a.alreadyLinked ? BADGES.LINKED : null].filter(Boolean);
+  function badgeChip(b) { const c = ui.chip(b[0], b[1]); c.setAttribute('data-tip', b[2]); return c; }
   const sum = (legs, k) => (legs || []).reduce((acc, l) => acc + Number(l[k] || 0), 0);
   const arrow = (key) => String(key || '').split('>').join(' → ');
   const nameOf = (code, fallback) => NAMES[code] || fallback || code;
 
   TIO.start(function (root) {
-    const st = { asset: null, baseAmount: 10, walletId: null, exchange: null, route: null, defaultRoute: null, list: [], lite: [], validated: false, validating: false };
-    const assetBox = h('div', { class: 'asset-pick', role: 'group', 'aria-label': 'Actif' });
+    const st = { asset: null, item: null, pool: [], poolComplete: false, q: '', baseAmount: 10, walletId: null, exchange: null, route: null, defaultRoute: null, list: [], lite: [], validated: false, validating: false };
+    const assetBox = h('div', { class: 'stack' });
+    const grid = h('div', { class: 'asset-grid', role: 'group', 'aria-label': 'Actifs éligibles' });
+    const selBox = h('div', { class: 'stack' });
+    const search = h('input', { type: 'search', placeholder: 'Rechercher un symbole (ex. SOL)', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Rechercher un actif par symbole' });
+    const searchInfo = h('div', { class: 'note', role: 'status', 'aria-live': 'polite' });
     const cmp = h('div', { class: 'stack' });
     const result = h('div', { class: 'stack' });
     const amount = h('input', { type: 'number', min: '0', step: 'any', inputmode: 'decimal', value: String(st.baseAmount) });
@@ -33,24 +63,90 @@
       Array.from(amountChips.children).forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.v) === Number(amount.value))));
     }
 
-    // 1. actif
+    // 1. actif : recherche (symbole) + pastilles du top par volume ; badges d'état ; états chargement / vide / erreur
+    const tile = (a) => {
+      const b = h('button', { class: 'asset-tile', type: 'button', 'aria-pressed': String(a.symbol === st.asset) },
+        h('span', { class: 'asset-tile-head' }, ui.coin(a.symbol), h('span', { class: 'asset-sym' }, a.symbol)),
+        h('span', { class: 'asset-badges' }, badgesOf(a).map(badgeChip)));
+      b.dataset.asset = a.symbol;
+      b.addEventListener('click', () => pickAsset(a));
+      return b;
+    };
+    function renderSel() {
+      const a = st.item;
+      TIO.mount(selBox, a ? h('div', { class: 'asset-sel' }, h('span', { class: 'asset-tile-head' }, ui.coin(a.symbol), h('strong', null, a.symbol)),
+          h('span', { class: 'asset-badges' }, badgesOf(a).map(badgeChip)),
+          a.state === 'EN_ATTENTE_VALIDATION' ? h('span', { class: 'muted small' }, 'Simulation seule tant qu\'un administrateur n\'a pas validé cet actif.') : null) : null);
+    }
     function pickAsset(a) {
-      st.asset = a; st.walletId = null; st.route = null; st.defaultRoute = null; st.exchange = null; st.validated = false; st.list = []; st.lite = []; TIO.clear(result);
-      Array.from(assetBox.children).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.asset === a)));
+      st.asset = a.symbol; st.item = a; st.walletId = null; st.route = null; st.defaultRoute = null; st.exchange = null; st.validated = false; st.list = []; st.lite = []; TIO.clear(result);
+      Array.from(grid.children).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.asset === a.symbol)));
+      renderSel();
       loadRoutes();
     }
+    function showList(list, info) {
+      TIO.mount(grid, list.map(tile));
+      TIO.mount(searchInfo, info || '');
+    }
+    /** Catalogue vide sans recherche : distingue « aucun exchange connecté » de « rien d'éligible ». */
+    async function showEmpty() {
+      TIO.mount(grid, '');
+      const ex = await TIO.safe(TIO.get('/api/exchanges'), null);
+      if (norm(search.value)) return; // l'utilisateur a tapé entre-temps : la recherche reprend la main
+      TIO.mount(searchInfo, ex && !(ex.exchanges || []).length
+        ? ui.empty('Aucun exchange connecté', 'Reliez un exchange (clé de lecture) pour voir les actifs que vous pouvez ajouter.',
+          h('a', { class: 'btn btn--primary', href: TIO.href('/app/exchanges') }, 'Connecter un exchange'))
+        : ui.empty('Catalogue vide', 'Aucun actif éligible chez vos exchanges pour le moment (catalogue en cours d\'actualisation ou volume sous le seuil).'));
+    }
+    const top = () => st.pool.slice(0, ONBOARDING_TOP_N);
+    function showTop() {
+      if (!st.pool.length) { showEmpty(); return; }
+      showList(top(), 'Top ' + Math.min(ONBOARDING_TOP_N, st.pool.length) + ' par volume sur vos exchanges. Cherchez un symbole pour voir les autres.');
+    }
+    const matches = (list, q) => list.filter((a) => a.symbol.toLowerCase().includes(q));
+    const cache = new Map();
+    let seq = 0, timer = null;
+    function showResults(list, q) {
+      if (norm(search.value) !== q) return;
+      if (!list.length) { TIO.mount(grid, ''); TIO.mount(searchInfo, ui.empty('Aucun résultat', 'Aucun actif éligible ne correspond à « ' + q + ' » chez vos exchanges.')); return; }
+      showList(list, list.length + ' actif' + (list.length > 1 ? 's' : '') + ' pour « ' + q + ' »');
+    }
+    /** Recherche : filtre local si le chargement initial était complet, sinon un appel (mémorisé, réponses périmées ignorées). */
+    async function apply() {
+      const q = norm(search.value);
+      if (q === st.q) return;
+      st.q = q;
+      if (!q) { showTop(); return; }
+      if (st.poolComplete) { showResults(matches(st.pool, q), q); return; }
+      if (cache.has(q)) { showResults(cache.get(q), q); return; }
+      const mine = ++seq;
+      TIO.mount(searchInfo, ui.loading(1));
+      try {
+        const list = mergeBySymbol(await TIO.get('/api/rainbow-live/assets/eligible' + TIO.qs({ q, limit: SEARCH_LIMIT })));
+        if (mine !== seq) return;
+        cache.set(q, list); showResults(list, q);
+      } catch (e) { if (mine === seq) { st.q = ''; TIO.mount(searchInfo, ui.error(e, apply)); } }
+    }
+    search.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(apply, DEBOUNCE_MS); });
+    search.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(timer); apply(); } });
+    const legendBtn = h('button', { class: 'btn', type: 'button', 'aria-haspopup': 'dialog' }, 'Légende');
+    legendBtn.addEventListener('click', () => ui.bubble(legendBtn, h('div', { class: 'stack' },
+      Object.values(BADGES).map((b) => h('div', { class: 'stack' }, ui.chip(b[0], b[1]), h('span', { class: 'muted small' }, b[2])))), 'Légende des badges'));
+    function loadPool() {
+      TIO.mount(grid, ui.loading(2));
+      TIO.mount(searchInfo, '');
+      TIO.get('/api/rainbow-live/assets/eligible' + TIO.qs({ limit: POOL_LIMIT })).then((rows) => {
+        st.pool = mergeBySymbol(rows); st.poolComplete = rows.length < POOL_LIMIT; st.q = ''; cache.clear();
+        if (norm(search.value)) apply(); else showTop();
+      }).catch((e) => { TIO.mount(grid, ''); TIO.mount(searchInfo, ui.error(e, loadPool)); });
+    }
     TIO.safe(TIO.get('/api/rainbow-live/defaults'), null).then((defaults) => {
-      const assets = (defaults && defaults.assets) || ['BTC'];
-      if (defaults && Number(defaults.baseAmount) > 0) { st.baseAmount = Number(defaults.baseAmount); amount.value = String(st.baseAmount); }
-      st.asset = assets[0];
-      TIO.mount(assetBox, assets.map((a) => {
-        const b = h('button', { class: 'asset-chip', type: 'button', 'aria-pressed': String(a === st.asset) }, ui.coin(a), h('span', null, a));
-        b.dataset.asset = a;
-        b.addEventListener('click', () => pickAsset(a));
-        return b;
-      }));
-      loadRoutes();
+      if (defaults && Number(defaults.baseAmount) > 0) { st.baseAmount = Number(defaults.baseAmount); amount.value = String(st.baseAmount); sync(); }
     });
+    TIO.mount(assetBox, h('div', { class: 'asset-search' }, h('div', { class: 'field' }, search), legendBtn,
+        h('a', { class: 'btn', href: TIO.href('/app/assets') }, 'Actifs déjà gérés')),
+      selBox, searchInfo, grid);
+    loadPool();
 
     // 2. comparateur : une ligne par exchange (meilleure route), autres routes dépliables, un seul bouton radio pour l'ensemble
     function select(r, routeKey, defaultRoute) { st.walletId = String(r.walletId); st.exchange = r.exchange; st.route = routeKey; st.defaultRoute = defaultRoute; TIO.clear(result); render(); }
@@ -137,6 +233,7 @@
     };
 
     function render() {
+      if (!st.asset) { TIO.mount(cmp, ui.note('Choisissez d\'abord un actif (étape 1).')); sync(); return; }
       const lite = st.lite;
       const validate = h('button', { class: 'btn', type: 'button', disabled: st.validating || !lite.some((r) => r.tradeKey && r.routes.length), onclick: validateFees },
         st.validating ? 'Calcul en cours…' : st.validated ? 'Actualiser les frais' : 'Valider les frais');
@@ -218,11 +315,17 @@
         const r = await TIO.post('/api/rainbow-live/bindings', { assetSymbol: st.asset, walletId: Number(st.walletId), baseAmount: v,
           preferredRoute: st.route && st.route !== st.defaultRoute ? st.route : undefined });
         const check = r && r.check;
-        TIO.mount(result, h('div', { class: 'banner' }, h('strong', null, st.asset + ' est suivi. '), 'Vous recevrez une décision chaque jour ; ',
-          'l\'exécution réelle reste désactivée, vous l\'activez vous-même dans Actifs gérés.'),
+        const pending = st.item && st.item.state === 'EN_ATTENTE_VALIDATION';
+        TIO.mount(result, pending
+            ? h('div', { class: 'banner banner--warn' }, h('strong', null, 'Lien créé : ' + st.asset + ' est en simulation seule. '),
+              'L\'exécution réelle est impossible tant qu\'un administrateur n\'a pas validé cet actif ; les décisions quotidiennes restent calculées en simulation. Suivez-le dans Actifs gérés.')
+            : h('div', { class: 'banner' }, h('strong', null, st.asset + ' est suivi. '), 'Vous recevrez une décision chaque jour ; ',
+              'l\'exécution réelle reste désactivée, vous l\'activez vous-même dans Actifs gérés.'),
           check ? h('div', { class: 'row' }, ui.statusChip(check.status), check.message && check.message !== 'OK' ? h('span', { class: 'muted small' }, check.message) : null) : null,
-          h('div', { class: 'row' }, h('a', { class: 'btn btn--primary', href: TIO.href('/app/assets') }, 'Voir mes actifs')));
-      } catch (e) { TIO.toast(e.message, true); } finally { sync(); }
+          h('div', { class: 'row' }, h('a', { class: 'btn btn--primary', href: TIO.href('/app/assets') }, pending ? 'Actifs gérés' : 'Voir mes actifs')));
+      } catch (e) { // 400 d'inéligibilité, 409… : la raison renvoyée par l'API, lisible et persistante
+        TIO.mount(result, h('div', { class: 'banner banner--warn', role: 'alert' }, h('strong', null, 'Ajout impossible. '), e.message || 'Erreur inconnue'));
+      } finally { sync(); }
     }
 
     create.addEventListener('click', async () => {
@@ -251,6 +354,6 @@
         ui.card('2 · Où acheter ?', cmp),
         ui.card('3 · Montant de base par jour', ui.field('Montant investi chaque jour ($)', amount, 'Avant modulation par la bande, la puissance et le biais.'), amountChips),
         h('div', { class: 'row' }, create), result));
-    sync();
+    render();
   });
 })(window);

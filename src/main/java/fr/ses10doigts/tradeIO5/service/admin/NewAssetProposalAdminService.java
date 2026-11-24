@@ -51,7 +51,7 @@ import java.util.Map;
 public class NewAssetProposalAdminService {
 
     public static final String ALARM_CHECK = "NEW_ASSET_PROPOSAL";
-    public static final String SCREEN_LINK = "/admin#modulation";
+    public static final String SCREEN_LINK = "/admin#assets";
     public static final String TARGET_PREFIX = "new-asset-proposal:";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -94,11 +94,16 @@ public class NewAssetProposalAdminService {
         try {
             String flags = p.getFlags() == null || p.getFlags().isBlank() ? "" : " (drapeaux : " + p.getFlags() + ")";
             alarms.raise(new DoctorReport.Entry(ALARM_CHECK, "Actif à valider", DoctorFamily.DATA, DoctorImpact.QUALITY, p.getAssetSymbol(),
-                    DoctorStatus.WARN, "Proposition d'accueil de l'actif " + p.getAssetSymbol() + " à valider" + flags + " : Administration > Modulation ("
+                    DoctorStatus.WARN, "Proposition d'accueil de l'actif " + p.getAssetSymbol() + " à valider" + flags + " : Administration > Actifs ("
                             + SCREEN_LINK + ")"));
         } catch (RuntimeException e) {
             log.warn("Nouvel actif {} : alarme « actif à valider » non levée : {}", p.getAssetSymbol(), e.toString());
         }
+    }
+
+    /** Clôt l'alarme « actif à valider » de l'actif (sans effet s'il n'y en a pas) : recalcul avant relevé de la nouvelle. */
+    public void closeAlert(String asset, String why) {
+        alarms.resolve(alarmKey(asset), why);
     }
 
     static String alarmKey(String asset) {

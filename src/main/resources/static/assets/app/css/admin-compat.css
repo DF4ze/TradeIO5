@@ -77,12 +77,13 @@
 .tio-admin #adm-banner.alert-warning { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); background: color-mix(in srgb, var(--warn) 7%, var(--surface)); }
 .tio-admin #adm-alert { border-radius: 18px; }
 
-/* onglets : pilule défilante, indicateur dégradé */
-.tio-admin .nav-tabs { display: flex; flex-wrap: nowrap; gap: 4px; list-style: none; padding: 4px; margin: 0; width: max-content; max-width: 100%; overflow-x: auto; scrollbar-width: none; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
-.tio-admin .nav-tabs::-webkit-scrollbar { display: none; }
-.tio-admin .nav-tabs .nav-link { border: 0; background: transparent; color: var(--muted); padding: 8px 18px; border-radius: 999px; font: inherit; font-weight: 700; font-size: 13px; white-space: nowrap; cursor: pointer; transition: color .15s, background .15s; }
+/* onglets : barre sur deux lignes (retour à la ligne, plus de défilement masqué par l'overlay) ; 6 par ligne sur PC, 3 sur mobile */
+.tio-admin .nav-tabs { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; padding: 6px; margin: 0; width: 100%; border-radius: 24px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.tio-admin .nav-tabs > .nav-item { flex: 1 1 calc(100% / 6 - 4px); min-width: 0; }
+.tio-admin .nav-tabs .nav-link { width: 100%; border: 0; background: transparent; color: var(--muted); padding: 8px 12px; border-radius: 999px; font: inherit; font-weight: 700; font-size: 13px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: color .15s, background .15s; }
 .tio-admin .nav-tabs .nav-link:hover { color: var(--text); }
 .tio-admin .nav-tabs .nav-link.active { background: var(--brand); color: var(--on-accent); }
+@media (max-width: 767px) { .tio-admin .nav-tabs > .nav-item { flex-basis: calc(100% / 3 - 4px); } .tio-admin .nav-tabs .nav-link { padding: 7px 6px; font-size: 12px; } }
 
 /* panneau = carte de la charte */
 .tio-admin .tab-content { padding-top: 0; }
@@ -136,3 +137,7 @@
 .tio-admin .adm-mod-line { margin: 0; color: var(--text); }
 .tio-admin .adm-mod-line strong { color: var(--accent-text, var(--accent)); }
 .tio-admin .adm-mod-range { margin: 0; color: var(--muted); font-size: 11px; }
+
+/* Actifs : badges d'état et ligne d'actif */
+.tio-admin .adm-asset-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.tio-admin .adm-asset-flags { display: flex; flex-wrap: wrap; gap: 4px; }

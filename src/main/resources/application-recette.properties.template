@@ -30,3 +30,4 @@ tradeio.media-watch.poll-cron=-
 tradeio.media-watch.extraction-cron=-
 tradeio.etf-flow.historization-cron=-
 tradeio.backup.historical-cron=-
+tradeio.new-asset-proposal.enabled=false

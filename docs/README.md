@@ -2,7 +2,7 @@
 statut: index
 sujet: Table de routage de la documentation
 modifié_le: 2026-11-24
-empreinte: 9ef6897742
+empreinte: 3c4dbaee66
 ---
 # TradeIO-5 — Documentation
 
@@ -88,7 +88,7 @@ Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decis
 | [`operations/scheduled-jobs.md`](operations/scheduled-jobs.md) | jobs planifiés |
 
 ## Reste à faire (known-gaps)
-[`rainbow-dca-chantiers-ouverts`](known-gaps/rainbow-dca-chantiers-ouverts.md) (objectif en cours : DCA intelligent) · [`front-gaps`](known-gaps/front-gaps.md) · [`doctor-diagnostic`](known-gaps/doctor-diagnostic.md) · [`actifs-dynamiques-lots`](known-gaps/actifs-dynamiques-lots.md) · [`nettoyages`](known-gaps/nettoyages.md) · [`code-level-inconsistencies`](known-gaps/code-level-inconsistencies.md)
+[`rainbow-dca-chantiers-ouverts`](known-gaps/rainbow-dca-chantiers-ouverts.md) (objectif en cours : DCA intelligent) · [`front-gaps`](known-gaps/front-gaps.md) · [`doctor-diagnostic`](known-gaps/doctor-diagnostic.md) · [`nettoyages`](known-gaps/nettoyages.md) · [`code-level-inconsistencies`](known-gaps/code-level-inconsistencies.md)
 
 ## Interface, sécurité, mind-set
 | Doc | Lire si… |
