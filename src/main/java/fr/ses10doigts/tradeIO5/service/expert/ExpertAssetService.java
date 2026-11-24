@@ -47,7 +47,7 @@ public class ExpertAssetService {
                     String name = assetRepository.findBySymbol(symbol).map(a -> a.getName()).orElse(symbol);
                     boolean exploitable = affectationRepository.findByUserAndAssetSymbolOrderByIdAsc(ctx.user(), symbol).stream()
                             .anyMatch(AssetAffectation::isComplete);
-                    return new AssetDto(symbol, name, providers, exploitable, !providers.isEmpty(), eligibility(ctx, symbol));
+                    return new AssetDto(symbol, name, providers, assets.simulationProviders(symbol), exploitable, !providers.isEmpty(), eligibility(ctx, symbol));
                 }).toList();
     }
 

@@ -19,10 +19,10 @@ public final class ExpertDtos {
 
     /**
      * Actif proposé. {@code exploitable} = Affectation complète de l'utilisateur ; {@code simulable} = au moins un provider actif ;
-     * {@code eligibility} = historique D1 requis par les presets de l'utilisateur et bougies déjà en cache par provider (aucun fetch).
+     * {@code simulationProviders} = sources de bougies utilisables en simulation seule (actif non configuré chez elles) ; {@code eligibility} = historique D1 requis par les presets de l'utilisateur et bougies déjà en cache par provider (aucun fetch).
      */
-    public record AssetDto(String symbol, String name, List<ProviderDto> providers, boolean exploitable, boolean simulable,
-                           ExpertSimulationDtos.EligibilityDto eligibility) {
+    public record AssetDto(String symbol, String name, List<ProviderDto> providers, List<String> simulationProviders,
+                           boolean exploitable, boolean simulable, ExpertSimulationDtos.EligibilityDto eligibility) {
     }
 
     /** Emplacement d'un preset dans une Affectation ; {@code enabled} = moteur de l'Affectation allumé (engagé). */

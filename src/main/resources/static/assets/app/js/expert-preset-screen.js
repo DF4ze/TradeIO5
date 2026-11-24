@@ -45,7 +45,8 @@
         if (!st.header || !st.form) return null;
         const rp = X.rangeParams(st.range), vals = st.form.get();
         const ref = isDirty() ? { draft: cfg.draftOf(vals) } : { id: st.header.id };
-        const body = { type: cfg.simType, assetSymbol: st.asset, provider: st.provider || null, from: rp.from, to: rp.to };
+        // provider de simulation : menu Provider, sinon provider de référence saisi dans le formulaire (le brouillon n'est pas encore enregistré)
+        const body = { type: cfg.simType, assetSymbol: st.asset, provider: st.provider || vals.referenceProvider || null, from: rp.from, to: rp.to };
         body[cfg.refKey] = ref;
         if (cfg.signal) body.signal = st.signal;
         return { body, key: JSON.stringify(body) };
@@ -84,7 +85,7 @@
       st.header = d.header;
       st.baseline = cfg.toValues(d);
       const a = assetInfo();
-      st.form = X.form(cfg.groups, st.baseline, { providers: ((a && a.providers) || []).map((p) => p.provider), onChange: refresh });
+      st.form = X.form(cfg.groups, st.baseline, { providers: ((a && a.providers) || []).map((p) => p.provider), simulationProviders: (a && a.simulationProviders) || [], onChange: refresh });
       st.form.setReadOnly(!st.header.editable);
       try { g.localStorage.setItem('tio.expert.preset.' + cfg.kind + '.' + st.asset + rgSuffix, String(id)); } catch (e) { /* ignoré */ }
       const mem = X.memory.get(cfg.simType, st.asset, id);
@@ -94,7 +95,7 @@
     async function switchAsset(sym) {
       if (!(await confirmDiscard())) { renderSelectors(); return; }
       st.asset = sym; X.setParam('asset', sym);
-      if (!assetInfo() || !assetInfo().providers.some((p) => p.provider === st.provider)) { st.provider = ''; X.setParam('provider', ''); }
+      if (!X.hasProvider(assetInfo(), st.provider)) { st.provider = ''; X.setParam('provider', ''); }
       try { await loadPresets(); } catch (e) { TIO.mount(presetBox, ui.error(e, () => switchAsset(sym))); }
     }
     async function switchPreset(id) {
@@ -116,7 +117,7 @@
       const a = assetInfo();
       const nodes = [
         X.selectField('Actif', X.assetOptions(st.assets), st.asset, switchAsset),
-        X.selectField('Provider', X.providerOptions(a), st.provider, (v) => { st.provider = v; X.setParam('provider', v); sim.touch(); }, 'Source des bougies de la simulation'),
+        X.selectField('Provider', X.providerOptions(a), st.provider, (v) => { st.provider = v; X.setParam('provider', v); sim.touch(); }, 'Source des bougies de la simulation', (v) => X.foreignWarning(a, v)),
         presetSelect(),
       ];
       if (cfg.signal && !rg) nodes.push(X.selectField('Régime simulé', [{ value: 'UP', label: 'UP (Bull)' }, { value: 'DOWN', label: 'DOWN (Bear)' }], st.signal, (v) => { st.signal = v; sim.touch(); },
@@ -298,10 +299,10 @@
         X.selectField('Actif', X.assetOptions(ctx.assets), ctx.asset, async (v) => {
           if (!(await confirmDiscard())) { paintSel(); return; }
           ctx.asset = v; X.setParam('asset', v);
-          if (!assetInfo() || !assetInfo().providers.some((p) => p.provider === ctx.provider)) { ctx.provider = ''; X.setParam('provider', ''); }
+          if (!X.hasProvider(assetInfo(), ctx.provider)) { ctx.provider = ''; X.setParam('provider', ''); }
           paintSel(); insts.forEach((i) => { i.setProvider(ctx.provider); i.setAsset(v); });
         }),
-        X.selectField('Provider', X.providerOptions(assetInfo()), ctx.provider, (v) => { ctx.provider = v; X.setParam('provider', v); insts.forEach((i) => i.setProvider(v)); }, 'Source des bougies de la simulation'),
+        X.selectField('Provider', X.providerOptions(assetInfo()), ctx.provider, (v) => { ctx.provider = v; X.setParam('provider', v); insts.forEach((i) => i.setProvider(v)); }, 'Source des bougies de la simulation', (v) => X.foreignWarning(assetInfo(), v)),
         X.selectField('Régime simulé', [{ value: 'up', label: 'UP (Bull)' }, { value: 'down', label: 'DOWN (Bear)' }, { value: 'both', label: 'Les 2 (Bull et Bear)' }], ctx.view, async (v) => {
           if (!(await confirmDiscard())) { paintSel(); return; }
           ctx.view = v; X.setParam('regime', v); render();
@@ -340,7 +341,7 @@
         if (!ctx.assets.length) { TIO.mount(body, ui.empty('Aucun actif', 'Aucun actif disponible.')); return; }
         ctx.asset = (X.param('asset') && ctx.assets.find((a) => a.symbol === X.param('asset'))) ? X.param('asset') : (ctx.assets.find((a) => a.simulable) || ctx.assets[0]).symbol;
         X.setParam('asset', ctx.asset);
-        if (!assetInfo().providers.some((p) => p.provider === ctx.provider)) ctx.provider = '';
+        if (!X.hasProvider(assetInfo(), ctx.provider)) ctx.provider = '';
         paintSel(); render();
       } catch (e) { TIO.mount(body, ui.error(e, () => g.location.reload())); }
     })();

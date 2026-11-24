@@ -225,12 +225,17 @@
       inputs.push({ input: name, meta: true });
       const nameErr = h('div', { class: 'err', role: 'alert' }); errBoxes.set('name', nameErr);
       head.appendChild(h('div', { class: 'field xfield' }, h('label', null, 'Nom du preset'), name, nameErr));
-      const prov = h('select', null, h('option', { value: '' }, '— défaut de l’actif —'), (o.providers || []).map((p) => h('option', { value: p }, p)));
+      const simOnly = o.simulationProviders || [];
+      const prov = h('select', null, h('option', { value: '' }, '— défaut de l’actif —'), (o.providers || []).map((p) => h('option', { value: p }, p)),
+        simOnly.map((p) => h('option', { value: p }, p + ' (simulation seule)')));
+      const provWarn = h('div', { class: 'hint warn', role: 'note' });
+      const paintProvWarn = () => { provWarn.textContent = simOnly.includes(prov.value) ? X.FOREIGN_WARNING : ''; provWarn.hidden = !provWarn.textContent; };
       prov.value = values.referenceProvider || '';
-      prov.addEventListener('change', () => { values.referenceProvider = prov.value || null; notify(); });
+      prov.addEventListener('change', () => { values.referenceProvider = prov.value || null; paintProvWarn(); notify(); });
+      paintProvWarn();
       inputs.push({ input: prov, meta: true });
       const provErr = h('div', { class: 'err', role: 'alert' }); errBoxes.set('referenceProvider', provErr);
-      head.appendChild(h('div', { class: 'field xfield' }, h('label', null, 'Provider de référence'), prov, h('div', { class: 'hint' }, 'Source des bougies par défaut de ce preset.'), provErr));
+      head.appendChild(h('div', { class: 'field xfield' }, h('label', null, 'Provider de référence'), prov, h('div', { class: 'hint' }, 'Source des bougies par défaut de ce preset.'), provWarn, provErr));
       TIO.mount(body, head, groups.map(group), summary);
       applyReadOnly();
     }
@@ -260,14 +265,28 @@
   X.preset = (kind, id) => X.req('GET', API + '/' + kind + '-presets/' + id);
 
   /** Sélecteurs actif / provider / (preset) : liste de <select> dans une rangée. onChange(key, value). */
-  X.selectField = function (label, options, value, onChange, hint) {
+  /** Avertissement orange : bougies d'un provider qui ne porte pas l'actif chez l'utilisateur (simulation seule). */
+  X.FOREIGN_WARNING = '⚠ Les bougies peuvent différer d’un provider à l’autre : la simulation ne reflète pas exactement l’exécution sur le provider du lien.';
+  /** Texte d'avertissement si `value` est une source de simulation seule de l'actif, sinon null. */
+  X.foreignWarning = (asset, value) => (asset && value && (asset.simulationProviders || []).includes(value) ? X.FOREIGN_WARNING : null);
+  /** `warnFor(value)` (facultatif) : texte orange affiché sous le menu, mis à jour au changement. */
+  X.selectField = function (label, options, value, onChange, hint, warnFor) {
     const sel = h('select', null, options.map((op) => h('option', { value: op.value }, op.label)));
     sel.value = value === null || value === undefined ? '' : value;
-    sel.addEventListener('change', () => onChange(sel.value));
-    return ui.field(label, sel, hint);
+    const warn = h('div', { class: 'hint warn', role: 'note' });
+    const paintWarn = () => { warn.textContent = (warnFor && warnFor(sel.value)) || ''; warn.hidden = !warn.textContent; };
+    sel.addEventListener('change', () => { onChange(sel.value); paintWarn(); });
+    paintWarn();
+    const field = ui.field(label, sel, hint);
+    if (warnFor) field.appendChild(warn);
+    return field;
   };
   X.assetOptions = (assets) => assets.map((a) => ({ value: a.symbol, label: a.symbol + (a.name ? ' · ' + a.name : '') + (a.simulable ? '' : ' (non simulable)') }));
-  X.providerOptions = (asset) => [{ value: '', label: '— provider du preset —' }].concat(((asset && asset.providers) || []).map((p) => ({ value: p.provider, label: p.provider })));
+  X.providerOptions = (asset) => [{ value: '', label: '— provider du preset —' }]
+    .concat(((asset && asset.providers) || []).map((p) => ({ value: p.provider, label: p.provider })))
+    .concat(((asset && asset.simulationProviders) || []).map((p) => ({ value: p, label: p + ' (simulation seule)' })));
+  /** `value` est un provider de l'actif ou une source de simulation seule. */
+  X.hasProvider = (asset, value) => !!asset && (asset.providers.some((p) => p.provider === value) || (asset.simulationProviders || []).includes(value));
 
   X.tabs = function (active) {
     const keep = () => { const q = new URLSearchParams(); ['asset', 'provider', 'regime'].forEach((k) => { if (X.param(k)) q.set(k, X.param(k)); }); const s = q.toString(); return s ? '?' + s : ''; };

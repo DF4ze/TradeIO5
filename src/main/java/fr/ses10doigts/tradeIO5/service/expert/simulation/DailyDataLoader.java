@@ -1,6 +1,7 @@
 package fr.ses10doigts.tradeIO5.service.expert.simulation;
 
 import fr.ses10doigts.tradeIO5.model.enumerate.market.MarketDataSource;
+import fr.ses10doigts.tradeIO5.service.expert.ExpertAssets;
 import fr.ses10doigts.tradeIO5.service.connector.apiclient.marketdata.MarketDataProviderLimits;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import fr.ses10doigts.tradeIO5.service.market.dataset.DailyDataset;
@@ -28,6 +29,7 @@ public class DailyDataLoader {
 
     private final MarketDatasetEngine datasetEngine;
     private final DomainClock clock;
+    private final ExpertAssets assets;
     private final ConcurrentMap<Key, CompletableFuture<DailyDataset>> inFlight = new ConcurrentHashMap<>();
 
     /** @param preferred source tentée en premier ({@code null} : défauts de l'actif) */
@@ -39,7 +41,12 @@ public class DailyDataLoader {
             return await(running);
         }
         try {
-            DailyDataset loaded = datasetEngine.getDailyDatasetForAsset(symbol, MarketDataProviderLimits.MAX_D1_HISTORY_CANDLES,
+            // Source de simulation seule (actif non configuré chez elle) : lecture directe, sans ligne asset_provider ni fallback.
+            boolean foreign = preferred != null && ExpertAssets.SIMULATION_ONLY_SOURCES.contains(preferred)
+                    && assets.isForeignSource(symbol, preferred);
+            DailyDataset loaded = foreign
+                    ? datasetEngine.getDailyDatasetOnSource(symbol, preferred, MarketDataProviderLimits.MAX_D1_HISTORY_CANDLES, clock.now())
+                    : datasetEngine.getDailyDatasetForAsset(symbol, MarketDataProviderLimits.MAX_D1_HISTORY_CANDLES,
                     clock.now(), preferred);
             mine.complete(loaded);
             return loaded;

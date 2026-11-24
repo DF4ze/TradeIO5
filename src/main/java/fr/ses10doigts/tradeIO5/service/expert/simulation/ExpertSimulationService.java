@@ -193,6 +193,10 @@ public class ExpertSimulationService {
                 warnings.add("Provider " + preferred + " indisponible pour " + record.assetSymbol + " : données servies par "
                         + daily.source() + " (fallback).");
             }
+            if (assets.isForeignSource(record.assetSymbol, daily.source())) {
+                warnings.add("Bougies " + daily.source() + " (" + daily.providerSymbol() + ") : provider qui ne porte pas "
+                        + record.assetSymbol + " chez vous. Les bougies peuvent différer d'un provider à l'autre.");
+            }
             SimulationInput input = new SimulationInput(record.type, record.assetSymbol, candles, resolved.trend(),
                     resolved.rangeMapping(), resolved.trendLabel(), resolved.up(), resolved.down(), resolved.signal(),
                     request.from(), request.to());

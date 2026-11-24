@@ -238,7 +238,7 @@ public abstract class AbstractExpertPresetService<P extends ExpertPreset> {
         String provider = ExpertAssets.normalizeProvider(explicitProvider);
         if (provider != null) {
             provider = support.getAssets().requireProvider(asset, provider);
-        } else if (source.getReferenceProvider() != null && support.getAssets().providerNames(asset).contains(source.getReferenceProvider())) {
+        } else if (source.getReferenceProvider() != null && support.getAssets().isReferenceable(asset, source.getReferenceProvider())) {
             provider = source.getReferenceProvider();
         }
         return repository.save(copyOf(source, asset, name, PresetOrigin.USER, ctx.user(), provider, support.getClock().now()));

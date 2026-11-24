@@ -36,7 +36,7 @@ class DailyDataLoaderTest {
             release.await();
             return result;
         });
-        DailyDataLoader loader = new DailyDataLoader(engine, clock);
+        DailyDataLoader loader = new DailyDataLoader(engine, clock, mock(fr.ses10doigts.tradeIO5.service.expert.ExpertAssets.class));
 
         ExecutorService pool = Executors.newFixedThreadPool(4);
         try {

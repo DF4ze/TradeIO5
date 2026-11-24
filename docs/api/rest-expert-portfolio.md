@@ -44,7 +44,7 @@ Authentifié **et** `displayMode = EXPERT` (ADMIN compris), sinon 403 `EXPERT_MO
 
 | Méthode | Chemin | Description |
 |---|---|---|
-| GET | `/api/expert/assets` | Actifs des presets de base : providers actifs, `exploitable`, `simulable` (≥ 1 provider actif), `eligibility` (`requiredPoints` D1 pour simuler l'Affectation de l'utilisateur, ou les presets de base ; par provider : `available` = bougies déjà en cache, `maxDepth`, `eligible` = cache suffisant, `loadable` = profondeur du provider suffisante) |
+| GET | `/api/expert/assets` | Actifs des presets de base : providers actifs, `simulationProviders` (sources de simulation seule, ex. BINANCE, que l'actif ne porte pas), `exploitable`, `simulable` (≥ 1 provider actif), `eligibility` (`requiredPoints` D1 pour simuler l'Affectation de l'utilisateur, ou les presets de base ; par provider : `available` = bougies déjà en cache, `maxDepth`, `eligible` = cache suffisant, `loadable` = profondeur du provider suffisante) |
 | GET | `/api/expert/{trend,rainbow}-presets?asset=` | Presets visibles de l'actif : SYSTEM + ceux de l'appelant (en-têtes : `origin`, `mine`, `editable`, `deletable`, `usedBy` = `{affectationId, assetSymbol, role, enabled}` des Affectations de l'appelant, `enabled` = moteur allumé (au moins un lien non archivé), `revision`, `referenceProvider`) |
 | GET | `/api/expert/{trend,rainbow}-presets/{id}` | Détail (réglages). Preset USER d'un autre ⇒ 404 `PRESET_NOT_FOUND` |
 | POST | `/api/expert/{trend,rainbow}-presets` | 201. Corps `{assetSymbol, name, copyFromId?, referenceProvider?}` : copie `copyFromId`, sinon le preset de base de l'actif (Trend = `TREND`, Rainbow = `RAINBOW_BEAR`). `referenceProvider` doit porter l'actif |

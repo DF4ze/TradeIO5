@@ -49,12 +49,12 @@
     async function switchAsset(sym) {
       if (isDirty() && !(await X.confirm('Sélection non enregistrée', ['La sélection de presets en cours sera perdue.'], 'Abandonner', true))) { renderSelectors(); return; }
       st.asset = sym; st.affId = null; X.setParam('asset', sym);
-      if (!assetInfo() || !assetInfo().providers.some((p) => p.provider === st.provider)) { st.provider = ''; X.setParam('provider', ''); }
+      if (!X.hasProvider(assetInfo(), st.provider)) { st.provider = ''; X.setParam('provider', ''); }
       try { await loadAsset(); } catch (e) { TIO.mount(affBox, ui.error(e, () => switchAsset(sym))); }
     }
     function renderSelectors() {
       TIO.mount(selBox, X.selectField('Actif', X.assetOptions(st.assets), st.asset, switchAsset),
-        X.selectField('Provider', X.providerOptions(assetInfo()), st.provider, (v) => { st.provider = v; X.setParam('provider', v); sim.touch(); }, 'Source des bougies de la simulation'));
+        X.selectField('Provider', X.providerOptions(assetInfo()), st.provider, (v) => { st.provider = v; X.setParam('provider', v); sim.touch(); }, 'Source des bougies de la simulation', (v) => X.foreignWarning(assetInfo(), v)));
     }
     function presetField(label, list, key) {
       const mk = (ps) => ps.map((p) => h('option', { value: String(p.id) }, p.name));
