@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-11
 modifié_le: 2026-11-24
-empreinte: 4376860ff8
+empreinte: 0cf995af2a
 ---
 # Flyway et défauts d'initialisation
 
@@ -23,12 +23,15 @@ Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11 ; prod à la
 - Migration **idempotente** (rejouable en dev/recette) : conditionner chaque DDL par `information_schema` + `PREPARE`/`EXECUTE` (compatible MySQL 8 et MariaDB 10.11).
 - Ne jamais supprimer dans une migration ce que le code lit encore : retirer d'abord le code, puis écrire la migration (un `V2` qui supprimait `preset_id` avant le retrait du code a fait échouer la recette du 2026-11-11).
 - `ddl-auto=validate` : un écart entité/schéma empêche le démarrage.
+- **Appli locale lancée dans JetBrains** : elle redémarre à chaque modif de fichier et applique la migration en cours d'écriture ; modifier ensuite ce fichier fait échouer le checksum au redémarrage suivant. Procédure : arrêter l'appli via le MCP JetBrains, écrire code + migration + tests, puis la relancer dans JetBrains une fois tout prêt.
 
-`V6__base_rates_par_profil.sql` (taux de base par profil + marge k, 9 colonnes de `rainbow_modulation_control`, défauts = table de calage ; appliquée en prod le 2026-11-24) : [`../architecture/08d-rainbow-modulation.md`](../architecture/08d-rainbow-modulation.md).
+`V6__base_rates_par_profil.sql` (taux de base par profil + marge k, 9 colonnes de `rainbow_modulation_control` ; appliquée en prod le 2026-11-24 ; les 8 colonnes de taux sont reprises puis supprimées par V9) : [`../architecture/08d-rainbow-modulation.md`](../architecture/08d-rainbow-modulation.md).
 
 `V7__new_asset_proposal.sql` (table `new_asset_proposal`, propositions d'accueil d'un nouvel actif ; appliquée en prod le 2026-11-24) : [`../architecture/15m-pipeline-nouvel-actif.md`](../architecture/15m-pipeline-nouvel-actif.md).
 
 `V8__asset_base_rate.sql` (table `asset_base_rate`, ligne de taux dédiée par actif écrite à la validation d'une proposition ; appliquée en prod le 2026-11-24 avec V6 et V7) : [`../architecture/15m-pipeline-nouvel-actif.md`](../architecture/15m-pipeline-nouvel-actif.md).
+
+`V9__taux_de_base_unifies.sql` (**pas encore appliquée en prod, recette requise** : [`recette.md`](recette.md)) : copie les 8 taux réels de `rainbow_modulation_control` vers 2 lignes `asset_base_rate` (BTC, ETH, `validated_by` = `migration V9`, `proposal_id` NULL) si elles n'existent pas, insère la table de calage si une ligne manque encore (base neuve), puis supprime les 8 colonnes `base_rate_<btc|eth>_<profil>` (`base_rate_margin_k` reste). Idempotente (information_schema + NOT EXISTS). À vérifier en recette : lignes BTC / ETH = valeurs éditées en prod, colonnes supprimées, démarrage `validate` OK, onglet « Taux de base » : [`../architecture/08d-rainbow-modulation.md`](../architecture/08d-rainbow-modulation.md).
 
 ## Restes legacy
 

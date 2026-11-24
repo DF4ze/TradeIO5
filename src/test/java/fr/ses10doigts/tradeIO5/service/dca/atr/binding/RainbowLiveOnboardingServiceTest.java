@@ -60,7 +60,8 @@ class RainbowLiveOnboardingServiceTest {
     private final fr.ses10doigts.tradeIO5.repository.modulation.AssetBaseRateRepository assetRateRepository = mock(fr.ses10doigts.tradeIO5.repository.modulation.AssetBaseRateRepository.class);
     private final RainbowLiveOnboardingService service = new RainbowLiveOnboardingService(bindingService, repository,
             bindingCheck, quoteService, portfolio, resolver, control, userModulation,
-            new fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService(assetRateRepository));
+            new fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService(assetRateRepository,
+                    mock(fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository.class), () -> Instant.EPOCH));
 
     private final User user = User.builder().id(1L).build();
     private final Wallet wallet = Wallet.builder().id(WALLET_ID).user(user).build();
@@ -289,11 +290,12 @@ class RainbowLiveOnboardingServiceTest {
     }
 
     @Test
-    @DisplayName("proposals : taux de profil édité en admin => la proposition suit ; cash nul => pas de proposition, raison donnée")
+    @DisplayName("proposals : taux de profil édité en admin (ligne asset_base_rate) => la proposition suit ; cash nul => pas de proposition, raison donnée")
     void proposalFollowsAdminRatesAndNoCash() {
-        RainbowModulationControl edited = RainbowModulationControl.defaults(Instant.EPOCH, "test");
-        edited.setBaseRateBtcPrudent(new BigDecimal("0.001"));
-        when(control.current()).thenReturn(edited);
+        when(assetRateRepository.findByAssetSymbol("BTC")).thenReturn(java.util.Optional.of(
+                fr.ses10doigts.tradeIO5.model.entity.modulation.AssetBaseRate.builder().assetSymbol("BTC").ratePrudent(new BigDecimal("0.001"))
+                        .rateBalanced(new BigDecimal("0.002")).rateDynamic(new BigDecimal("0.003")).rateFull(new BigDecimal("0.004"))
+                        .validatedBy("admin").validatedAt(Instant.EPOCH).build()));
         when(userModulation.profileOf(user)).thenReturn(StartingProfile.PRUDENT);
         stubProfileProposal(1_000, "BTC");
         assertEquals(1.0, service.proposals(user, WALLET_ID).getFirst().proposedBaseAmount(), 1e-9);

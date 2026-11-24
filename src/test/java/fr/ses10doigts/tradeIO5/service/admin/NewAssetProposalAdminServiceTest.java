@@ -10,7 +10,7 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowPreset;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.TrendPreset;
 import fr.ses10doigts.tradeIO5.model.entity.doctor.Alarm;
 import fr.ses10doigts.tradeIO5.model.entity.doctor.AlarmState;
-import fr.ses10doigts.tradeIO5.model.entity.modulation.RainbowModulationControl;
+import fr.ses10doigts.tradeIO5.service.modulation.ModulationDefaults;
 import fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.AssetAffectationRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.NewAssetProposalRepository;
@@ -76,9 +76,9 @@ class NewAssetProposalAdminServiceTest {
         journal = mock(AdminActionLogService.class);
         basePresets = new ExpertBasePresetService(trendPresets, rainbowPresets, clock);
         basePresets.ensureBasePresets();
-        service = new NewAssetProposalAdminService(proposals, rates, trendPresets, rainbowPresets, affectations, basePresets, alarms, journal,
+        resolver = new AssetBaseRateService(rates, mock(fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository.class), clock);
+        service = new NewAssetProposalAdminService(proposals, resolver, trendPresets, rainbowPresets, affectations, basePresets, alarms, journal,
                 new TransactionTemplate(tm), clock);
-        resolver = new AssetBaseRateService(rates);
     }
 
     private static String levelsJson(double... r) throws Exception {
@@ -146,10 +146,9 @@ class NewAssetProposalAdminServiceTest {
     void validateWritesRateLineResolvedBeforeFallback() throws Exception {
         NewAssetProposal p = ok("NEWX");
         service.alert(p);
-        RainbowModulationControl control = RainbowModulationControl.defaults(T0, "t");
-        var before = resolver.resolve(control, StartingProfile.BALANCED, "NEWX");
+        var before = resolver.resolve(StartingProfile.BALANCED, "NEWX");
         assertFalse(before.calibrated());
-        assertEquals(0, control.getBaseRateBtcBalanced().compareTo(before.value()));
+        assertEquals(0, ModulationDefaults.CALIBRATED_RATES.get("BTC").balanced().compareTo(before.value()));
 
         var view = service.validate(p.getId(), "root");
 
@@ -159,12 +158,12 @@ class NewAssetProposalAdminServiceTest {
         var row = rates.findByAssetSymbol("NEWX").orElseThrow();
         assertEquals(p.getId(), row.getProposalId());
         assertEquals("root", row.getValidatedBy());
-        var after = resolver.resolve(control, StartingProfile.BALANCED, "NEWX");
+        var after = resolver.resolve(StartingProfile.BALANCED, "NEWX");
         assertTrue(after.calibrated());
         assertEquals(0, new java.math.BigDecimal("0.00050000").compareTo(after.value()));
-        assertEquals(0, new java.math.BigDecimal("0.00150000").compareTo(resolver.resolve(control, StartingProfile.FULL, "NEWX").value()));
+        assertEquals(0, new java.math.BigDecimal("0.00150000").compareTo(resolver.resolve(StartingProfile.FULL, "NEWX").value()));
         // BTC / ETH : jamais détournés par une ligne dédiée
-        assertEquals(0, control.getBaseRateBtcBalanced().compareTo(resolver.resolve(control, StartingProfile.BALANCED, "BTC").value()));
+        assertEquals(0, ModulationDefaults.CALIBRATED_RATES.get("BTC").balanced().compareTo(resolver.resolve(StartingProfile.BALANCED, "BTC").value()));
         assertEquals(AlarmState.RESOLVED, alarmsOf("NEWX").getFirst().getState());
         Map<String, Object> payload = payload(journal, p.getId(), AdminActionOutcome.OK, "root");
         assertEquals("validate", payload.get("action"));
@@ -244,10 +243,9 @@ class NewAssetProposalAdminServiceTest {
         assertEquals(NewAssetProposalStatus.REFUSE, view.status());
         assertTrue(rates.findByAssetSymbol("NEWX").isEmpty());
         assertEquals(trendCount, trendPresets.count());
-        RainbowModulationControl control = RainbowModulationControl.defaults(T0, "t");
-        var r = resolver.resolve(control, StartingProfile.DYNAMIC, "NEWX");
+        var r = resolver.resolve(StartingProfile.DYNAMIC, "NEWX");
         assertFalse(r.calibrated());
-        assertEquals(0, control.getBaseRateBtcDynamic().compareTo(r.value()));
+        assertEquals(0, ModulationDefaults.CALIBRATED_RATES.get("BTC").dynamic().compareTo(r.value()));
         assertEquals(AlarmState.RESOLVED, alarmsOf("NEWX").getFirst().getState());
         assertEquals("refuse", payload(journal, p.getId(), AdminActionOutcome.OK, "root").get("action"));
         assertThrows(IllegalArgumentException.class, () -> service.refuse(p.getId(), "root"));
@@ -263,6 +261,6 @@ class NewAssetProposalAdminServiceTest {
         assertTrue(rates.findAll().isEmpty());
         assertEquals(trendCount, trendPresets.count());
         assertEquals(NewAssetProposalStatus.PROPOSE, service.list(false).getFirst().status());
-        assertEquals(null, resolver.resolve(RainbowModulationControl.defaults(T0, "t"), StartingProfile.CUSTOM, "NEWX"));
+        assertEquals(null, resolver.resolve(StartingProfile.CUSTOM, "NEWX"));
     }
 }

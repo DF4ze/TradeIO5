@@ -1,4 +1,4 @@
-/* Onglet Modulation : GET/PUT /api/admin/rainbow-modulation. Un champ par paramètre (défaut + bornes absolues affichés). */
+/* Onglet Modulation : GET/PUT /api/admin/rainbow-modulation. Un champ par paramètre (défaut + bornes absolues affichés). Les taux de base : onglet « Taux de base ». */
 (function () {
   'use strict';
   const core = window.AdminCore;
@@ -64,51 +64,7 @@
     { key: 'drawdownCapFullPct', label: 'Plafond de drawdown · Full (%)', step: '1',
       what: 'Plafond de drawdown du profil Full (signalement du simulateur uniquement). Valeur négative, le plus large des quatre.',
       up: 'Plafond plus serré : plus de dépassements signalés.', down: 'Plafond plus large (min −100 %). Doit rester ≤ Dynamique.',
-      example: '−60 % : 1 000 → 400 USDC est exactement au plafond.' },
-    { key: 'baseRateBtcPrudent', label: 'Taux de base · BTC · Prudent (/jour/cash)', step: '0.00001',
-      what: 'N\'influence PAS les ordres. Montant de base proposé à l\'onboarding = ce taux × cash alloué au lien (profil Prudent, actif BTC). Proposition indicative : l\'utilisateur peut la modifier. Pour un actif sans ligne propre (PAXG, nouveaux), la ligne BTC sert de repli, signalée « niveau non calibré ».',
-      up: 'Montant de base proposé plus grand : exposition et drawdown attendus plus élevés (cible de risque calibrée sur l\'historique, pas une garantie).',
-      down: 'Montant de base proposé plus petit : exposition et drawdown attendus plus faibles. Doit rester ≥ au taux du profil précédent (Prudent ≤ Équilibré ≤ Dynamique ≤ Full).',
-      example: 'Défaut 2,774e-4 : avec 1 000 USDC alloués au lien, base proposée = 1 000 × taux par jour.' },
-    { key: 'baseRateBtcBalanced', label: 'Taux de base · BTC · Équilibré (/jour/cash)', step: '0.00001',
-      what: 'N\'influence PAS les ordres. Montant de base proposé à l\'onboarding = ce taux × cash alloué au lien (profil Équilibré, actif BTC). Proposition indicative : l\'utilisateur peut la modifier. Pour un actif sans ligne propre (PAXG, nouveaux), la ligne BTC sert de repli, signalée « niveau non calibré ».',
-      up: 'Montant de base proposé plus grand : exposition et drawdown attendus plus élevés (cible de risque calibrée sur l\'historique, pas une garantie).',
-      down: 'Montant de base proposé plus petit : exposition et drawdown attendus plus faibles. Doit rester ≥ au taux du profil précédent (Prudent ≤ Équilibré ≤ Dynamique ≤ Full).',
-      example: 'Défaut 4,736e-4 : avec 1 000 USDC alloués au lien, base proposée = 1 000 × taux par jour.' },
-    { key: 'baseRateBtcDynamic', label: 'Taux de base · BTC · Dynamique (/jour/cash)', step: '0.00001',
-      what: 'N\'influence PAS les ordres. Montant de base proposé à l\'onboarding = ce taux × cash alloué au lien (profil Dynamique, actif BTC). Proposition indicative : l\'utilisateur peut la modifier. Pour un actif sans ligne propre (PAXG, nouveaux), la ligne BTC sert de repli, signalée « niveau non calibré ».',
-      up: 'Montant de base proposé plus grand : exposition et drawdown attendus plus élevés (cible de risque calibrée sur l\'historique, pas une garantie).',
-      down: 'Montant de base proposé plus petit : exposition et drawdown attendus plus faibles. Doit rester ≥ au taux du profil précédent (Prudent ≤ Équilibré ≤ Dynamique ≤ Full).',
-      example: 'Défaut 7,712e-4 : avec 1 000 USDC alloués au lien, base proposée = 1 000 × taux par jour.' },
-    { key: 'baseRateBtcFull', label: 'Taux de base · BTC · Full (/jour/cash)', step: '0.00001',
-      what: 'N\'influence PAS les ordres. Montant de base proposé à l\'onboarding = ce taux × cash alloué au lien (profil Full, actif BTC). Proposition indicative : l\'utilisateur peut la modifier. Pour un actif sans ligne propre (PAXG, nouveaux), la ligne BTC sert de repli, signalée « niveau non calibré ».',
-      up: 'Montant de base proposé plus grand : exposition et drawdown attendus plus élevés (cible de risque calibrée sur l\'historique, pas une garantie).',
-      down: 'Montant de base proposé plus petit : exposition et drawdown attendus plus faibles. Doit rester ≥ au taux du profil précédent (Prudent ≤ Équilibré ≤ Dynamique ≤ Full).',
-      example: 'Défaut 1,423e-3 : avec 1 000 USDC alloués au lien, base proposée = 1 000 × taux par jour.' },
-    { key: 'baseRateEthPrudent', label: 'Taux de base · ETH · Prudent (/jour/cash)', step: '0.00001',
-      what: 'N\'influence PAS les ordres. Montant de base proposé à l\'onboarding = ce taux × cash alloué au lien (profil Prudent, actif ETH). Proposition indicative : l\'utilisateur peut la modifier. Pour un actif sans ligne propre (PAXG, nouveaux), la ligne BTC sert de repli, signalée « niveau non calibré ».',
-      up: 'Montant de base proposé plus grand : exposition et drawdown attendus plus élevés (cible de risque calibrée sur l\'historique, pas une garantie).',
-      down: 'Montant de base proposé plus petit : exposition et drawdown attendus plus faibles. Doit rester ≥ au taux du profil précédent (Prudent ≤ Équilibré ≤ Dynamique ≤ Full).',
-      example: 'Défaut 3,804e-4 : avec 1 000 USDC alloués au lien, base proposée = 1 000 × taux par jour.' },
-    { key: 'baseRateEthBalanced', label: 'Taux de base · ETH · Équilibré (/jour/cash)', step: '0.00001',
-      what: 'N\'influence PAS les ordres. Montant de base proposé à l\'onboarding = ce taux × cash alloué au lien (profil Équilibré, actif ETH). Proposition indicative : l\'utilisateur peut la modifier. Pour un actif sans ligne propre (PAXG, nouveaux), la ligne BTC sert de repli, signalée « niveau non calibré ».',
-      up: 'Montant de base proposé plus grand : exposition et drawdown attendus plus élevés (cible de risque calibrée sur l\'historique, pas une garantie).',
-      down: 'Montant de base proposé plus petit : exposition et drawdown attendus plus faibles. Doit rester ≥ au taux du profil précédent (Prudent ≤ Équilibré ≤ Dynamique ≤ Full).',
-      example: 'Défaut 6,349e-4 : avec 1 000 USDC alloués au lien, base proposée = 1 000 × taux par jour.' },
-    { key: 'baseRateEthDynamic', label: 'Taux de base · ETH · Dynamique (/jour/cash)', step: '0.00001',
-      what: 'N\'influence PAS les ordres. Montant de base proposé à l\'onboarding = ce taux × cash alloué au lien (profil Dynamique, actif ETH). Proposition indicative : l\'utilisateur peut la modifier. Pour un actif sans ligne propre (PAXG, nouveaux), la ligne BTC sert de repli, signalée « niveau non calibré ».',
-      up: 'Montant de base proposé plus grand : exposition et drawdown attendus plus élevés (cible de risque calibrée sur l\'historique, pas une garantie).',
-      down: 'Montant de base proposé plus petit : exposition et drawdown attendus plus faibles. Doit rester ≥ au taux du profil précédent (Prudent ≤ Équilibré ≤ Dynamique ≤ Full).',
-      example: 'Défaut 1,019e-3 : avec 1 000 USDC alloués au lien, base proposée = 1 000 × taux par jour.' },
-    { key: 'baseRateEthFull', label: 'Taux de base · ETH · Full (/jour/cash)', step: '0.00001',
-      what: 'N\'influence PAS les ordres. Montant de base proposé à l\'onboarding = ce taux × cash alloué au lien (profil Full, actif ETH). Proposition indicative : l\'utilisateur peut la modifier. Pour un actif sans ligne propre (PAXG, nouveaux), la ligne BTC sert de repli, signalée « niveau non calibré ».',
-      up: 'Montant de base proposé plus grand : exposition et drawdown attendus plus élevés (cible de risque calibrée sur l\'historique, pas une garantie).',
-      down: 'Montant de base proposé plus petit : exposition et drawdown attendus plus faibles. Doit rester ≥ au taux du profil précédent (Prudent ≤ Équilibré ≤ Dynamique ≤ Full).',
-      example: 'Défaut 1,533e-3 : avec 1 000 USDC alloués au lien, base proposée = 1 000 × taux par jour.' },
-    { key: 'baseRateMarginK', label: 'Marge k du calage des taux (information)', step: '0.05',
-      what: 'Information seulement, non utilisée par le calcul : marge de sécurité avec laquelle les taux ci-dessus ont été calés (plafond de calage = plafond de drawdown / k). Si vous modifiez les taux, mettez k à jour pour garder la trace.',
-      up: 'Sans effet.', down: 'Sans effet.',
-      example: 'k = 1,1 : un plafond de −15 % a été calé à −13,6 %.' }
+      example: '−60 % : 1 000 → 400 USDC est exactement au plafond.' }
   ];
 
   let params = {};
@@ -143,14 +99,15 @@
   }
 
   /* ---- Actifs à valider (D1b lot 2) : GET /api/admin/new-asset-proposals, POST /{id}/validate|refuse */
-  const fmtRate = (v) => Number(v).toExponential(3);
+  /* Base indicative en $ par jour pour 1 000 $ de cash (taux × 1000), jamais le taux brut. */
+  const fmtRate = (v) => (Number(v) * 1000).toFixed(4);
 
   function proposalCard(p) {
     const line = (k, v) => el('div', { class: 'small' }, el('strong', { text: k + ' ' }), v == null || v === '' ? '—' : String(v));
     const rows = (p.rates || []).map((r) => el('tr', null, el('td', { text: r.profile }), el('td', { text: r.capPct + ' %' }),
       el('td', { text: '×' + Number(r.multiplier).toFixed(2) }), el('td', { text: fmtRate(r.baseRate) }), el('td', { text: r.status })));
     const rates = rows.length
-      ? el('table', { class: 'table table-sm w-auto mb-2' }, el('thead', null, el('tr', null, ['Profil', 'Plafond', 'Multiplicateur', 'Taux /jour/cash', 'Statut'].map((h) => el('th', { text: h })))), el('tbody', null, ...rows))
+      ? el('table', { class: 'table table-sm w-auto mb-2' }, el('thead', null, el('tr', null, ['Profil', 'Plafond', 'Multiplicateur', 'Base $/jour pour 1 000 $ de cash', 'Statut'].map((h) => el('th', { text: h })))), el('tbody', null, ...rows))
       : el('div', { class: 'small text-muted mb-2', text: 'Aucun taux calculé.' });
     const pending = p.status === 'PROPOSE';
     const buttons = pending ? el('div', { class: 'd-flex gap-2 mt-2' },

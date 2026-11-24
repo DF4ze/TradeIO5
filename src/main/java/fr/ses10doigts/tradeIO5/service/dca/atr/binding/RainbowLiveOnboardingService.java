@@ -18,6 +18,7 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RealPortfolioSource;
 import fr.ses10doigts.tradeIO5.service.modulation.ModulationDefaults;
 import fr.ses10doigts.tradeIO5.service.UserModulationService;
+import fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService;
 import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -89,7 +90,7 @@ public class RainbowLiveOnboardingService {
     private final AffectationConfigResolver configResolver;
     private final RainbowModulationControlService modulationControl;
     private final UserModulationService userModulation;
-    private final fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService assetRates;
+    private final AssetBaseRateService assetRates;
 
     @Transactional
     public List<LinkResult> link(User user, Long walletId) {
@@ -142,7 +143,7 @@ public class RainbowLiveOnboardingService {
         }
         PortfolioReading reading = portfolioSource.read(bindings.getFirst());
         double share = reading.status() == PortfolioStatus.OK ? reading.cash() / bindings.size() : Double.NaN;
-        return bindings.stream().map(b -> proposal(user, b, share, days, byProfile ? control : null, byProfile ? profile : null)).toList();
+        return bindings.stream().map(b -> proposal(user, b, share, days, byProfile ? profile : null)).toList();
     }
 
     private static int requireDays(int days) {
@@ -154,14 +155,13 @@ public class RainbowLiveOnboardingService {
         return days;
     }
 
-    /** @param rates table des taux de base ({@code null} => base autonomie) ; @param profile profil dont on lit le taux */
-    private Proposal proposal(User user, RainbowLiveBinding binding, double cashShare, int days, RainbowModulationControl rates,
-                              StartingProfile profile) {
+    /** @param profile profil dont on lit le taux ({@link AssetBaseRateService}) ; {@code null} => base par autonomie */
+    private Proposal proposal(User user, RainbowLiveBinding binding, double cashShare, int days, StartingProfile profile) {
         AssetAffectation preset = binding.getAffectation();
         RainbowAtrConfig config = configResolver.config(preset);
         double mean = averageMultiplier(config);
         Double presetBase = config.getBaseAmount();
-        RainbowModulationControl.BaseRate rate = rates == null ? null : assetRates.resolve(rates, profile, binding.getAssetSymbol());
+        AssetBaseRateService.Rate rate = profile == null ? null : assetRates.resolve(profile, binding.getAssetSymbol());
         Basis basis = rate == null ? Basis.AUTONOMY : Basis.PROFILE_RATE;
         Integer shownDays = rate == null ? days : null;
         Double shownRate = rate == null ? null : rate.value().doubleValue();

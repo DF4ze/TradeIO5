@@ -1,0 +1,41 @@
+<div th:fragment="baseRates" class="tab-pane fade" id="adm-pane-baseRates" role="tabpanel">
+	<h5>Taux de base par actif</h5>
+	<div class="alert alert-info small mb-2" role="note">
+		<strong>N'influence pas les ordres.</strong> Ces montants servent uniquement à proposer le « montant de base » quand un utilisateur relie un actif à son wallet : montant proposé = taux du profil × cash alloué au lien. L'utilisateur peut toujours le modifier.
+	</div>
+	<p class="text-muted small">Saisie en <strong>dollars par jour pour 1 000 USDC de cash</strong>. Plus le montant est grand, plus le cash est dépensé vite (plus d'exposition, plus de baisse possible). Un profil plus offensif ne peut pas avoir un montant plus faible : Prudent ≤ Équilibré ≤ Dynamique ≤ Full.
+	Un actif sans ligne propre affiche les valeurs de repli (celles du BTC) : enregistrer crée sa ligne dédiée.</p>
+	<form id="adm-br-form" class="row g-3" novalidate>
+		<div class="col-12 col-lg-4 adm-mod-field">
+			<label class="form-label" for="adm-br-k">Marge de sécurité k du calage (information)</label>
+			<input type="number" class="form-control" id="adm-br-k" step="0.05" required>
+			<p class="adm-mod-range small text-muted mb-0" id="adm-br-k-range"></p>
+			<p class="adm-mod-line small mb-0">Sans effet sur les ordres : mémorise la marge avec laquelle ces montants ont été calés (perte maximale tolérée ÷ k). Si vous changez les montants, mettez k à jour pour garder la trace.</p>
+		</div>
+		<div class="col-12 col-lg-4 adm-mod-field">
+			<label class="form-label" for="adm-br-asset">Actif</label>
+			<select class="form-select" id="adm-br-asset"></select>
+			<p class="adm-mod-line small mb-0">Actifs suivis (liens actifs) et actifs ayant une ligne de taux.</p>
+		</div>
+		<div class="col-12">
+			<div id="adm-br-banner" class="alert alert-warning small d-none" role="status"></div>
+			<table class="table table-sm w-auto">
+				<thead>
+					<tr>
+						<th>Profil</th>
+						<th>$ par jour pour 1 000 $ de cash</th>
+						<th>% du cash par jour</th>
+						<th>Autonomie (jours)</th>
+					</tr>
+				</thead>
+				<tbody id="adm-br-body"></tbody>
+			</table>
+			<p class="small text-muted mb-0">Autonomie = nombre de jours pour dépenser tout le cash au montant de base (multiplicateur ×1).</p>
+		</div>
+		<div class="col-12 d-flex flex-wrap align-items-center gap-2">
+			<button type="submit" class="btn btn-primary" id="adm-br-save">Enregistrer</button>
+			<button type="button" class="btn btn-outline-secondary" id="adm-br-defaults">Remettre les défauts de l'actif</button>
+			<span class="small text-muted" id="adm-br-meta"></span>
+		</div>
+	</form>
+</div>

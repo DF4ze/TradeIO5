@@ -16,7 +16,7 @@ class ModulationDefaultsTest {
     @Test
     @DisplayName("Chaque défaut est dans ses bornes absolues, bornes cohérentes")
     void defaultsWithinBounds() {
-        assertEquals(21, ModulationDefaults.LIMITS.size());
+        assertEquals(13, ModulationDefaults.LIMITS.size(), "12 paramètres de modulation + marge k : les taux de base vivent dans asset_base_rate");
         ModulationDefaults.LIMITS.forEach((name, limit) -> {
             assertTrue(limit.min().compareTo(limit.max()) <= 0, name);
             assertTrue(limit.contains(limit.defaultValue()), name);

@@ -38,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class MainControllerAdminPageTest {
 
     private static final String[] FORBIDDEN = {"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "th:utext"};
-    private static final String[] TABS = {"console", "credentials", "bindings", "users", "orderTester", "journal", "modulation", "limits", "doctor"};
+    private static final String[] TABS = {"console", "credentials", "bindings", "users", "orderTester", "journal", "modulation", "baseRates", "limits", "doctor"};
 
     private MockMvc mvc;
 
@@ -120,7 +120,7 @@ class MainControllerAdminPageTest {
     @DisplayName("Scan statique : aucun innerHTML / outerHTML / insertAdjacentHTML / document.write / th:utext dans la page Admin")
     void noHtmlInjection() throws Exception {
         List<Resource> resources = adminResources();
-        assertEquals(11 + 10 + 1, resources.size(), "11 scripts + 10 fragments + la page : " + resources);
+        assertEquals(12 + 11 + 1, resources.size(), "12 scripts + 11 fragments + la page : " + resources);
         for (Resource r : resources) {
             String content = new String(r.getContentAsByteArray(), StandardCharsets.UTF_8);
             for (String forbidden : FORBIDDEN) {
@@ -140,7 +140,7 @@ class MainControllerAdminPageTest {
         }
         assertTrue(core.contains("TRADEIO_MASTER_KEY") || new String(getClass().getResourceAsStream("/static/assets/js/admin/credentials.js")
                 .readAllBytes(), StandardCharsets.UTF_8).contains("TRADEIO_MASTER_KEY absente du processus"), "message clé maître");
-        for (String other : new String[] {"console", "credentials", "bindings", "orderTester", "journal", "modulation", "limits", "doctor"}) {
+        for (String other : new String[] {"console", "credentials", "bindings", "orderTester", "journal", "modulation", "baseRates", "limits", "doctor"}) {
             String js = new String(getClass().getResourceAsStream("/static/assets/js/admin/" + other + ".js").readAllBytes(), StandardCharsets.UTF_8);
             assertFalse(js.contains("MODE_NOT_LIVE"), other + ".js ne duplique pas la table des motifs");
         }

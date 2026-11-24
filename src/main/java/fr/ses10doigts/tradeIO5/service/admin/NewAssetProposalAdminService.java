@@ -9,17 +9,15 @@ import fr.ses10doigts.tradeIO5.model.entity.dca.bench.NewAssetProposalStatus;
 import fr.ses10doigts.tradeIO5.model.entity.doctor.DoctorFamily;
 import fr.ses10doigts.tradeIO5.model.entity.doctor.DoctorImpact;
 import fr.ses10doigts.tradeIO5.model.entity.doctor.DoctorStatus;
-import fr.ses10doigts.tradeIO5.model.entity.modulation.AssetBaseRate;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.AssetAffectationRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.NewAssetProposalRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowPresetRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.TrendPresetRepository;
-import fr.ses10doigts.tradeIO5.repository.modulation.AssetBaseRateRepository;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService;
 import fr.ses10doigts.tradeIO5.service.doctor.AlarmService;
 import fr.ses10doigts.tradeIO5.service.doctor.DoctorReport;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
-import fr.ses10doigts.tradeIO5.service.modulation.ModulationDefaults;
+import fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService;
 import fr.ses10doigts.tradeIO5.service.optimizer.ExposureCalibrationStudy.Level;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +39,7 @@ import java.util.Map;
  * <ul>
  *   <li><b>Alerte</b> : {@link #alert} lève l'alarme Docteur « actif à valider » (clé {@value #ALARM_CHECK}{@code :<actif>}, une seule fois par
  *   proposition), acquittable, avec le lien de l'écran de validation ({@value #SCREEN_LINK}) ; Valider / Refuser la clôt.</li>
- *   <li><b>Valider</b> : écrit la ligne de taux dédiée de l'actif ({@link AssetBaseRate}, lue avant le repli BTC) ; le preset BTC n'est appliqué QUE si
+ *   <li><b>Valider</b> : écrit la ligne de taux dédiée de l'actif ({@link AssetBaseRateService}, lue avant le repli BTC) ; le preset BTC n'est appliqué QUE si
  *   l'actif n'a AUCUN preset ni Affectation dédié (jamais d'écrasement : cas PAXG réglé à la main) ; proposition sans taux ⇒ validation refusée.</li>
  *   <li><b>Refuser</b> : rien n'est écrit, le lien reste sur le repli BTC « non calibré ».</li>
  * </ul>
@@ -76,7 +74,7 @@ public class NewAssetProposalAdminService {
     }
 
     private final NewAssetProposalRepository proposals;
-    private final AssetBaseRateRepository rates;
+    private final AssetBaseRateService assetRates;
     private final TrendPresetRepository trendPresets;
     private final RainbowPresetRepository rainbowPresets;
     private final AssetAffectationRepository affectations;
@@ -205,26 +203,8 @@ public class NewAssetProposalAdminService {
         BigDecimal balanced = rate(byProfile, "BALANCED");
         BigDecimal dynamic = rate(byProfile, "DYNAMIC");
         BigDecimal full = rate(byProfile, "FULL");
-        ModulationDefaults.Limit limit = ModulationDefaults.limit(ModulationDefaults.BASE_RATE_BTC_PRUDENT);
-        for (BigDecimal r : List.of(prudent, balanced, dynamic, full)) {
-            if (!limit.contains(r)) {
-                throw new IllegalArgumentException("Taux hors bornes absolues [" + limit.min().toPlainString() + " ; " + limit.max().toPlainString() + "] : "
-                        + r.toPlainString());
-            }
-        }
-        if (prudent.compareTo(balanced) > 0 || balanced.compareTo(dynamic) > 0 || dynamic.compareTo(full) > 0) {
-            throw new IllegalArgumentException("Taux non croissants Prudent ≤ Équilibré ≤ Dynamique ≤ Full");
-        }
         String asset = p.getAssetSymbol();
-        AssetBaseRate row = rates.findByAssetSymbol(asset).orElseGet(() -> AssetBaseRate.builder().assetSymbol(asset).build());
-        row.setRatePrudent(prudent);
-        row.setRateBalanced(balanced);
-        row.setRateDynamic(dynamic);
-        row.setRateFull(full);
-        row.setProposalId(p.getId());
-        row.setValidatedBy(actor);
-        row.setValidatedAt(clock.now());
-        rates.save(row);
+        assetRates.save(asset, new AssetBaseRateService.Rates(prudent, balanced, dynamic, full), p.getId(), actor);
         // Preset : décidé AVANT toute écriture de preset (jamais d'écrasement d'un preset / d'une Affectation déjà dédié).
         PresetPlan plan = hasDedicatedPreset(asset) ? PresetPlan.DEDIE_CONSERVE : PresetPlan.APPLIQUE_BTC;
         int created = plan == PresetPlan.APPLIQUE_BTC ? basePresets.copyBasePresetsFromBtc(asset) : 0;

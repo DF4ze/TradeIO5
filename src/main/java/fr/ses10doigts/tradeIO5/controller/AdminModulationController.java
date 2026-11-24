@@ -54,15 +54,6 @@ public class AdminModulationController {
             values.put(ModulationDefaults.DRAWDOWN_CAP_BALANCED_PCT, c.getDrawdownCapBalancedPct());
             values.put(ModulationDefaults.DRAWDOWN_CAP_DYNAMIC_PCT, c.getDrawdownCapDynamicPct());
             values.put(ModulationDefaults.DRAWDOWN_CAP_FULL_PCT, c.getDrawdownCapFullPct());
-            values.put(ModulationDefaults.BASE_RATE_BTC_PRUDENT, c.getBaseRateBtcPrudent());
-            values.put(ModulationDefaults.BASE_RATE_BTC_BALANCED, c.getBaseRateBtcBalanced());
-            values.put(ModulationDefaults.BASE_RATE_BTC_DYNAMIC, c.getBaseRateBtcDynamic());
-            values.put(ModulationDefaults.BASE_RATE_BTC_FULL, c.getBaseRateBtcFull());
-            values.put(ModulationDefaults.BASE_RATE_ETH_PRUDENT, c.getBaseRateEthPrudent());
-            values.put(ModulationDefaults.BASE_RATE_ETH_BALANCED, c.getBaseRateEthBalanced());
-            values.put(ModulationDefaults.BASE_RATE_ETH_DYNAMIC, c.getBaseRateEthDynamic());
-            values.put(ModulationDefaults.BASE_RATE_ETH_FULL, c.getBaseRateEthFull());
-            values.put(ModulationDefaults.BASE_RATE_MARGIN_K, c.getBaseRateMarginK());
             Map<String, ParameterDto> parameters = new LinkedHashMap<>();
             values.forEach((name, value) -> {
                 ModulationDefaults.Limit limit = ModulationDefaults.limit(name);

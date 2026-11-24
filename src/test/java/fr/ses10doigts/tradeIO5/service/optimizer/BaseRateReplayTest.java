@@ -35,6 +35,10 @@ class BaseRateReplayTest {
     private static final double CASH_ETH = 2_425.0;
     private static final double TOLERANCE_PTS = 1.0;
     private static final RainbowModulationControl DEFAULTS = RainbowModulationControl.defaults(Instant.EPOCH, null);
+    /** Aucune ligne en base : BTC / ETH = table de calage, tout autre actif = repli BTC non calibré. */
+    private static final fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService RATES = new fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService(
+            org.mockito.Mockito.mock(fr.ses10doigts.tradeIO5.repository.modulation.AssetBaseRateRepository.class),
+            org.mockito.Mockito.mock(fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository.class), () -> Instant.EPOCH);
 
     /** Pire drawdown de la table de calage (decisions/full-autonome-v1.md, etude C4), k = 1,1, bande neutre. */
     private static final Map<String, Double> TABLE = Map.of(
@@ -58,7 +62,7 @@ class BaseRateReplayTest {
      * capital de {@code in} ; reutilise par le runner manuel {@code base-rate-replay} (donnees reelles de la base).
      */
     static double worstDd(ScorerInputs in, String asset, StartingProfile profile) {
-        BigDecimal rate = DEFAULTS.baseRate(profile, asset).value();
+        BigDecimal rate = RATES.resolve(profile, asset).value();
         double base = RainbowLiveOnboardingService.profileBaseAmount(in.cash0(), rate).doubleValue();
         double worst = 0.0;
         ExposureCalibrationConfig cal = ExposureCalibrationConfig.defaults(in.endDate());
@@ -112,13 +116,13 @@ class BaseRateReplayTest {
     @Test
     @DisplayName("Table par defaut = decisions/full-autonome-v1.md ; actif sans ligne => repli BTC non calibre")
     void defaultsAndFallback() {
-        assertEquals(0, new BigDecimal("0.0002774").compareTo(DEFAULTS.baseRate(StartingProfile.PRUDENT, "BTC").value()));
-        assertEquals(0, new BigDecimal("0.001533").compareTo(DEFAULTS.baseRate(StartingProfile.FULL, "ETH").value()));
+        assertEquals(0, new BigDecimal("0.0002774").compareTo(RATES.resolve(StartingProfile.PRUDENT, "BTC").value()));
+        assertEquals(0, new BigDecimal("0.001533").compareTo(RATES.resolve(StartingProfile.FULL, "ETH").value()));
         for (StartingProfile p : List.of(StartingProfile.PRUDENT, StartingProfile.BALANCED, StartingProfile.DYNAMIC, StartingProfile.FULL)) {
-            var paxg = DEFAULTS.baseRate(p, "PAXG");
-            assertEquals(0, DEFAULTS.baseRate(p, ModulationDefaults.FALLBACK_RATE_ASSET).value().compareTo(paxg.value()));
+            var paxg = RATES.resolve(p, "PAXG");
+            assertEquals(0, RATES.resolve(p, ModulationDefaults.FALLBACK_RATE_ASSET).value().compareTo(paxg.value()));
             assertTrue(!paxg.calibrated());
-            assertTrue(DEFAULTS.baseRate(p, "BTC").calibrated() && DEFAULTS.baseRate(p, "ETH").calibrated());
+            assertTrue(RATES.resolve(p, "BTC").calibrated() && RATES.resolve(p, "ETH").calibrated());
         }
     }
 }

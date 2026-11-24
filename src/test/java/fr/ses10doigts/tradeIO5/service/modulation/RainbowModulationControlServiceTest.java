@@ -203,39 +203,30 @@ class RainbowModulationControlServiceTest {
                 d.drawdownCapFullPct()));
     }
 
-    private static Params withRates(String btcPrudent, String btcFull, String k) {
-        Params d = defaults();
-        return new Params(d.regulationMarginPct(), d.sellBoostMax(), d.biasMax(), d.powerMin(), d.powerMax(), d.minBandWidthPts(),
-                d.modulationProductMax(), d.autonomyDays(), d.drawdownCapPrudentPct(), d.drawdownCapBalancedPct(),
-                d.drawdownCapDynamicPct(), d.drawdownCapFullPct(), bd(btcPrudent), d.baseRateBtcBalanced(), d.baseRateBtcDynamic(),
-                bd(btcFull), d.baseRateEthPrudent(), d.baseRateEthBalanced(), d.baseRateEthDynamic(), d.baseRateEthFull(), bd(k));
-    }
-
     @Test
-    @DisplayName("Taux de base : défauts de la table de calage, > 0 et bornés, croissants Prudent -> Full, k en information (1 à 3)")
-    void baseRatesValidation() {
-        Params d = defaults();
-        assertEquals(0, bd("0.0002774").compareTo(d.baseRateBtcPrudent()));
-        assertEquals(0, bd("0.001533").compareTo(d.baseRateEthFull()));
-        assertEquals(0, bd("1.1").compareTo(d.baseRateMarginK()));
-        RainbowModulationControlService.validate(d);
-        RainbowModulationControlService.validate(withRates("0.0003", "0.002", "1.25"));
-        assertThrows(IllegalArgumentException.class, () -> RainbowModulationControlService.validate(withRates("0", "0.002", "1.1")));
-        assertThrows(IllegalArgumentException.class, () -> RainbowModulationControlService.validate(withRates("-0.0003", "0.002", "1.1")));
-        assertThrows(IllegalArgumentException.class, () -> RainbowModulationControlService.validate(withRates("0.0003", "0.5", "1.1")));
-        assertThrows(IllegalArgumentException.class, () -> RainbowModulationControlService.validate(withRates("0.0003", "0.002", "0.9")));
-        assertThrows(IllegalArgumentException.class, () -> RainbowModulationControlService.validate(withRates("0.0003", "0.002", "3.5")));
-        // Prudent au-dessus de Full : incohérent
-        assertThrows(IllegalArgumentException.class, () -> RainbowModulationControlService.validate(withRates("0.003", "0.002", "1.1")));
-    }
-
-    @Test
-    @DisplayName("Taux de base : update les écrit, la ligne les relit")
-    void baseRatesRoundTrip() {
+    @DisplayName("Marge k : seule écriture via updateMarginK, bornes absolues 1 à 3, ligne relue ; les autres champs ne bougent pas")
+    void marginKRoundTrip() {
         when(repository.findById(RainbowModulationControl.SINGLETON_ID)).thenReturn(Optional.empty());
-        RainbowModulationControl saved = service.update(withRates("0.0003", "0.002", "1.25"), "admin");
-        assertEquals(0, bd("0.0003").compareTo(saved.getBaseRateBtcPrudent()));
+        assertEquals(0, bd("1.1").compareTo(RainbowModulationControl.defaults(NOW, "t").getBaseRateMarginK()));
+        RainbowModulationControl saved = service.updateMarginK(bd("1.25"), "admin");
         assertEquals(0, bd("1.25").compareTo(saved.getBaseRateMarginK()));
-        assertEquals(0, bd("0.0003").compareTo(saved.baseRate(fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile.PRUDENT, "BTC").value()));
+        assertEquals("admin", saved.getUpdatedBy());
+        assertEquals(0, bd("25").compareTo(saved.getRegulationMarginPct()));
+        org.mockito.Mockito.clearInvocations(repository);
+        assertThrows(IllegalArgumentException.class, () -> service.updateMarginK(bd("0.9"), "admin"));
+        assertThrows(IllegalArgumentException.class, () -> service.updateMarginK(bd("3.5"), "admin"));
+        assertThrows(IllegalArgumentException.class, () -> service.updateMarginK(null, "admin"));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("update() des paramètres de modulation ne touche pas à la marge k")
+    void updateKeepsMarginK() {
+        RainbowModulationControl existing = RainbowModulationControl.defaults(NOW, "t");
+        existing.setBaseRateMarginK(bd("1.7"));
+        when(repository.findById(RainbowModulationControl.SINGLETON_ID)).thenReturn(Optional.of(existing));
+        RainbowModulationControl saved = service.update(with(b -> b.margin("30")), "admin");
+        assertEquals(0, bd("30").compareTo(saved.getRegulationMarginPct()));
+        assertEquals(0, bd("1.7").compareTo(saved.getBaseRateMarginK()));
     }
 }

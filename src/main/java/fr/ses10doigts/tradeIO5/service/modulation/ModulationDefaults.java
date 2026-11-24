@@ -40,24 +40,50 @@ public final class ModulationDefaults {
     public static final String DRAWDOWN_CAP_BALANCED_PCT = "drawdownCapBalancedPct";
     public static final String DRAWDOWN_CAP_DYNAMIC_PCT = "drawdownCapDynamicPct";
     public static final String DRAWDOWN_CAP_FULL_PCT = "drawdownCapFullPct";
-    /**
-     * Taux de base par profil et par actif calibré (BTC, ETH) : montant de base par jour / cash alloué au lien (bande neutre, marge k),
-     * source {@code docs/decisions/full-autonome-v1.md}. Servent la proposition INDICATIVE d'onboarding ; aucun effet sur les ordres.
-     */
-    public static final String BASE_RATE_BTC_PRUDENT = "baseRateBtcPrudent";
-    public static final String BASE_RATE_BTC_BALANCED = "baseRateBtcBalanced";
-    public static final String BASE_RATE_BTC_DYNAMIC = "baseRateBtcDynamic";
-    public static final String BASE_RATE_BTC_FULL = "baseRateBtcFull";
-    public static final String BASE_RATE_ETH_PRUDENT = "baseRateEthPrudent";
-    public static final String BASE_RATE_ETH_BALANCED = "baseRateEthBalanced";
-    public static final String BASE_RATE_ETH_DYNAMIC = "baseRateEthDynamic";
-    public static final String BASE_RATE_ETH_FULL = "baseRateEthFull";
     /** Marge k du calage des taux (plafond de calage = plafond / k) : information seulement, non utilisée par le calcul. */
     public static final String BASE_RATE_MARGIN_K = "baseRateMarginK";
 
-    /** Actifs ayant une ligne propre de taux ; tout autre actif retombe sur la ligne {@value #FALLBACK_RATE_ASSET} (niveau non calibré). */
+    /**
+     * Taux de base d'un actif : montant de base par jour / cash alloué au lien (bande neutre, marge k), un par profil. Source
+     * {@code docs/decisions/full-autonome-v1.md}. Proposition INDICATIVE d'onboarding ; aucun effet sur les ordres.
+     */
+    public record RateTable(BigDecimal prudent, BigDecimal balanced, BigDecimal dynamic, BigDecimal full) {
+
+        static RateTable of(String prudent, String balanced, String dynamic, String full) {
+            return new RateTable(new BigDecimal(prudent), new BigDecimal(balanced), new BigDecimal(dynamic), new BigDecimal(full));
+        }
+
+        /** Taux du profil ; {@code null} pour un profil sans table ({@code CUSTOM}, nul). */
+        public BigDecimal rate(StartingProfile profile) {
+            if (profile == null || !profile.selectable()) {
+                return null;
+            }
+            return switch (profile) {
+                case PRUDENT -> prudent;
+                case BALANCED -> balanced;
+                case DYNAMIC -> dynamic;
+                default -> full;
+            };
+        }
+    }
+
+    /**
+     * Table de calage (valeurs initiales de la migration V9 et « défauts de l'actif » de l'onglet Taux de base). Seuls BTC et ETH en ont une ;
+     * tout autre actif retombe sur la ligne {@value #FALLBACK_RATE_ASSET} (niveau non calibré) tant qu'il n'a pas de ligne dédiée.
+     */
+    public static final Map<String, RateTable> CALIBRATED_RATES = Map.of(
+            "BTC", RateTable.of("0.0002774", "0.0004736", "0.0007712", "0.001423"),
+            "ETH", RateTable.of("0.0003804", "0.0006349", "0.001019", "0.001533"));
     public static final String FALLBACK_RATE_ASSET = "BTC";
-    public static final java.util.Set<String> CALIBRATED_RATE_ASSETS = java.util.Set.of("BTC", "ETH");
+    public static final java.util.Set<String> CALIBRATED_RATE_ASSETS = CALIBRATED_RATES.keySet();
+
+    /** Bornes absolues d'un taux de base par jour / cash : strictement positif, au plus 1 %/jour (la table de calage va de 0,028 % à 0,15 %). */
+    public static final BigDecimal BASE_RATE_MIN = new BigDecimal("0.00001");
+    public static final BigDecimal BASE_RATE_MAX = new BigDecimal("0.01");
+
+    public static boolean baseRateInBounds(BigDecimal rate) {
+        return rate.compareTo(BASE_RATE_MIN) >= 0 && rate.compareTo(BASE_RATE_MAX) <= 0;
+    }
 
     /** Paramètres admin dans l'ordre d'affichage : nom => défaut + bornes absolues. */
     public static final Map<String, Limit> LIMITS;
@@ -76,34 +102,8 @@ public final class ModulationDefaults {
         limits.put(DRAWDOWN_CAP_BALANCED_PCT, Limit.of("-25", "-100", "0"));
         limits.put(DRAWDOWN_CAP_DYNAMIC_PCT, Limit.of("-40", "-100", "0"));
         limits.put(DRAWDOWN_CAP_FULL_PCT, Limit.of("-60", "-100", "0"));
-        limits.put(BASE_RATE_BTC_PRUDENT, rate("0.0002774"));
-        limits.put(BASE_RATE_BTC_BALANCED, rate("0.0004736"));
-        limits.put(BASE_RATE_BTC_DYNAMIC, rate("0.0007712"));
-        limits.put(BASE_RATE_BTC_FULL, rate("0.001423"));
-        limits.put(BASE_RATE_ETH_PRUDENT, rate("0.0003804"));
-        limits.put(BASE_RATE_ETH_BALANCED, rate("0.0006349"));
-        limits.put(BASE_RATE_ETH_DYNAMIC, rate("0.001019"));
-        limits.put(BASE_RATE_ETH_FULL, rate("0.001533"));
         limits.put(BASE_RATE_MARGIN_K, Limit.of("1.1", "1", "3"));
         LIMITS = Collections.unmodifiableMap(limits);
-    }
-
-    /** Taux de base par jour / cash : strictement positif, au plus 1 %/jour (la table de calage va de 0,028 % à 0,15 %). */
-    private static Limit rate(String defaultValue) {
-        return Limit.of(defaultValue, "0.00001", "0.01");
-    }
-
-    /** Clé du paramètre admin du taux de base de {@code profile} sur {@code asset} (BTC ou ETH) ; {@code null} si pas de ligne propre. */
-    public static String baseRateKey(StartingProfile profile, String asset) {
-        if (profile == null || !profile.selectable() || !CALIBRATED_RATE_ASSETS.contains(asset)) {
-            return null;
-        }
-        return "baseRate" + (asset.equals("BTC") ? "Btc" : "Eth") + switch (profile) {
-            case PRUDENT -> "Prudent";
-            case BALANCED -> "Balanced";
-            case DYNAMIC -> "Dynamic";
-            default -> "Full";
-        };
     }
 
     /** Valeurs neutres d'un réglage utilisateur absent ou nul : bande 0–100 %, puissance ×1, biais 0 (aucun effet). */

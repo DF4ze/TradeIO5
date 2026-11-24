@@ -1,8 +1,8 @@
 ---
 statut: index
 sujet: Table de routage de la documentation
-modifié_le: 2026-11-23
-empreinte: e5336b721e
+modifié_le: 2026-11-24
+empreinte: 891ea99ab9
 ---
 # TradeIO-5 — Documentation
 
@@ -27,7 +27,7 @@ Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decis
 | [`decisions/passerelle-actif-non-stable.md`](decisions/passerelle-actif-non-stable.md) | PAXG/Kraken, routes via USDC |
 | [`decisions/wallet-reel-capital-commun.md`](decisions/wallet-reel-capital-commun.md) | wallet réel, pools cash, exchanges utilisés |
 | [`decisions/fil-rouge-dca-automatisation.md`](decisions/fil-rouge-dca-automatisation.md) | Trend, Rainbow ATR, pine, bench, calibrations |
-| [`decisions/full-autonome-v1.md`](decisions/full-autonome-v1.md) | cible Full Autonome v1 : exposition constante par profil (table de calage, marge k), acquis mesurés, E1 et E2 mesurés (coupure au switch : E1 `COUPURE_UTILE` mais fragile, E2 `COUPURE_NON_ROBUSTE` ; PAXG non conclu), D1a mesuré (preset existant générique sur actifs jamais vus), C5 fait (taux par profil éditables en admin, proposition d'onboarding au taux du profil), D1b fait (proposition, alerte, validation admin), reste à faire (recette V6–V8, arbitrage des bandes de profil) |
+| [`decisions/full-autonome-v1.md`](decisions/full-autonome-v1.md) | cible Full Autonome v1 : exposition constante par profil (table de calage, marge k), acquis mesurés, E1 et E2 mesurés (coupure au switch : E1 `COUPURE_UTILE` mais fragile, E2 `COUPURE_NON_ROBUSTE` ; PAXG non conclu), D1a mesuré (preset existant générique sur actifs jamais vus), C5 fait (taux par profil éditables en admin, proposition d'onboarding au taux du profil), D1b fait (proposition, alerte, validation admin), reste à faire (recette V9, arbitrage des bandes de profil) |
 | [`decisions/architecture-interface.md`](decisions/architecture-interface.md) | UX, pages, charte, logo |
 | [`decisions/definition-pnl.md`](decisions/definition-pnl.md) | calcul du PnL |
 | [`decisions/docteur-admin-ux.md`](decisions/docteur-admin-ux.md) | Docteur, page admin d'exécution, kill switch |

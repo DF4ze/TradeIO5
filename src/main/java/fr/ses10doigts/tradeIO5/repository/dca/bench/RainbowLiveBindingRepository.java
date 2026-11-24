@@ -16,6 +16,10 @@ public interface RainbowLiveBindingRepository extends JpaRepository<RainbowLiveB
     @Query("select b from RainbowLiveBinding b where b.user = :user and b.archivedAt is null order by b.priority asc, b.assetSymbol asc")
     List<RainbowLiveBinding> findByUserOrderByPriorityAscAssetSymbolAsc(@Param("user") User user);
 
+    /** Symboles des actifs ayant au moins un lien actif (tous utilisateurs), pour l'onglet admin « Taux de base ». */
+    @Query("select distinct b.assetSymbol from RainbowLiveBinding b where b.archivedAt is null order by b.assetSymbol asc")
+    List<String> findActiveAssetSymbols();
+
     /** Tous les bindings (supervision admin), groupés par utilisateur. */
     @Query("select b from RainbowLiveBinding b where b.archivedAt is null order by b.user.id asc, b.priority asc, b.assetSymbol asc")
     List<RainbowLiveBinding> findAllByOrderByUserIdAscPriorityAscAssetSymbolAsc();

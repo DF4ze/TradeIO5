@@ -16,7 +16,7 @@ Back Spring (Java 21) + front `/app` : DCA intelligent crypto (Rainbow ATR), mul
 - Ne jamais re-décrire une décision dans un 2e doc : la lier.
 - Doc déplacée/archivée => `python tools/doc-police/doc_police.py archive …` (réécrit les liens). Jamais de lien cassé.
 - Ouvrir une étude : `docs/etudes/`. Elle est archivée une fois sa décision reprise dans `architecture/` ou `decisions/`.
-- Schéma DB : Flyway actif. Toute modif d'entité = nouveau `V<n>__*.sql` (idempotent), jamais de migration appliquée modifiée, jamais d'`ALTER` manuel. Recette **seulement** si modif de DB (sinon inutile, sauf demande explicite ; déploiement `--sans-recette`) : [`docs/operations/flyway.md`](docs/operations/flyway.md), [`docs/operations/recette.md`](docs/operations/recette.md).
+- Schéma DB : Flyway actif. Toute modif d'entité = nouveau `V<n>__*.sql` (idempotent), jamais de migration appliquée modifiée, jamais d'`ALTER` manuel. **Appli locale lancée dans JetBrains** : elle redémarre seule à chaque modif de fichier et applique la migration en cours d'écriture (checksum ensuite modifié => plantage). Donc : avant d'écrire une migration, **arrêter l'appli via le MCP JetBrains**, faire code + migration + tests, puis **la relancer dans JetBrains** une fois tout prêt. Recette **seulement** si modif de DB (sinon inutile, sauf demande explicite ; déploiement `--sans-recette`) : [`docs/operations/flyway.md`](docs/operations/flyway.md), [`docs/operations/recette.md`](docs/operations/recette.md).
 - Outils utilitaires => `tools/` + référence dans `docs/`.
 - Calibration/bench : mode itératif ; demander avant de relancer un bench coûteux.
 - Prompts d'implémentation : pas conservés (dossier supprimé).
