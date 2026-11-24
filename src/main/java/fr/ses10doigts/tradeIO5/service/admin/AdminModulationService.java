@@ -52,6 +52,15 @@ public class AdminModulationService {
         view.put(ModulationDefaults.DRAWDOWN_CAP_BALANCED_PCT, p.drawdownCapBalancedPct().doubleValue());
         view.put(ModulationDefaults.DRAWDOWN_CAP_DYNAMIC_PCT, p.drawdownCapDynamicPct().doubleValue());
         view.put(ModulationDefaults.DRAWDOWN_CAP_FULL_PCT, p.drawdownCapFullPct().doubleValue());
+        view.put(ModulationDefaults.BASE_RATE_BTC_PRUDENT, p.baseRateBtcPrudent().doubleValue());
+        view.put(ModulationDefaults.BASE_RATE_BTC_BALANCED, p.baseRateBtcBalanced().doubleValue());
+        view.put(ModulationDefaults.BASE_RATE_BTC_DYNAMIC, p.baseRateBtcDynamic().doubleValue());
+        view.put(ModulationDefaults.BASE_RATE_BTC_FULL, p.baseRateBtcFull().doubleValue());
+        view.put(ModulationDefaults.BASE_RATE_ETH_PRUDENT, p.baseRateEthPrudent().doubleValue());
+        view.put(ModulationDefaults.BASE_RATE_ETH_BALANCED, p.baseRateEthBalanced().doubleValue());
+        view.put(ModulationDefaults.BASE_RATE_ETH_DYNAMIC, p.baseRateEthDynamic().doubleValue());
+        view.put(ModulationDefaults.BASE_RATE_ETH_FULL, p.baseRateEthFull().doubleValue());
+        view.put(ModulationDefaults.BASE_RATE_MARGIN_K, p.baseRateMarginK().doubleValue());
         return view;
     }
 }

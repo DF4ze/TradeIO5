@@ -223,6 +223,69 @@ public final class ExposureCalibrationStudy {
         return v.isEmpty() ? null : v.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
     }
 
+
+    // ------------------------------------------------------------------ version allégée (pipeline nouvel actif, D1b)
+
+    /** Niveau d'un profil, version allégée : multiplicateur du ×1, taux de base / jour / cash, fenêtre qui fixe le pire cas. */
+    public record Level(String profile, double capPct, double multiplier, String status, double baseRate, String worstWindow) {
+    }
+
+    /**
+     * Calage allégé d'un actif : MÊME pire cas que C3 (fenêtres glissantes de {@code windowMonths} + historique complet, {@link #worstByLevel},
+     * {@link #pick} au plafond / {@code k}) mais SANS le calage ancré ni les tests de la marge (la marge k est fournie, jamais mesurée ici).
+     * Coût : niveaux × (fenêtres + 1) rejeux. Niveau = celui de la table de C3 à ce k ; taux = multiplicateur × base du ×1 / capital.
+     *
+     * @param windows nombre de fenêtres rejouées (0 : seul l'historique complet fixe le pire cas : marché trop court)
+     */
+    public record Lite(String asset, double referenceBase, int windows, int notReplayable, boolean fullReplayable, List<Level> levels, long replays,
+                       long totalMs) {
+    }
+
+    public static Lite lite(ScorerInputs in, ExposureCalibrationConfig cfg, double k, ExecutorService pool) {
+        long t0 = System.nanoTime();
+        LocalDate lastEnd = cfg.lastEnd();
+        int months = cfg.windowMonths();
+        SensitivityEvaluator fullEv = new SensitivityEvaluator(in.withEndDate(lastEnd), months);
+        RainbowAtrParamSet[] sets = fullEv.template().sets();
+        double ref = fullEv.referenceBase(sets);
+        LocalDate firstDay = fullEv.firstReplayableDay(sets);
+        List<Double> grid = cfg.grid();
+        List<Window> wins = firstDay == null ? List.of() : windows(lastEnd, months, cfg.windowStepDays(), firstDay);
+        List<SensitivityEvaluator> winEvs = wins.stream().map(w -> new SensitivityEvaluator(in.withEndDate(w.to()), months, w.from())).toList();
+        List<Callable<Dd>> tasks = new ArrayList<>();
+        for (int w = 0; w < wins.size(); w++) {
+            final int wi = w;
+            tasks.add(() -> drawdowns(winEvs.get(wi), false, sets, grid, ref, wins.get(wi).from(), wins.get(wi).to()));
+        }
+        List<Dd> raw = ExposurePolicyStudy.ordered(tasks, pool);
+        double[][] windowDd = new double[wins.size()][];
+        int notReplayable = 0;
+        for (int w = 0; w < wins.size(); w++) {
+            windowDd[w] = raw.get(w).dd();
+            notReplayable += raw.get(w).replayable() ? 0 : 1;
+        }
+        Dd full = firstDay == null ? new Dd(new double[grid.size()], false, true) : drawdowns(fullEv, true, sets, grid, ref, null, null);
+        double[] fullDd = full.dd();
+        if (firstDay == null || !full.replayable()) {
+            Arrays.fill(fullDd, Double.NaN);
+        }
+        double[] worst = worstByLevel(wins, windowDd, fullDd, lastEnd.plusDays(1));
+        List<Level> levels = new ArrayList<>();
+        if (worst != null) {
+            for (Map.Entry<StartingProfile, Double> e : FrontierConfig.profileCaps().entrySet()) {
+                ConstantPick pk = pick(grid, worst, e.getValue(), k);
+                levels.add(new Level(e.getKey().name(), e.getValue(), pk.multiplier(), pk.status(), pk.multiplier() * ref / in.cash0(),
+                        worstWindow(cfg, wins, windowDd, fullDd, crossing(worst, e.getValue(), k))));
+            }
+        }
+        long replays = fullEv.replays();
+        for (SensitivityEvaluator e : winEvs) {
+            replays += e.replays();
+        }
+        return new Lite(fullEv.asset(), ref, wins.size() - notReplayable, notReplayable, full.replayable() && firstDay != null, levels, replays,
+                (System.nanoTime() - t0) / 1_000_000);
+    }
+
     // ------------------------------------------------------------------ exécution
 
     private record Anchor(int index, LocalDate day, LocalDate testTo) {

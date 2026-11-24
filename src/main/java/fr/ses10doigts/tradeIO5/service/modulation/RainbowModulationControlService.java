@@ -24,15 +24,34 @@ public class RainbowModulationControlService {
     public record Params(BigDecimal regulationMarginPct, BigDecimal sellBoostMax, BigDecimal biasMax, BigDecimal powerMin,
                          BigDecimal powerMax, BigDecimal minBandWidthPts, BigDecimal modulationProductMax,
                          Integer autonomyDays, BigDecimal drawdownCapPrudentPct, BigDecimal drawdownCapBalancedPct,
-                         BigDecimal drawdownCapDynamicPct, BigDecimal drawdownCapFullPct) {
+                         BigDecimal drawdownCapDynamicPct, BigDecimal drawdownCapFullPct,
+                         BigDecimal baseRateBtcPrudent, BigDecimal baseRateBtcBalanced, BigDecimal baseRateBtcDynamic, BigDecimal baseRateBtcFull, BigDecimal baseRateEthPrudent, BigDecimal baseRateEthBalanced, BigDecimal baseRateEthDynamic, BigDecimal baseRateEthFull, BigDecimal baseRateMarginK) {
 
-        /** Jeu sans plafonds de drawdown : ceux-ci prennent leurs défauts (usage Java ; un PUT JSON doit les fournir). */
+        /** Jeu sans plafonds de drawdown ni taux de base : ils prennent leurs défauts (usage Java ; un PUT JSON doit les fournir). */
         public Params(BigDecimal regulationMarginPct, BigDecimal sellBoostMax, BigDecimal biasMax, BigDecimal powerMin,
                       BigDecimal powerMax, BigDecimal minBandWidthPts, BigDecimal modulationProductMax, Integer autonomyDays) {
             this(regulationMarginPct, sellBoostMax, biasMax, powerMin, powerMax, minBandWidthPts, modulationProductMax,
                     autonomyDays, defaultOf(ModulationDefaults.DRAWDOWN_CAP_PRUDENT_PCT),
                     defaultOf(ModulationDefaults.DRAWDOWN_CAP_BALANCED_PCT), defaultOf(ModulationDefaults.DRAWDOWN_CAP_DYNAMIC_PCT),
                     defaultOf(ModulationDefaults.DRAWDOWN_CAP_FULL_PCT));
+        }
+
+        /** Jeu sans taux de base : ils prennent leurs défauts. */
+        public Params(BigDecimal regulationMarginPct, BigDecimal sellBoostMax, BigDecimal biasMax, BigDecimal powerMin,
+                      BigDecimal powerMax, BigDecimal minBandWidthPts, BigDecimal modulationProductMax, Integer autonomyDays,
+                      BigDecimal drawdownCapPrudentPct, BigDecimal drawdownCapBalancedPct, BigDecimal drawdownCapDynamicPct,
+                      BigDecimal drawdownCapFullPct) {
+            this(regulationMarginPct, sellBoostMax, biasMax, powerMin, powerMax, minBandWidthPts, modulationProductMax, autonomyDays,
+                    drawdownCapPrudentPct, drawdownCapBalancedPct, drawdownCapDynamicPct, drawdownCapFullPct,
+                    defaultOf(ModulationDefaults.BASE_RATE_BTC_PRUDENT),
+                    defaultOf(ModulationDefaults.BASE_RATE_BTC_BALANCED),
+                    defaultOf(ModulationDefaults.BASE_RATE_BTC_DYNAMIC),
+                    defaultOf(ModulationDefaults.BASE_RATE_BTC_FULL),
+                    defaultOf(ModulationDefaults.BASE_RATE_ETH_PRUDENT),
+                    defaultOf(ModulationDefaults.BASE_RATE_ETH_BALANCED),
+                    defaultOf(ModulationDefaults.BASE_RATE_ETH_DYNAMIC),
+                    defaultOf(ModulationDefaults.BASE_RATE_ETH_FULL),
+                    defaultOf(ModulationDefaults.BASE_RATE_MARGIN_K));
         }
 
         private static BigDecimal defaultOf(String name) {
@@ -43,7 +62,16 @@ public class RainbowModulationControlService {
             return new Params(c.getRegulationMarginPct(), c.getSellBoostMax(), c.getBiasMax(), c.getPowerMin(),
                     c.getPowerMax(), c.getMinBandWidthPts(), c.getModulationProductMax(),
                     c.getAutonomyDays(), c.getDrawdownCapPrudentPct(), c.getDrawdownCapBalancedPct(),
-                    c.getDrawdownCapDynamicPct(), c.getDrawdownCapFullPct());
+                    c.getDrawdownCapDynamicPct(), c.getDrawdownCapFullPct(),
+                    c.getBaseRateBtcPrudent(),
+                    c.getBaseRateBtcBalanced(),
+                    c.getBaseRateBtcDynamic(),
+                    c.getBaseRateBtcFull(),
+                    c.getBaseRateEthPrudent(),
+                    c.getBaseRateEthBalanced(),
+                    c.getBaseRateEthDynamic(),
+                    c.getBaseRateEthFull(),
+                    c.getBaseRateMarginK());
         }
     }
 
@@ -74,6 +102,15 @@ public class RainbowModulationControlService {
         control.setDrawdownCapBalancedPct(params.drawdownCapBalancedPct());
         control.setDrawdownCapDynamicPct(params.drawdownCapDynamicPct());
         control.setDrawdownCapFullPct(params.drawdownCapFullPct());
+        control.setBaseRateBtcPrudent(params.baseRateBtcPrudent());
+        control.setBaseRateBtcBalanced(params.baseRateBtcBalanced());
+        control.setBaseRateBtcDynamic(params.baseRateBtcDynamic());
+        control.setBaseRateBtcFull(params.baseRateBtcFull());
+        control.setBaseRateEthPrudent(params.baseRateEthPrudent());
+        control.setBaseRateEthBalanced(params.baseRateEthBalanced());
+        control.setBaseRateEthDynamic(params.baseRateEthDynamic());
+        control.setBaseRateEthFull(params.baseRateEthFull());
+        control.setBaseRateMarginK(params.baseRateMarginK());
         control.setUpdatedAt(clock.now());
         control.setUpdatedBy(by);
         RainbowModulationControl saved = repository.save(control);
@@ -107,8 +144,27 @@ public class RainbowModulationControlService {
                     + p.drawdownCapPrudentPct().toPlainString() + " / " + p.drawdownCapBalancedPct().toPlainString() + " / "
                     + p.drawdownCapDynamicPct().toPlainString() + " / " + p.drawdownCapFullPct().toPlainString());
         }
+        check(ModulationDefaults.BASE_RATE_BTC_PRUDENT, p.baseRateBtcPrudent());
+        check(ModulationDefaults.BASE_RATE_BTC_BALANCED, p.baseRateBtcBalanced());
+        check(ModulationDefaults.BASE_RATE_BTC_DYNAMIC, p.baseRateBtcDynamic());
+        check(ModulationDefaults.BASE_RATE_BTC_FULL, p.baseRateBtcFull());
+        check(ModulationDefaults.BASE_RATE_ETH_PRUDENT, p.baseRateEthPrudent());
+        check(ModulationDefaults.BASE_RATE_ETH_BALANCED, p.baseRateEthBalanced());
+        check(ModulationDefaults.BASE_RATE_ETH_DYNAMIC, p.baseRateEthDynamic());
+        check(ModulationDefaults.BASE_RATE_ETH_FULL, p.baseRateEthFull());
+        check(ModulationDefaults.BASE_RATE_MARGIN_K, p.baseRateMarginK());
+        requireRising("BTC", p.baseRateBtcPrudent(), p.baseRateBtcBalanced(), p.baseRateBtcDynamic(), p.baseRateBtcFull());
+        requireRising("ETH", p.baseRateEthPrudent(), p.baseRateEthBalanced(), p.baseRateEthDynamic(), p.baseRateEthFull());
         if (p.powerMin().compareTo(BigDecimal.ONE) > 0 || p.powerMax().compareTo(BigDecimal.ONE) < 0) {
             throw new IllegalArgumentException("powerMin ≤ 1 ≤ powerMax requis, reçu " + p.powerMin() + " / " + p.powerMax());
+        }
+    }
+
+    /** Un profil plus offensif n'a jamais un taux plus faible : Prudent ≤ Équilibré ≤ Dynamique ≤ Full. */
+    private static void requireRising(String asset, BigDecimal prudent, BigDecimal balanced, BigDecimal dynamic, BigDecimal full) {
+        if (prudent.compareTo(balanced) > 0 || balanced.compareTo(dynamic) > 0 || dynamic.compareTo(full) > 0) {
+            throw new IllegalArgumentException("Taux de base " + asset + " : Prudent ≤ Équilibré ≤ Dynamique ≤ Full requis, reçu "
+                    + prudent.toPlainString() + " / " + balanced.toPlainString() + " / " + dynamic.toPlainString() + " / " + full.toPlainString());
         }
     }
 

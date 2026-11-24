@@ -58,6 +58,25 @@ public class AlarmService {
         }
     }
 
+    /**
+     * Alarme levée explicitement (hors passe du Docteur, ex. « actif à valider ») : ouvre l'alarme si aucune n'est ouverte pour cette clé
+     * (ou rouvre celle résolue depuis moins de {@link DoctorDefaults#ALARM_REOPEN_WINDOW_HOURS} h), sinon ne change RIEN : un second appel
+     * ne crée ni doublon ni occurrence, et ne désacquitte pas. Fermée par {@link #resolve}.
+     */
+    @Transactional
+    public void raise(DoctorReport.Entry entry) {
+        if (alarms.findFirstByAlarmKeyAndStateNotOrderByIdDesc(entry.alarmKey(), AlarmState.RESOLVED).isPresent()) {
+            return;
+        }
+        upsert(entry, clock.now());
+    }
+
+    /** Clôt l'alarme ouverte portant cette clé (sans effet s'il n'y en a pas). */
+    @Transactional
+    public void resolve(String alarmKey, String why) {
+        resolveIfOpen(alarmKey, clock.now(), why);
+    }
+
     private void upsert(DoctorReport.Entry entry, Instant now) {
         Optional<Alarm> existing = alarms.findFirstByAlarmKeyAndStateNotOrderByIdDesc(entry.alarmKey(), AlarmState.RESOLVED);
         if (existing.isEmpty()) {

@@ -15,6 +15,9 @@ import java.util.Optional;
 @NoRepositoryBean
 public interface ExpertPresetRepository<P extends ExpertPreset> extends JpaRepository<P, Long> {
 
+    /** Au moins un preset (SYSTEM ou utilisateur) porte cet actif. */
+    boolean existsByAssetSymbol(String assetSymbol);
+
     List<P> findByAssetSymbolAndOrigin(String assetSymbol, PresetOrigin origin);
 
     List<P> findByAssetSymbolAndOwner(String assetSymbol, User owner);

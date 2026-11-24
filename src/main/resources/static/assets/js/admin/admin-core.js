@@ -301,6 +301,8 @@
     });
     setInterval(() => { refreshState().catch(() => { /* bandeau périmé jusqu'au prochain tour */ }); }, STATE_REFRESH_MS);
     activate('console');
+    const deep = document.querySelector('[data-adm-tab="' + (window.location.hash || '').replace('#', '') + '"]');
+    if (deep) { deep.click(); }
   }
 
   window.AdminCore = Object.assign(core, {

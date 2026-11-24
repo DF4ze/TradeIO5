@@ -26,6 +26,7 @@ import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -91,7 +92,10 @@ class AdminModulationSecurityTest {
         assertEquals(0, new java.math.BigDecimal("5").compareTo(margin.min()));
         assertEquals(0, new java.math.BigDecimal("50").compareTo(margin.max()));
         assertEquals(0, new java.math.BigDecimal("25").compareTo(margin.defaultValue()));
-        assertEquals(12, controller.get().parameters().size());
+        assertEquals(12 + 9, controller.get().parameters().size());
+        AdminModulationController.ParameterDto rate = controller.get().parameters().get("baseRateBtcPrudent");
+        assertEquals(0, new java.math.BigDecimal("0.0002774").compareTo(rate.defaultValue()));
+        assertTrue(controller.get().parameters().containsKey("baseRateMarginK"));
 
         controller.put(params());
         verify(ADMIN).update(params(), "root");

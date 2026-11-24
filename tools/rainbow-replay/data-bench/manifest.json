@@ -1,0 +1,95 @@
+{
+ "usage": "bench / etude uniquement : jamais l'execution ni le live",
+ "assets": [
+  {
+   "asset": "BNB",
+   "symbol": "BNBUSDT",
+   "quote": "USDT",
+   "source": "BINANCE/USDT",
+   "rows": 3304,
+   "firstDay": "2017-11-06",
+   "lastDay": "2026-11-22",
+   "csvSha256": "b90084079d6fbdbee55b2a78ee4bfa4c8c1c78d120b7fccf3c89423632afa0d7"
+  },
+  {
+   "asset": "SOL",
+   "symbol": "SOLUSDT",
+   "quote": "USDT",
+   "source": "BINANCE/USDT",
+   "rows": 2295,
+   "firstDay": "2020-08-11",
+   "lastDay": "2026-11-22",
+   "csvSha256": "d22044ad01eb38004648cf384b53b14a36f15cabdc733e082620dbfea70219f1"
+  },
+  {
+   "asset": "XRP",
+   "symbol": "XRPUSDT",
+   "quote": "USDT",
+   "source": "BINANCE/USDT",
+   "rows": 3125,
+   "firstDay": "2018-05-04",
+   "lastDay": "2026-11-22",
+   "csvSha256": "298ea35b38a056e4ce2603f9383dcfb26bcb6fbdf43d585dd46e67a06268fe57"
+  },
+  {
+   "asset": "ADA",
+   "symbol": "ADAUSDT",
+   "quote": "USDT",
+   "source": "BINANCE/USDT",
+   "rows": 3142,
+   "firstDay": "2018-04-17",
+   "lastDay": "2026-11-22",
+   "csvSha256": "e859ef8123f96a2b5da1fac6a41ff01eeea0ff069ac215cfdc43f1c875d34541"
+  },
+  {
+   "asset": "LINK",
+   "symbol": "LINKUSDT",
+   "quote": "USDT",
+   "source": "BINANCE/USDT",
+   "rows": 2868,
+   "firstDay": "2019-01-16",
+   "lastDay": "2026-11-22",
+   "csvSha256": "ca7dad27306099fba3db6970bc3526bca2621b693538cedd21424175e8bbe37c"
+  },
+  {
+   "asset": "LTC",
+   "symbol": "LTCUSDT",
+   "quote": "USDT",
+   "source": "BINANCE/USDT",
+   "rows": 3267,
+   "firstDay": "2017-12-13",
+   "lastDay": "2026-11-22",
+   "csvSha256": "07fb574c784ce5cefecd2a1fa93a91544cb7bc3408119d7f572b4ee1d6814fa2"
+  },
+  {
+   "asset": "AVAX",
+   "symbol": "AVAXUSDT",
+   "quote": "USDT",
+   "source": "BINANCE/USDT",
+   "rows": 2253,
+   "firstDay": "2020-09-22",
+   "lastDay": "2026-11-22",
+   "csvSha256": "07721cf1180acc578a3ac45964aa975ac84c5df526f5c25c617fb7aec0018766"
+  },
+  {
+   "asset": "DOT",
+   "symbol": "DOTUSDT",
+   "quote": "USDT",
+   "source": "BINANCE/USDT",
+   "rows": 2288,
+   "firstDay": "2020-08-18",
+   "lastDay": "2026-11-22",
+   "csvSha256": "62ab64a1e3ff9ecf41c8b01b27fb5b1f4d1be45b93d126639a81f8c2f4dc9c16"
+  },
+  {
+   "asset": "DOGE",
+   "symbol": "DOGEUSDT",
+   "quote": "USDT",
+   "source": "BINANCE/USDT",
+   "rows": 2698,
+   "firstDay": "2019-07-05",
+   "lastDay": "2026-11-22",
+   "csvSha256": "0f70fc693c90c8113023b146dd963085084ca63036f293138ed59227b89490a4"
+  }
+ ]
+}

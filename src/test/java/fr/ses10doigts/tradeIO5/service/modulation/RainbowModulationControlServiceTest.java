@@ -202,4 +202,40 @@ class RainbowModulationControlServiceTest {
                 d.modulationProductMax(), d.autonomyDays(), null, d.drawdownCapBalancedPct(), d.drawdownCapDynamicPct(),
                 d.drawdownCapFullPct()));
     }
+
+    private static Params withRates(String btcPrudent, String btcFull, String k) {
+        Params d = defaults();
+        return new Params(d.regulationMarginPct(), d.sellBoostMax(), d.biasMax(), d.powerMin(), d.powerMax(), d.minBandWidthPts(),
+                d.modulationProductMax(), d.autonomyDays(), d.drawdownCapPrudentPct(), d.drawdownCapBalancedPct(),
+                d.drawdownCapDynamicPct(), d.drawdownCapFullPct(), bd(btcPrudent), d.baseRateBtcBalanced(), d.baseRateBtcDynamic(),
+                bd(btcFull), d.baseRateEthPrudent(), d.baseRateEthBalanced(), d.baseRateEthDynamic(), d.baseRateEthFull(), bd(k));
+    }
+
+    @Test
+    @DisplayName("Taux de base : défauts de la table de calage, > 0 et bornés, croissants Prudent -> Full, k en information (1 à 3)")
+    void baseRatesValidation() {
+        Params d = defaults();
+        assertEquals(0, bd("0.0002774").compareTo(d.baseRateBtcPrudent()));
+        assertEquals(0, bd("0.001533").compareTo(d.baseRateEthFull()));
+        assertEquals(0, bd("1.1").compareTo(d.baseRateMarginK()));
+        RainbowModulationControlService.validate(d);
+        RainbowModulationControlService.validate(withRates("0.0003", "0.002", "1.25"));
+        assertThrows(IllegalArgumentException.class, () -> RainbowModulationControlService.validate(withRates("0", "0.002", "1.1")));
+        assertThrows(IllegalArgumentException.class, () -> RainbowModulationControlService.validate(withRates("-0.0003", "0.002", "1.1")));
+        assertThrows(IllegalArgumentException.class, () -> RainbowModulationControlService.validate(withRates("0.0003", "0.5", "1.1")));
+        assertThrows(IllegalArgumentException.class, () -> RainbowModulationControlService.validate(withRates("0.0003", "0.002", "0.9")));
+        assertThrows(IllegalArgumentException.class, () -> RainbowModulationControlService.validate(withRates("0.0003", "0.002", "3.5")));
+        // Prudent au-dessus de Full : incohérent
+        assertThrows(IllegalArgumentException.class, () -> RainbowModulationControlService.validate(withRates("0.003", "0.002", "1.1")));
+    }
+
+    @Test
+    @DisplayName("Taux de base : update les écrit, la ligne les relit")
+    void baseRatesRoundTrip() {
+        when(repository.findById(RainbowModulationControl.SINGLETON_ID)).thenReturn(Optional.empty());
+        RainbowModulationControl saved = service.update(withRates("0.0003", "0.002", "1.25"), "admin");
+        assertEquals(0, bd("0.0003").compareTo(saved.getBaseRateBtcPrudent()));
+        assertEquals(0, bd("1.25").compareTo(saved.getBaseRateMarginK()));
+        assertEquals(0, bd("0.0003").compareTo(saved.baseRate(fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile.PRUDENT, "BTC").value()));
+    }
 }

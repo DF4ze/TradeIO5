@@ -32,7 +32,7 @@ import java.util.concurrent.Executors;
  * Runner manuel (DB dev = copie de prod ; jamais dans la suite normale) : diagnostic de reproductibilité (mode {@code repro}) et
  * démo L2 réelle (mode {@code l2}) de l'optimiseur, calibrage walk-forward de la politique L2 (mode {@code policy}).
  * <p>
- * Lancement : {@code mvn test -Dtest=OptimizerManualRunnerTest -Doptimizer.manual=repro|l2|policy|preset|preset-cadences|sensitivity|tune|recent-tune|exposure-parity|exposure-frontier|exposure-policy|exposure-calibration|switch-diagnostic|switch-cut|switch-robustness} (ignoré sans la
+ * Lancement : {@code mvn test -Dtest=OptimizerManualRunnerTest -Doptimizer.manual=repro|l2|policy|preset|preset-cadences|sensitivity|tune|recent-tune|exposure-parity|exposure-frontier|exposure-policy|exposure-calibration|switch-diagnostic|switch-cut|switch-robustness|transfer} (ignoré sans la
  * propriété). {@code preset} = optimiseur de presets L1, walk-forward simple + estimation du coût des cadences ; {@code preset-cadences} =
  * comparaison des cadences 30 / 90 / 180 j (coûteuse : seulement après accord).
  * Sorties : {@code target/optimizer-repro.md}, {@code target/optimizer-l2.md}, {@code target/optimizer-<ACTIF>.json},
@@ -49,7 +49,7 @@ import java.util.concurrent.Executors;
         "spring.jpa.hibernate.ddl-auto=none",
         "spring.flyway.enabled=false"
 })
-@EnabledIfSystemProperty(named = "optimizer.manual", matches = "repro|l2|policy|policy-variants|preset|preset-cadences|sensitivity|tune|recent-tune|exposure-parity|exposure-frontier|exposure-policy|exposure-calibration|exposure-production|switch-diagnostic|switch-cut|switch-robustness")
+@EnabledIfSystemProperty(named = "optimizer.manual", matches = "repro|l2|policy|policy-variants|preset|preset-cadences|sensitivity|tune|recent-tune|exposure-parity|exposure-frontier|exposure-policy|exposure-calibration|exposure-production|base-rate-replay|switch-diagnostic|switch-cut|switch-robustness|transfer")
 class OptimizerManualRunnerTest {
 
     private static final String USER = "OKlm";
@@ -541,6 +541,35 @@ class OptimizerManualRunnerTest {
     }
 
     @Test
+    @DisplayName("Étape C5 : la proposition au taux de profil (défauts admin x cash) rejouée sur les données réelles redonne la table de calage (BTC, ETH x 4 profils)")
+    void baseRateReplay() throws IOException {
+        Assumptions.assumeTrue(mode("base-rate-replay"));
+        User user = users.findByUsername(USER).orElseThrow();
+        LocalDate end = LocalDate.parse(System.getProperty("optimizer.end", "2026-11-17"));
+        Map<String, Double> table = Map.of("BTC/PRUDENT", -13.72, "BTC/BALANCED", -22.70, "BTC/DYNAMIC", -36.38, "BTC/FULL", -54.52,
+                "ETH/PRUDENT", -13.64, "ETH/BALANCED", -22.73, "ETH/DYNAMIC", -36.37, "ETH/FULL", -54.55);
+        var defaults = fr.ses10doigts.tradeIO5.model.entity.modulation.RainbowModulationControl.defaults(java.time.Instant.EPOCH, null);
+        StringBuilder md = new StringBuilder("| Actif | Profil | Pire DD rejoué % | Table % | Écart | Plafond % | OK |\n|---|---|---|---|---|---|---|\n");
+        boolean allOk = true;
+        for (Case c : CASES.subList(0, 2)) {
+            ScorerInputs in = loader.load(user, new OptimizerRunRequest(c.asset(), c.walletId(), c.cash0(), end, PROFILE, null, null, null))
+                    .withBaseSettings(fr.ses10doigts.tradeIO5.service.UserTradingSettingsService.ModulationSettings.neutral());
+            for (var p : List.of(fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile.PRUDENT, fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile.BALANCED,
+                    fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile.DYNAMIC, fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile.FULL)) {
+                double dd = BaseRateReplayTest.worstDd(in, c.asset(), p);
+                double expected = table.get(c.asset() + "/" + p.name());
+                double cap = defaults.drawdownCaps().get(p).doubleValue();
+                boolean ok = Math.abs(dd - expected) <= 1.0 && dd >= cap;
+                allOk &= ok;
+                md.append(String.format(Locale.ROOT, "| %s | %s | %.2f | %.2f | %+.2f | %.0f | %s |%n", c.asset(), p, dd, expected, dd - expected, cap, ok ? "oui" : "NON"));
+            }
+        }
+        Files.writeString(Path.of("target/base-rate-replay.md"), md.toString());
+        System.out.println(md);
+        org.junit.jupiter.api.Assertions.assertTrue(allOk, "au moins un couple s'écarte de la table de calage (±1 pt) ou dépasse le plafond");
+    }
+
+    @Test
     @DisplayName("Étape C3 : calage de l'exposition par profil sur le pire cas, marge de sécurité mesurée (BTC, ETH), un seul run, une seule configuration")
     void exposureCalibration() throws IOException {
         Assumptions.assumeTrue(mode("exposure-calibration"));
@@ -1026,5 +1055,96 @@ class OptimizerManualRunnerTest {
                     w.split().timing(), w.split().fees(), w.blockedDays()));
         }
         return md;
+    }
+
+    @Test
+    @DisplayName("Étape D1a : un preset existant (BTC, ETH, PAXG) transfère-t-il sur un actif jamais vu ? 36 paires, aucun réglage, un seul run")
+    void transferPresets() throws IOException {
+        Assumptions.assumeTrue(mode("transfer"));
+        User user = users.findByUsername(USER).orElseThrow();
+        LocalDate end = LocalDate.parse(System.getProperty("optimizer.end", "2026-11-22"));
+        TransferConfig cfg = TransferConfig.defaults();
+        Path dir = Path.of(BenchCandleStore.DEFAULT_DIR);
+        List<BenchCandleStore.Entry> news = BenchCandleStore.manifest(dir);
+        int pairCount = (CASES.size() + news.size()) * TransferStudy.PRESET_ASSETS.size();
+        double minutes = cfg.worstCaseMinutes(pairCount);
+        String plan = String.format(Locale.ROOT, "D1a : %d paires (%d actifs x %d presets) ; au pire %.2f min en série (pool de %d : plus court) ; seuil %.0f min.",
+                pairCount, CASES.size() + news.size(), TransferStudy.PRESET_ASSETS.size(), minutes, POOL, cfg.budgetMinutes());
+        Files.writeString(Path.of("target/transfer-presets-plan.txt"), plan + "\n");
+        System.out.println(plan);
+        if (minutes > cfg.budgetMinutes() && !Boolean.getBoolean("optimizer.transfer.confirm")) {
+            System.out.println("ARRET : estimation > 10 min, confirmation requise (-Doptimizer.transfer.confirm=true).");
+            return;
+        }
+        long t0 = System.nanoTime();
+        List<TransferStudy.Source> sources = new ArrayList<>();
+        List<TransferStudy.Target> targets = new ArrayList<>();
+        Map<String, ScorerInputs> loaded = new java.util.LinkedHashMap<>();
+        for (Case c : CASES) {
+            ScorerInputs in = loader.load(user, new OptimizerRunRequest(c.asset(), c.walletId(), c.cash0(), end, PROFILE, null, null, null));
+            loaded.put(c.asset(), in);
+            ScorerInputs.AssetInput a = in.assets().getFirst();
+            Double linkBase = a.template().linkBaseAmount();
+            double refBase = linkBase != null && linkBase > 0 ? linkBase : a.template().sets()[0].globals().baseAmount();
+            sources.add(new TransferStudy.Source(c.asset(), a.template().sets(), a.template().windowMonths(), refBase / c.cash0()));
+            targets.add(new TransferStudy.Target(c.asset(), a.source(), a.template().candles()));
+        }
+        var limits = loaded.values().iterator().next().limits();
+        List<TransferReport.AssetInfo> infos = new ArrayList<>();
+        Map<String, Double> atr = new java.util.LinkedHashMap<>();
+        for (TransferStudy.Target t : targets) {
+            double a = TransferStudy.medianAtrPct(t.candles(), cfg.atrPeriod());
+            atr.put(t.asset(), a);
+            infos.add(new TransferReport.AssetInfo(t.asset(), "CONTROLE", t.sourceLabel(), CandleFingerprint.of(t.asset(), t.candles(), t.lastDay()), a));
+        }
+        for (BenchCandleStore.Entry e : news) {
+            BenchCandleStore.Bench b = BenchCandleStore.load(dir, e.asset());
+            TransferStudy.Target t = new TransferStudy.Target(e.asset(), b.sourceLabel(), b.candles());
+            targets.add(t);
+            double a = TransferStudy.medianAtrPct(t.candles(), cfg.atrPeriod());
+            atr.put(t.asset(), a);
+            infos.add(new TransferReport.AssetInfo(t.asset(), "NOUVEAU", b.sourceLabel(), b.fingerprint(), a));
+        }
+        List<TransferStudy.PairResult> pairs;
+        ExecutorService pool = Executors.newFixedThreadPool(POOL);
+        try {
+            pairs = TransferStudy.runAll(targets, sources, cfg, limits, pool);
+        } finally {
+            pool.shutdown();
+        }
+        TransferStudy.Verdict verdict = TransferStudy.verdict(pairs, atr, cfg);
+        List<TransferReport.Drift> drift = new ArrayList<>();
+        for (TransferStudy.Target t : targets.subList(0, CASES.size())) {
+            ScorerInputs in = loaded.get(t.asset());
+            TuneBlocks.Block b = TuneBlocks.build(t.lastDay(), cfg.blockMonths(), cfg.blockCount()).getFirst();
+            SensitivityEvaluator ev = new SensitivityEvaluator(in.withEndDate(b.to()), cfg.blockMonths(), b.from());
+            SensitivityEvaluator.Parity p = ev.parity(SwitchCutStudy.withoutAth(ev.template().sets()), false, 0, null);
+            Double loaderGain = p == null ? null : p.preset().pnlPct();
+            Double rebuilt = pairs.stream().filter(x -> x.target().equals(t.asset()) && x.preset().equals(t.asset())).findFirst()
+                    .flatMap(x -> x.blocks().stream().filter(y -> y.valid() && y.index() == 0).findFirst()).map(TransferStudy.BlockDelta::presetGain).orElse(null);
+            drift.add(new TransferReport.Drift(t.asset(), loaderGain, rebuilt, loaderGain == null || rebuilt == null ? null : rebuilt - loaderGain));
+        }
+        long nPairsOos = pairs.stream().filter(x -> !x.inSample()).count();
+        long blocks = pairs.stream().mapToLong(x -> x.blocks().stream().filter(TransferStudy.BlockDelta::valid).count()).sum();
+        long replays = pairs.stream().mapToLong(TransferStudy.PairResult::replays).sum();
+        List<String> notes = new ArrayList<>();
+        notes.add("Trend : celle du live pour un actif sans réglage dédié = « Trend de base » (RainbowLiveTrendConfigs.defaults) : TrendMixCalculator.Params.defaults() "
+                + "(fenêtres 14 / 30 / 60, pente 400, enter 0,30, exit 0,10, confirm 10, SMA 100, ATR 5 x 1,25) + RangeMapping.KEEP_PREVIOUS ; identique pour les 12 actifs.");
+        notes.add("Presets : jeux Bear / Bull live de BTC, ETH, PAXG lus par le chargeur du rejeu (DB), joués tels quels, modulation ATH désactivée (preset pur, comme E1) ; "
+                + "montant de base = taux de base du lien source (base du lien / capital de son wallet, comme B' / E1 x1) x capital " + cfg.cash0() + " identique pour les 36 paires ; exposition du preset rapportée par bloc.");
+        notes.add("Bougies : BTC / ETH / PAXG = bougies habituelles du rejeu (source indiquée par actif) ; 9 nouveaux = Binance USDT, stockage bench dédié (fichiers, manifeste, "
+                + "étiquette " + BenchCandleStore.SOURCE_LABEL + ", empreinte), jamais lus par le live.");
+        notes.add("Multiplicité : une configuration, un run, " + pairs.size() + " paires fixées d'avance (" + nPairsOos + " hors échantillon, " + (pairs.size() - nPairsOos)
+                + " dans l'échantillon exclues du verdict) ; " + blocks + " blocs valides au total ; " + cfg.shiftCount() + " décalages de départ par plage ; " + replays + " rejeux.");
+        notes.add("Bande de bruit : largeur = P80 des " + cfg.shiftCount() + " décalages (0-" + cfg.shiftMaxDays() + " j) du DCA calé moins le DCA calé non décalé ; Δ médian doit dépasser "
+                + "la médiane de ces largeurs sur les blocs.");
+        notes.add("Règle 3 : actifs hors des 3 sources seulement (pour une source le preset le plus proche est le sien) ; ATR " + cfg.atrPeriod() + " (RMA) en % du cours, médiane sur l'historique complet de l'actif ; "
+                + "distance = |ln(rapport des ATR %)| ; aucune donnée de test utilisée pour le choix.");
+        notes.add("Limites : cryptos fortement corrélées (nombre d'actifs indépendants bien inférieur à 12) ; biais de survie (actifs encore listés) ; peu de blocs par actif ; "
+                + "quasi un seul grand bear (2021-22) ; Binance USDT contre USDC des presets ; coûts simplifiés du simulateur.");
+        TransferReport report = new TransferReport(TransferReport.DEFINITION, cfg, infos, pairs, verdict, drift, notes, (System.nanoTime() - t0) / 1_000_000);
+        Files.writeString(Path.of("target/transfer-presets.json"), report.toJson());
+        Files.writeString(Path.of("target/transfer-presets.md"), report.toMarkdown());
+        System.out.println(report.toMarkdown());
     }
 }

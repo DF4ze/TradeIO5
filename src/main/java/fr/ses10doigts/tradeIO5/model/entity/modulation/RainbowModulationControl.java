@@ -77,6 +77,35 @@ public class RainbowModulationControl {
     @Column(nullable = false, precision = 10, scale = 4)
     private BigDecimal drawdownCapFullPct;
 
+    /** Taux de base par jour / cash alloué au lien, par actif calibré et profil (proposition indicative d'onboarding, aucun effet sur les ordres). */
+    @Column(nullable = false, precision = 12, scale = 8)
+    private BigDecimal baseRateBtcPrudent;
+
+    @Column(nullable = false, precision = 12, scale = 8)
+    private BigDecimal baseRateBtcBalanced;
+
+    @Column(nullable = false, precision = 12, scale = 8)
+    private BigDecimal baseRateBtcDynamic;
+
+    @Column(nullable = false, precision = 12, scale = 8)
+    private BigDecimal baseRateBtcFull;
+
+    @Column(nullable = false, precision = 12, scale = 8)
+    private BigDecimal baseRateEthPrudent;
+
+    @Column(nullable = false, precision = 12, scale = 8)
+    private BigDecimal baseRateEthBalanced;
+
+    @Column(nullable = false, precision = 12, scale = 8)
+    private BigDecimal baseRateEthDynamic;
+
+    @Column(nullable = false, precision = 12, scale = 8)
+    private BigDecimal baseRateEthFull;
+
+    /** Marge k du calage des taux, en information (non utilisée par le calcul). */
+    @Column(name = "base_rate_margin_k", nullable = false, precision = 10, scale = 4)
+    private BigDecimal baseRateMarginK;
+
     @Column(nullable = false)
     private Instant updatedAt;
 
@@ -98,6 +127,15 @@ public class RainbowModulationControl {
                 .drawdownCapBalancedPct(def(ModulationDefaults.DRAWDOWN_CAP_BALANCED_PCT))
                 .drawdownCapDynamicPct(def(ModulationDefaults.DRAWDOWN_CAP_DYNAMIC_PCT))
                 .drawdownCapFullPct(def(ModulationDefaults.DRAWDOWN_CAP_FULL_PCT))
+                .baseRateBtcPrudent(def(ModulationDefaults.BASE_RATE_BTC_PRUDENT))
+                .baseRateBtcBalanced(def(ModulationDefaults.BASE_RATE_BTC_BALANCED))
+                .baseRateBtcDynamic(def(ModulationDefaults.BASE_RATE_BTC_DYNAMIC))
+                .baseRateBtcFull(def(ModulationDefaults.BASE_RATE_BTC_FULL))
+                .baseRateEthPrudent(def(ModulationDefaults.BASE_RATE_ETH_PRUDENT))
+                .baseRateEthBalanced(def(ModulationDefaults.BASE_RATE_ETH_BALANCED))
+                .baseRateEthDynamic(def(ModulationDefaults.BASE_RATE_ETH_DYNAMIC))
+                .baseRateEthFull(def(ModulationDefaults.BASE_RATE_ETH_FULL))
+                .baseRateMarginK(def(ModulationDefaults.BASE_RATE_MARGIN_K))
                 .updatedAt(now).updatedBy(by).build();
     }
 
@@ -109,6 +147,29 @@ public class RainbowModulationControl {
         caps.put(StartingProfile.DYNAMIC, drawdownCapDynamicPct);
         caps.put(StartingProfile.FULL, drawdownCapFullPct);
         return caps;
+    }
+
+    /** Taux de base retenu : valeur et indicateur « calibré » (faux = repli sur la ligne BTC). */
+    public record BaseRate(BigDecimal value, boolean calibrated) {
+    }
+
+    /**
+     * Taux de base du {@code profile} pour {@code asset} : ligne propre pour BTC / ETH, sinon repli sur la ligne BTC (non calibré).
+     * {@code null} si le profil n'a pas de table ({@code CUSTOM}, nul).
+     */
+    public BaseRate baseRate(StartingProfile profile, String asset) {
+        if (profile == null || !profile.selectable()) {
+            return null;
+        }
+        boolean calibrated = ModulationDefaults.CALIBRATED_RATE_ASSETS.contains(asset);
+        boolean eth = calibrated && "ETH".equals(asset);
+        BigDecimal value = switch (profile) {
+            case PRUDENT -> eth ? baseRateEthPrudent : baseRateBtcPrudent;
+            case BALANCED -> eth ? baseRateEthBalanced : baseRateBtcBalanced;
+            case DYNAMIC -> eth ? baseRateEthDynamic : baseRateBtcDynamic;
+            default -> eth ? baseRateEthFull : baseRateBtcFull;
+        };
+        return new BaseRate(value, calibrated);
     }
 
     private static BigDecimal def(String name) {

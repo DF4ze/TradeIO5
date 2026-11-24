@@ -46,6 +46,37 @@ public class ExpertBasePresetService {
         return created;
     }
 
+    /**
+     * Presets de base d'un actif hors {@link RainbowLiveDefaultPresets#ASSETS} (D1b) : copies SYSTEM des presets de base BTC (Trend, Rainbow Bull,
+     * Rainbow Bear), jamais modifiées ensuite. Insertion idempotente par (actif, rôle) : un preset de base existant n'est jamais touché.
+     *
+     * @return nombre de presets créés (0 si BTC n'a pas de preset de base ou si tout est déjà là)
+     */
+    @Transactional
+    public int copyBasePresetsFromBtc(String asset) {
+        Instant now = clock.now();
+        int created = 0;
+        TrendPreset trend = trendRepository.findByAssetSymbolAndBaseRole("BTC", BasePresetRole.TREND).orElse(null);
+        if (trend != null && trendRepository.findByAssetSymbolAndBaseRole(asset, BasePresetRole.TREND).isEmpty()) {
+            TrendPreset copy = TrendPreset.builder().assetSymbol(asset).name(TREND_BASE_NAME).origin(PresetOrigin.SYSTEM)
+                    .baseRole(BasePresetRole.TREND).revision(1).rangeMapping(trend.getRangeMapping()).createdAt(now).updatedAt(now).build();
+            copy.applyParams(trend.toParams());
+            trendRepository.save(copy);
+            created++;
+        }
+        for (BasePresetRole role : new BasePresetRole[]{BasePresetRole.RAINBOW_BULL, BasePresetRole.RAINBOW_BEAR}) {
+            RainbowPreset src = rainbowRepository.findByAssetSymbolAndBaseRole("BTC", role).orElse(null);
+            if (src != null && rainbowRepository.findByAssetSymbolAndBaseRole(asset, role).isEmpty()) {
+                rainbowRepository.save(RainbowPreset.builder().assetSymbol(asset).name(src.getName()).origin(PresetOrigin.SYSTEM).baseRole(role)
+                        .revision(1).analysisWindowMonths(src.getAnalysisWindowMonths())
+                        .config(RainbowAtrConfig.of(src.getConfig().toTuning(), src.getConfig().toGlobals())).createdAt(now).updatedAt(now).build());
+                created++;
+            }
+        }
+        log.info("Presets de base copiés de BTC pour {} : {} créé(s)", asset, created);
+        return created;
+    }
+
     private boolean ensureTrend(String asset, RainbowLiveTrendConfigs.Resolved d, Instant now) {
         if (trendRepository.findByAssetSymbolAndBaseRole(asset, BasePresetRole.TREND).isPresent()) {
             return false;

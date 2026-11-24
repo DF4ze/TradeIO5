@@ -18,6 +18,9 @@ public interface AssetAffectationRepository extends JpaRepository<AssetAffectati
     /** Instance Système de l'utilisateur sur l'actif (au plus une). */
     Optional<AssetAffectation> findByUserAndAssetSymbolAndSystemTrue(User user, String assetSymbol);
 
+    /** Au moins une Affectation (tous utilisateurs) porte cet actif. */
+    boolean existsByAssetSymbol(String assetSymbol);
+
     boolean existsByUserAndAssetSymbolAndName(User user, String assetSymbol, String name);
 
     List<AssetAffectation> findByUser(User user);

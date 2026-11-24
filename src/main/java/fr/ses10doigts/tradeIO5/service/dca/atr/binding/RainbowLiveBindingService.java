@@ -41,6 +41,10 @@ public class RainbowLiveBindingService {
 
     private final DomainClock clock;
 
+    /** Publie {@link NewAssetLinkedEvent} (point d'entrée du pipeline d'accueil d'un nouvel actif, D1b) ; absent dans les tests construits à la main. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private org.springframework.context.ApplicationEventPublisher events;
+
     /**
      * Création : {@code bagPercent} et {@code priority} nuls => défauts (100 %, rang de l'actif) ; {@code affectationId} nul =>
      * instance Système de l'actif.
@@ -109,6 +113,9 @@ public class RainbowLiveBindingService {
         RainbowLiveBinding saved = bindingRepository.save(toSave);
         log.info("Binding créé id={} user={} actif={} affectation={} wallet={} bag={}% priorité={}",
                 saved.getId(), user.getId(), saved.getAssetSymbol(), affectation.getId(), wallet.getId(), bag, priority);
+        if (events != null) {
+            events.publishEvent(new NewAssetLinkedEvent(user.getId(), saved.getAssetSymbol(), saved.getId(), wallet.getId()));
+        }
         return checked(saved);
     }
 

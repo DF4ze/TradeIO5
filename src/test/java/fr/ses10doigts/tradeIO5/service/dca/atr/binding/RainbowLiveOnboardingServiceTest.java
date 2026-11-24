@@ -22,6 +22,8 @@ import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlServic
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile;
+import fr.ses10doigts.tradeIO5.service.UserModulationService;
 import org.mockito.Mockito;
 
 import java.math.BigDecimal;
@@ -54,8 +56,11 @@ class RainbowLiveOnboardingServiceTest {
     private final RealPortfolioSource portfolio = mock(RealPortfolioSource.class);
     private final AffectationConfigResolver resolver = mock(AffectationConfigResolver.class);
     private final RainbowModulationControlService control = mock(RainbowModulationControlService.class);
+    private final UserModulationService userModulation = mock(UserModulationService.class);
+    private final fr.ses10doigts.tradeIO5.repository.modulation.AssetBaseRateRepository assetRateRepository = mock(fr.ses10doigts.tradeIO5.repository.modulation.AssetBaseRateRepository.class);
     private final RainbowLiveOnboardingService service = new RainbowLiveOnboardingService(bindingService, repository,
-            bindingCheck, quoteService, portfolio, resolver, control);
+            bindingCheck, quoteService, portfolio, resolver, control, userModulation,
+            new fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService(assetRateRepository));
 
     private final User user = User.builder().id(1L).build();
     private final Wallet wallet = Wallet.builder().id(WALLET_ID).user(user).build();
@@ -194,5 +199,108 @@ class RainbowLiveOnboardingServiceTest {
         assertEquals(1260.0 / (90 * 7.0 / 6.0), service.proposals(user, WALLET_ID).getFirst().proposedBaseAmount(), 0.01);
         assertThrows(IllegalArgumentException.class, () -> service.proposals(user, WALLET_ID, 3));
         assertThrows(IllegalArgumentException.class, () -> service.proposals(user, WALLET_ID, 400));
+    }
+
+    private void stubProfileProposal(double cash, String... assets) {
+        List<RainbowLiveBinding> bindings = new java.util.ArrayList<>();
+        for (int i = 0; i < assets.length; i++) {
+            bindings.add(binding(i + 1L, assets[i], null));
+        }
+        when(repository.findByUserOrderByPriorityAscAssetSymbolAsc(user)).thenReturn(bindings);
+        when(portfolio.read(any())).thenReturn(new PortfolioReading(cash, Map.of(), Instant.EPOCH, PortfolioStatus.OK, WALLET_ID));
+        when(resolver.config(any())).thenReturn(config());
+        when(quoteService.quote(eq(user), anyLong(), any(BigDecimal.class))).thenReturn(new BindingPathQuoteService.Result(
+                new PathQuote(PathStatus.OK, "USDC", "BTC", BigDecimal.ONE, List.of(), BigDecimal.ONE, FeeTestLevel.GREEN,
+                        PathEstimation.BOOK, false), null));
+    }
+
+    @Test
+    @DisplayName("proposals : défaut = taux du profil x cash alloué (échelle 2, vers le bas), mention de risque, aucune autonomie")
+    void proposalFromProfileRate() {
+        when(userModulation.profileOf(user)).thenReturn(StartingProfile.BALANCED);
+        stubProfileProposal(10_000, "BTC", "ETH");
+
+        List<Proposal> proposals = service.proposals(user, WALLET_ID);
+
+        Proposal btc = proposals.get(0);
+        assertEquals(RainbowLiveOnboardingService.Basis.PROFILE_RATE, btc.basis());
+        assertEquals(StartingProfile.BALANCED, btc.profile());
+        assertEquals(5000.0, btc.cashAllocated(), 1e-9);
+        assertEquals(4.736e-4, btc.baseRate(), 1e-12);
+        assertEquals(2.36, btc.proposedBaseAmount(), 1e-9);   // 5000 x 4,736e-4 = 2,368 -> 2,36
+        assertNull(btc.autonomyDays());
+        assertFalse(btc.uncalibrated());
+        assertEquals(RainbowLiveOnboardingService.RISK_NOTE, btc.riskNote());
+        Proposal eth = proposals.get(1);
+        assertEquals(3.17, eth.proposedBaseAmount(), 1e-9);   // 5000 x 6,349e-4 = 3,1745 -> 3,17
+        assertFalse(eth.uncalibrated());
+    }
+
+    @Test
+    @DisplayName("proposals : actif sans ligne propre (PAXG) => repli sur la ligne BTC, drapeau non calibré, jamais bloqué")
+    void proposalFallsBackToBtcRow() {
+        when(userModulation.profileOf(user)).thenReturn(StartingProfile.FULL);
+        stubProfileProposal(3_000, "BTC", "PAXG");
+
+        List<Proposal> proposals = service.proposals(user, WALLET_ID);
+
+        Proposal btc = proposals.get(0);
+        Proposal paxg = proposals.get(1);
+        assertFalse(btc.uncalibrated());
+        assertTrue(paxg.uncalibrated());
+        assertEquals(btc.baseRate(), paxg.baseRate());
+        assertEquals(btc.proposedBaseAmount(), paxg.proposedBaseAmount());
+        assertEquals(2.13, paxg.proposedBaseAmount(), 1e-9);  // 1500 x 1,423e-3 = 2,1345 -> 2,13
+        assertEquals(RainbowLiveOnboardingService.RISK_NOTE, paxg.riskNote());
+    }
+
+    @Test
+    @DisplayName("proposals : invariance au capital (deux capitaux, même taux) ; le montant est proportionnel au cash")
+    void proposalScalesWithCapital() {
+        when(userModulation.profileOf(user)).thenReturn(StartingProfile.DYNAMIC);
+        stubProfileProposal(2_000, "BTC");
+        double small = service.proposals(user, WALLET_ID).getFirst().proposedBaseAmount();
+        stubProfileProposal(20_000, "BTC");
+        double large = service.proposals(user, WALLET_ID).getFirst().proposedBaseAmount();
+        assertEquals(1.54, small, 1e-9);   // 2000 x 7,712e-4 = 1,5424
+        assertEquals(15.42, large, 1e-9);  // 20000 x 7,712e-4 = 15,424
+        assertEquals(10.0, large / small, 0.1);
+    }
+
+    @Test
+    @DisplayName("proposals : autonomie saisie explicitement => ancien calcul, même avec un profil ; profil absent ou CUSTOM => autonomie du défaut admin")
+    void autonomyStillAvailable() {
+        when(userModulation.profileOf(user)).thenReturn(StartingProfile.PRUDENT);
+        stubProfileProposal(1260, "BTC");
+        Proposal explicit = service.proposals(user, WALLET_ID, 180).getFirst();
+        assertEquals(RainbowLiveOnboardingService.Basis.AUTONOMY, explicit.basis());
+        assertEquals(180, explicit.autonomyDays());
+        assertEquals(6.0, explicit.proposedBaseAmount(), 1e-9);
+        assertNull(explicit.riskNote());
+
+        for (StartingProfile none : new StartingProfile[]{null, StartingProfile.CUSTOM}) {
+            when(userModulation.profileOf(user)).thenReturn(none);
+            Proposal p = service.proposals(user, WALLET_ID).getFirst();
+            assertEquals(RainbowLiveOnboardingService.Basis.AUTONOMY, p.basis());
+            assertEquals(90, p.autonomyDays());
+            assertEquals(1260.0 / (90 * 7.0 / 6.0), p.proposedBaseAmount(), 0.01);
+            assertFalse(p.uncalibrated());
+        }
+    }
+
+    @Test
+    @DisplayName("proposals : taux de profil édité en admin => la proposition suit ; cash nul => pas de proposition, raison donnée")
+    void proposalFollowsAdminRatesAndNoCash() {
+        RainbowModulationControl edited = RainbowModulationControl.defaults(Instant.EPOCH, "test");
+        edited.setBaseRateBtcPrudent(new BigDecimal("0.001"));
+        when(control.current()).thenReturn(edited);
+        when(userModulation.profileOf(user)).thenReturn(StartingProfile.PRUDENT);
+        stubProfileProposal(1_000, "BTC");
+        assertEquals(1.0, service.proposals(user, WALLET_ID).getFirst().proposedBaseAmount(), 1e-9);
+
+        stubProfileProposal(0, "BTC");
+        Proposal empty = service.proposals(user, WALLET_ID).getFirst();
+        assertNull(empty.proposedBaseAmount());
+        assertEquals(RainbowLiveOnboardingService.Basis.PROFILE_RATE, empty.basis());
     }
 }
