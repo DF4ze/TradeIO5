@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-11
 modifié_le: 2026-11-24
-empreinte: 37862edc65
+empreinte: 4376860ff8
 ---
 # Flyway et défauts d'initialisation
 
