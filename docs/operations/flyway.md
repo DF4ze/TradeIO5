@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-11
 modifié_le: 2026-11-24
-empreinte: 0cf995af2a
+empreinte: 3516535f38
 ---
 # Flyway et défauts d'initialisation
 
@@ -31,7 +31,7 @@ Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11 ; prod à la
 
 `V8__asset_base_rate.sql` (table `asset_base_rate`, ligne de taux dédiée par actif écrite à la validation d'une proposition ; appliquée en prod le 2026-11-24 avec V6 et V7) : [`../architecture/15m-pipeline-nouvel-actif.md`](../architecture/15m-pipeline-nouvel-actif.md).
 
-`V9__taux_de_base_unifies.sql` (**pas encore appliquée en prod, recette requise** : [`recette.md`](recette.md)) : copie les 8 taux réels de `rainbow_modulation_control` vers 2 lignes `asset_base_rate` (BTC, ETH, `validated_by` = `migration V9`, `proposal_id` NULL) si elles n'existent pas, insère la table de calage si une ligne manque encore (base neuve), puis supprime les 8 colonnes `base_rate_<btc|eth>_<profil>` (`base_rate_margin_k` reste). Idempotente (information_schema + NOT EXISTS). À vérifier en recette : lignes BTC / ETH = valeurs éditées en prod, colonnes supprimées, démarrage `validate` OK, onglet « Taux de base » : [`../architecture/08d-rainbow-modulation.md`](../architecture/08d-rainbow-modulation.md).
+`V9__taux_de_base_unifies.sql` (appliquée en prod le 2026-11-24) : copie les 8 taux réels de `rainbow_modulation_control` vers 2 lignes `asset_base_rate` (BTC, ETH, `validated_by` = `migration V9`, `proposal_id` NULL) si elles n'existent pas, insère la table de calage si une ligne manque encore (base neuve), puis supprime les 8 colonnes `base_rate_<btc|eth>_<profil>` (`base_rate_margin_k` reste). Idempotente (information_schema + NOT EXISTS). Détail : [`../architecture/08d-rainbow-modulation.md`](../architecture/08d-rainbow-modulation.md).
 
 ## Restes legacy
 
