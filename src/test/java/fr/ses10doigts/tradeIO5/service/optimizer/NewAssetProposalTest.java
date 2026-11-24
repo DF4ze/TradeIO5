@@ -245,7 +245,7 @@ class NewAssetProposalTest {
         var tx = mock(org.springframework.transaction.support.TransactionTemplate.class);
         when(tx.execute(any())).thenAnswer(i -> ((org.springframework.transaction.support.TransactionCallback<?>) i.getArgument(0)).doInTransaction(null));
         var svc = new NewAssetProposalService(proposals, bindings, users, affectations, resolver, control, history, check, tx, clock(),
-                ALERTS, dir.toString());
+                ALERTS, calibratedRates(), dir.toString());
         return new Rig(svc, proposals, control, affectations, bindings, history);
     }
 
@@ -269,6 +269,15 @@ class NewAssetProposalTest {
         verify(ALERTS).alert(p);
         verify(rig.control(), never()).update(any(), any());
         verify(rig.bindings(), never()).save(any());
+    }
+
+    /** Taux de base : BTC / ETH calibrés (ligne asset_base_rate valide), tout autre actif sans ligne => proposition. */
+    private static fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService calibratedRates() {
+        var rates = mock(fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService.class);
+        when(rates.isCalibrated(any())).thenReturn(false);
+        when(rates.isCalibrated("BTC")).thenReturn(true);
+        when(rates.isCalibrated("ETH")).thenReturn(true);
+        return rates;
     }
 
     @Test

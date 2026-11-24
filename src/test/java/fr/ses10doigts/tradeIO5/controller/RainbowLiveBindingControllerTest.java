@@ -56,7 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Services réels sur H2 + MockMvc standalone ; {@link BindingCheck} est mocké (testé dans BindingCheckTest). */
 @DataJpaTest
-@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService.class, RainbowLiveBindingService.class, RainbowLiveBindingControllerTest.TestConfig.class})
+@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetRegistry.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService.class, RainbowLiveBindingService.class, RainbowLiveBindingControllerTest.TestConfig.class})
 @DisplayName("RainbowLiveBindingController : bindings preset live + wallet")
 class RainbowLiveBindingControllerTest {
 
@@ -64,6 +64,23 @@ class RainbowLiveBindingControllerTest {
 
     @TestConfiguration
     static class TestConfig {
+        @Bean
+        fr.ses10doigts.tradeIO5.service.market.eligibility.AssetEligibilityService eligibility() {
+            return org.mockito.Mockito.mock(fr.ses10doigts.tradeIO5.service.market.eligibility.AssetEligibilityService.class);
+        }
+
+        @Bean
+        fr.ses10doigts.tradeIO5.service.dca.atr.binding.AssetLinkBootstrap bootstrap() {
+            return org.mockito.Mockito.mock(fr.ses10doigts.tradeIO5.service.dca.atr.binding.AssetLinkBootstrap.class);
+        }
+
+        @Bean
+        fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService baseRates() {
+            var rates = org.mockito.Mockito.mock(fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService.class);
+            org.mockito.Mockito.when(rates.isCalibrated(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+            return rates;
+        }
+
         @Bean
         DomainClock domainClock() {
             return new FixedDomainClock(Instant.parse("2026-10-09T23:55:00Z"));
@@ -81,6 +98,8 @@ class RainbowLiveBindingControllerTest {
     @Autowired private fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService basePresetService;
     @Autowired private RainbowLiveBindingRepository bindingRepository;
     @Autowired private WalletRepository walletRepository;
+    @Autowired private fr.ses10doigts.tradeIO5.repository.ProviderRepository providerRepository;
+    @Autowired private fr.ses10doigts.tradeIO5.service.market.eligibility.AssetEligibilityService eligibility;
     @Autowired private UserRepository userRepository;
     @Autowired private EntityManager em;
     @Autowired private fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveEngineStateRepository stateRepository;
@@ -98,13 +117,17 @@ class RainbowLiveBindingControllerTest {
     void setUp() {
         when(CHECK.check(any(RainbowLiveBinding.class)))
                 .thenReturn(new BindingCheckResult(BindingCheckStatus.OK, "OK"));
+        org.mockito.Mockito.reset(eligibility);
+        when(eligibility.require(org.mockito.ArgumentMatchers.eq("SOL"), any())).thenThrow(new fr.ses10doigts.tradeIO5.service.market.eligibility.AssetIneligibleException(
+                new fr.ses10doigts.tradeIO5.service.market.eligibility.AssetEligibilityService.Result("SOL", WebProviderCode.OKX, false,
+                        fr.ses10doigts.tradeIO5.service.market.eligibility.IneligibilityReason.NO_BUY_ROUTE, null, false, null)));
         basePresetService.ensureBasePresets();
         alice = userRepository.save(User.builder().username("alice").email("alice@example.com").password("x").build());
         bob = userRepository.save(User.builder().username("bob").email("bob@example.com").password("x").build());
         aliceWallet = wallet(alice, "OKX");
         bobWallet = wallet(bob, "OKX");
         as(alice);
-        mvc = MockMvcBuilders.standaloneSetup(new RainbowLiveBindingController(bindingService, mock(fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingPathQuoteService.class), facade))
+        mvc = MockMvcBuilders.standaloneSetup(new RainbowLiveBindingController(bindingService, LinkStatesStub.neutral(), mock(fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingPathQuoteService.class), facade))
                 .setControllerAdvice(new RainbowLiveControllerAdvice())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(om)).build();
     }
@@ -114,8 +137,10 @@ class RainbowLiveBindingControllerTest {
     }
 
     private Wallet wallet(User user, String name) {
+        var okx = providerRepository.findByCode(WebProviderCode.OKX).orElseGet(() -> providerRepository.save(
+                fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider.builder().code(WebProviderCode.OKX).name("OKX").build()));
         return walletRepository.save(Wallet.builder().name(name).source(WalletSource.EXCHANGE)
-                .webProviderCode(WebProviderCode.OKX).user(user).build());
+                .webProviderCode(WebProviderCode.OKX).webProvider(okx).user(user).build());
     }
 
     private ResultActions json(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder req, Object body)

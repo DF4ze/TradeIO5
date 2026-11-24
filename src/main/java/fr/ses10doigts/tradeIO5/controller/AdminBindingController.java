@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.controller;
 
+import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.model.dto.admin.AdminBindingDto;
 import fr.ses10doigts.tradeIO5.service.admin.AdminResourceNotFoundException;
 import fr.ses10doigts.tradeIO5.model.dto.dca.bench.RainbowLiveBindingDtos.BindingDto;
@@ -39,6 +40,7 @@ public class AdminBindingController {
 
     private final AdminBindingQueryService bindingQueryService;
     private final RainbowLiveBindingService bindingService;
+    private final fr.ses10doigts.tradeIO5.service.dca.atr.binding.LinkStateService linkStates;
     private final UserRepository userRepository;
     private final IAuthenticationFacade authenticationFacade;
 
@@ -58,14 +60,14 @@ public class AdminBindingController {
     public ResponseEntity<CheckedBindingDto> create(@PathVariable Long userId, @RequestBody CreateRequest request) {
         User user = target(userId);
         log.warn("Admin {} crée un binding pour l'utilisateur {} (asset={})", actor(), user.getUsername(), request.assetSymbol());
-        return ResponseEntity.status(HttpStatus.CREATED).body(CheckedBindingDto.of(bindingService.create(user, request)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(checkedDto(bindingService.create(user, request)));
     }
 
     @PutMapping("/users/{userId}/{id}")
     public CheckedBindingDto update(@PathVariable Long userId, @PathVariable Long id, @RequestBody UpdateRequest request) {
         User user = target(userId);
         log.warn("Admin {} modifie le binding {} de l'utilisateur {}", actor(), id, user.getUsername());
-        return CheckedBindingDto.of(bindingService.update(user, id, request));
+        return checkedDto(bindingService.update(user, id, request));
     }
 
     @PutMapping("/users/{userId}/{id}/execution")
@@ -73,7 +75,7 @@ public class AdminBindingController {
                                    @RequestBody RainbowLiveBindingController.ExecutionRequest request) {
         User user = target(userId);
         log.warn("Admin {} change l'exécution du binding {} de l'utilisateur {}", actor(), id, user.getUsername());
-        return BindingDto.of(bindingService.setExecutionMode(user, id, request.resolved()));
+        return dto(bindingService.setExecutionMode(user, id, request.resolved()));
     }
 
     @GetMapping("/users/{userId}/{id}/check")
@@ -93,5 +95,13 @@ public class AdminBindingController {
     public ResponseEntity<RainbowLiveControllerAdvice.ErrorResponse> bindingNotFound(
             fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new RainbowLiveControllerAdvice.ErrorResponse(e.getMessage()));
+    }
+
+    private BindingDto dto(RainbowLiveBinding binding) {
+        return BindingDto.of(binding, linkStates.of(binding));
+    }
+
+    private CheckedBindingDto checkedDto(RainbowLiveBindingService.Checked checked) {
+        return CheckedBindingDto.of(checked, linkStates.of(checked.binding()));
     }
 }

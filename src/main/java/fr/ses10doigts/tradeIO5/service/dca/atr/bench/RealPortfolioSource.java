@@ -25,13 +25,15 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
  * Portefeuille réel en LECTURE SEULE d'un lien (binding) : {@link BindingCheck} (clé valide, soldes lisibles, paire
- * {@code <actif>/<membre USD>}) puis soldes disponibles du wallet lié. Seul bean du bench à toucher l'exchange. Périmètre : BTC,
- * ETH, PAXG et les membres du groupe USD (USDC, cash sommé) ; tout autre solde est ignoré. La position d'un actif =
+ * {@code <actif>/<membre USD>}) puis soldes disponibles du wallet lié. Seul bean du bench à toucher l'exchange. Périmètre : actifs liés de
+ * l'utilisateur et les membres du groupe USD (USDC, cash sommé) ; tout autre solde est ignoré. La position d'un actif =
  * solde réel du wallet - stock en transit actif de la même devise. Panne, clé rejetée, binding KO ou lecture sans aucun solde du périmètre
  * ⇒ {@code UNAVAILABLE} (jamais un 0 silencieux).
  */
@@ -44,16 +46,18 @@ public class RealPortfolioSource implements RainbowPortfolioSource {
     private final Map<WebProviderCode, ReadOnlyBalanceReader> readers;
     private final AssetGroupService groupService;
     private final TransitStockRepository transitRepository;
+    private final AssetRegistry registry;
     private final DomainClock clock;
 
     public RealPortfolioSource(RainbowLiveBindingRepository bindingRepository, BindingCheck bindingCheck,
                                List<ReadOnlyBalanceReader> readers, AssetGroupService groupService,
-                               TransitStockRepository transitRepository, DomainClock clock) {
+                               TransitStockRepository transitRepository, AssetRegistry registry, DomainClock clock) {
         this.bindingRepository = bindingRepository;
         this.bindingCheck = bindingCheck;
         this.readers = readers.stream().collect(Collectors.toMap(ReadOnlyBalanceReader::getProviderCode, Function.identity()));
         this.groupService = groupService;
         this.transitRepository = transitRepository;
+        this.registry = registry;
         this.clock = clock;
     }
 
@@ -97,7 +101,9 @@ public class RealPortfolioSource implements RainbowPortfolioSource {
         Map<String, BigDecimal> transit = transitRepository.findByWalletIdAndResolvedAtIsNull(wallet.getId()).stream()
                 .collect(Collectors.toMap(TransitStock::getCurrency, TransitStock::getQuantity, BigDecimal::add));
         Map<String, Double> positions = new HashMap<>();
-        for (String symbol : RainbowLiveDefaultPresets.ASSETS) {
+        Set<String> tracked = new TreeSet<>(registry.linkedAssets(binding.getUser()));
+        tracked.add(asset);
+        for (String symbol : tracked) {
             BigDecimal qty = balances.get(symbol);
             if (qty != null) {
                 positions.put(symbol, qty.subtract(transit.getOrDefault(symbol, BigDecimal.ZERO)).max(BigDecimal.ZERO).doubleValue());
@@ -106,7 +112,7 @@ public class RealPortfolioSource implements RainbowPortfolioSource {
         Map<String, Double> cashByMember = groupService.byMember(AssetGroup.USD, balances);
         boolean cashPresent = groupService.members(AssetGroup.USD).stream().anyMatch(balances::containsKey);
         if (positions.isEmpty() && !cashPresent) {
-            log.warn("Lecture live vide suspecte binding={} actif={} wallet={} : aucun solde BTC/ETH/PAXG/USD, ignorée",
+            log.warn("Lecture live vide suspecte binding={} actif={} wallet={} : aucun solde des actifs liés ni de cash USD, ignorée",
                     binding.getId(), asset, wallet.getId());
             return PortfolioReading.unavailable(wallet.getId(), now);
         }

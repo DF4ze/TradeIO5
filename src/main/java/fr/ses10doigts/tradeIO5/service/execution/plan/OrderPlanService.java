@@ -70,6 +70,10 @@ public class OrderPlanService {
     private final DomainClock clock;
     private final TransactionTemplate transaction;
 
+    /** Optionnel (absent des tests construits à la main) : suspension / attente de validation des liens, jamais d'ordre réel. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private fr.ses10doigts.tradeIO5.service.dca.atr.binding.LinkStateService linkStates;
+
     public OrderPlanService(UserRepository userRepository, RainbowLiveBindingRepository bindingRepository,
                             RainbowLiveBindingRunRepository runRepository, RainbowLiveOrderPlanRepository planRepository,
                             RainbowLiveOrderPlanAssetRepository planAssetRepository, RainbowLiveRunRepository presetRunRepository,
@@ -210,9 +214,10 @@ public class OrderPlanService {
             anyRun |= run.isPresent();
             Optional<RainbowLiveLiveBlock> live = run.map(RainbowLiveBindingRun::getLive).filter(RainbowLiveLiveBlock::hasLiveSnapshot);
             BigDecimal base = baseAmountOf(binding, day);
+            String hold = linkStates == null || !binding.isExecutionEnabled() ? null : linkStates.of(binding).blockMessage();
             inputs.add(inputOf(binding, live.orElse(null),
                     transitOf(binding, live.map(RainbowLiveLiveBlock::getActionType).orElse(null)),
-                    carryInOf(user, binding, day, base), base));
+                    carryInOf(user, binding, day, base), base, hold));
         }
         if (!anyRun) {
             log.debug("Plan d'ordres : aucun run live pour user={} jour {}, ignoré", user.getId(), day);
@@ -296,18 +301,18 @@ public class OrderPlanService {
     }
 
     private static AssetInput inputOf(RainbowLiveBinding binding, RainbowLiveLiveBlock block, Map<String, BigDecimal> transit,
-                                      BigDecimal carryIn, BigDecimal base) {
+                                      BigDecimal carryIn, BigDecimal base, String hold) {
         if (block == null) {
             return new AssetInput(binding.getAssetSymbol(), binding.getPriority(), binding.isExecutionEnabled(),
                     binding.getWallet().getId(), binding.getWallet().getWebProviderCode(), binding.getWallet().getCredential(),
                     null, null, null, null, Map.of(), transit, carryIn, base, binding.getPreferredRoute(), binding.isSimulation(),
-                    minBuyOf(binding));
+                    minBuyOf(binding), hold, binding.getId());
         }
         return new AssetInput(binding.getAssetSymbol(), binding.getPriority(), binding.isExecutionEnabled(),
                 binding.getWallet().getId(), binding.getWallet().getWebProviderCode(), binding.getWallet().getCredential(),
                 block.getStatus(), block.getActionType(), decimal(block.getActionAmountUsdc()),
                 decimal(block.getActionQuantity()), cashOf(binding, block), transit, carryIn, base, binding.getPreferredRoute(),
-                binding.isSimulation(), minBuyOf(binding));
+                binding.isSimulation(), minBuyOf(binding), hold, binding.getId());
     }
 
     private static BigDecimal minBuyOf(RainbowLiveBinding binding) {

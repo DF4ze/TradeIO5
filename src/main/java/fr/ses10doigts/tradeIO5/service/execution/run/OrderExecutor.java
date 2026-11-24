@@ -116,7 +116,7 @@ public class OrderExecutor {
                             List<StepView> steps) {
     }
 
-    private record BindingView(boolean enabled, boolean executable, boolean firstLiveValidated, Long walletId, boolean walletUsable,
+    private record BindingView(boolean enabled, boolean executable, ExecutionBlockReason stateBlock, boolean firstLiveValidated, Long walletId, boolean walletUsable,
                                WebProviderCode provider, ApiCredential readCredential, WebProvider webProvider,
                                BigDecimal baseAmount, BigDecimal userBaseSum) {
     }
@@ -156,6 +156,14 @@ public class OrderExecutor {
     private final UserPreferencesService preferences;
 
     /** Optionnel (absent dans les tests unitaires) : déclenche la réconciliation automatique d'un plan resté en vol. */
+    @Autowired(required = false)
+    void setLinkStates(fr.ses10doigts.tradeIO5.service.dca.atr.binding.LinkStateService linkStates) {
+        this.linkStates = linkStates;
+    }
+
+    /** Optionnel (absent dans les tests unitaires) : défense en profondeur, un lien suspendu ou en attente de validation n'envoie jamais d'ordre réel. */
+    private fr.ses10doigts.tradeIO5.service.dca.atr.binding.LinkStateService linkStates;
+
     @Autowired(required = false)
     void setPublisher(org.springframework.context.ApplicationEventPublisher publisher) {
         this.publisher = publisher;
@@ -386,6 +394,10 @@ public class OrderExecutor {
         }
         if (!binding.enabled()) {
             block(plan, run, asset.key(), ExecutionBlockReason.BINDING_DISABLED);
+            return;
+        }
+        if (binding.stateBlock() != null) {
+            block(plan, run, asset.key(), binding.stateBlock());
             return;
         }
         if (!binding.executable()) {
@@ -849,7 +861,12 @@ public class OrderExecutor {
             boolean walletUsable = wallet.isEnabled() && wallet.getSource() == WalletSource.EXCHANGE
                     && wallet.getCredential() != null && wallet.getCredential().isEnabled() && wallet.getWebProviderCode() != null
                     && wallet.getWebProvider() != null;
-            return new BindingView(binding.isExecutionEnabled(), executable, binding.firstLiveValidated(), wallet.getId(), walletUsable,
+            ExecutionBlockReason stateBlock = null;
+            if (linkStates != null) {
+                var state = linkStates.of(binding);
+                stateBlock = state.suspended() ? ExecutionBlockReason.LINK_SUSPENDED : state.pendingValidation() ? ExecutionBlockReason.PENDING_VALIDATION : null;
+            }
+            return new BindingView(binding.isExecutionEnabled(), executable, stateBlock, binding.firstLiveValidated(), wallet.getId(), walletUsable,
                     wallet.getWebProviderCode(), wallet.getCredential(), wallet.getWebProvider(), baseAmount(binding, plan.day()),
                     userBaseSum);
         });

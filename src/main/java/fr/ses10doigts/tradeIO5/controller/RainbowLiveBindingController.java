@@ -43,17 +43,18 @@ import java.util.List;
 public class RainbowLiveBindingController {
 
     private final RainbowLiveBindingService bindingService;
+    private final fr.ses10doigts.tradeIO5.service.dca.atr.binding.LinkStateService linkStates;
     private final BindingPathQuoteService pathQuoteService;
     private final IAuthenticationFacade authenticationFacade;
 
     @GetMapping
     public List<BindingDto> list() {
-        return bindingService.list(authenticationFacade.getConnectedUser()).stream().map(BindingDto::of).toList();
+        return bindingService.list(authenticationFacade.getConnectedUser()).stream().map(this::dto).toList();
     }
 
     @GetMapping("/{id}")
     public BindingDto get(@PathVariable Long id) {
-        return BindingDto.of(bindingService.get(authenticationFacade.getConnectedUser(), id));
+        return dto(bindingService.get(authenticationFacade.getConnectedUser(), id));
     }
 
     @PostMapping
@@ -69,12 +70,12 @@ public class RainbowLiveBindingController {
                 log.warn("Fee Test à la création indisponible binding={} : {}", binding.getId(), e.toString());
             }
         }
-        return ResponseEntity.status(HttpStatus.CREATED).body(CheckedBindingDto.of(new RainbowLiveBindingService.Checked(binding, created.check())));
+        return ResponseEntity.status(HttpStatus.CREATED).body(checkedDto(new RainbowLiveBindingService.Checked(binding, created.check())));
     }
 
     @PutMapping("/{id}")
     public CheckedBindingDto update(@PathVariable Long id, @RequestBody UpdateRequest request) {
-        return CheckedBindingDto.of(bindingService.update(authenticationFacade.getConnectedUser(), id, request));
+        return checkedDto(bindingService.update(authenticationFacade.getConnectedUser(), id, request));
     }
 
     /** Corps du PUT : {@code mode} prime ; sans mode, {@code enabled} vrai = ACTIVE, faux ou absent = DISABLED. */
@@ -91,13 +92,13 @@ public class RainbowLiveBindingController {
     /** Mode d'exécution du binding (défaut désactivé) : désactivé, simulation ou actif. */
     @PutMapping("/{id}/execution")
     public BindingDto setExecution(@PathVariable Long id, @RequestBody ExecutionRequest request) {
-        return BindingDto.of(bindingService.setExecutionMode(authenticationFacade.getConnectedUser(), id, request.resolved()));
+        return dto(bindingService.setExecutionMode(authenticationFacade.getConnectedUser(), id, request.resolved()));
     }
 
     /** Confirmation du 1ᵉʳ ordre réel (après armement admin). */
     @PostMapping("/{id}/confirm-first-live")
     public BindingDto confirmFirstLive(@PathVariable Long id) {
-        return BindingDto.of(bindingService.confirmFirstLive(authenticationFacade.getConnectedUser(), id));
+        return dto(bindingService.confirmFirstLive(authenticationFacade.getConnectedUser(), id));
     }
 
     @DeleteMapping("/{id}")
@@ -128,11 +129,19 @@ public class RainbowLiveBindingController {
         if (quoted == null || quoted.signum() <= 0) {
             throw new IllegalArgumentException("amount est requis (le lien n'a pas de montant de base propre)");
         }
-        return BindingDto.of(bindingService.recordFeeTest(user, id, pathQuoteService.quote(user, id, quoted).quote(), quoted));
+        return dto(bindingService.recordFeeTest(user, id, pathQuoteService.quote(user, id, quoted).quote(), quoted));
     }
 
     @GetMapping("/{id}/path-quote")
     public PathQuoteDto pathQuote(@PathVariable Long id, @RequestParam BigDecimal amount) {
         return PathQuoteDto.of(pathQuoteService.quote(authenticationFacade.getConnectedUser(), id, amount));
+    }
+
+    private BindingDto dto(RainbowLiveBinding binding) {
+        return BindingDto.of(binding, linkStates.of(binding));
+    }
+
+    private CheckedBindingDto checkedDto(RainbowLiveBindingService.Checked checked) {
+        return CheckedBindingDto.of(checked, linkStates.of(checked.binding()));
     }
 }

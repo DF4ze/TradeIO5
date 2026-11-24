@@ -72,7 +72,7 @@ class AdminControllersSecurityTest {
         @Bean AdminExecutionQueryController query() { return new AdminExecutionQueryController(STATE, PLANS); }
         @Bean AdminActionController actions() { return new AdminActionController(JOURNAL); }
         @Bean AdminCredentialController credentials() { return new AdminCredentialController(CREDENTIALS, FACADE, null); }
-        @Bean AdminBindingController bindings() { return new AdminBindingController(BINDINGS, BINDING_SERVICE, mock(fr.ses10doigts.tradeIO5.security.repository.UserRepository.class), FACADE); }
+        @Bean AdminBindingController bindings() { return new AdminBindingController(BINDINGS, BINDING_SERVICE, LinkStatesStub.neutral(), mock(fr.ses10doigts.tradeIO5.security.repository.UserRepository.class), FACADE); }
         @Bean AdminLimitsController limits() { return new AdminLimitsController(mock(fr.ses10doigts.tradeIO5.service.execution.ExecutionControlService.class), mock(fr.ses10doigts.tradeIO5.service.admin.AdminLimitsService.class), FACADE); }
         @Bean AdminUserController users() { return new AdminUserController(mock(fr.ses10doigts.tradeIO5.security.repository.UserRepository.class)); }
         @Bean AdminOrderTestController orderTests() { return new AdminOrderTestController(ORDER_TESTS, FACADE, mock(fr.ses10doigts.tradeIO5.service.admin.OrderPriceSuggestionService.class)); }

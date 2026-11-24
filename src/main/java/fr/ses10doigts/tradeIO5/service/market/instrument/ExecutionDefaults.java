@@ -32,6 +32,11 @@ public final class ExecutionDefaults {
     /** Intermédiaires choisis automatiquement (les autres sont chiffrés et affichés, jamais choisis). */
     public static final Set<String> CHOSEN_INTERMEDIARIES = Set.of("BTC");
 
+    /** Intermédiaires chiffrés et affichés mais jamais choisis automatiquement (ETH) : {@link #INTERMEDIARIES} moins {@link #CHOSEN_INTERMEDIARIES}. */
+    public static Set<String> displayOnlyIntermediaries() {
+        return INTERMEDIARIES.stream().filter(i -> !CHOSEN_INTERMEDIARIES.contains(i)).collect(Collectors.toUnmodifiableSet());
+    }
+
     /** Nombre maximal de jambes d'un chemin. */
     public static final int MAX_PATH_DEPTH = 2;
 

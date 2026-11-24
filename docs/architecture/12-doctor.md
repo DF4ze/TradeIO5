@@ -1,7 +1,7 @@
 ---
 statut: courant
-modifié_le: 2026-11-23
-empreinte: 4610da109b
+modifié_le: 2026-11-24
+empreinte: 91e0346cfe
 ---
 # Docteur — diagnostic et alarmes (Admin)
 
@@ -20,6 +20,7 @@ Un contrôle est une sonde pure qui renvoie un `CheckResult` (sujet, statut OK/U
 | `PLAN_PROBLEMS` | Plans des 3 derniers jours en erreur / bloqués > 35 min ; step `UNKNOWN` = WARN pendant la réconciliation auto (≤ 35 min), CRIT au-delà ([`14-execution-reelle.md`](14-execution-reelle.md)) |
 | `TRANSIT_STOCK` | Stocks de transit non résolus depuis > 12 h |
 | `KEY_REJECTED` | Clés à paire générée (Revolut X) refusées par l'exchange : sonde réelle de chaque credential active (`ProviderKeyPairSupport.verify`) au plus toutes les 60 min (`KEY_PROBE_INTERVAL_MINUTES`) ; refus (401/403) ⇒ CRIT, exchange injoignable ⇒ verdict précédent conservé ; credential désactivée ou supprimée ⇒ alarme résolue |
+| `LINK_SUSPENDED` | Famille DATA, impact EXÉCUTION : une alarme WARN par lien suspendu (`LinkStateService` : actif en liste noire, provider déconnecté ou clé supprimée, route d'achat retirée du catalogue). Sujet `lien#<id> <ACTIF> (user <id>)` : pas de doublon, acquittable, clôturée à la passe où la cause disparaît. Catalogue en base, aucun réseau. Notification de l'utilisateur : hors périmètre |
 | `DATABASE` | Requête de test, lenteur > 1 s |
 | `DISK` | Espace libre < 15 % (WARN) / < 5 % (CRIT) |
 | `INTERNET_ACCESS` | Deux sujets. `internet-ip` : TCP/443 vers `1.1.1.1` / `9.9.9.9` sans DNS, les deux en échec ⇒ CRIT. `dns` : résolution des hôtes d'exchanges (`api.kraken.com`, `www.okx.com`, `api.binance.com`) ; aucun résolu avec l'accès IP OK ⇒ CRIT « DNS en panne », une partie ⇒ WARN ; accès IP coupé ⇒ UNKNOWN (pas de double alarme). Aucune requête vers un exchange, délai max 3 s par sonde (`DoctorDefaults.INTERNET_PROBE_*`) |

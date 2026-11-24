@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-11
 modifié_le: 2026-11-24
-empreinte: 3516535f38
+empreinte: ef76d60387
 ---
 # Flyway et défauts d'initialisation
 
@@ -33,6 +33,8 @@ Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11 ; prod à la
 
 `V9__taux_de_base_unifies.sql` (appliquée en prod le 2026-11-24) : copie les 8 taux réels de `rainbow_modulation_control` vers 2 lignes `asset_base_rate` (BTC, ETH, `validated_by` = `migration V9`, `proposal_id` NULL) si elles n'existent pas, insère la table de calage si une ligne manque encore (base neuve), puis supprime les 8 colonnes `base_rate_<btc|eth>_<profil>` (`base_rate_margin_k` reste). Idempotente (information_schema + NOT EXISTS). Détail : [`../architecture/08d-rainbow-modulation.md`](../architecture/08d-rainbow-modulation.md).
 
+`V10__actifs_dynamiques_socle.sql` (**pas encore appliquée en prod** : recette sur copie de prod obligatoire) : crée `asset_blocklist` (symbole unique) et `asset_eligibility_settings` (ligne unique, `min_volume_usd`), ajoute `volume_24h_quote` et `volume_read_at` à `exchange_instrument`, copie les 4 taux BTC vers une ligne `asset_base_rate` PAXG (`validated_by` = `migration V10`, `proposal_id` NULL) si PAXG est absent et BTC présent. Idempotente (information_schema + PREPARE/EXECUTE, `IF NOT EXISTS`, `NOT EXISTS`). Détail : [`../architecture/08c-rainbow-chemin-achat-wallet.md`](../architecture/08c-rainbow-chemin-achat-wallet.md).
+
 ## Restes legacy
 
 `V5__nettoyage_legacy.sql` (appliquée en prod le 2026-11-23) a supprimé les restes du modèle d'avant les Affectations (colonnes `preset_id` et leurs FK / uniques, tables `rainbow_live_preset`, `rainbow_live_trend_config`, `rainbow_asset_strategy`, `rainbow_live_user_settings`, colonne `rainbow_live_preset_event.strategy_revision`), idempotente. Restent à nettoyer : [`../known-gaps/nettoyages.md`](../known-gaps/nettoyages.md).
@@ -61,7 +63,7 @@ Tout nouveau « défaut » de l'application (donnée de paramétrage devant exis
 
 Tables de cache de données publiques (non seedées par un initializer) : `exchange_instrument` (catalogue des paires, rempli à la demande par `InstrumentCatalog`).
 
-Initializers existants : `AssetInitializer` (1), `AssetGroupInitializer` (2, groupe `USD` = USDC seul), `RoleInitializer` (10), `UserInitializer` (20), `HistoricalDataInitializer` (5, recharge `candle` et `etf_flow_snapshot` depuis les fichiers de backup si la table est vide), `ApiCredentialInitializer` (40, tous profils : clés du user System (CoinStats, Coinalyze, Twelve Data, Finnhub, SoSoValue) et clés Binance/Kraken/OKX d'OKlm lues dans les propriétés `tradeio.<fournisseur>.apiKey|secretKey` (OKX : `tradeio.okx.read.*` et `tradeio.okx.trade.*`, avec `passphrase`) des `application-*.properties` (gitignorés) ; clé absente => warning, rien semé), `WalletInitializer` (45), `WebProviderInitializer` (dont OKX, `https://www.okx.com`), `ContentSourceInitializer` (50), `ExecutionControlInitializer` (70, ligne `execution_control` kill switch engagé), `RainbowModulationControlInitializer` (71, ligne `rainbow_modulation_control` aux défauts de `ModulationDefaults`, jamais modifiée ensuite), `ExpertBasePresetInitializer` (61, 9 presets système de base Trend / Rainbow Bull / Rainbow Bear, jamais modifiés ensuite), cf. [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md).
+Initializers existants : `AssetInitializer` (1), `AssetGroupInitializer` (2, groupe `USD` = USDC seul), `RoleInitializer` (10), `UserInitializer` (20), `HistoricalDataInitializer` (5, recharge `candle` et `etf_flow_snapshot` depuis les fichiers de backup si la table est vide), `ApiCredentialInitializer` (40, tous profils : clés du user System (CoinStats, Coinalyze, Twelve Data, Finnhub, SoSoValue) et clés Binance/Kraken/OKX d'OKlm lues dans les propriétés `tradeio.<fournisseur>.apiKey|secretKey` (OKX : `tradeio.okx.read.*` et `tradeio.okx.trade.*`, avec `passphrase`) des `application-*.properties` (gitignorés) ; clé absente => warning, rien semé), `WalletInitializer` (45), `WebProviderInitializer` (dont OKX, `https://www.okx.com`), `ContentSourceInitializer` (50), `ExecutionControlInitializer` (70, ligne `execution_control` kill switch engagé), `AssetEligibilitySettingsInitializer` (72, ligne `asset_eligibility_settings` à 1 000 000 USD, jamais modifiée ensuite), `RainbowModulationControlInitializer` (71, ligne `rainbow_modulation_control` aux défauts de `ModulationDefaults`, jamais modifiée ensuite), `ExpertBasePresetInitializer` (61, 9 presets système de base Trend / Rainbow Bull / Rainbow Bear, jamais modifiés ensuite), cf. [`../architecture/08-rainbow-live.md`](../architecture/08-rainbow-live.md).
 
 ## Données non recréées par les initializers
 

@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.service.optimizer;
 
+import fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.AssetAffectation;
@@ -20,7 +21,6 @@ import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingCheck;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingCheckResult;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.NewAssetLinkedEvent;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
-import fr.ses10doigts.tradeIO5.service.modulation.ModulationDefaults;
 import fr.ses10doigts.tradeIO5.service.modulation.RainbowModulationControlService;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -44,7 +44,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 /**
- * Pipeline d'accueil d'un nouvel actif (D1b, lot 1) : à la création d'un lien sur un actif sans taux calibré ({@link ModulationDefaults#CALIBRATED_RATE_ASSETS})
+ * Pipeline d'accueil d'un nouvel actif (D1b, lot 1) : à la création d'un lien sur un actif sans ligne de taux {@code asset_base_rate} valide ({@link AssetBaseRateService#isCalibrated})
  * et sans proposition, calcule EN ASYNCHRONE (pool dédié d'un fil, priorité minimale, délai maximal, jamais sur le chemin du cron live) une proposition
  * {@link NewAssetProposalCalculator} et la persiste au statut {@code PROPOSE}. Rien n'est appliqué : le lien tourne déjà sur le repli BTC « non calibré ».
  * Aucune exception ne remonte : un échec devient une proposition dégradée (drapeaux). Désactivé par défaut ({@value #ENABLED_PROPERTY}).
@@ -69,6 +69,7 @@ public class NewAssetProposalService {
     private final TransactionTemplate tx;
     private final DomainClock clock;
     private final fr.ses10doigts.tradeIO5.service.admin.NewAssetProposalAdminService alerts;
+    private final AssetBaseRateService baseRates;
     private final Path benchDir;
     private final NewAssetConfig cfg = NewAssetConfig.defaults();
     private final ExecutorService queue = Executors.newSingleThreadExecutor(r -> {
@@ -87,7 +88,7 @@ public class NewAssetProposalService {
     public NewAssetProposalService(NewAssetProposalRepository proposals, RainbowLiveBindingRepository bindings, UserRepository users,
                                    AssetAffectationService affectations, AffectationConfigResolver configResolver, RainbowModulationControlService control,
                                    NewAssetHistoryResolver history, BindingCheck bindingCheck, TransactionTemplate tx, DomainClock clock,
-                                   fr.ses10doigts.tradeIO5.service.admin.NewAssetProposalAdminService alerts,
+                                   fr.ses10doigts.tradeIO5.service.admin.NewAssetProposalAdminService alerts, AssetBaseRateService baseRates,
                                    @Value("${tradeio.new-asset-proposal.bench-dir:" + BenchCandleStore.DEFAULT_DIR + "}") String benchDir) {
         this.proposals = proposals;
         this.bindings = bindings;
@@ -100,6 +101,7 @@ public class NewAssetProposalService {
         this.tx = tx;
         this.clock = clock;
         this.alerts = alerts;
+        this.baseRates = baseRates;
         this.benchDir = Path.of(benchDir);
     }
 
@@ -120,7 +122,7 @@ public class NewAssetProposalService {
     }
 
     boolean needsProposal(String asset) {
-        return asset != null && !ModulationDefaults.CALIBRATED_RATE_ASSETS.contains(asset) && !proposals.existsByAssetSymbol(asset);
+        return asset != null && !baseRates.isCalibrated(asset) && !proposals.existsByAssetSymbol(asset);
     }
 
     /** Calcule et persiste la proposition (synchrone : tests, relance). Une proposition existante pour l'actif est rendue telle quelle. */

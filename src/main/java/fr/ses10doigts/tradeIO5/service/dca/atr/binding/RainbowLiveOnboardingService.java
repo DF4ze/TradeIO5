@@ -13,7 +13,7 @@ import fr.ses10doigts.tradeIO5.model.entity.user.StartingProfile;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.PortfolioReading;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetRegistry;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RealPortfolioSource;
 import fr.ses10doigts.tradeIO5.service.modulation.ModulationDefaults;
@@ -33,8 +33,8 @@ import java.util.List;
 /**
  * Onboarding (spec V1 §6) : liaison automatique d'un wallet aux actifs du périmètre, puis montant de base proposé.
  * <ul>
- *   <li>{@link #link} : pour chaque actif de {@link RainbowLiveDefaultPresets#ASSETS}, {@link BindingCheck} puis création
- *   d'un lien <b>inactif</b> sur le preset système de l'actif ; un actif non tradable ou illisible n'est pas lié, la raison
+ *   <li>{@link #link} : pour chaque actif demandé (à défaut {@link AssetRegistry#SEED_ASSETS}, périmètre par défaut tant que l'écran de choix
+ *   d'actifs n'existe pas), {@link BindingCheck} puis création (éligibilité chez le provider du wallet comprise) d'un lien <b>inactif</b> sur le preset système de l'actif ; un actif non tradable ou illisible n'est pas lié, la raison
  *   est retournée. Idempotent : un lien existant n'est jamais modifié.</li>
  *   <li>{@link #proposals} : cash du wallet réparti à parts égales entre ses liens ; devis du chemin d'achat (minimum de
  *   l'exchange, Fee Test). Deux bases, la proposition reste <b>indicative</b> (rien ne force l'utilisateur) :
@@ -94,10 +94,16 @@ public class RainbowLiveOnboardingService {
 
     @Transactional
     public List<LinkResult> link(User user, Long walletId) {
+        return link(user, walletId, AssetRegistry.SEED_ASSETS);
+    }
+
+    /** Liaison d'une liste d'actifs ; un actif inéligible ou non tradable n'est pas lié, la raison est retournée. */
+    @Transactional
+    public List<LinkResult> link(User user, Long walletId, List<String> assets) {
         Wallet wallet = bindingService.wallets(user).stream().filter(w -> w.getId().equals(walletId)).findFirst()
                 .orElseThrow(() -> RainbowLiveBindingNotFoundException.wallet(walletId));
         List<LinkResult> results = new ArrayList<>();
-        for (String asset : RainbowLiveDefaultPresets.ASSETS) {
+        for (String asset : assets) {
             results.add(linkAsset(user, wallet, asset));
         }
         log.info("Onboarding user={} wallet={} : {}", user.getId(), walletId, results.stream()
@@ -115,8 +121,12 @@ public class RainbowLiveOnboardingService {
         if (!check.isOk()) {
             return new LinkResult(asset, LinkOutcome.NOT_LINKED, null, null, check.status().name(), check.message());
         }
-        RainbowLiveBinding binding = bindingService.create(user, new RainbowLiveBindingService.CreateRequest(asset,
-                wallet.getId(), null, null)).binding();
+        RainbowLiveBinding binding;
+        try {
+            binding = bindingService.create(user, new RainbowLiveBindingService.CreateRequest(asset, wallet.getId(), null, null)).binding();
+        } catch (IllegalArgumentException e) { // inéligible chez le provider du wallet (raison lisible)
+            return new LinkResult(asset, LinkOutcome.NOT_LINKED, null, null, "INELIGIBLE", e.getMessage());
+        }
         return new LinkResult(asset, LinkOutcome.LINKED, binding.getId(), binding.getAffectation().label(), check.status().name(), null);
     }
 

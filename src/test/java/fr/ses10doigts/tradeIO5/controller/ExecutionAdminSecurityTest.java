@@ -57,7 +57,7 @@ class ExecutionAdminSecurityTest {
 
         @Bean
         RainbowLiveBindingController bindings() {
-            return new RainbowLiveBindingController(BINDINGS, mock(BindingPathQuoteService.class), FACADE);
+            return new RainbowLiveBindingController(BINDINGS, LinkStatesStub.neutral(), mock(BindingPathQuoteService.class), FACADE);
         }
     }
 

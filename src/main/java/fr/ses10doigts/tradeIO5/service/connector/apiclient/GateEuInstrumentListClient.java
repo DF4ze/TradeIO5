@@ -12,19 +12,24 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Toutes les paires spot Gate EU en un appel public : {@code GET /spot/currency_pairs}. Négociable si
  * {@code trade_status = tradable}. {@code lotSz = 10^-amount_precision}, {@code tickSz = 10^-precision}, {@code minSz =
  * min_base_amount} (sinon le lot), {@code costMin = min_quote_amount}, {@code nativePair} = identifiant Gate
- * ({@code BTC_EUR}). Le provider doit être déclaré et actif.
+ * ({@code BTC_EUR}). Le provider doit être déclaré et actif. Volume 24 h : second appel public {@code GET /spot/tickers} (toutes les paires,
+ * {@code quote_volume}) ; son échec n'empêche pas le catalogue (volume inconnu, WARN).
  */
 @Slf4j
 @Component
 public class GateEuInstrumentListClient implements InstrumentListClient {
 
     static final String PAIRS_PATH = "/spot/currency_pairs";
+    /** Un seul appel « toutes les paires » pour le volume 24 h : {@code quote_volume} = volume en monnaie de cotation. */
+    static final String TICKERS_PATH = "/spot/tickers";
 
     private static final String TRADABLE = "tradable";
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -49,13 +54,53 @@ public class GateEuInstrumentListClient implements InstrumentListClient {
         } catch (BalanceUnavailableException e) {
             throw new InstrumentLookupException(e.getMessage(), e);
         }
-        List<Listed> listed = parse(body);
+        List<Listed> listed = parse(body, fetchVolumes(provider));
         log.debug("Gate EU : {} paires spot lues", listed.size());
         return listed;
     }
 
+    private static Map<String, BigDecimal> fetchVolumes(WebProvider provider) {
+        try {
+            GateEuRequests.Reply reply = GateEuRequests.publicGet(provider, TICKERS_PATH);
+            if (!reply.ok()) {
+                log.warn("Gate EU : tickers en erreur HTTP {}, volume inconnu", reply.status());
+                return Map.of();
+            }
+            return parseVolumes(reply.body());
+        } catch (RuntimeException e) {
+            log.warn("Gate EU : volumes 24 h indisponibles ({}), volume inconnu", e.getClass().getSimpleName());
+            return Map.of();
+        }
+    }
+
+    /** Package-private pour les tests : {@code identifiant Gate (BTC_EUR) -> quote_volume} ; réponse illisible => map vide. */
+    static Map<String, BigDecimal> parseVolumes(String body) {
+        Map<String, BigDecimal> volumes = new HashMap<>();
+        try {
+            JsonNode root = MAPPER.readTree(body == null ? "" : body);
+            if (root.isArray()) {
+                for (JsonNode item : root) {
+                    String id = item.path("currency_pair").asText("").toUpperCase();
+                    String volume = item.path("quote_volume").asText("");
+                    if (!id.isBlank() && !volume.isBlank()) {
+                        volumes.put(id, new BigDecimal(volume));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Gate EU : volumes 24 h illisibles ({})", e.getClass().getSimpleName());
+            return Map.of();
+        }
+        return volumes;
+    }
+
     /** Package-private pour les tests. */
     static List<Listed> parse(String body) {
+        return parse(body, Map.of());
+    }
+
+    /** Package-private pour les tests. */
+    static List<Listed> parse(String body, Map<String, BigDecimal> volumes) {
         JsonNode root;
         try {
             root = MAPPER.readTree(body == null ? "" : body);
@@ -67,7 +112,7 @@ public class GateEuInstrumentListClient implements InstrumentListClient {
         }
         List<Listed> out = new ArrayList<>();
         for (JsonNode item : root) {
-            Listed listed = toListed(item);
+            Listed listed = toListed(item, volumes);
             if (listed != null) {
                 out.add(listed);
             }
@@ -78,7 +123,7 @@ public class GateEuInstrumentListClient implements InstrumentListClient {
         return out;
     }
 
-    private static Listed toListed(JsonNode item) {
+    private static Listed toListed(JsonNode item, Map<String, BigDecimal> volumes) {
         String base = item.path("base").asText("").toUpperCase();
         String quote = item.path("quote").asText("").toUpperCase();
         if (base.isBlank() || quote.isBlank() || !item.path("amount_precision").canConvertToInt()
@@ -89,9 +134,10 @@ public class GateEuInstrumentListClient implements InstrumentListClient {
             BigDecimal lot = BigDecimal.ONE.movePointLeft(item.path("amount_precision").asInt());
             BigDecimal tick = BigDecimal.ONE.movePointLeft(item.path("precision").asInt());
             BigDecimal minBase = decimalOrNull(item, "min_base_amount");
+            String id = item.path("id").asText(base + "_" + quote);
             return new Listed(base + "-" + quote, base, quote, TRADABLE.equalsIgnoreCase(item.path("trade_status").asText()),
-                    minBase == null ? lot : minBase, lot, tick, decimalOrNull(item, "min_quote_amount"),
-                    item.path("id").asText(base + "_" + quote), null);
+                    minBase == null ? lot : minBase, lot, tick, decimalOrNull(item, "min_quote_amount"), id, null,
+                    volumes.get(id.toUpperCase()));
         } catch (NumberFormatException e) {
             throw new InstrumentLookupException("Gate EU : paire illisible (" + base + "_" + quote + ")", e);
         }

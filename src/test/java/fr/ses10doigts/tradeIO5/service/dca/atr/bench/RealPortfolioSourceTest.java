@@ -49,6 +49,7 @@ class RealPortfolioSourceTest {
     private RainbowLiveBinding binding;
     private final AssetGroupService groups = mock(AssetGroupService.class);
     private final TransitStockRepository transit = mock(TransitStockRepository.class);
+    private final AssetRegistry registry = mock(AssetRegistry.class);
     private RealPortfolioSource source;
 
     @BeforeEach
@@ -62,7 +63,8 @@ class RealPortfolioSourceTest {
         when(reader.getProviderCode()).thenReturn(WebProviderCode.OKX);
         when(groups.members(AssetGroup.USD)).thenReturn(List.of("USDC", "USDT"));
         when(groups.byMember(eq(AssetGroup.USD), any())).thenCallRealMethod();
-        source = new RealPortfolioSource(bindings, bindingCheck, List.of(reader), groups, transit, new FixedDomainClock(NOW));
+        when(registry.linkedAssets(any())).thenReturn(AssetRegistry.SEED_ASSETS);
+        source = new RealPortfolioSource(bindings, bindingCheck, List.of(reader), groups, transit, registry, new FixedDomainClock(NOW));
     }
 
     @Test

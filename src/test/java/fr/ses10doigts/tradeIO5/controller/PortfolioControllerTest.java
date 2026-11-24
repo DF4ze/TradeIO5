@@ -56,7 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Patrimoine, performance par actif et achats/ventes d'un lien : lecture base seule, isolation entre utilisateurs. */
 @DataJpaTest
-@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, AffectationConfigResolver.class, RainbowLivePresetEventService.class,
+@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetRegistry.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, AffectationConfigResolver.class, RainbowLivePresetEventService.class,
         PortfolioQueryService.class, PortfolioSnapshotService.class, PortfolioControllerTest.ClockConfig.class})
 @DisplayName("PortfolioController : patrimoine, PnL, achats/ventes")
 class PortfolioControllerTest {

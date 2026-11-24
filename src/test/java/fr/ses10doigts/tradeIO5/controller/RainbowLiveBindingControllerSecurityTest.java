@@ -38,7 +38,7 @@ class RainbowLiveBindingControllerSecurityTest {
     static class Config {
         @Bean
         RainbowLiveBindingController controller() {
-            return new RainbowLiveBindingController(mock(RainbowLiveBindingService.class), mock(BindingPathQuoteService.class),
+            return new RainbowLiveBindingController(mock(RainbowLiveBindingService.class), LinkStatesStub.neutral(), mock(BindingPathQuoteService.class),
                     mock(IAuthenticationFacade.class));
         }
     }

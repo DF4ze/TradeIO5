@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-10
-modifié_le: 2026-11-16
-empreinte: ab91d3006d
+modifié_le: 2026-11-24
+empreinte: 0177782b9a
 ---
 # Données de marché (candles)
 
@@ -29,6 +29,7 @@ Le Rainbow live n'utilise plus le Bucket H1 : `MarketDatasetEngine#getDailyDatas
 - **Clients** : D1 natif ajouté à Binance (`1d`), Kraken (`interval=1440`), OKX (`1Dutc`, aligné 00:00 UTC ; `1D` OKX est en UTC+8) et Revolut X (`interval=1440`). Le Bucket reste H1 uniquement.
 - **Fenêtre** : `lookBack` bougies D1 (720 pour le Rainbow = limite native Kraken). Si un actif exige un jour plus d'historique que ce qu'un exchange sert, il faudra agir (fenêtre, historique profond, ou bascule des bougies manquantes sur Binance : voir `known-gaps/rainbow-dca-chantiers-ouverts.md`).
 - **`preferred == null`** : candidats `asset_provider` activés par `priority`, fallback silencieux (défauts). `maxHorizonDays` n'intervient pas (réservé au chemin H1).
+- **Paire des bougies D1** (`CandlePairResolver`, catalogue en base, aucun réseau) : USDC si la paire existe chez le provider, sinon USDT, sinon USD ; sans catalogue (Binance) ou actif absent du catalogue : convention `<ACTIF>USDT`. Sert à la création à la volée des lignes `asset_provider` et à la lecture D1 sans ligne ; les lignes existantes ne sont jamais modifiées.
 - **`preferred != null`** (source du lien) : cette source est tentée seule en premier. Ligne `asset_provider` absente ⇒ **créée à la volée** si l'exchange est de confiance (Binance, Kraken, OKX, Revolut X ; paire par `ProviderSymbolMapper`, Revolut X en `<ACTIF>-USDC`), en dernière priorité pour ne pas changer les défauts. Ligne désactivée (kill switch) ⇒ respectée. Source en échec ou sans bougie ⇒ fallback sur les autres candidats avec un WARN `SUBSTITUTION DE SOURCE` et `substituted = true` ; plus aucun candidat ⇒ `NoProviderAvailableException`.
 - Aucun credential : les klines sont publiques.
 

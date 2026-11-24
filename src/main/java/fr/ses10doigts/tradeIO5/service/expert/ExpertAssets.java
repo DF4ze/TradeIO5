@@ -2,7 +2,7 @@ package fr.ses10doigts.tradeIO5.service.expert;
 
 import fr.ses10doigts.tradeIO5.model.entity.currency.AssetProvider;
 import fr.ses10doigts.tradeIO5.repository.AssetProviderRepository;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
+import fr.ses10doigts.tradeIO5.repository.AssetRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -17,12 +17,13 @@ import java.util.stream.Collectors;
 public class ExpertAssets {
 
     private final AssetProviderRepository assetProviderRepository;
+    private final AssetRepository assetRepository;
 
-    /** Symbole normalisé (majuscules) ; actif hors périmètre ⇒ {@link IllegalArgumentException} (400). */
+    /** Symbole normalisé (majuscules) ; actif inconnu (aucune ligne {@code asset}, donc jamais lié) ⇒ {@link IllegalArgumentException} (400). */
     public String requireAsset(String symbol) {
         String normalized = symbol == null ? "" : symbol.trim().toUpperCase(Locale.ROOT);
-        if (!RainbowLiveDefaultPresets.ASSETS.contains(normalized)) {
-            throw new IllegalArgumentException("Actif non autorisé : " + symbol + " (autorisés : " + RainbowLiveDefaultPresets.ASSETS + ")");
+        if (normalized.isEmpty() || assetRepository.findBySymbol(normalized).isEmpty()) {
+            throw new IllegalArgumentException("Actif inconnu : " + symbol);
         }
         return normalized;
     }

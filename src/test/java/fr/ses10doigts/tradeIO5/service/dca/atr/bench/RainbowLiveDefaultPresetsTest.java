@@ -19,7 +19,7 @@ class RainbowLiveDefaultPresetsTest {
     @Test
     @DisplayName("toTuning()/toGlobals() : round-trip identique aux records du bench")
     void roundTrip() {
-        for (String asset : RainbowLiveDefaultPresets.ASSETS) {
+        for (String asset : AssetRegistry.SEED_ASSETS) {
             RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor(asset);
             RainbowAtrConfig again = RainbowAtrConfig.of(c.toTuning(), c.toGlobals());
 
@@ -71,6 +71,7 @@ class RainbowLiveDefaultPresetsTest {
         assertEquals(a.hash(), b.hash());
         b.setSmaPeriod(51);
         assertNotEquals(a.hash(), b.hash());
-        assertThrows(IllegalArgumentException.class, () -> RainbowLiveDefaultPresets.configFor("SOL"));
+        // actif sans preset dédié : repli sur la config BTC (copie), plus de refus
+        assertEquals(a.hash(), RainbowLiveDefaultPresets.configFor("SOL").hash());
     }
 }

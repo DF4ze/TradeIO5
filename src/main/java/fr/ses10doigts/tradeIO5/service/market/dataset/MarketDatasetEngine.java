@@ -41,6 +41,10 @@ public class MarketDatasetEngine {
     private final TimeFrameConverter timeFrameConverter;
     private final AssetProviderRepository assetProviderRepository;
 
+    /** Paire d'après le catalogue du provider ; absent dans les tests construits à la main (convention {@link ProviderSymbolMapper}). */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private CandlePairResolver pairResolver;
+
     // Cf. docs/archive/etudes/etude-fallback-multi-provider-marketdata.md §3 (étape 7c) : même patron que
     // DcaCalculatorService (constructeur + 3 @Qualifier), utilisé par getDatasetForAsset pour
     // résoudre le MarketDataApiClient (providerParam) correspondant au candidat asset_provider en cours.
@@ -238,7 +242,7 @@ public class MarketDatasetEngine {
      * déduite par {@link ProviderSymbolMapper} ; source non gérée ⇒ {@link NoProviderAvailableException}.
      */
     public DailyDataset getDailyDatasetOnSource(String symbol, MarketDataSource source, int lookBack, Instant endTime) {
-        String providerSymbol = source == null ? null : ProviderSymbolMapper.forSource(symbol, source);
+        String providerSymbol = source == null ? null : pairOf(symbol, source);
         MarketDataApiClient client = source == null ? null : webClientsBySource.get(source);
         if (providerSymbol == null || client == null) {
             throw new NoProviderAvailableException(symbol, null);
@@ -251,6 +255,11 @@ public class MarketDatasetEngine {
         }
     }
 
+    /** Paire d'un actif chez une source : catalogue du provider (USDC > USDT > USD) si disponible, sinon convention. */
+    private String pairOf(String symbol, MarketDataSource source) {
+        return pairResolver != null ? pairResolver.pairFor(symbol, source) : ProviderSymbolMapper.forSource(symbol, source);
+    }
+
     /** Ligne {@code asset_provider} de la source demandée : existante et activée, sinon créée à la volée (source de confiance). */
     private AssetProvider resolvePreferred(String symbol, MarketDataSource preferred, List<AssetProvider> all) {
         for (AssetProvider row : all) {
@@ -258,7 +267,7 @@ public class MarketDatasetEngine {
                 return row.isEnabled() ? row : null; // kill switch manuel respecté
             }
         }
-        String providerSymbol = ProviderSymbolMapper.forSource(symbol, preferred);
+        String providerSymbol = pairOf(symbol, preferred);
         if (providerSymbol == null || !webClientsBySource.containsKey(preferred) || all.isEmpty()) {
             return null;
         }

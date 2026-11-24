@@ -2,7 +2,7 @@
 statut: index
 sujet: Table de routage de la documentation
 modifié_le: 2026-11-24
-empreinte: 3516251bda
+empreinte: 9ef6897742
 ---
 # TradeIO-5 — Documentation
 
@@ -34,6 +34,7 @@ Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decis
 | [`decisions/espace-expert.md`](decisions/espace-expert.md) | presets système/expert, option « coupure au switch » voulue (non implémentée) |
 | [`decisions/flyway-defauts-presets.md`](decisions/flyway-defauts-presets.md) | Flyway, défauts, sauvegarde DB |
 | [`decisions/providers.md`](decisions/providers.md) | providers, Revolut X, monétisation |
+| [`decisions/actifs-dynamiques.md`](decisions/actifs-dynamiques.md) | liste d'actifs non figée : source providers, éligibilité, simulation seule avant validation, liste noire, lots |
 | [`decisions/recette.md`](decisions/recette.md) | recette avant prod, go prod, données nettoyées |
 | [`decisions/acces-amis-tunnel-ssh.md`](decisions/acces-amis-tunnel-ssh.md) | accès des amis (tunnel SSH), création de comptes par l'admin, inscription fermée |
 
@@ -87,7 +88,7 @@ Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decis
 | [`operations/scheduled-jobs.md`](operations/scheduled-jobs.md) | jobs planifiés |
 
 ## Reste à faire (known-gaps)
-[`rainbow-dca-chantiers-ouverts`](known-gaps/rainbow-dca-chantiers-ouverts.md) (objectif en cours : DCA intelligent) · [`front-gaps`](known-gaps/front-gaps.md) · [`doctor-diagnostic`](known-gaps/doctor-diagnostic.md) · [`nettoyages`](known-gaps/nettoyages.md) · [`code-level-inconsistencies`](known-gaps/code-level-inconsistencies.md)
+[`rainbow-dca-chantiers-ouverts`](known-gaps/rainbow-dca-chantiers-ouverts.md) (objectif en cours : DCA intelligent) · [`front-gaps`](known-gaps/front-gaps.md) · [`doctor-diagnostic`](known-gaps/doctor-diagnostic.md) · [`actifs-dynamiques-lots`](known-gaps/actifs-dynamiques-lots.md) · [`nettoyages`](known-gaps/nettoyages.md) · [`code-level-inconsistencies`](known-gaps/code-level-inconsistencies.md)
 
 ## Interface, sécurité, mind-set
 | Doc | Lire si… |

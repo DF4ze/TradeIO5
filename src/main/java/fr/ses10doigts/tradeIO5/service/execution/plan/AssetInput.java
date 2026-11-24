@@ -15,16 +15,27 @@ import java.util.Map;
  * du provider) à ajouter à la mise du jour ; {@code baseAmount} : base amount du preset au jour du plan (instantané).
  * {@code preferredRoute} : route d'achat imposée par l'utilisateur sur le lien (nulle = la moins chère).
  * {@code status} nul : aucun snapshot live pour la passe. {@code simulated} : lien en simulation (plan chiffré complet, tagué, jamais
- * exécuté) ; {@code minBuyUsd} : achat minimum de l'utilisateur (nul = aucun), un achat (mise + carry) en dessous est reporté.
+ * exécuté) ; {@code holdReason} : lien suspendu ou en attente de validation (nul sinon), un lien en mode ACTIF est alors planifié sans étape (DISABLED)
+ * avec cette raison, jamais d'ordre réel ; {@code bindingId} : ancienneté du lien (départage l'ordre du cash après la priorité). {@code minBuyUsd} : achat minimum de l'utilisateur (nul = aucun), un achat (mise + carry) en dessous est reporté.
  */
 public record AssetInput(String assetSymbol, int priority, boolean executionEnabled, Long walletId, WebProviderCode provider,
                          ApiCredential credential, PortfolioStatus status, RainbowLiveAction action, BigDecimal amountUsd,
                          BigDecimal quantity, Map<String, BigDecimal> cashByMember,
                          Map<String, BigDecimal> transitStock, BigDecimal carryInUsd, BigDecimal baseAmount,
-                         String preferredRoute, boolean simulated, BigDecimal minBuyUsd) {
+                         String preferredRoute, boolean simulated, BigDecimal minBuyUsd, String holdReason, Long bindingId) {
 
     public AssetInput {
         carryInUsd = carryInUsd == null ? BigDecimal.ZERO : carryInUsd;
+    }
+
+    /** Sans raison de blocage ni identifiant de lien. */
+    public AssetInput(String assetSymbol, int priority, boolean executionEnabled, Long walletId, WebProviderCode provider,
+                      ApiCredential credential, PortfolioStatus status, RainbowLiveAction action, BigDecimal amountUsd,
+                      BigDecimal quantity, Map<String, BigDecimal> cashByMember,
+                      Map<String, BigDecimal> transitStock, BigDecimal carryInUsd, BigDecimal baseAmount,
+                      String preferredRoute, boolean simulated, BigDecimal minBuyUsd) {
+        this(assetSymbol, priority, executionEnabled, walletId, provider, credential, status, action, amountUsd, quantity,
+                cashByMember, transitStock, carryInUsd, baseAmount, preferredRoute, simulated, minBuyUsd, null, null);
     }
 
     /** Sans simulation ni achat minimum. */

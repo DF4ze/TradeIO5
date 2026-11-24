@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 
 /**
- * Presets système de base : par actif (BTC / ETH / PAXG) 1 {@link TrendPreset} + 2 {@link RainbowPreset} (Bull, Bear)
+ * Presets système de base semés au démarrage : par actif de {@link AssetRegistry#SEED_ASSETS} (BTC / ETH / PAXG) 1 {@link TrendPreset} + 2 {@link RainbowPreset} (Bull, Bear)
  * semés depuis les constantes du code ({@link RainbowLiveTrendConfigs#defaults}). Insertion idempotente par
  * (actif, rôle de base) ; un preset existant n'est jamais modifié (l'admin le modifie en base).
  */
@@ -37,7 +37,7 @@ public class ExpertBasePresetService {
     public int ensureBasePresets() {
         Instant now = clock.now();
         int created = 0;
-        for (String asset : RainbowLiveDefaultPresets.ASSETS) {
+        for (String asset : AssetRegistry.SEED_ASSETS) {
             RainbowLiveTrendConfigs.Resolved d = RainbowLiveTrendConfigs.defaults(asset);
             created += ensureTrend(asset, d, now) ? 1 : 0;
             created += ensureRainbow(asset, d.bull(), BasePresetRole.RAINBOW_BULL, now) ? 1 : 0;
@@ -47,7 +47,7 @@ public class ExpertBasePresetService {
     }
 
     /**
-     * Presets de base d'un actif hors {@link RainbowLiveDefaultPresets#ASSETS} (D1b) : copies SYSTEM des presets de base BTC (Trend, Rainbow Bull,
+     * Presets de base d'un actif hors {@link AssetRegistry#SEED_ASSETS} (1er lien, D1b) : copies SYSTEM des presets de base BTC (Trend, Rainbow Bull,
      * Rainbow Bear), jamais modifiées ensuite. Insertion idempotente par (actif, rôle) : un preset de base existant n'est jamais touché.
      *
      * @return nombre de presets créés (0 si BTC n'a pas de preset de base ou si tout est déjà là)

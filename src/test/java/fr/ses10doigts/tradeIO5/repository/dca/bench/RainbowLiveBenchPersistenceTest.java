@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest
-@Import({AssetAffectationService.class, ExpertFixtures.class, ExpertBasePresetService.class, RainbowLiveRunService.class,
+@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetRegistry.class, ExpertFixtures.class, ExpertBasePresetService.class, RainbowLiveRunService.class,
         AffectationConfigResolver.class, RainbowLivePresetEventService.class, RainbowLiveBenchPersistenceTest.ClockConfig.class})
 @DisplayName("Espace Expert : presets de base, Affectations, runs")
 class RainbowLiveBenchPersistenceTest {
@@ -106,7 +106,7 @@ class RainbowLiveBenchPersistenceTest {
         assertEquals(0, basePresetService.ensureBasePresets(), "2e démarrage : aucun doublon");
         assertEquals(3, trendRepository.count());
         assertEquals(6, rainbowRepository.count());
-        for (String asset : RainbowLiveDefaultPresets.ASSETS) {
+        for (String asset : fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetRegistry.SEED_ASSETS) {
             TrendPreset t = trendRepository.findByAssetSymbolAndBaseRole(asset, BasePresetRole.TREND).orElseThrow();
             assertEquals(PresetOrigin.SYSTEM, t.getOrigin());
             assertTrue(t.getOwner() == null);

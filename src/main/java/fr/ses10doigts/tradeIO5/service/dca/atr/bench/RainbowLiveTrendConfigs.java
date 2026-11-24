@@ -33,7 +33,7 @@ public final class RainbowLiveTrendConfigs {
     }
 
     public static Resolved defaults(String asset) {
-        List<RainbowAtrParamSet> bb = RainbowAtrPresets.bearBull(asset);
+        List<RainbowAtrParamSet> bb = RainbowAtrPresets.bearBull(RainbowAtrPresets.hasPresets(asset) ? asset : RainbowLiveDefaultPresets.FALLBACK_ASSET);
         return new Resolved(TrendMixCalculator.Params.defaults(), RangeMapping.KEEP_PREVIOUS,
                 bb.get(RainbowAtrPresets.BEAR), bb.get(RainbowAtrPresets.BULL));
     }

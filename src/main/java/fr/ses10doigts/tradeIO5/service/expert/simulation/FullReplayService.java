@@ -598,8 +598,7 @@ public class FullReplayService {
             throw new ExpertApiException(ExpertApiException.Code.BINDING_NOT_FOUND, "Aucun lien pour cet utilisateur");
         }
         Long walletId = req.walletId() != null ? req.walletId() : all.stream()
-                .min(Comparator.comparingInt(RainbowLiveBinding::getPriority)
-                        .thenComparingInt(b -> RainbowLiveDefaultPresets.ASSETS.indexOf(b.getAssetSymbol())).thenComparing(RainbowLiveBinding::getId))
+                .min(Comparator.comparingInt(RainbowLiveBinding::getPriority).thenComparing(RainbowLiveBinding::getId))
                 .orElseThrow().getWallet().getId();
         List<RainbowLiveBinding> inWallet = all.stream().filter(b -> b.getWallet().getId().equals(walletId)).toList();
         if (inWallet.isEmpty()) {

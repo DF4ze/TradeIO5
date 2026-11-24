@@ -16,8 +16,9 @@
       h('div', { class: 'row' }, h('button', { class: 'btn btn--primary', type: 'button', onclick: onOk }, okLabel), h('button', { class: 'btn', type: 'button', onclick: onCancel }, 'Annuler')));
   }
 
-  /** Puce d'état d'exécution : Réel, Réel · à confirmer, Simulation ou Désactivé. */
+  /** Puce d'état d'exécution : Suspendu : <raison> (prioritaire), Réel, Réel · à confirmer, Simulation ou Désactivé. */
   function chip(b) {
+    if (b.suspended) return ui.chip(b.suspensionMessage || 'Suspendu', 'down');
     const m = modeOf(b);
     if (m === 'ACTIVE') return ui.chip(b.firstLiveConfirmed ? 'Réel' : 'Réel · à confirmer', b.firstLiveConfirmed ? 'ok' : 'warn');
     if (m === 'SIMULATION') return ui.chip('Simulation', 'sim');

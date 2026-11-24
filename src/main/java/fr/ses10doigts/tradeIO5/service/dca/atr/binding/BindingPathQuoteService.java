@@ -123,7 +123,7 @@ public class BindingPathQuoteService {
             throw new PathQuoteUnavailableException("Exchange non pris en charge : " + provider);
         }
         return pathFinder.routes(catalog.liveInstruments(credential.getWebProvider()), forbiddenNodes,
-                new HashSet<>(groupService.members(AssetGroup.USD)), assetSymbol, ExecutionDefaults.MAX_PATH_DEPTH, displayOnlyIntermediaries());
+                new HashSet<>(groupService.members(AssetGroup.USD)), assetSymbol, ExecutionDefaults.MAX_PATH_DEPTH, ExecutionDefaults.displayOnlyIntermediaries());
     }
 
     private Result quote(Wallet wallet, String assetSymbol, BigDecimal amount, String origin, String preferredRoute) {
@@ -144,7 +144,7 @@ public class BindingPathQuoteService {
         List<InstrumentInfo> instruments = catalog.liveInstruments(credential.getWebProvider());
 
         PathFinder.Request request = new PathFinder.Request(instruments, forbiddenNodes, sources, assetSymbol,
-                amount, ExecutionDefaults.MAX_PATH_DEPTH, displayOnlyIntermediaries(), preferredRoute);
+                amount, ExecutionDefaults.MAX_PATH_DEPTH, ExecutionDefaults.displayOnlyIntermediaries(), preferredRoute);
         Set<String> staleFees = new java.util.TreeSet<>();
         PathQuote quote = pathFinder.find(request, new ExchangeLegMarketSource(provider, credential, new HashSet<>(stables), instruments,
                 feeService.lenient(provider, staleFees::add), bookClients.get(provider)));
@@ -158,10 +158,6 @@ public class BindingPathQuoteService {
         return new Result(quote, warning);
     }
 
-    private static Set<String> displayOnlyIntermediaries() {
-        return ExecutionDefaults.INTERMEDIARIES.stream().filter(i -> !ExecutionDefaults.CHOSEN_INTERMEDIARIES.contains(i))
-                .collect(Collectors.toUnmodifiableSet());
-    }
 
     private String warning(PathQuote quote, WebProviderCode provider, Map<String, BigDecimal> sources,
                            List<InstrumentInfo> instruments) {

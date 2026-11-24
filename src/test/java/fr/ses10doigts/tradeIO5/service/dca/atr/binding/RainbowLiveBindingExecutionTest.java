@@ -33,13 +33,20 @@ class RainbowLiveBindingExecutionTest {
     private final RainbowLiveBinding binding = RainbowLiveBinding.builder().id(5L).user(owner).assetSymbol("BTC").build();
     private RainbowLiveBindingService service;
 
+    private static fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService calibrated() {
+        var rates = mock(fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService.class);
+        when(rates.isCalibrated(any())).thenReturn(true);
+        return rates;
+    }
+
     @BeforeEach
     void setUp() {
         RainbowLiveBindingRepository repo = mock(RainbowLiveBindingRepository.class);
         when(repo.findById(5L)).thenReturn(Optional.of(binding));
         when(repo.save(any())).thenAnswer(i -> i.getArgument(0));
         service = new RainbowLiveBindingService(repo, mock(AssetAffectationService.class), mock(WalletRepository.class),
-                mock(BindingCheck.class), new FixedDomainClock(NOW));
+                mock(BindingCheck.class), mock(fr.ses10doigts.tradeIO5.service.market.eligibility.AssetEligibilityService.class),
+                mock(AssetLinkBootstrap.class), calibrated(), new FixedDomainClock(NOW));
     }
 
     @Test

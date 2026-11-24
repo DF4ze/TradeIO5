@@ -168,4 +168,49 @@ class InstrumentCatalogTest {
         assertEquals(2, CLIENT.calls);
         assertEquals(4, repository.count());
     }
+
+    private static InstrumentListClient.Listed withVolume(String base, String quote, String volume) {
+        return new InstrumentListClient.Listed(base + "-" + quote, base, quote, true, new BigDecimal("0.0001"), new BigDecimal("0.0001"),
+                new BigDecimal("0.1"), null, null, null, volume == null ? null : new BigDecimal(volume));
+    }
+
+    @Test
+    @DisplayName("Volume 24 h : stocké au rafraîchissement (un seul appel client), avec sa date de lecture ; exchange sans volume => nul")
+    void volumeStoredFromTheSameCall() {
+        CLIENT.response = new ArrayList<>(List.of(withVolume("BTC", "USDC", "5000000.5"), withVolume("PAXG", "USDT", null)));
+
+        assertEquals(2, catalog.allInstruments(okx).size());
+
+        assertEquals(1, CLIENT.calls);
+        var btc = repository.findByProviderAndInstId(WebProviderCode.OKX, "BTC-USDC").orElseThrow();
+        assertEquals(0, new BigDecimal("5000000.5").compareTo(btc.getVolume24hQuote()));
+        assertEquals(CLOCK.now(), btc.getVolumeReadAt());
+        var paxg = repository.findByProviderAndInstId(WebProviderCode.OKX, "PAXG-USDT").orElseThrow();
+        assertEquals(null, paxg.getVolume24hQuote());
+        assertEquals(null, paxg.getVolumeReadAt());
+    }
+
+    @Test
+    @DisplayName("Volume remis à jour au refresh suivant ; un volume absent (lecture en échec) ne remplace pas l'ancienne valeur ni sa date")
+    void volumeRefreshedAndNeverErasedByNull() {
+        CLIENT.response = new ArrayList<>(List.of(withVolume("BTC", "USDC", "100")));
+        catalog.allInstruments(okx);
+        Instant firstRead = CLOCK.now();
+
+        CLOCK.advance(Duration.ofHours(25));
+        CLIENT.response = new ArrayList<>(List.of(withVolume("BTC", "USDC", "250")));
+        catalog.allInstruments(okx);
+        assertEquals(0, new BigDecimal("250").compareTo(repository.findByProviderAndInstId(WebProviderCode.OKX, "BTC-USDC").orElseThrow().getVolume24hQuote()));
+
+        Instant secondRead = CLOCK.now();
+        CLOCK.advance(Duration.ofHours(25));
+        CLIENT.response = new ArrayList<>(List.of(withVolume("BTC", "USDC", null)));
+        catalog.allInstruments(okx);
+
+        var btc = repository.findByProviderAndInstId(WebProviderCode.OKX, "BTC-USDC").orElseThrow();
+        assertEquals(0, new BigDecimal("250").compareTo(btc.getVolume24hQuote()));
+        assertEquals(secondRead, btc.getVolumeReadAt());
+        assertTrue(secondRead.isAfter(firstRead));
+        assertEquals(3, CLIENT.calls);
+    }
 }

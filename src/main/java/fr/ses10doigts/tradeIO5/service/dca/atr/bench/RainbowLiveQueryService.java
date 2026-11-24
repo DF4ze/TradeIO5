@@ -57,22 +57,24 @@ public class RainbowLiveQueryService {
             new ZoneDto(RainbowAtrEngine.EXTREME_HAUT, "EXTREME_HAUT", "Extrême haut"));
 
     private final AssetAffectationService affectationService;
+    private final AssetRegistry registry;
     private final RainbowLiveRunRepository runRepository;
     private final AffectationConfigResolver configResolver;
     private final RainbowLivePresetEventService eventService;
 
     /** Métadonnées du formulaire : actifs, stablecoin, valeurs par défaut et config par défaut de chaque actif. */
-    public DefaultsDto defaults() {
+    public DefaultsDto defaults(User user) {
+        List<String> assets = registry.affectationAssets(user);
         Map<String, ConfigDto> configs = new LinkedHashMap<>();
-        for (String asset : RainbowLiveDefaultPresets.ASSETS) {
+        for (String asset : assets) {
             RainbowAtrConfig c = RainbowLiveDefaultPresets.configFor(asset);
             configs.put(asset, new ConfigDto(c.toTuning(), c.toGlobals()));
         }
         Map<String, TrendConfigDto> trendDefaults = new LinkedHashMap<>();
-        for (String asset : RainbowLiveDefaultPresets.ASSETS) {
+        for (String asset : assets) {
             trendDefaults.put(asset, RainbowLiveTrendConfigs.toDto(RainbowLiveTrendConfigs.defaults(asset)));
         }
-        return new DefaultsDto(RainbowLiveDefaultPresets.ASSETS, AssetGroup.USD,
+        return new DefaultsDto(assets, AssetGroup.USD,
                 RainbowLiveDefaultPresets.DEFAULT_ANALYSIS_WINDOW_MONTHS,
                 RainbowAtrGlobals.pineDefault().baseAmount(),
                 configs, Arrays.stream(ReentryMode.values()).map(Enum::name).toList(), ZONES, trendDefaults,
@@ -86,9 +88,8 @@ public class RainbowLiveQueryService {
      */
     @Transactional
     public List<AffectationDto> listAffectations(User user, String asset, String provider) {
-        if (asset != null && !RainbowLiveDefaultPresets.ASSETS.contains(asset)) {
-            throw new IllegalArgumentException("Actif non autorisé : " + asset
-                    + " (autorisés : " + RainbowLiveDefaultPresets.ASSETS + ")");
+        if (asset != null && !registry.affectationAssets(user).contains(asset)) {
+            throw new IllegalArgumentException("Actif inconnu : " + asset + " (actifs liés : " + registry.affectationAssets(user) + ")");
         }
         affectationService.ensureAffectations(user);
         List<AssetAffectation> list = affectationService.list(user).stream().filter(a -> asset == null || a.getAssetSymbol().equals(asset)).toList();

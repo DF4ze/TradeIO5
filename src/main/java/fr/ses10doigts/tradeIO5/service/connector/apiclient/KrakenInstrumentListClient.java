@@ -13,6 +13,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,13 +25,16 @@ import java.util.Optional;
  * {@link KrakenAssetNames} (XXBT -> BTC, ZUSD -> USD...). Négociable si {@code status = online}. Paires « dark pool »
  * ({@code .d}) ignorées. {@code minSz = ordermin}, {@code lotSz = 10^-lot_decimals}, {@code tickSz = tick_size}
  * (sinon {@code 10^-pair_decimals}), {@code costMin = costmin}, {@code nativePair = altname} (nom accepté par {@code AddOrder}),
- * {@code feeCurrency = fee_volume_currency}.
+ * {@code feeCurrency = fee_volume_currency}. Volume 24 h en cotation = {@code v[1] × p[1]} (volume base × VWAP) lu par un second appel
+ * public {@code /0/public/Ticker} (toutes les paires, un appel par rafraîchissement) ; son échec n'empêche pas le catalogue (volume inconnu, WARN).
  */
 @Slf4j
 @Component
 public class KrakenInstrumentListClient implements InstrumentListClient {
 
     static final String ASSET_PAIRS_PATH = "/0/public/AssetPairs";
+    /** Sans paramètre {@code pair}, {@code Ticker} renvoie TOUTES les paires en un appel : volume 24 h ({@code v[1]}) × VWAP 24 h ({@code p[1]}). */
+    static final String TICKER_PATH = "/0/public/Ticker";
 
     private static final String ONLINE_STATUS = "online";
     private static final Duration TIMEOUT = Duration.ofSeconds(15);
@@ -56,13 +60,58 @@ public class KrakenInstrumentListClient implements InstrumentListClient {
         } catch (RuntimeException e) {
             throw new InstrumentLookupException("Kraken : appel AssetPairs impossible (" + e.getClass().getSimpleName() + ")", e);
         }
-        List<Listed> listed = parse(body);
+        List<Listed> listed = parse(body, fetchVolumes(provider));
         log.debug("Kraken : {} paires spot lues", listed.size());
         return listed;
     }
 
+    private static Map<String, BigDecimal> fetchVolumes(WebProvider provider) {
+        try {
+            String body = WebClient.builder().baseUrl(provider.getApiBaseUrl()).codecs(c -> c.defaultCodecs().maxInMemorySize(8 * 1024 * 1024)).build()
+                    .get()
+                    .uri(TICKER_PATH)
+                    .exchangeToMono(response -> response.bodyToMono(String.class).defaultIfEmpty(""))
+                    .block(TIMEOUT);
+            return parseVolumes(body);
+        } catch (RuntimeException e) {
+            log.warn("Kraken : volumes 24 h indisponibles ({}), volume inconnu", e.getClass().getSimpleName());
+            return Map.of();
+        }
+    }
+
+    /** Package-private pour les tests : {@code nom de paire (clé de la réponse) -> volume en cotation} ; réponse illisible => map vide. */
+    static Map<String, BigDecimal> parseVolumes(String body) {
+        Map<String, BigDecimal> volumes = new HashMap<>();
+        try {
+            JsonNode root = MAPPER.readTree(body == null ? "" : body);
+            JsonNode errors = root.path("error");
+            if (errors.isArray() && !errors.isEmpty()) {
+                log.warn("Kraken : Ticker en erreur {}, volume inconnu", errors);
+                return Map.of();
+            }
+            Iterator<Map.Entry<String, JsonNode>> entries = root.path("result").fields();
+            while (entries.hasNext()) {
+                Map.Entry<String, JsonNode> entry = entries.next();
+                String volume = entry.getValue().path("v").path(1).asText("");
+                String vwap = entry.getValue().path("p").path(1).asText("");
+                if (!volume.isBlank() && !vwap.isBlank()) {
+                    volumes.put(entry.getKey(), new BigDecimal(volume).multiply(new BigDecimal(vwap)));
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Kraken : volumes 24 h illisibles ({})", e.getClass().getSimpleName());
+            return Map.of();
+        }
+        return volumes;
+    }
+
     /** Package-private pour les tests. */
     static List<Listed> parse(String body) {
+        return parse(body, Map.of());
+    }
+
+    /** Package-private pour les tests. */
+    static List<Listed> parse(String body, Map<String, BigDecimal> volumes) {
         JsonNode root;
         try {
             root = MAPPER.readTree(body == null ? "" : body);
@@ -84,7 +133,7 @@ public class KrakenInstrumentListClient implements InstrumentListClient {
         Iterator<Map.Entry<String, JsonNode>> entries = result.fields();
         while (entries.hasNext()) {
             Map.Entry<String, JsonNode> entry = entries.next();
-            parseOne(entry.getKey(), entry.getValue()).ifPresent(l -> byId.putIfAbsent(l.instId(), l));
+            parseOne(entry.getKey(), entry.getValue(), volumes).ifPresent(l -> byId.putIfAbsent(l.instId(), l));
         }
         if (byId.isEmpty()) {
             throw new InstrumentLookupException("Kraken : aucune paire exploitable dans la réponse AssetPairs");
@@ -92,7 +141,7 @@ public class KrakenInstrumentListClient implements InstrumentListClient {
         return new ArrayList<>(byId.values());
     }
 
-    private static Optional<Listed> parseOne(String pairName, JsonNode node) {
+    private static Optional<Listed> parseOne(String pairName, JsonNode node, Map<String, BigDecimal> volumes) {
         if (pairName.endsWith(".d")) {
             return Optional.empty();
         }
@@ -113,7 +162,7 @@ public class KrakenInstrumentListClient implements InstrumentListClient {
             String feeCurrency = rawFeeCurrency.isBlank() ? null : KrakenAssetNames.toSymbol(rawFeeCurrency).orElse(rawFeeCurrency);
             return Optional.of(new Listed(base.get() + "-" + quote.get(), base.get(), quote.get(),
                     ONLINE_STATUS.equals(node.path("status").asText(ONLINE_STATUS)), min, lot, tick, costMin, nativePair,
-                    feeCurrency));
+                    feeCurrency, volumes.getOrDefault(pairName, volumes.get(nativePair))));
         } catch (NumberFormatException e) {
             log.warn("Kraken : paire ignorée (tailles illisibles) {}", pairName);
             return Optional.empty();

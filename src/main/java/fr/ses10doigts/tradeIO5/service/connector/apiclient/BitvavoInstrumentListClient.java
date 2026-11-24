@@ -12,19 +12,24 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Toutes les paires Bitvavo en un appel public : {@code GET /markets}. Négociable si {@code status = trading}.
  * {@code lotSz = 10^-quantityDecimals}, {@code tickSz = tickSize}, {@code minSz = minOrderInBaseAsset}, {@code costMin =
  * minOrderInQuoteAsset}, {@code nativePair} = identifiant Bitvavo ({@code BTC-EUR}, même forme que l'identifiant interne).
- * Le provider doit être déclaré et actif.
+ * Le provider doit être déclaré et actif. Volume 24 h : second appel public {@code GET /ticker/24h} (toutes les paires, {@code volumeQuote}) ;
+ * son échec n'empêche pas le catalogue (volume inconnu, WARN).
  */
 @Slf4j
 @Component
 public class BitvavoInstrumentListClient implements InstrumentListClient {
 
     static final String MARKETS_PATH = "/markets";
+    /** Un seul appel « toutes les paires » pour le volume 24 h : {@code volumeQuote} = volume en monnaie de cotation. */
+    static final String TICKER_24H_PATH = "/ticker/24h";
 
     private static final String TRADING = "trading";
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -49,13 +54,53 @@ public class BitvavoInstrumentListClient implements InstrumentListClient {
         } catch (BalanceUnavailableException e) {
             throw new InstrumentLookupException(e.getMessage(), e);
         }
-        List<Listed> listed = parse(body);
+        List<Listed> listed = parse(body, fetchVolumes(provider));
         log.debug("Bitvavo : {} paires lues", listed.size());
         return listed;
     }
 
+    private static Map<String, BigDecimal> fetchVolumes(WebProvider provider) {
+        try {
+            BitvavoRequests.Reply reply = BitvavoRequests.publicGet(provider, TICKER_24H_PATH);
+            if (!reply.ok()) {
+                log.warn("Bitvavo : ticker/24h en erreur HTTP {}, volume inconnu", reply.status());
+                return Map.of();
+            }
+            return parseVolumes(reply.body());
+        } catch (RuntimeException e) {
+            log.warn("Bitvavo : volumes 24 h indisponibles ({}), volume inconnu", e.getClass().getSimpleName());
+            return Map.of();
+        }
+    }
+
+    /** Package-private pour les tests : {@code marché (BTC-EUR) -> volumeQuote} ; réponse illisible => map vide. */
+    static Map<String, BigDecimal> parseVolumes(String body) {
+        Map<String, BigDecimal> volumes = new HashMap<>();
+        try {
+            JsonNode root = MAPPER.readTree(body == null ? "" : body);
+            if (root.isArray()) {
+                for (JsonNode item : root) {
+                    String market = item.path("market").asText("").toUpperCase();
+                    String volume = item.path("volumeQuote").asText("");
+                    if (!market.isBlank() && !volume.isBlank()) {
+                        volumes.put(market, new BigDecimal(volume));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Bitvavo : volumes 24 h illisibles ({})", e.getClass().getSimpleName());
+            return Map.of();
+        }
+        return volumes;
+    }
+
     /** Package-private pour les tests. */
     static List<Listed> parse(String body) {
+        return parse(body, Map.of());
+    }
+
+    /** Package-private pour les tests. */
+    static List<Listed> parse(String body, Map<String, BigDecimal> volumes) {
         JsonNode root;
         try {
             root = MAPPER.readTree(body == null ? "" : body);
@@ -67,7 +112,7 @@ public class BitvavoInstrumentListClient implements InstrumentListClient {
         }
         List<Listed> out = new ArrayList<>();
         for (JsonNode item : root) {
-            Listed listed = toListed(item);
+            Listed listed = toListed(item, volumes);
             if (listed != null) {
                 out.add(listed);
             }
@@ -78,7 +123,7 @@ public class BitvavoInstrumentListClient implements InstrumentListClient {
         return out;
     }
 
-    private static Listed toListed(JsonNode item) {
+    private static Listed toListed(JsonNode item, Map<String, BigDecimal> volumes) {
         String market = item.path("market").asText("").toUpperCase();
         String base = item.path("base").asText("").toUpperCase();
         String quote = item.path("quote").asText("").toUpperCase();
@@ -91,7 +136,8 @@ public class BitvavoInstrumentListClient implements InstrumentListClient {
             BigDecimal tick = new BigDecimal(item.path("tickSize").asText());
             BigDecimal minBase = decimalOrNull(item, "minOrderInBaseAsset");
             return new Listed(base + "-" + quote, base, quote, TRADING.equalsIgnoreCase(item.path("status").asText()),
-                    minBase == null ? lot : minBase, lot, tick, decimalOrNull(item, "minOrderInQuoteAsset"), market, null);
+                    minBase == null ? lot : minBase, lot, tick, decimalOrNull(item, "minOrderInQuoteAsset"), market, null,
+                    volumes.get(market));
         } catch (NumberFormatException e) {
             throw new InstrumentLookupException("Bitvavo : paire illisible (" + market + ")", e);
         }

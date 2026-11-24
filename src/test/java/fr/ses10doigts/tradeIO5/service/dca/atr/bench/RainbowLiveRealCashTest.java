@@ -68,7 +68,7 @@ import static org.mockito.Mockito.when;
  * {@code base} (50 USDC) par jour ; série finale en hausse => SELL.
  */
 @DataJpaTest
-@Import({AffectationConfigResolver.class, RainbowLivePresetEventService.class, AssetAffectationService.class, ExpertFixtures.class, ExpertBasePresetService.class, RainbowLiveRunService.class,
+@Import({AffectationConfigResolver.class, RainbowLivePresetEventService.class, AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetRegistry.class, ExpertFixtures.class, ExpertBasePresetService.class, RainbowLiveRunService.class,
         RainbowLiveExecutionService.class, RainbowLiveBindingRunService.class, RainbowTrendLiveService.class, fr.ses10doigts.tradeIO5.service.admin.AdminActionLogService.class, RainbowAthService.class, fr.ses10doigts.tradeIO5.service.portfolio.PortfolioSnapshotService.class,
         RainbowLiveRealCashTest.ClockConfig.class, UserTradingSettingsService.class, RainbowModulationControlService.class})
 @DisplayName("Bench Rainbow : preset live sur vrai cash (ledger, blocage, indisponibilité, rejeu, jour suivant)")
@@ -127,7 +127,7 @@ class RainbowLiveRealCashTest {
         wallet = newWallet("OKX");
         walletId = wallet.getId();
         reading = reading(PortfolioStatus.OK, 1000.0, Map.of());
-        for (String a : RainbowLiveDefaultPresets.ASSETS) {
+        for (String a : AssetRegistry.SEED_ASSETS) {
             serve(a, flat(N, 100));
         }
         when(datasetEngine.getDailyDatasetForAsset(anyString(), anyInt(), any(Instant.class), any()))
@@ -195,7 +195,7 @@ class RainbowLiveRealCashTest {
     /** Un preset par actif (aucun preset par défaut ajouté par la passe). */
     private Map<String, AssetAffectation> presetsAllAssets() {
         Map<String, AssetAffectation> out = new HashMap<>();
-        RainbowLiveDefaultPresets.ASSETS.forEach(a -> out.put(a, preset(a, FLAT)));
+        AssetRegistry.SEED_ASSETS.forEach(a -> out.put(a, preset(a, FLAT)));
         return out;
     }
 
@@ -455,7 +455,7 @@ class RainbowLiveRealCashTest {
         RainbowLiveBinding link = bind(btc, 0, 100);
         service.runPass(ASOF_2355);
         reading = reading(PortfolioStatus.OK, 5.0, Map.of());   // le réel a bougé depuis
-        for (String a : RainbowLiveDefaultPresets.ASSETS) {
+        for (String a : AssetRegistry.SEED_ASSETS) {
             serve(a, flat(N + 1, 100));
         }
 

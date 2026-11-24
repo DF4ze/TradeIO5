@@ -72,8 +72,8 @@ class InstrumentListClientsTest {
     }
 
     @Test
-    @DisplayName("OKX : un seul appel GET /api/v5/public/instruments?instType=SPOT, sans signature")
-    void okxSingleCall() throws IOException {
+    @DisplayName("OKX : deux appels publics « toutes les paires » (instruments + tickers pour le volume), sans signature")
+    void okxAllPairsCalls() throws IOException {
         List<String> requests = new ArrayList<>();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {
@@ -93,7 +93,9 @@ class InstrumentListClientsTest {
             List<Listed> listed = new OkxInstrumentListClient().fetchAll(provider);
 
             assertEquals(3, listed.size());
-            assertEquals(List.of("GET /api/v5/public/instruments?instType=SPOT sign=null"), requests);
+            // Deux appels « toutes les paires » (liste + tickers pour le volume 24 h), jamais un appel par paire ; aucune signature.
+            assertEquals(List.of("GET /api/v5/public/instruments?instType=SPOT sign=null",
+                    "GET /api/v5/market/tickers?instType=SPOT sign=null"), requests);
         } finally {
             server.stop(0);
         }

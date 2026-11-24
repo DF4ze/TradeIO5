@@ -119,8 +119,9 @@ public class OrderPlanner {
         }
     }
 
-    /** Ordre de passage du cash : priorité du lien, puis actif, puis wallet. */
+    /** Ordre de passage du cash : priorité du lien, puis ancienneté du lien (id), puis actif, puis wallet (même règle que {@code LiveSlot.SERVICE_ORDER}). */
     private static final Comparator<AssetInput> INPUT_ORDER = Comparator.comparingInt(AssetInput::priority)
+            .thenComparing(AssetInput::bindingId, Comparator.nullsLast(Comparator.naturalOrder()))
             .thenComparing(AssetInput::assetSymbol)
             .thenComparing(AssetInput::walletId, Comparator.nullsFirst(Comparator.naturalOrder()));
 
@@ -153,6 +154,9 @@ public class OrderPlanner {
 
     private PlanDraft.AssetDraft planAsset(AssetInput in, Map<Long, WalletContext> contexts,
                                            Map<Long, Map<String, BigDecimal>> pools) {
+        if (in.executionEnabled() && in.holdReason() != null) { // suspendu / en attente de validation : aucune étape, raison explicite
+            return draft(in, AssetPlanOutcome.DISABLED, null, null, null, in.holdReason(), List.of());
+        }
         if (!in.executionEnabled() && !in.simulated()) {
             return draft(in, AssetPlanOutcome.DISABLED, null, null, null, null, List.of());
         }
@@ -203,7 +207,7 @@ public class OrderPlanner {
 
         Map<String, BigDecimal> sources = new HashMap<>(ctx.virtual);
         PathQuote quote = pathFinder.find(new PathFinder.Request(ctx.instruments, forbiddenNodes, sources, in.assetSymbol(), amount,
-                ExecutionDefaults.MAX_PATH_DEPTH, displayOnlyIntermediaries(), in.preferredRoute()), ctx.market);
+                ExecutionDefaults.MAX_PATH_DEPTH, ExecutionDefaults.displayOnlyIntermediaries(), in.preferredRoute()), ctx.market);
         PlanBlockReason block = OrderCore.buyBlock(quote, sources, in.assetSymbol(), ctx.instruments, ctx.stables, forbiddenNodes);
         if (block != null) {
             return blocked(in, block);
@@ -278,10 +282,6 @@ public class OrderPlanner {
         return notes;
     }
 
-    private static Set<String> displayOnlyIntermediaries() {
-        return ExecutionDefaults.INTERMEDIARIES.stream().filter(i -> !ExecutionDefaults.CHOSEN_INTERMEDIARIES.contains(i))
-                .collect(Collectors.toUnmodifiableSet());
-    }
 
     // ------------------------------------------------------------------ vente
 
@@ -398,6 +398,9 @@ public class OrderPlanner {
                     .append(plain(i.amountUsd())).append('|').append(plain(i.quantity())).append('|').append(plain(i.carryInUsd())).append('|');
             if (i.simulated()) {
                 canonical.append("sim|");
+            }
+            if (i.holdReason() != null) {
+                canonical.append("hold|");
             }
             if (i.minBuyUsd() != null) {
                 canonical.append("min=").append(plain(i.minBuyUsd())).append('|');

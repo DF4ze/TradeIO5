@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-08
-modifié_le: 2026-11-16
-empreinte: d7a1b7c30d
+modifié_le: 2026-11-24
+empreinte: df5d3c3314
 ---
 # Espace Expert — paramétrage Trend / Rainbow par actif
 
@@ -26,7 +26,7 @@ Paramétrage uniquement : aucune notion de passe, plan, exécution. Un USER cons
 | `affectations` | `GET[?asset=]`, `GET|PUT|DELETE /{id}`, `POST` (plusieurs par actif, nommées ; écart de provider renvoyé en information) |
 | `simulations` | `POST` (202 + id), `GET /{id}`, `DELETE /{id}` |
 
-Services : `AbstractExpertPresetService` (presets, cf. 08), `ExpertAffectationService` (lecture, création, modification, suppression ; écran Affectation : sélecteur d'Affectation de l'actif, nom, presets, « Créer » / « Enregistrer » / « Supprimer », Système en lecture seule), `ExpertAssetService`, `ExpertAssets` (actifs autorisés = `RainbowLiveDefaultPresets.ASSETS`).
+Services : `AbstractExpertPresetService` (presets, cf. 08), `ExpertAffectationService` (lecture, création, modification, suppression ; écran Affectation : sélecteur d'Affectation de l'actif, nom, presets, « Créer » / « Enregistrer » / « Supprimer », Système en lecture seule), `ExpertAssetService`, `ExpertAssets` (actifs affichés = actifs liés de l'utilisateur, `AssetRegistry`).
 
 ## Simulation asynchrone (`service/expert/simulation/`)
 

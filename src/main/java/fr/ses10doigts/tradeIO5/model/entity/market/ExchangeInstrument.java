@@ -80,4 +80,15 @@ public class ExchangeInstrument {
 
     @Column(name = "fetched_at", nullable = false)
     private Instant fetchedAt;
+
+    /**
+     * Volume spot des 24 dernières heures, <b>en unités de la monnaie de cotation</b> (USD pour une paire USDC / USDT / USD) ; nul si
+     * l'exchange n'expose pas de volume global. Lu dans le même rafraîchissement « toutes les paires » que le catalogue, jamais par paire.
+     */
+    @Column(name = "volume_24h_quote", precision = 38, scale = 8)
+    private BigDecimal volume24hQuote;
+
+    /** Date de lecture de {@link #volume24hQuote} ; nulle si aucun volume n'a jamais été lu. */
+    @Column(name = "volume_read_at")
+    private Instant volumeReadAt;
 }

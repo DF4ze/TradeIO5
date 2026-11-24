@@ -1,5 +1,6 @@
 package fr.ses10doigts.tradeIO5.model.dto.dca.bench;
 
+import fr.ses10doigts.tradeIO5.service.dca.atr.binding.LinkStateService;
 import fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.BindingCheckResult;
 import fr.ses10doigts.tradeIO5.service.dca.atr.binding.RainbowLiveBindingService.Checked;
@@ -22,8 +23,17 @@ public final class RainbowLiveBindingDtos {
                              String feeTestRoute, java.math.BigDecimal feeTestPct, String feeTestLevel,
                              java.math.BigDecimal feeTestAmount, java.time.Instant feeTestAt,
                              boolean executionEnabled, boolean firstLiveArmed, boolean firstLiveConfirmed,
-                             String executionMode, Double minBuyUsd) {
+                             String executionMode, Double minBuyUsd,
+                             boolean suspended, String suspensionReason, String suspensionMessage, boolean pendingValidation,
+                             String pendingValidationMessage) {
+
+        /** Sans état dérivé (ni suspendu ni en attente de validation). */
         public static BindingDto of(RainbowLiveBinding b) {
+            return of(b, LinkStateService.LinkState.NONE);
+        }
+
+        /** Avec l'état dérivé du lien : « Suspendu : <raison> » et/ou « en attente de validation » (simulation seule). */
+        public static BindingDto of(RainbowLiveBinding b, LinkStateService.LinkState state) {
             return new BindingDto(b.getId(), b.getAssetSymbol(), b.getAffectation().getId(), b.getAffectation().label(),
                     b.getWallet().getId(), b.getWallet().getName(),
                     b.getWallet().getWebProviderCode() == null ? null : b.getWallet().getWebProviderCode().name(),
@@ -32,7 +42,9 @@ public final class RainbowLiveBindingDtos {
                     b.getFeeTestRoute(), b.getFeeTestPct(), b.getFeeTestLevel() == null ? null : b.getFeeTestLevel().name(),
                     b.getFeeTestAmount(), b.getFeeTestAt(),
                     b.isExecutionEnabled(), b.getFirstLiveApprovedAt() != null, b.getFirstLiveConfirmedAt() != null,
-                    b.executionMode().name(), b.getMinBuyUsd());
+                    b.executionMode().name(), b.getMinBuyUsd(),
+                    state.suspended(), state.suspension() == null ? null : state.suspension().name(), state.suspensionMessage(),
+                    state.pendingValidation(), state.pendingValidation() ? LinkStateService.PENDING_VALIDATION_MESSAGE : null);
         }
     }
 
@@ -46,7 +58,11 @@ public final class RainbowLiveBindingDtos {
 
     public record CheckedBindingDto(BindingDto binding, CheckDto check) {
         public static CheckedBindingDto of(Checked c) {
-            return new CheckedBindingDto(BindingDto.of(c.binding()), CheckDto.of(c.check()));
+            return of(c, LinkStateService.LinkState.NONE);
+        }
+
+        public static CheckedBindingDto of(Checked c, LinkStateService.LinkState state) {
+            return new CheckedBindingDto(BindingDto.of(c.binding(), state), CheckDto.of(c.check()));
         }
     }
 }

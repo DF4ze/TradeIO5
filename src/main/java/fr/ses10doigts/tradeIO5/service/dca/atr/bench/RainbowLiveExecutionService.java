@@ -331,7 +331,7 @@ public class RainbowLiveExecutionService {
         Map<Long, MarketDataSource> referenceSources = referenceSources(slots);
 
         List<AssetAffectation> ordered = new ArrayList<>(affectations);
-        ordered.sort(Comparator.comparingInt(p -> RainbowLiveDefaultPresets.ASSETS.indexOf(p.getAssetSymbol())));
+        ordered.sort(Comparator.comparing(AssetAffectation::getAssetSymbol).thenComparing(AssetAffectation::getId));
         Map<Long, AssetAffectation> affectationById = new HashMap<>();
         Map<Long, LiveDemand> demands = new HashMap<>();
         Map<Long, AssetSeries> affectationSeries = new HashMap<>();

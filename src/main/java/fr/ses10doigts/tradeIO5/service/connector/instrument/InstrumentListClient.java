@@ -14,14 +14,21 @@ public interface InstrumentListClient {
     /**
      * Paire normalisée : symboles standard, {@code instId = BASE-QUOTE}, {@code live} = négociable. Facultatifs (nuls si
      * l'exchange ne les porte pas, ex. OKX) : {@code costMin} = coût minimum en cotation, {@code nativePair} = nom de la paire
-     * dans l'API de trading (Kraken : {@code XBTUSDC}), {@code feeCurrency} = devise des remises de frais au volume.
+     * dans l'API de trading (Kraken : {@code XBTUSDC}), {@code feeCurrency} = devise des remises de frais au volume,
+     * {@code volume24hQuote} = volume spot 24 h <b>en monnaie de cotation</b> (nul si l'exchange n'expose pas de volume global : lu par
+     * un appel « toutes les paires » du client, jamais par paire).
      */
     record Listed(String instId, String base, String quote, boolean live, BigDecimal minSz, BigDecimal lotSz,
-                  BigDecimal tickSz, BigDecimal costMin, String nativePair, String feeCurrency) {
+                  BigDecimal tickSz, BigDecimal costMin, String nativePair, String feeCurrency, BigDecimal volume24hQuote) {
+
+        public Listed(String instId, String base, String quote, boolean live, BigDecimal minSz, BigDecimal lotSz,
+                      BigDecimal tickSz, BigDecimal costMin, String nativePair, String feeCurrency) {
+            this(instId, base, quote, live, minSz, lotSz, tickSz, costMin, nativePair, feeCurrency, null);
+        }
 
         public Listed(String instId, String base, String quote, boolean live, BigDecimal minSz, BigDecimal lotSz,
                       BigDecimal tickSz) {
-            this(instId, base, quote, live, minSz, lotSz, tickSz, null, null, null);
+            this(instId, base, quote, live, minSz, lotSz, tickSz, null, null, null, null);
         }
     }
 

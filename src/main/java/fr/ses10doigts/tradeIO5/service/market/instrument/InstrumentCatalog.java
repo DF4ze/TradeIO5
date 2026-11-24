@@ -33,6 +33,8 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li>Rafraîchissement à la demande quand le catalogue a plus de {@code refresh-after} ({@link ExecutionDefaults#CATALOG_REFRESH_AFTER}),
  *       ou explicite via {@link #refresh}.</li>
+ *   <li>Volume 24 h : lu par le client dans le même rafraîchissement (un appel « toutes les paires » par exchange), stocké en cotation avec sa
+ *       date de lecture ; un volume nul ne remplace jamais une valeur déjà lue.</li>
  *   <li>Panne : le catalogue en base est conservé (WARN), jamais vidé ; après un échec, pas de nouvelle tentative avant
  *       {@link ExecutionDefaults#CATALOG_RETRY_AFTER_FAILURE} (pas de boucle vers le provider).</li>
  *   <li>Catalogue absent ET provider injoignable => {@link InstrumentLookupException}.</li>
@@ -42,7 +44,8 @@ import java.util.stream.Collectors;
 @Service
 public class InstrumentCatalog {
 
-    private static final String LIVE_STATE = "live";
+    /** État normalisé d'une paire négociable (valeur commune à tous les exchanges). */
+    public static final String LIVE_STATE = "live";
     private static final String DELISTED_STATE = "inactive";
 
     private final ExchangeInstrumentRepository repository;
@@ -82,6 +85,21 @@ public class InstrumentCatalog {
                 .map(i -> new InstrumentInfo(i.getInstId(), i.getBase(), i.getQuote(), i.getMinSz(), i.getLotSz(), i.getTickSz(),
                         i.getCostMin(), i.getFeeCurrency()))
                 .toList();
+    }
+
+    /**
+     * Paires de l'exchange TELLES QUE STOCKÉES, sans jamais rafraîchir (aucun appel réseau) : lectures de l'API des actifs éligibles, de la
+     * suspension d'un lien et du Docteur. Vide si le catalogue n'a jamais été chargé.
+     */
+    public List<ExchangeInstrument> storedInstruments(WebProviderCode provider) {
+        return repository.findByProvider(provider);
+    }
+
+    /** Paires négociables telles que stockées (aucun appel réseau), au format {@link InstrumentInfo}. */
+    public List<InstrumentInfo> storedLiveInstruments(WebProviderCode provider) {
+        return storedInstruments(provider).stream().filter(i -> LIVE_STATE.equals(i.getState()))
+                .map(i -> new InstrumentInfo(i.getInstId(), i.getBase(), i.getQuote(), i.getMinSz(), i.getLotSz(), i.getTickSz(),
+                        i.getCostMin(), i.getFeeCurrency())).toList();
     }
 
     /** Toutes les paires de l'exchange, négociables ou non (catalogue frais ou conservé) : liste du testeur d'ordre. */
@@ -137,6 +155,11 @@ public class InstrumentCatalog {
             row.setCostMin(l.costMin());
             row.setNativePair(l.nativePair());
             row.setFeeCurrency(l.feeCurrency());
+            if (l.volume24hQuote() != null) {
+                // Volume nul (exchange sans volume, ou lecture du volume en échec ce coup-ci) : l'ancienne valeur et sa date sont conservées.
+                row.setVolume24hQuote(l.volume24hQuote());
+                row.setVolumeReadAt(now);
+            }
             row.setFetchedAt(now);
             toSave.add(row);
         }

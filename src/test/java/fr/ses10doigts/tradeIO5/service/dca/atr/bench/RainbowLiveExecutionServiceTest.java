@@ -64,7 +64,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @DataJpaTest
-@Import({AffectationConfigResolver.class, RainbowLivePresetEventService.class, AssetAffectationService.class, ExpertBasePresetService.class, ExpertFixtures.class, RainbowLiveRunService.class, RainbowLiveBindingRunService.class, RainbowLiveExecutionService.class,
+@Import({AffectationConfigResolver.class, RainbowLivePresetEventService.class, AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetRegistry.class, ExpertBasePresetService.class, ExpertFixtures.class, RainbowLiveRunService.class, RainbowLiveBindingRunService.class, RainbowLiveExecutionService.class,
         RainbowTrendLiveService.class, fr.ses10doigts.tradeIO5.service.admin.AdminActionLogService.class, RainbowAthService.class,
         RainbowLiveExecutionServiceTest.ClockConfig.class, UserTradingSettingsService.class, RainbowModulationControlService.class,
         fr.ses10doigts.tradeIO5.service.portfolio.PortfolioSnapshotService.class})
@@ -126,7 +126,7 @@ class RainbowLiveExecutionServiceTest {
     void setUp() {
         basePresetService.ensureBasePresets();
         alice = user("alice", true);
-        for (String a : RainbowLiveDefaultPresets.ASSETS) {
+        for (String a : AssetRegistry.SEED_ASSETS) {
             serve(a, flat(N, 100));
         }
         when(datasetEngine.getDailyDatasetForAsset(anyString(), anyInt(), any(Instant.class), any()))
@@ -185,7 +185,7 @@ class RainbowLiveExecutionServiceTest {
 
     /** Un preset FLAT par actif autorisé => aucun preset par défaut créé par le job. */
     private List<AssetAffectation> presetsAllAssets(User u) {
-        return RainbowLiveDefaultPresets.ASSETS.stream().map(a -> preset(u, a, "t", FLAT, globals(false, 1.0))).toList();
+        return AssetRegistry.SEED_ASSETS.stream().map(a -> preset(u, a, "t", FLAT, globals(false, 1.0))).toList();
     }
 
     private RainbowLiveRun run(AssetAffectation p, LocalDate day) {
@@ -228,7 +228,7 @@ class RainbowLiveExecutionServiceTest {
     @DisplayName("Parité : le bloc == valeurs de simulate() appelé directement (bornes, zone, facteurs, états)")
     void parityWithEngine() {
         double[] closes = concat(flat(25, 100), 103, 99, 104, 98, 101);
-        for (String a : RainbowLiveDefaultPresets.ASSETS) {
+        for (String a : AssetRegistry.SEED_ASSETS) {
             serve(a, closes);
         }
         AssetAffectation p = presetsAllAssets(alice).getFirst();
@@ -264,7 +264,7 @@ class RainbowLiveExecutionServiceTest {
     @DisplayName("BUY_ZONE => BUY du montant moteur ; quantité = montant / close")
     void mapsBuyZone() {
         double[] closes = flat(N, 100);
-        for (String a : RainbowLiveDefaultPresets.ASSETS) {
+        for (String a : AssetRegistry.SEED_ASSETS) {
             serve(a, closes);
         }
         AssetAffectation p = presetsAllAssets(alice).getFirst();
@@ -282,7 +282,7 @@ class RainbowLiveExecutionServiceTest {
     @DisplayName("BUY_TRIGGERED => BUY (montant × multTriggered)")
     void mapsBuyTriggered() {
         double[] closes = concat(flat(N - 2, 100), 70, 100);
-        for (String a : RainbowLiveDefaultPresets.ASSETS) {
+        for (String a : AssetRegistry.SEED_ASSETS) {
             serve(a, closes);
         }
         AssetAffectation p = preset(alice, "BTC", "trig", TIGHT, globals(false, 1.0));
@@ -362,7 +362,7 @@ class RainbowLiveExecutionServiceTest {
     @DisplayName("Passe du lendemain : le run de la veille est rafraîchi sur la vraie clôture, action figée ; rejeu idempotent")
     void nextDayRefreshesPreviousRun() {
         AssetAffectation p = presetsAllAssets(alice).getFirst();
-        for (String a : RainbowLiveDefaultPresets.ASSETS) {
+        for (String a : AssetRegistry.SEED_ASSETS) {
             serve(a, flat(N, 100));
         }
         service.runPass(ASOF_2355);
@@ -373,7 +373,7 @@ class RainbowLiveExecutionServiceTest {
 
         // lendemain : la bougie J a sa clôture définitive (101) et la bougie J+1 est en cours
         double[] next = concat(flat(N - 1, 100), 101, 100);
-        for (String a : RainbowLiveDefaultPresets.ASSETS) {
+        for (String a : AssetRegistry.SEED_ASSETS) {
             serve(a, next);
         }
         PassSummary s = service.runPass(ASOF_2355.plusSeconds(86_400));
@@ -427,7 +427,7 @@ class RainbowLiveExecutionServiceTest {
     }
 
     private void presetsExcept(User u, String assetToSkip) {
-        for (String asset : RainbowLiveDefaultPresets.ASSETS) {
+        for (String asset : AssetRegistry.SEED_ASSETS) {
             if (!asset.equals(assetToSkip)) {
                 preset(u, asset, "t", FLAT, globals(false, 1.0));
                 serve(asset, flat(N, 100));
@@ -456,7 +456,7 @@ class RainbowLiveExecutionServiceTest {
     @DisplayName("Dataset demandé avec le lookBack D1 mutualisé et asOf (horloge injectée)")
     void datasetRequestedWithSharedLookback() {
         presetsAllAssets(alice);
-        for (String a : RainbowLiveDefaultPresets.ASSETS) {
+        for (String a : AssetRegistry.SEED_ASSETS) {
             serve(a, flat(N, 100));
         }
         service.runPass(ASOF_2355);
@@ -514,7 +514,7 @@ class RainbowLiveExecutionServiceTest {
     @DisplayName("Affectations de base créées pour les users actifs (inactives donc non jouées) ; Affectation désactivée ignorée ; user désactivé ignoré")
     void affectationsAndUsers() {
         User disabledUser = user("carol", false);
-        for (String a : RainbowLiveDefaultPresets.ASSETS) {
+        for (String a : AssetRegistry.SEED_ASSETS) {
             serve(a, flat(N, 100));
         }
         AssetAffectation off = fixtures.affectation(alice, "BTC", "off", FLAT, globals(false, 1.0));
@@ -533,7 +533,7 @@ class RainbowLiveExecutionServiceTest {
         User bob = user("bob", true);
         AssetAffectation pa = presetsAllAssets(alice).getFirst();
         AssetAffectation pb = presetsAllAssets(bob).getFirst();
-        for (String a : RainbowLiveDefaultPresets.ASSETS) {
+        for (String a : AssetRegistry.SEED_ASSETS) {
             serve(a, flat(N, 100));
         }
 
@@ -557,7 +557,7 @@ class RainbowLiveExecutionServiceTest {
         assertEquals(1.0, run(p, LAST_DAY).getConfig().toGlobals().baseAmount(), 1e-12);
 
         fixtures.affectation(alice, "BTC", "t2", FLAT, globals(false, 2.0));
-        for (String a : RainbowLiveDefaultPresets.ASSETS) {
+        for (String a : AssetRegistry.SEED_ASSETS) {
             serve(a, flat(N + 1, 100));
         }
         service.runPass(ASOF_2355.plusSeconds(86_400));

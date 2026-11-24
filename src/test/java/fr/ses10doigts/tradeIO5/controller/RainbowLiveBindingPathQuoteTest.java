@@ -68,7 +68,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Endpoint {@code GET /bindings/{id}/path-quote} : services de binding réels sur H2, exchange/catalogue mockés. */
 @DataJpaTest
-@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver.class,
+@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetRegistry.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver.class,
         fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService.class, RainbowLiveBindingService.class,
         RainbowLiveBindingPathQuoteTest.TestConfig.class})
 @DisplayName("GET /bindings/{id}/path-quote : devis du chemin, propriétaire seulement")
@@ -78,6 +78,23 @@ class RainbowLiveBindingPathQuoteTest {
 
     @TestConfiguration
     static class TestConfig {
+        @Bean
+        fr.ses10doigts.tradeIO5.service.market.eligibility.AssetEligibilityService eligibility() {
+            return org.mockito.Mockito.mock(fr.ses10doigts.tradeIO5.service.market.eligibility.AssetEligibilityService.class);
+        }
+
+        @Bean
+        fr.ses10doigts.tradeIO5.service.dca.atr.binding.AssetLinkBootstrap bootstrap() {
+            return org.mockito.Mockito.mock(fr.ses10doigts.tradeIO5.service.dca.atr.binding.AssetLinkBootstrap.class);
+        }
+
+        @Bean
+        fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService baseRates() {
+            var rates = org.mockito.Mockito.mock(fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService.class);
+            org.mockito.Mockito.when(rates.isCalibrated(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+            return rates;
+        }
+
         @Bean
         DomainClock domainClock() {
             return new FixedDomainClock(Instant.parse("2026-10-10T08:00:00Z"));
@@ -143,7 +160,7 @@ class RainbowLiveBindingPathQuoteTest {
         BindingPathQuoteService quoteService = new BindingPathQuoteService(bindingService, List.of(reader), TestFees.service(fees),
                 List.of(books), catalog, groups, new PathFinder(new FeeTest()), new FeeTest(), "");
         as(alice);
-        mvc = MockMvcBuilders.standaloneSetup(new RainbowLiveBindingController(bindingService, quoteService, facade))
+        mvc = MockMvcBuilders.standaloneSetup(new RainbowLiveBindingController(bindingService, LinkStatesStub.neutral(), quoteService, facade))
                 .setControllerAdvice(new RainbowLiveControllerAdvice())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(om)).build();
     }

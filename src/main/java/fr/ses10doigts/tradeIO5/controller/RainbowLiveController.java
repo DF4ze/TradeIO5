@@ -33,7 +33,7 @@ public class RainbowLiveController {
 
     @GetMapping("/defaults")
     public DefaultsDto defaults() {
-        return queryService.defaults();
+        return queryService.defaults(authenticationFacade.getConnectedUser());
     }
 
     /** Historique des changements d'Affectation du user connecté (filtre ?asset optionnel), du plus récent au plus ancien. */

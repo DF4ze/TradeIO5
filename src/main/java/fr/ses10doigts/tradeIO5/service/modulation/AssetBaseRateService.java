@@ -99,6 +99,23 @@ public class AssetBaseRateService {
         return new Rate(found.rates().rate(profile), found.calibrated());
     }
 
+    /**
+     * Une ligne {@code asset_base_rate} VALIDE existe-t-elle pour l'actif (taux présents, bornés, croissants) ? Critère « calibré » : sans elle, l'actif est
+     * en simulation seule (« en attente de validation ») et le déclencheur D1b propose un calcul. Ne tient aucun compte du repli BTC ni de la table de calage.
+     */
+    @Transactional(readOnly = true)
+    public boolean isCalibrated(String asset) {
+        return rows.findByAssetSymbol(asset).map(row -> {
+            try {
+                Rates.of(row).validate();
+                return true;
+            } catch (IllegalArgumentException e) {
+                log.warn("Ligne asset_base_rate invalide pour {} : {}", asset, e.getMessage());
+                return false;
+            }
+        }).orElse(false);
+    }
+
     /** Les 4 taux de l'actif : sa ligne, sinon (BTC / ETH) sa table de calage, sinon le repli BTC non calibré. */
     @Transactional(readOnly = true)
     public AssetRates rates(String asset) {

@@ -12,10 +12,9 @@ public record LiveSlot(Long bindingId, Long affectationId, String assetSymbol, L
                        MarketDataSource candleSource) {
 
     /**
-     * Ordre de service des liens d'un utilisateur, source unique live / simulation : {@code priority} croissante, puis rang de
-     * l'actif ({@link RainbowLiveDefaultPresets#ASSETS}), puis identifiant du lien. Il détermine qui voit le cash et l'exposition restants.
+     * Ordre de service des liens d'un utilisateur, source unique live / simulation : {@code priority} croissante, puis ANCIENNETÉ DU LIEN
+     * (identifiant, le plus ancien d'abord ; plus de rang d'actif BTC / ETH / PAXG). Il détermine qui voit le cash et l'exposition restants.
      */
     public static final Comparator<LiveSlot> SERVICE_ORDER = Comparator.comparingInt(LiveSlot::priority)
-            .thenComparingInt(slot -> RainbowLiveDefaultPresets.ASSETS.indexOf(slot.assetSymbol()))
             .thenComparing(LiveSlot::bindingId);
 }

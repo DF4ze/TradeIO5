@@ -8,7 +8,10 @@ import fr.ses10doigts.tradeIO5.repository.WalletRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveBindingRepository;
 import fr.ses10doigts.tradeIO5.security.model.User;
 import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetAffectationService;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
+import fr.ses10doigts.tradeIO5.model.entity.exchange.WebProvider;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.LiveCandleSource;
+import fr.ses10doigts.tradeIO5.service.market.eligibility.AssetEligibilityService;
+import fr.ses10doigts.tradeIO5.service.modulation.AssetBaseRateService;
 import fr.ses10doigts.tradeIO5.service.market.DomainClock;
 import lombok.RequiredArgsConstructor;
 import fr.ses10doigts.tradeIO5.model.dto.execution.PathQuote;
@@ -37,6 +40,9 @@ public class RainbowLiveBindingService {
     private final AssetAffectationService affectationService;
     private final WalletRepository walletRepository;
     private final BindingCheck bindingCheck;
+    private final AssetEligibilityService eligibility;
+    private final AssetLinkBootstrap bootstrap;
+    private final AssetBaseRateService baseRates;
     private static final java.util.regex.Pattern ROUTE_FORMAT = java.util.regex.Pattern.compile("[A-Z0-9]{2,10}(>[A-Z0-9]{2,10}){1,2}");
 
     private final DomainClock clock;
@@ -46,8 +52,8 @@ public class RainbowLiveBindingService {
     private org.springframework.context.ApplicationEventPublisher events;
 
     /**
-     * Création : {@code bagPercent} et {@code priority} nuls => défauts (100 %, rang de l'actif) ; {@code affectationId} nul =>
-     * instance Système de l'actif.
+     * Création : {@code bagPercent} et {@code priority} nuls => défauts (100 %, après les liens existants de l'utilisateur) ; {@code affectationId}
+     * nul => instance Système de l'actif.
      */
     public record CreateRequest(String assetSymbol, Long walletId, Double bagPercent, Integer priority,
                                 Double baseAmount, String preferredRoute, Long affectationId) {
@@ -82,27 +88,34 @@ public class RainbowLiveBindingService {
 
     @Transactional
     public Checked create(User user, CreateRequest req) {
-        requireAllowedAsset(req.assetSymbol());
+        String asset = normalizeAsset(req.assetSymbol());
         Wallet wallet = walletOf(user, req.walletId());
-        RainbowLiveBinding archived = bindingRepository.findByUserAndAssetSymbolAndWallet_Id(user, req.assetSymbol(), wallet.getId())
+        RainbowLiveBinding archived = bindingRepository.findByUserAndAssetSymbolAndWallet_Id(user, asset, wallet.getId())
                 .map(existing -> {
                     if (!existing.isArchived()) {
-                        throw new RainbowLiveBindingConflictException(req.assetSymbol(), wallet.getId(), existing.getId());
+                        throw new RainbowLiveBindingConflictException(asset, wallet.getId(), existing.getId());
                     }
                     return existing;
                 }).orElse(null);
-        AssetAffectation affectation = req.affectationId() == null ? affectationService.forAsset(user, req.assetSymbol())
-                : affectationService.requireLinkable(user, req.assetSymbol(), req.affectationId());
+        // éligibilité chez le provider du lien (400 + raison lisible), puis 1er lien d'un actif : ligne asset, bougies, presets de base, Affectation Système
+        WebProvider provider = wallet.getWebProvider();
+        if (provider == null) {
+            throw new IllegalArgumentException("Le wallet n'est rattaché à aucun exchange : aucun actif ne peut y être lié");
+        }
+        eligibility.require(asset, provider);
+        bootstrap.prepare(asset, provider, LiveCandleSource.of(wallet));
+        AssetAffectation affectation = req.affectationId() == null ? affectationService.forAsset(user, asset)
+                : affectationService.requireLinkable(user, asset, req.affectationId());
         double bag = req.bagPercent() == null ? DEFAULT_BAG_PERCENT : requireBagPercent(req.bagPercent());
-        int priority = req.priority() == null ? defaultPriority(req.assetSymbol()) : req.priority();
+        int priority = req.priority() == null ? defaultPriority(user) : req.priority();
 
         RainbowLiveBinding toSave = archived == null
-                ? RainbowLiveBinding.builder().user(user).assetSymbol(req.assetSymbol()).wallet(wallet).build() : archived;
+                ? RainbowLiveBinding.builder().user(user).assetSymbol(asset).wallet(wallet).build() : archived;
         toSave.setAffectation(affectation);
         toSave.setBagPercent(bag);
         toSave.setPriority(priority);
         toSave.setBaseAmount(optionalBaseAmount(req.baseAmount()));
-        toSave.setPreferredRoute(optionalRoute(req.preferredRoute(), req.assetSymbol()));
+        toSave.setPreferredRoute(optionalRoute(req.preferredRoute(), asset));
         if (archived != null) { // réactivation : repart d'un lien neuf (exécution coupée, 1er ordre à re-valider)
             toSave.setArchivedAt(null);
             toSave.applyExecutionMode(BindingExecutionMode.DISABLED);
@@ -181,6 +194,9 @@ public class RainbowLiveBindingService {
         }
         RainbowLiveBinding binding = owned(user, id);
         boolean enabled = mode == BindingExecutionMode.ACTIVE;
+        if (enabled && !baseRates.isCalibrated(binding.getAssetSymbol())) {
+            throw new IllegalArgumentException(LinkStateService.PENDING_VALIDATION_MESSAGE + " (" + binding.getAssetSymbol() + ")");
+        }
         binding.applyExecutionMode(mode);
         if (enabled && binding.getFirstLiveApprovedAt() == null) {
             binding.setFirstLiveApprovedAt(clock.now());
@@ -318,15 +334,19 @@ public class RainbowLiveBindingService {
         return r;
     }
 
-    private static void requireAllowedAsset(String asset) {
-        if (asset == null || !RainbowLiveDefaultPresets.ASSETS.contains(asset)) {
-            throw new IllegalArgumentException("Actif non autorisé : " + asset
-                    + " (autorisés : " + RainbowLiveDefaultPresets.ASSETS + ")");
+    private static final java.util.regex.Pattern ASSET_FORMAT = java.util.regex.Pattern.compile("[A-Z0-9]{2,16}");
+
+    /** Symbole nu en majuscules ; format invalide => 400 (l'éligibilité chez le provider juge ensuite l'actif). */
+    private static String normalizeAsset(String asset) {
+        String normalized = asset == null ? "" : asset.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!ASSET_FORMAT.matcher(normalized).matches()) {
+            throw new IllegalArgumentException("Symbole d'actif invalide : " + asset);
         }
+        return normalized;
     }
 
-    /** Rang de l'actif dans {@link RainbowLiveDefaultPresets#ASSETS} : BTC=0, ETH=1, PAXG=2. */
-    private static int defaultPriority(String asset) {
-        return RainbowLiveDefaultPresets.ASSETS.indexOf(asset);
+    /** Priorité par défaut d'un nouveau lien : après tous les liens existants de l'utilisateur ; à priorité égale, le plus ancien (id) est servi d'abord. */
+    private int defaultPriority(User user) {
+        return bindingRepository.findByUserOrderByPriorityAscAssetSymbolAsc(user).stream().mapToInt(RainbowLiveBinding::getPriority).max().orElse(-1) + 1;
     }
 }

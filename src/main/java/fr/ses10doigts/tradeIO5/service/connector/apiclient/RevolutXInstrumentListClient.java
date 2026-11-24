@@ -21,6 +21,7 @@ import java.util.Map;
  * sont les paires). Négociable si {@code status = active}. {@code minSz = min_order_size} (base), {@code lotSz = base_step},
  * {@code tickSz = quote_step} (hypothèse : la doc ne dit pas explicitement que c'est le pas de prix), {@code costMin =
  * min_order_size_quote}, {@code nativePair} = {@code BASE-QUOTE} (symbole des routes). Le provider doit être déclaré et actif.
+ * <b>Aucun volume 24 h</b> : les endpoints publics n'exposent ni volume global ni ticker (volume inconnu, nul au catalogue).
  */
 @Slf4j
 @Component

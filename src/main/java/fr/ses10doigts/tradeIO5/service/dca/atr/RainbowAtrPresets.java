@@ -22,6 +22,11 @@ public final class RainbowAtrPresets {
     }
 
     /** {@code [BEAR, BULL]} de l'actif ({@code BTC}, {@code ETH} ou {@code PAXG}). */
+    /** Actifs ayant des jeux Bull / Bear dédiés ; tout autre actif repart de ceux du BTC (cf. {@code RainbowLiveDefaultPresets#configFor}). */
+    public static boolean hasPresets(String asset) {
+        return "BTC".equals(asset) || "ETH".equals(asset) || "PAXG".equals(asset);
+    }
+
     public static List<RainbowAtrParamSet> bearBull(String asset) {
         return switch (asset) {
             case "BTC" -> List.of(

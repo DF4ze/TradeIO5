@@ -48,7 +48,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @DataJpaTest
-@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, AffectationConfigResolver.class, RainbowLivePresetEventService.class,
+@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetRegistry.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, AffectationConfigResolver.class, RainbowLivePresetEventService.class,
         RainbowBandsQueryService.class, RainbowLiveBandsControllerTest.ClockConfig.class})
 @DisplayName("RainbowLiveBandsController : bandes figées lues dans les runs")
 class RainbowLiveBandsControllerTest {

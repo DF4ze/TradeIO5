@@ -79,7 +79,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * pilotés par des faux ({@link IAuthenticationFacade}, {@link UserPreferencesService}).
  */
 @DataJpaTest
-@Import({AssetAffectationService.class, ExpertBasePresetService.class, RainbowLivePresetEventService.class, AdminActionLogService.class,
+@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetRegistry.class, ExpertBasePresetService.class, RainbowLivePresetEventService.class, AdminActionLogService.class,
         ExpertPresetSupport.class, ExpertAssets.class, ExpertPresetValidator.class, TrendPresetService.class, RainbowPresetService.class,
         ExpertAffectationService.class, ExpertAssetService.class, SimulationEligibility.class, ExpertApiTest.ClockConfig.class})
 @DisplayName("Espace Expert : API des presets et des Affectations")
@@ -255,6 +255,17 @@ class ExpertApiTest {
     @Test
     @DisplayName("GET /assets : actifs des presets de base, providers actifs seuls, statut depuis l'Affectation, éligibilité")
     void assets() throws Exception {
+        // liste = actifs liés de l'utilisateur : vide sans lien, puis un lien par actif
+        mvc.perform(get("/api/expert/assets")).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+        fr.ses10doigts.tradeIO5.model.entity.currency.Wallet w = walletRepository.save(fr.ses10doigts.tradeIO5.model.entity.currency.Wallet.builder()
+                .name("w-assets").source(fr.ses10doigts.tradeIO5.model.enumerate.WalletSource.EXCHANGE)
+                .webProviderCode(fr.ses10doigts.tradeIO5.model.enumerate.WebProviderCode.OKX).user(alice).build());
+        int priority = 0;
+        for (String symbol : fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetRegistry.SEED_ASSETS) {
+            bindingRepository.save(fr.ses10doigts.tradeIO5.model.entity.dca.bench.RainbowLiveBinding.builder().user(alice)
+                    .assetSymbol(symbol).wallet(w).bagPercent(100.0).priority(priority++).build());
+        }
+        em.flush();
         mvc.perform(get("/api/expert/assets")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(3))
                 .andExpect(jsonPath("$[0].symbol").value("BTC"))

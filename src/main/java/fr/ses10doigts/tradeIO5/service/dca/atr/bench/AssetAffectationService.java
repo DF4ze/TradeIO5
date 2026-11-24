@@ -40,6 +40,7 @@ public class AssetAffectationService {
     private final RainbowLiveBindingRepository bindingRepository;
     private final RainbowLivePresetEventService eventService;
     private final fr.ses10doigts.tradeIO5.repository.dca.bench.RainbowLiveRunRepository runRepository;
+    private final AssetRegistry registry;
     private final DomainClock clock;
 
     /** Nom de l'instance Système d'un actif (« BTC Système »). */
@@ -48,39 +49,43 @@ public class AssetAffectationService {
     }
 
     /**
-     * Instance Système (presets de base, non modifiable) pour chaque actif où l'utilisateur n'en a pas. Une Affectation
-     * antérieure dont les trois presets sont SYSTEM est adoptée (marquée Système et nommée) au lieu d'être dupliquée.
+     * Instance Système (presets de base, non modifiable) pour chaque actif où l'utilisateur n'en a pas : BTC, ETH, PAXG (graine) et les actifs liés
+     * par l'utilisateur. Une Affectation antérieure dont les trois presets sont SYSTEM est adoptée (marquée Système et nommée) au lieu d'être dupliquée.
      */
     @Transactional
     public List<AssetAffectation> ensureAffectations(User user) {
         List<AssetAffectation> created = new ArrayList<>();
         Instant now = clock.now();
-        for (String asset : RainbowLiveDefaultPresets.ASSETS) {
-            if (repository.findByUserAndAssetSymbolAndSystemTrue(user, asset).isPresent()) {
-                continue;
-            }
-            TrendPreset trend = trendRepository.findByAssetSymbolAndBaseRole(asset, BasePresetRole.TREND).orElse(null);
-            RainbowPreset up = rainbowRepository.findByAssetSymbolAndBaseRole(asset, BasePresetRole.RAINBOW_BULL).orElse(null);
-            RainbowPreset down = rainbowRepository.findByAssetSymbolAndBaseRole(asset, BasePresetRole.RAINBOW_BEAR).orElse(null);
-            if (trend == null || up == null || down == null) {
-                log.warn("Presets de base absents pour {} : Affectation de user={} non créée", asset, user.getId());
-                continue;
-            }
-            AssetAffectation adopted = repository.findByUserAndAssetSymbolOrderByIdAsc(user, asset).stream()
-                    .filter(a -> a.getName() == null && onBasePresets(a, trend, up, down)).findFirst().orElse(null);
-            if (adopted != null) {
-                adopted.setSystem(true);
-                adopted.setName(systemName(asset));
-                created.add(repository.save(adopted));
-                continue;
-            }
-            created.add(repository.save(AssetAffectation.builder().user(user).assetSymbol(asset).name(systemName(asset)).system(true)
-                    .trendPreset(trend).rainbowUp(up).rainbowDown(down).createdAt(now).updatedAt(now).build()));
+        for (String asset : registry.affectationAssets(user)) {
+            ensureSystem(user, asset, now).ifPresent(created::add);
         }
         if (!created.isEmpty()) {
             log.info("Affectations Système créées pour user={} : {}", user.getId(), created.size());
         }
         return created;
+    }
+
+    /** Crée (ou adopte) l'instance Système de l'actif si absente ; vide si elle existe déjà ou si les presets de base manquent. */
+    private java.util.Optional<AssetAffectation> ensureSystem(User user, String asset, Instant now) {
+        if (repository.findByUserAndAssetSymbolAndSystemTrue(user, asset).isPresent()) {
+            return java.util.Optional.empty();
+        }
+        TrendPreset trend = trendRepository.findByAssetSymbolAndBaseRole(asset, BasePresetRole.TREND).orElse(null);
+        RainbowPreset up = rainbowRepository.findByAssetSymbolAndBaseRole(asset, BasePresetRole.RAINBOW_BULL).orElse(null);
+        RainbowPreset down = rainbowRepository.findByAssetSymbolAndBaseRole(asset, BasePresetRole.RAINBOW_BEAR).orElse(null);
+        if (trend == null || up == null || down == null) {
+            log.warn("Presets de base absents pour {} : Affectation de user={} non créée", asset, user.getId());
+            return java.util.Optional.empty();
+        }
+        AssetAffectation adopted = repository.findByUserAndAssetSymbolOrderByIdAsc(user, asset).stream()
+                .filter(a -> a.getName() == null && onBasePresets(a, trend, up, down)).findFirst().orElse(null);
+        if (adopted != null) {
+            adopted.setSystem(true);
+            adopted.setName(systemName(asset));
+            return java.util.Optional.of(repository.save(adopted));
+        }
+        return java.util.Optional.of(repository.save(AssetAffectation.builder().user(user).assetSymbol(asset).name(systemName(asset)).system(true)
+                .trendPreset(trend).rainbowUp(up).rainbowDown(down).createdAt(now).updatedAt(now).build()));
     }
 
     private static boolean onBasePresets(AssetAffectation a, TrendPreset trend, RainbowPreset up, RainbowPreset down) {
@@ -91,7 +96,7 @@ public class AssetAffectationService {
     /** Instance Système de l'utilisateur sur l'actif, créée sur les presets de base si absente. */
     @Transactional
     public AssetAffectation forAsset(User user, String assetSymbol) {
-        ensureAffectations(user);
+        ensureSystem(user, assetSymbol, clock.now());
         return repository.findByUserAndAssetSymbolAndSystemTrue(user, assetSymbol)
                 .orElseThrow(() -> new IllegalStateException("Aucune Affectation possible pour " + assetSymbol + " (presets de base absents)"));
     }
@@ -108,7 +113,7 @@ public class AssetAffectationService {
     }
 
     private static final java.util.Comparator<AssetAffectation> ORDER = java.util.Comparator
-            .<AssetAffectation>comparingInt(a -> RainbowLiveDefaultPresets.ASSETS.indexOf(a.getAssetSymbol()))
+            .comparing(AssetAffectation::getAssetSymbol)
             .thenComparing(a -> !a.isSystem()).thenComparing(AssetAffectation::displayName);
 
     /** Affectation de l'utilisateur ; inexistante ou d'un autre utilisateur ⇒ {@link AssetAffectationNotFoundException}. */
@@ -128,7 +133,7 @@ public class AssetAffectationService {
     @Transactional(readOnly = true)
     public List<AssetAffectation> linked(User user) {
         return bindingRepository.findActiveAffectationsByUser(user).stream()
-                .sorted(java.util.Comparator.comparingInt(a -> RainbowLiveDefaultPresets.ASSETS.indexOf(a.getAssetSymbol()))).toList();
+                .sorted(java.util.Comparator.comparing(AssetAffectation::getAssetSymbol)).toList();
     }
 
     /** Affectations jouées pour l'utilisateur : référencées par un lien non archivé et complètes. */

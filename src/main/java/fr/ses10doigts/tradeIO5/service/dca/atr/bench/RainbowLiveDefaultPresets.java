@@ -5,7 +5,6 @@ import fr.ses10doigts.tradeIO5.service.dca.ReentryMode;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrGlobals;
 import fr.ses10doigts.tradeIO5.service.dca.atr.RainbowAtrTuning;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -16,8 +15,6 @@ import java.util.Map;
  */
 public final class RainbowLiveDefaultPresets {
 
-    /** Actifs autorisés (symboles nus d'Asset). */
-    public static final List<String> ASSETS = List.of("BTC", "ETH", "PAXG");
     public static final int DEFAULT_ANALYSIS_WINDOW_MONTHS = 6;
 
     /**
@@ -68,12 +65,12 @@ public final class RainbowLiveDefaultPresets {
     private RainbowLiveDefaultPresets() {
     }
 
-    /** Copie de la config par défaut de l'actif (jamais l'instance partagée). */
+    /** Actif de repli des configs sans réglage dédié (tout actif hors BTC / ETH / PAXG). */
+    public static final String FALLBACK_ASSET = "BTC";
+
+    /** Copie de la config par défaut de l'actif, ou celle du BTC s'il n'a pas de config dédiée (jamais l'instance partagée). */
     public static RainbowAtrConfig configFor(String assetSymbol) {
-        RainbowAtrConfig c = BY_ASSET.get(assetSymbol);
-        if (c == null) {
-            throw new IllegalArgumentException("Actif non autorisé : " + assetSymbol + " (autorisés : " + ASSETS + ")");
-        }
+        RainbowAtrConfig c = BY_ASSET.getOrDefault(assetSymbol, BY_ASSET.get(FALLBACK_ASSET));
         return RainbowAtrConfig.of(c.toTuning(), c.toGlobals());
     }
 

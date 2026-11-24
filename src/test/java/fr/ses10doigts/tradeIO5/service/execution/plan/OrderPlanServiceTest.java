@@ -71,7 +71,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * user sans effet sur les autres, mode OFF, et lecture REST (propriétaire seulement, DTO sans entité).
  */
 @DataJpaTest
-@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver.class,
+@Import({AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetRegistry.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertFixtures.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.ExpertBasePresetService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AffectationConfigResolver.class,
         fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLivePresetEventService.class, OrderPlanQueryService.class,
         OrderPlanServiceTest.ClockConfig.class})
 @DisplayName("OrderPlanService : persistance idempotente du plan d'ordres dry-run")

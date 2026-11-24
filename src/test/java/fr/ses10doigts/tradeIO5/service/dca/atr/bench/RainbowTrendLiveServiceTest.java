@@ -64,7 +64,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @DataJpaTest
-@Import({ExpertBasePresetService.class, AffectationConfigResolver.class, RainbowLivePresetEventService.class, AssetAffectationService.class, RainbowLiveRunService.class, RainbowLiveBindingRunService.class, RainbowLiveExecutionService.class, fr.ses10doigts.tradeIO5.service.portfolio.PortfolioSnapshotService.class,
+@Import({ExpertBasePresetService.class, AffectationConfigResolver.class, RainbowLivePresetEventService.class, AssetAffectationService.class, fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetRegistry.class, RainbowLiveRunService.class, RainbowLiveBindingRunService.class, RainbowLiveExecutionService.class, fr.ses10doigts.tradeIO5.service.portfolio.PortfolioSnapshotService.class,
         RainbowTrendLiveService.class, fr.ses10doigts.tradeIO5.service.admin.AdminActionLogService.class, RainbowAthService.class, RainbowTrendLiveServiceTest.ClockConfig.class, UserTradingSettingsService.class, RainbowModulationControlService.class})
 @DisplayName("Live Rainbow : presets Trend Mix (état persisté, ATH en base)")
 class RainbowTrendLiveServiceTest {

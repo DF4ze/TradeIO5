@@ -17,6 +17,10 @@ public enum ExecutionBlockReason {
     NO_BINDING(false),
     BINDING_DISABLED(false),
     NOT_TRADABLE(true),
+    /** Lien suspendu (paire / route retirée, provider déconnecté ou clé supprimée, actif en liste noire) : aucun ordre réel, le lien reste visible. */
+    LINK_SUSPENDED(false),
+    /** Actif sans ligne de taux validée : simulation seule, aucun ordre réel avant validation. */
+    PENDING_VALIDATION(false),
     CREDENTIAL_INVALID(false),
     FIRST_LIVE_NOT_VALIDATED(false),
     NO_BASE_AMOUNT(false),

@@ -12,7 +12,7 @@ import fr.ses10doigts.tradeIO5.service.expert.simulation.SimulationEligibility;
 import fr.ses10doigts.tradeIO5.repository.AssetRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.AssetAffectationRepository;
 import fr.ses10doigts.tradeIO5.repository.dca.bench.TrendPresetRepository;
-import fr.ses10doigts.tradeIO5.service.dca.atr.bench.RainbowLiveDefaultPresets;
+import fr.ses10doigts.tradeIO5.service.dca.atr.bench.AssetRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +22,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
- * Actifs proposés : pour l'instant ceux dont les presets de base existent (la découverte d'actifs est un chantier à part).
+ * Actifs proposés : ceux que l'utilisateur a liés (liens non archivés) et dont les presets de base existent.
  * Lecture seule, aucun appel exchange ; l'éligibilité à la simulation est renseignée par le moteur de simulation.
  */
 @Service
@@ -35,10 +35,11 @@ public class ExpertAssetService {
     private final AssetAffectationRepository affectationRepository;
     private final RainbowPresetRepository rainbowRepository;
     private final SimulationEligibility simulationEligibility;
+    private final AssetRegistry registry;
 
     @Transactional(readOnly = true)
     public List<AssetDto> list(ExpertContext ctx) {
-        return RainbowLiveDefaultPresets.ASSETS.stream()
+        return registry.linkedAssets(ctx.user()).stream()
                 .filter(symbol -> trendRepository.findByAssetSymbolAndBaseRole(symbol, BasePresetRole.TREND).isPresent())
                 .map(symbol -> {
                     List<ProviderDto> providers = assets.providers(symbol).stream()
