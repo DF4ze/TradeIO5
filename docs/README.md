@@ -2,7 +2,7 @@
 statut: index
 sujet: Table de routage de la documentation
 modifié_le: 2026-11-23
-empreinte: 176f5c198f
+empreinte: e5336b721e
 ---
 # TradeIO-5 — Documentation
 
@@ -27,7 +27,7 @@ Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decis
 | [`decisions/passerelle-actif-non-stable.md`](decisions/passerelle-actif-non-stable.md) | PAXG/Kraken, routes via USDC |
 | [`decisions/wallet-reel-capital-commun.md`](decisions/wallet-reel-capital-commun.md) | wallet réel, pools cash, exchanges utilisés |
 | [`decisions/fil-rouge-dca-automatisation.md`](decisions/fil-rouge-dca-automatisation.md) | Trend, Rainbow ATR, pine, bench, calibrations |
-| [`decisions/full-autonome-v1.md`](decisions/full-autonome-v1.md) | cible Full Autonome v1 : exposition constante par profil (table de calage, marge k), acquis mesurés, E1 et E2 mesurés (coupure au switch : E1 `COUPURE_UTILE` mais fragile, E2 `COUPURE_NON_ROBUSTE` ; PAXG non conclu), reste à faire (C5, D1) |
+| [`decisions/full-autonome-v1.md`](decisions/full-autonome-v1.md) | cible Full Autonome v1 : exposition constante par profil (table de calage, marge k), acquis mesurés, E1 et E2 mesurés (coupure au switch : E1 `COUPURE_UTILE` mais fragile, E2 `COUPURE_NON_ROBUSTE` ; PAXG non conclu), D1a mesuré (preset existant générique sur actifs jamais vus), C5 fait (taux par profil éditables en admin, proposition d'onboarding au taux du profil), D1b fait (proposition, alerte, validation admin), reste à faire (recette V6–V8, arbitrage des bandes de profil) |
 | [`decisions/architecture-interface.md`](decisions/architecture-interface.md) | UX, pages, charte, logo |
 | [`decisions/definition-pnl.md`](decisions/definition-pnl.md) | calcul du PnL |
 | [`decisions/docteur-admin-ux.md`](decisions/docteur-admin-ux.md) | Docteur, page admin d'exécution, kill switch |
@@ -67,6 +67,8 @@ Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decis
 | [`architecture/15h-mise-en-production-exposition.md`](architecture/15h-mise-en-production-exposition.md) | mise en production du calage (C4) : niveau en taux de base, invariance au capital, bandes du live et onboarding, wallet BTC + ETH, facteur de réduction f, runner `exposure-production` |
 | [`architecture/15i-reglage-recent.md`](architecture/15i-reglage-recent.md) | réglage récent (D0) : réglage conjoint sur les 24 mois avant T, test en avançant 3 / 6 mois, comparateurs (preset, DCA égal, aléatoire), règle de verdict, runner `recent-tune` |
 | [`architecture/15j-diagnostic-switchs.md`](architecture/15j-diagnostic-switchs.md) | diagnostic des switchs Bull → Bear (E0) : régime du rejeu, 6 mesures par switch contre hasard, règle de verdict, runner `switch-diagnostic` ; résultats : [`etudes/etude-diagnostic-switchs.md`](etudes/etude-diagnostic-switchs.md) |
+| [`architecture/15m-pipeline-nouvel-actif.md`](architecture/15m-pipeline-nouvel-actif.md) | pipeline d'accueil d'un nouvel actif (D1b) : déclencheur au lien, historique provider / Binance bench, preset BTC + calage C3 allégé, drapeaux, table `new_asset_proposal`, alarme Docteur « actif à valider », écran admin Valider / Refuser, ligne de taux dédiée `asset_base_rate` |
+| [`architecture/15l-transfert-presets.md`](architecture/15l-transfert-presets.md) | transfert des presets existants sur actifs jamais vus (D1a) : stockage bench Binance USDT étiqueté, paires preset × actif, règles de verdict, runner `transfer` ; résultats : [`etudes/etude-transfert-presets.md`](etudes/etude-transfert-presets.md) |
 | [`architecture/15k-coupure-switch.md`](architecture/15k-coupure-switch.md) | coupure du bag au switch Bull → Bear (E1) : hook `SwitchCut` du moteur de rejeu, preset pur, comparaison à plafond de drawdown égal, runner `switch-cut` (BTC, ETH, PAXG, ré-entrée 20 % / 0 %) ; E2 : robustesse (taille de ré-entrée, bande de bruit, portefeuille BTC + ETH), runner `switch-robustness` ; résultats : [`etudes/etude-coupure-switch.md`](etudes/etude-coupure-switch.md), [`etudes/etude-coupure-robustesse.md`](etudes/etude-coupure-robustesse.md) |
 
 ## API & opérations

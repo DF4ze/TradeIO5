@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-10
-empreinte: 673c1d2e92
+modifié_le: 2026-11-23
+empreinte: ca6ae70118
 ---
 # Endpoints REST — Plans d'ordres et état d'exécution
 
@@ -59,7 +59,7 @@ Suite de [`rest-endpoints.md`](rest-endpoints.md) (Endpoints REST).
 | DELETE | `/api/exchanges/{provider}` | authentifié | Supprime les deux clés (même effet que ci-dessus) ; 204 |
 | GET | `/api/rainbow-live/wallets` | authentifié | Wallets de l'utilisateur connecté : `[{id, name, exchange}]` (liste déroulante de la création de binding) |
 | POST | `/api/rainbow-live/onboarding/link` | authentifié | Corps `{walletId}` : `BindingCheck` puis un lien **inactif** par actif BTC/ETH/PAXG sur l'Affectation de l'actif ; réponse `[{assetSymbol, outcome (LINKED\|ALREADY_LINKED\|NOT_LINKED), bindingId, presetName, status, message}]` (non lié : statut du check + raison). Idempotent ; wallet d'un autre user ⇒ 404 |
-| GET | `/api/rainbow-live/onboarding/proposals?walletId=&days=` | authentifié | `days` optionnel = durée d'étalement du cash (défaut : `autonomyDays` admin ; hors bornes absolues 7–365 ⇒ 400) ; réponse `{autonomy{defaultDays, minDays, maxDays}, proposals[{bindingId, assetSymbol, currentBaseAmount, presetBaseAmount, cashAllocated, averageMultiplier, autonomyDays, proposedBaseAmount, belowMinimum, feeTestLevel, warning}], suggestedBand{exposureMin, exposureMax}}` ; lecture seule (soldes + devis du chemin), rien enregistré : l'application passe par `PUT /bindings/{id}` `{baseAmount}` |
+| GET | `/api/rainbow-live/onboarding/proposals?walletId=&days=` | authentifié | `days` optionnel = durée d'étalement du cash : si absent, la proposition vient du **taux du profil** de l'utilisateur (repli sur `autonomyDays` admin si profil absent / `CUSTOM`) ; si présent, calcul par autonomie (hors bornes absolues 7–365 ⇒ 400) ; réponse `{autonomy{defaultDays, minDays, maxDays}, proposals[{bindingId, assetSymbol, currentBaseAmount, presetBaseAmount, cashAllocated, averageMultiplier, autonomyDays (nul au taux de profil), proposedBaseAmount, belowMinimum, feeTestLevel, warning, basis `PROFILE_RATE`/`AUTONOMY`, profile, baseRate, uncalibrated (ligne BTC en repli), riskNote}], suggestedBand{exposureMin, exposureMax}}` ; lecture seule (soldes + devis du chemin), rien enregistré : l'application passe par `PUT /bindings/{id}` `{baseAmount}` |
 | GET | `/api/rainbow-live/onboarding/path-routes?asset=` | authentifié | Routes **qui existent** pour acheter `asset` sur chaque wallet actif, **sans aucun calcul de frais** (catalogue seul, ni prix, ni carnet, ni solde ; `BindingPathQuoteService#routesWallet`, `PathFinder#routes`) ; réponse `[{walletId, walletName, exchange, tradeKey, routes[{routeKey, direct, chosen}], defaultRoute (la route directe si elle existe, sinon la 1ʳᵉ retenue ; nulle s'il n'y en a aucune), error \| null}]` ; wallet inutilisable ⇒ `routes=[]` + `error` |
 | GET | `/api/rainbow-live/onboarding/path-quotes?asset=&amount=` | authentifié | Devis du chemin d'achat de `asset` pour `amount` USD (> 0, sinon 400) sur **chaque wallet actif** de l'utilisateur, sans binding (même calcul que `/bindings/{id}/path-quote`, `BindingPathQuoteService#quoteWallet`) ; réponse `[{walletId, walletName, exchange, tradeKey (clé d'écriture active enregistrée : sans elle aucun ordre possible), quote (même forme que path-quote, avec `warning`) \| null, error \| null}]` ; un wallet inutilisable/illisible (clé rejetée, exchange non pris en charge, carnet indisponible…) donne `quote=null` + `error` sans bloquer les autres ; lecture seule |
 

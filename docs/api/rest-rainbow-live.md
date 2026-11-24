@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-16
-empreinte: 206a1d86bf
+modifié_le: 2026-11-23
+empreinte: 6a810eec55
 ---
 # Endpoints REST — Rainbow live (bindings, wallet, décisions, modulation, run)
 
@@ -67,8 +67,11 @@ Les réglages module les quantités des achats/ventes du Rainbow (cf. [`../archi
 |---|---|---|---|
 | GET | `/api/admin/limits` | ADMIN | `{parameters{maxOrderMultiplier, maxDayMultiplier, absoluteMaxOrderUsd, absoluteMaxDayUsd, feeWarnPct, feeRedPct : {value, defaultValue, max}}, updatedAt, updatedBy}` |
 | PUT | `/api/admin/limits` | ADMIN | Corps = jeu complet des 6 valeurs ⇒ même forme que le GET ; valeur absente, ≤ 0 ou au-delà du maximum, jour < ordre, avertissement > bloquant ⇒ 400 `{error}` ; journal `LIMITS` |
-| GET | `/api/admin/rainbow-modulation` | ADMIN | `{parameters{<nom>{value, defaultValue, min, max}}, updatedAt, updatedBy}` (12 paramètres dont les 4 plafonds de drawdown `drawdownCap{Prudent,Balanced,Dynamic,Full}Pct`, bornes absolues incluses) |
-| PUT | `/api/admin/rainbow-modulation` | ADMIN | Corps = jeu complet `{regulationMarginPct, sellBoostMax, biasMax, powerMin, powerMax, minBandWidthPts, modulationProductMax, autonomyDays, drawdownCapPrudentPct, drawdownCapBalancedPct, drawdownCapDynamicPct, drawdownCapFullPct}` (plafonds en % négatifs, ordre Prudent ≤ Équilibré ≤ Dynamique ≤ Full en amplitude) ⇒ même forme que le GET ; hors bornes ou `powerMin ≤ 1 ≤ powerMax` violé ⇒ 400 `{error}` ; journal `MODULATION` |
+| GET | `/api/admin/rainbow-modulation` | ADMIN | `{parameters{<nom>{value, defaultValue, min, max}}, updatedAt, updatedBy}` (21 paramètres dont les 4 plafonds de drawdown `drawdownCap{Prudent,Balanced,Dynamic,Full}Pct`, les 8 taux de base `baseRate{Btc,Eth}{Prudent,Balanced,Dynamic,Full}` et la marge `baseRateMarginK`, bornes absolues incluses) |
+| PUT | `/api/admin/rainbow-modulation` | ADMIN | Corps = jeu complet `{regulationMarginPct, sellBoostMax, biasMax, powerMin, powerMax, minBandWidthPts, modulationProductMax, autonomyDays, drawdownCapPrudentPct, drawdownCapBalancedPct, drawdownCapDynamicPct, drawdownCapFullPct, baseRateBtcPrudent … baseRateEthFull (8), baseRateMarginK}` (plafonds en % négatifs, ordre Prudent ≤ Équilibré ≤ Dynamique ≤ Full en amplitude ; taux > 0, croissants Prudent → Full par actif) ⇒ même forme que le GET ; hors bornes ou `powerMin ≤ 1 ≤ powerMax` violé ⇒ 400 `{error}` ; journal `MODULATION` |
+| GET | `/api/admin/new-asset-proposals` | ADMIN | Propositions de nouvel actif à valider (`PROPOSE`) ; `?all=true` = historique. Par proposition : `{id, asset, status, presetSource, historySource, candle{FirstDay,LastDay,Count,Checksum}, historyMonths, blockCount, switchCount, flags[], marginK, rates[{profile, capPct, multiplier, baseRate, status, worstWindow}], warning, nonTradable, presetPlan APPLIQUE_BTC\|DEDIE_CONSERVE, presetPlanText, canValidate, validateBlockedReason, requestedBy, createdAt, decidedAt, decidedBy}` |
+| POST | `/api/admin/new-asset-proposals/{id}/validate` | ADMIN | Écrit la ligne de taux dédiée de l'actif (+ presets BTC copiés si aucun preset dédié) ; même forme que le GET ; déjà décidée, sans taux ou taux invalides ⇒ 400 `{error}` ; journal `MODULATION` ([`../architecture/15m-pipeline-nouvel-actif.md`](../architecture/15m-pipeline-nouvel-actif.md)) |
+| POST | `/api/admin/new-asset-proposals/{id}/refuse` | ADMIN | Refuse : rien n'est écrit, repli BTC « non calibré » conservé ; même forme ; déjà décidée ⇒ 400 |
 | POST | `/api/admin/optimizer/runs` | ADMIN | Lance un run d'optimisation asynchrone (202) ; corps `{asset, walletId, cash0, endDate, profile, baseAmount?, seed?, sobolSamples?}` ⇒ `{id, state, progress, stage}` ; un seul run à la fois (409) ; **désactivé par défaut** (`tradeio.optimizer.enabled`, sinon 404) ; journal `RUN` — [`15-optimiseur.md`](../architecture/15-optimiseur.md) |
 | GET | `/api/admin/optimizer/runs/{id}` | ADMIN | `{id, state RUNNING\|DONE\|FAILED\|CANCELLED, progress, stage, error, reportJson}` ; 404 si inconnu ou expiré (30 min) |
 | DELETE | `/api/admin/optimizer/runs/{id}` | ADMIN | Annule le run ; même forme que le GET |

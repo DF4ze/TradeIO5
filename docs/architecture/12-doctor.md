@@ -1,7 +1,7 @@
 ---
 statut: courant
 modifié_le: 2026-11-23
-empreinte: bb708776ad
+empreinte: 4610da109b
 ---
 # Docteur — diagnostic et alarmes (Admin)
 
@@ -32,6 +32,7 @@ Un contrôle qui lève une exception produit un WARN sujet `_contrôle`. Seuils 
 - WARN/CRIT ⇒ crée ou met à jour (`lastSeen`, `occurrences`).
 - OK, ou sujet disparu d'un contrôle évalué ⇒ RESOLVED. UNKNOWN ne crée ni ne résout.
 - Défaut revenu < 24 h après sa résolution (`ALARM_REOPEN_WINDOW_HOURS`, ex. tampon de logs vidé au redémarrage) ⇒ **même alarme rouverte** (`occurrences` cumulées), pas de nouvelle ligne ; au-delà ⇒ nouvelle alarme.
+- Alarme levée **hors passe** : `NEW_ASSET_PROPOSAL:<actif>` (« Actif à valider », WARN, DATA / QUALITY), ouverte par `AlarmService.raise` quand une proposition de nouvel actif est enregistrée, close par Valider / Refuser ; aucun contrôle ne la réconcilie ([`15m-pipeline-nouvel-actif.md`](15m-pipeline-nouvel-actif.md)).
 - Acquitter / reporter (1–720 h) masque sans résoudre ; réouverture si la gravité monte ou à l'échéance du report.
 - Les alarmes résolues et les `job_run` sont purgés après 90 jours (`JobRunPurgeJob`).
 

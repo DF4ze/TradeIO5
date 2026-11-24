@@ -2,7 +2,7 @@
 statut: index
 sujet: Index des études actives
 modifié_le: 2026-11-23
-empreinte: 27f38045cf
+empreinte: 027109e0ea
 ---
 # Études (journal de conception daté)
 
@@ -25,6 +25,7 @@ empreinte: 27f38045cf
 | [`etude-diagnostic-switchs.md`](etude-diagnostic-switchs.md) | Résultats E0 : diagnostic des switchs Bull → Bear (verdict `PISTE_FERMÉE`, tableaux dans `etude-diagnostic-switchs-tableaux.md`) |  |
 | [`etude-coupure-switch.md`](etude-coupure-switch.md) | Résultats E1 : coupure du bag au switch contre preset pur à plafond de drawdown égal (BTC, ETH, PAXG ; avec et sans ré-entrée ; `COUPURE_UTILE` fragile sur BTC et ETH, PAXG non conclu) |  |
 | [`etude-coupure-robustesse.md`](etude-coupure-robustesse.md) | Résultats E2 : robustesse de la coupure (taille de ré-entrée, bande de bruit, portefeuille BTC + ETH ; `COUPURE_NON_ROBUSTE`, cause cycle dominant ; tableaux dans `etude-coupure-robustesse-tableaux.md`) |  |
+| [`etude-transfert-presets.md`](etude-transfert-presets.md) | Résultats D1a : transfert des presets BTC / ETH / PAXG sur 11 actifs (`PRESET_GENERIQUE`, BTC et ETH génériques, aucun choisi) ; tableaux : [`etude-transfert-presets-tableaux.md`](etude-transfert-presets-tableaux.md) |  |
 | [`etude-pistes-timing-sorties.md`](etude-pistes-timing-sorties.md) | Pistes de timing et de sorties après D0 : coupure du bag au switch Bull → Bear (E0 / E1) |  |
 | [`roadmap-moteur-optimisation.md`](roadmap-moteur-optimisation.md) | Roadmap — moteur d'optimisation / Full Autonome v1 (bilan des étapes, reste à faire) |  |
 | [`etude-provider-revolutx.md`](etude-provider-revolutx.md) | Étude — Provider Revolut X : clés générées par utilisateur, candles, exécution |  |

@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-11
 modifié_le: 2026-11-23
-empreinte: 4de99eca5d
+empreinte: 7ffef74043
 ---
 # Flyway et défauts d'initialisation
 
@@ -23,6 +23,12 @@ Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11 ; prod à la
 - Migration **idempotente** (rejouable en dev/recette) : conditionner chaque DDL par `information_schema` + `PREPARE`/`EXECUTE` (compatible MySQL 8 et MariaDB 10.11).
 - Ne jamais supprimer dans une migration ce que le code lit encore : retirer d'abord le code, puis écrire la migration (un `V2` qui supprimait `preset_id` avant le retrait du code a fait échouer la recette du 2026-11-11).
 - `ddl-auto=validate` : un écart entité/schéma empêche le démarrage.
+
+`V6__base_rates_par_profil.sql` (taux de base par profil + marge k, 9 colonnes de `rainbow_modulation_control`, défauts = table de calage ; **pas encore appliquée en prod**, recette requise) : [`../architecture/08d-rainbow-modulation.md`](../architecture/08d-rainbow-modulation.md).
+
+`V7__new_asset_proposal.sql` (table `new_asset_proposal`, propositions d'accueil d'un nouvel actif ; **pas encore appliquée en prod**, recette requise) : [`../architecture/15m-pipeline-nouvel-actif.md`](../architecture/15m-pipeline-nouvel-actif.md).
+
+`V8__asset_base_rate.sql` (table `asset_base_rate`, ligne de taux dédiée par actif écrite à la validation d'une proposition ; **pas encore appliquée en prod**, recette requise ; V6, V7 et V8 se déploient ensemble) : [`../architecture/15m-pipeline-nouvel-actif.md`](../architecture/15m-pipeline-nouvel-actif.md).
 
 ## Restes legacy
 
