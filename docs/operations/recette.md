@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-11
 modifié_le: 2026-11-24
-empreinte: 8556ab9de0
+empreinte: 95f305c3c4
 ---
 # Recette et déploiement prod
 
@@ -44,17 +44,16 @@ Template versionné : `src/main/resources/application-recette.properties.templat
 
 ## Procédure
 
-1. Construire le jar (JDK 21, `mvn -o package -DskipTests`), le copier dans `/home/oklm/TradeIO-recette/` (un `uploadFile` de ~125 Mo dépasse 80 s : vérifier `cmp`/taille avant de continuer).
-2. Lancer en arrière-plan (l'appel gateway coupe à ~80 s) : `cd /home/oklm/TradeIO-recette && nohup tools/recette/recette.sh <jar> > recette-run.out 2>&1 &` puis lire `reports/latest.md` dans un appel séparé (~1 min 30).
-3. KO : corriger dans le dépôt, reconstruire, relancer (le script recrée la copie à chaque run).
-4. OK **et** « go » de Clem : `deploy-prod.sh <jar> --go` (voir ci-dessous).
+1. `recette:tradeio-5` (playbook gateway, voir [`build-deploy.md`](build-deploy.md)) : package, envoi du jar et des scripts `tools/recette/` sur le VPS (CRLF -> LF), `recette.sh` en arrière-plan, attente de fin, affichage de `reports/latest.md` ; l'opération échoue si le verdict est KO. Suivre avec `waitOperation`.
+2. KO : corriger dans le dépôt puis relancer (le script recrée la copie à chaque run).
+3. OK **et** « go » de Clem : `deploy:tradeio-5` (jar de la recette, tampon sha256 < 24 h exigé).
 
 ## Sans recette (aucune modification de DB)
-Décision : [`../decisions/recette.md`](../decisions/recette.md). `deploy-prod.sh <jar> --go --sans-recette` saute le tampon de recette ; il **refuse** si le jar contient une migration Flyway de version supérieure à la dernière appliquée en prod. Dump, bascule, contrôles et retour arrière automatique restent identiques. Toujours sur « go » de Clem.
+Décision : [`../decisions/recette.md`](../decisions/recette.md). Opération `deploy-sans-recette:tradeio-5` (= `deploy-prod.sh <jar> --go --sans-recette`) : saute le tampon de recette ; il **refuse** si le jar contient une migration Flyway de version supérieure à la dernière appliquée en prod. Dump, bascule, contrôles et retour arrière automatique restent identiques. Toujours sur « go » de Clem.
 
 ## Déploiement prod (après recette OK + « go »)
 
-`deploy-prod.sh <jar> --go` (en `runAsUser: root` via le gateway, en arrière-plan) : vérifie le tampon de recette ; dump prod `~/backups/prod-avant-deploy-*.sql.gz` et copie de `application-prod.properties` ; copie du jar dans `/home/oklm/TradeIO/` ; `systemctl stop` ; bascule du lien `tradeio.jar` ; `systemctl start` ; attend `Started TradeIO5` ; contrôle Flyway (aucun échec), `/login` sur 9003, ERROR hors 401 de polling. **Démarrage en échec ⇒ retour automatique au jar précédent** (lien + redémarrage).
+`deploy-prod.sh <jar> --go` (lancé par `deploy:tradeio-5`, `runAsUser: root`) : vérifie le tampon de recette ; dump prod `~/backups/prod-avant-deploy-*.sql.gz` et copie de `application-prod.properties` ; copie du jar dans `/home/oklm/TradeIO/` ; `systemctl stop` ; bascule du lien `tradeio.jar` ; `systemctl start` ; attend `Started TradeIO5` ; contrôle Flyway (aucun échec), `/login` sur 9003, ERROR hors 401 de polling. **Démarrage en échec ⇒ retour automatique au jar précédent** (lien + redémarrage).
 
 ## Retour arrière manuel
 
@@ -63,8 +62,6 @@ Remettre le lien `tradeio.jar` sur le jar précédent et redémarrer. Restaurer 
 ## Pièges d'exploitation (VPS via ssh-gateway)
 
 - `systemctl stop|start tradeio` exige root : appeler `execCommand` avec `runAsUser: root` (`sudo -n` seul échoue).
-- Un appel `execCommand` coupe à ~80 s : lancer la recette en arrière-plan (`nohup … &`), puis lire `recette.out` dans un appel séparé ; ne pas relancer sans vérifier (`pgrep -af "[T]radeIO5"`).
-- `uploadFile` d'un jar (~125 Mo) dépasse 80 s : le transfert continue, vérifier la taille/`cmp` du fichier distant avant de relancer.
 - Jar à envoyer : `target/TradeIO5-<version>.jar`. Le `*-spring-boot.jar` (classifier du pom) a un `Start-Class` erroné et ne démarre pas (`ClassNotFoundException`).
 - `pkill -f <motif>` lancé depuis un `bash -c` contenant ce motif se tue lui-même : utiliser `kill $(pgrep -f "[m]otif")`.
 - Le jar embarque `application-dev/prod.properties` locaux ; en prod le fichier externe `/home/oklm/TradeIO/application-prod.properties` prime (y mettre `ddl-auto`, secrets, modes d'exécution).

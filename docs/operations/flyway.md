@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-11
 modifié_le: 2026-11-24
-empreinte: a5bea3fdf9
+empreinte: b7bc1defab
 ---
 # Flyway et défauts d'initialisation
 
@@ -50,8 +50,8 @@ Flyway est **actif** (local, recette, VPS prod depuis le 2026-11-11 ; prod à la
 | Commande | Effet |
 |---|---|
 | `mvn test -Dtest=FlywaySchemaTest -Dflyway.generate=true` | Réécrit `V1__init.sql` depuis les entités. **Ne plus l'utiliser** : V1 est figé ; une évolution d'entité = nouvelle migration. |
-| `mvn test -Dtest=FlywaySchemaTest -Dflyway.check=true` | Échoue si `V1__init.sql` diverge des entités ; valable uniquement tant qu'aucune migration `V2+` ne change le schéma. |
-| `mvn test` | Le schéma généré s'applique sur H2 (test de fumée). |
+| `FlywaySchemaTest` avec `-Dflyway.check=true` (run configuration IntelliJ) | Échoue si `V1__init.sql` diverge des entités ; valable uniquement tant qu'aucune migration `V2+` ne change le schéma. |
+| `test:tradeio-5` | Le schéma généré s'applique sur H2 (test de fumée). |
 
 ## Déployer une migration
 

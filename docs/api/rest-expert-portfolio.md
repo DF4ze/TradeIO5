@@ -1,8 +1,8 @@
 ---
 statut: courant
 vérifié_le: 2026-11-07
-modifié_le: 2026-11-16
-empreinte: 74502afc89
+modifié_le: 2026-11-24
+empreinte: 91e38c4460
 ---
 # Endpoints REST — Espace Expert, patrimoine, préférences
 

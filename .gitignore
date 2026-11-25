@@ -68,3 +68,10 @@ docs/prompts/
 
 # Sorties de tests locales
 target-test-*.txt
+
+# === Scripts/sorties ad hoc : utiliser les operations du playbook gateway (docs/operations/build-deploy.md) ===
+/run-*.bat
+/target-*.txt
+/hs_err_pid*
+/replay_pid*
+/_to_delete/

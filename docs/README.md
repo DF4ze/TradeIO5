@@ -2,7 +2,7 @@
 statut: index
 sujet: Table de routage de la documentation
 modifié_le: 2026-11-24
-empreinte: 3c4dbaee66
+empreinte: 1bda15915e
 ---
 # TradeIO-5 — Documentation
 
@@ -82,6 +82,7 @@ Table de routage : ne lire que la ligne utile. Hiérarchie de confiance : `decis
 | [`api/mcp-tools.md`](api/mcp-tools.md) | tools MCP |
 | [`operations/configuration.md`](operations/configuration.md) | propriétés, secrets, environnement |
 | [`operations/flyway.md`](operations/flyway.md) | migrations (Flyway actif), défauts d'initialisation |
+| [`operations/build-deploy.md`](operations/build-deploy.md) | builder, tester, lancer recette/déploiement : opérations du playbook gateway (jamais de script ad hoc) |
 | [`operations/recette.md`](operations/recette.md) | recette sur copie de prod (scripts `tools/recette/`), déploiement prod, retour arrière |
 | [`operations/acces-amis-ssh.md`](operations/acces-amis-ssh.md) | prérequis VPS (sudoers, scripts client) et test réel de l'accès des amis |
 | [`operations/dev-sync.md`](operations/dev-sync.md) | recopier la prod vers la base de dev (scripts `tools/dev-sync/`), anti-dérive |

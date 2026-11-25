@@ -3,8 +3,8 @@ statut: decision
 sujet: espace-expert
 cree_le: 2026-11-10
 origine: memoire-claude-migree
-modifié_le: 2026-11-23
-empreinte: d468f05cf4
+modifié_le: 2026-11-24
+empreinte: ad20e308f4
 ---
 # espace-expert
 

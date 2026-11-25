@@ -2,7 +2,7 @@
 statut: courant
 vérifié_le: 2026-11-08
 modifié_le: 2026-11-24
-empreinte: 4f2a6670bb
+empreinte: 02526dd907
 ---
 # Espace Expert — paramétrage Trend / Rainbow par actif
 
