@@ -42,8 +42,9 @@
   }
 
   function modulationCard(state) {
-    const card = ui.widget('Modulation', () => TIO.get(MOD), (m) => {
+    const card = ui.widget('Modulation', () => Promise.all([TIO.get(MOD), TIO.safe(TIO.get('/api/portfolio/holdings'), null)]), ([m, hold]) => {
       const L = m.limits, S = m.settings;
+      const now = hold && TIO.isNum(hold.exposurePct) ? hold.exposurePct : undefined; // exposition actuelle (repère sur la bande)
       state.drawdownCaps = L.drawdownCapsPct; state.paintProfile();
       const cur = { min: S.exposureMin, max: S.exposureMax, power: S.power, bias: S.bias, margin: TIO.isNum(S.regulationMarginPct) ? S.regulationMarginPct : L.marginDefaultPct };
       const base = Object.assign({}, cur);
@@ -53,7 +54,7 @@
       const bar = h('div');
       const paint = () => {
         minOut.textContent = F.pct(cur.min, 0); maxOut.textContent = F.pct(cur.max, 0); marOut.textContent = F.pct(cur.margin, 0); powOut.textContent = F.num(cur.power, 2) + '×'; biasOut.textContent = (cur.bias > 0 ? '+' : '') + F.num(cur.bias, 2);
-        TIO.mount(bar, ui.exposureBand({ min: cur.min, max: cur.max, marginPct: cur.margin }));
+        TIO.mount(bar, ui.exposureBand({ min: cur.min, max: cur.max, marginPct: cur.margin, value: now }));
         const touched = Object.keys(base).some((k) => cur[k] !== base[k]);
         if (touched !== !!state.preview) { state.preview = touched; state.paintProfile(); }
       };

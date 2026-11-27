@@ -23,6 +23,8 @@
     } catch (e) { /* silencieux */ }
   }
 
+  // l'onglet Diagnostic émet cet évènement après acquittement / report : mise à jour immédiate du compteur
+  document.addEventListener('tio:alarms-changed', refresh);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(); } });
   refresh();
   setInterval(refresh, POLL_MS);

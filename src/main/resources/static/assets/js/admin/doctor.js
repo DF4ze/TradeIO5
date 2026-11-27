@@ -45,7 +45,7 @@
   }
 
   async function act(button, path, body) {
-    await run(button, async () => { await api('POST', path, body); await load(); });
+    await run(button, async () => { await api('POST', path, body); await load(); document.dispatchEvent(new CustomEvent('tio:alarms-changed')); });
   }
 
   function alarmActions(a) {
